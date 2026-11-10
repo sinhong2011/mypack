@@ -269,7 +269,7 @@ func (a *App) windowOptions(main bool) mygo.WindowOptions {
 		AlwaysOnTop: w.AlwaysOnTop,
 		Page: mygo.PageOptions{
 			Session:          a.session,
-			UserAgent:        a.cfg.WebView.UserAgent,
+			UserAgent:        userAgent(a.cfg.WebView.UserAgent),
 			ZoomFactor:       float64(a.zoom) / 100,
 			PreloadScript:    a.preload,
 			PreloadAllFrames: false,
