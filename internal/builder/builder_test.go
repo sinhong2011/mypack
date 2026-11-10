@@ -89,6 +89,7 @@ func newEnv(t *testing.T, keys []string, caps []string) *env {
 func testConfig(name string, targets ...config.Target) *config.Config {
 	c := config.New(name, config.Source{Type: config.SourceURL, Value: "https://example.com/"}, config.Target{OS: runtime.GOOS, Arch: runtime.GOARCH})
 	c.Build.Targets = targets
+	c.Runtime.Version = "1.0.0" // the test registry publishes 1.0.0
 	return c
 }
 

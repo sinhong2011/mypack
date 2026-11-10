@@ -80,7 +80,7 @@ type fakeRuntimes struct {
 
 func (f *fakeRuntimes) SetRegistryURL(u string) { f.mu.Lock(); f.registry = u; f.mu.Unlock() }
 func (f *fakeRuntimes) List(ctx context.Context) ([]domain.RuntimeInfo, error) {
-	return []domain.RuntimeInfo{{Version: "1.0.0", Key: "linux-amd64"}}, nil
+	return []domain.RuntimeInfo{{Version: config.DefaultRuntimeVersion, Key: "linux-amd64"}}, nil
 }
 func (f *fakeRuntimes) Status(ctx context.Context, v, k string) (domain.RuntimeInfo, error) {
 	f.mu.Lock()
@@ -173,7 +173,7 @@ func newEnv(t *testing.T, mut ...func(*Options)) *env {
 	dir := t.TempDir()
 	e := &env{
 		eng: &fakeEngine{dir: filepath.Join(dir, "out")},
-		rt:  &fakeRuntimes{cached: map[string]bool{"1.0.0/linux-amd64": true}, size: 1 << 20},
+		rt:  &fakeRuntimes{cached: map[string]bool{config.DefaultRuntimeVersion + "/linux-amd64": true}, size: 1 << 20},
 		ins: &fakeInstaller{dir: dir},
 		dir: dir,
 	}
@@ -815,17 +815,17 @@ func TestRuntimesAndStorage(t *testing.T) {
 	ctx := context.Background()
 	e.rt.cached = map[string]bool{}
 	var prog int32
-	info, err := e.svc.DownloadRuntime(ctx, "1.0.0", "linux-amd64", func(a, b int64) { atomic.AddInt32(&prog, 1) })
+	info, err := e.svc.DownloadRuntime(ctx, config.DefaultRuntimeVersion, "linux-amd64", func(a, b int64) { atomic.AddInt32(&prog, 1) })
 	if err != nil || !info.Cached || prog != 1 {
 		t.Fatalf("download: %v %+v %d", err, info, prog)
 	}
-	if err := e.svc.DeleteRuntime(ctx, "1.0.0", "linux-amd64"); err != nil {
+	if err := e.svc.DeleteRuntime(ctx, config.DefaultRuntimeVersion, "linux-amd64"); err != nil {
 		t.Fatal(err)
 	}
 	if l, err := e.svc.ListRuntimes(ctx); err != nil || len(l) != 1 {
 		t.Fatal(err)
 	}
-	e.rt.cached["1.0.0/linux-amd64"] = true
+	e.rt.cached[config.DefaultRuntimeVersion+"/linux-amd64"] = true
 	p := e.project(t)
 	buildAndWait(t, e, p)
 	_ = os.MkdirAll(e.ins.ProfileDir(p.Config.App.ProfileID), 0o755)

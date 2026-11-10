@@ -570,8 +570,12 @@ func iconCandidates(doc *pageInfo, man *manifest, base *url.URL) []iconCand {
 	return out
 }
 
-// bestIcon tries candidates in order and returns the first that decodes.
+// bestIcon tries candidates in order and returns the largest real icon:
+// declared sizes are often wrong, so it stops early only once an icon is
+// actually ≥ 180px, otherwise it keeps the biggest one it decoded.
 func bestIcon(ctx context.Context, client *http.Client, cands []iconCand) ([]byte, string) {
+	var bestRaw []byte
+	bestURL, bestSize := "", 0
 	tries := 0
 	for _, c := range cands {
 		if tries >= maxIconTries || ctx.Err() != nil {
@@ -582,17 +586,30 @@ func bestIcon(ctx context.Context, client *http.Client, cands []iconCand) ([]byt
 		if err != nil || status >= 400 || len(b) == 0 {
 			continue
 		}
-		norm, err := icons.Normalize(b)
+		img, err := icons.Decode(b)
 		if err != nil {
 			continue
 		}
-		out, err := icons.Resize(norm, iconOutputMax)
-		if err != nil {
-			continue
+		size := min(img.Bounds().Dx(), img.Bounds().Dy())
+		if size > bestSize {
+			bestRaw, bestURL, bestSize = b, c.u, size
 		}
-		return out, c.u
+		if size >= 180 {
+			break
+		}
 	}
-	return nil, ""
+	if bestRaw == nil {
+		return nil, ""
+	}
+	norm, err := icons.Normalize(bestRaw)
+	if err != nil {
+		return nil, ""
+	}
+	out, err := icons.Resize(norm, iconOutputMax)
+	if err != nil {
+		return nil, ""
+	}
+	return out, bestURL
 }
 
 // ---- colors ----

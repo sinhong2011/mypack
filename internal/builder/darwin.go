@@ -52,7 +52,13 @@ func (j *job) customizeDarwin() error {
 	if err := os.WriteFile(filepath.Join(contents, "PkgInfo"), []byte("APPL????"), 0o644); err != nil {
 		return err
 	}
-	icns, err := icons.ICNS(j.iconPNG)
+	// Full-bleed artwork: macOS 26+ masks icons itself and "jails" icons
+	// that carry their own rounded corners/margins on a light plate.
+	art, err := icons.MacAppIcon(j.iconPNG)
+	if err != nil {
+		art = j.iconPNG
+	}
+	icns, err := icons.ICNS(art)
 	if err != nil {
 		return fmt.Errorf("icns: %w", err)
 	}

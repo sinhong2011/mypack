@@ -13,7 +13,8 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp bin/mypack "$APP/Contents/MacOS/mypack"
 [ -x bin/mypack-native-host ] && cp bin/mypack-native-host "$APP/Contents/MacOS/mypack-native-host"
-go run ./scripts/mkicns assets/AppIcon-1024.png "$APP/Contents/Resources/AppIcon.icns"
+go run ./scripts/macicon assets/AppIcon-1024.png assets/AppIcon-macOS-1024.png
+go run ./scripts/mkicns assets/AppIcon-macOS-1024.png "$APP/Contents/Resources/AppIcon.icns"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

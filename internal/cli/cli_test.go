@@ -370,9 +370,9 @@ func TestImportPake(t *testing.T) {
 func TestRuntimeCommands(t *testing.T) {
 	f := newFake()
 	f.runtimes = []domain.RuntimeInfo{
-		{Version: "1.0.0", Key: "linux-amd64", Cached: true, Verified: true},
+		{Version: config.DefaultRuntimeVersion, Key: "linux-amd64", Cached: true, Verified: true},
 		{Version: "0.9.0", Key: "linux-amd64", Cached: true},
-		{Version: "1.0.0", Key: "darwin-arm64"},
+		{Version: config.DefaultRuntimeVersion, Key: "darwin-arm64"},
 	}
 	f.projects = []domain.Project{{ID: "p", Config: func() *config.Config {
 		c := config.New("S", config.Source{Type: config.SourceURL, Value: "https://s.com/"}, host)

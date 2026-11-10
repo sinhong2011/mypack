@@ -223,12 +223,62 @@ func plateColors(img *image.NRGBA) [2]color.NRGBA {
 	if best != nil {
 		dom = color.NRGBA{uint8(best.r / best.n), uint8(best.g / best.n), uint8(best.b / best.n), 255}
 	}
+	if multicolor(img) {
+		// Multi-colored logos (Google, Slack, …) read best on white, the way
+		// their own app icons are designed.
+		return [2]color.NRGBA{{255, 255, 255, 255}, {238, 240, 244, 255}}
+	}
 	if avgL > 0.82 || best == nil && avgL > 0.6 {
 		// Mostly light glyph: a dark plate keeps it visible.
 		return [2]color.NRGBA{mix(dom, color.NRGBA{0, 0, 0, 255}, 0.45), mix(dom, color.NRGBA{0, 0, 0, 255}, 0.62)}
 	}
 	// Lightened dominant color, soft vertical gradient.
 	return [2]color.NRGBA{mix(dom, color.NRGBA{255, 255, 255, 255}, 0.90), mix(dom, color.NRGBA{255, 255, 255, 255}, 0.78)}
+}
+
+// multicolor reports whether at least three distinct hues each make up a
+// meaningful share of the saturated pixels.
+func multicolor(img *image.NRGBA) bool {
+	var hues [6]float64
+	var total float64
+	b := img.Bounds()
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			c := img.NRGBAAt(x, y)
+			if c.A < 128 {
+				continue
+			}
+			r, g, bl := float64(c.R)/255, float64(c.G)/255, float64(c.B)/255
+			mx, mn := math.Max(r, math.Max(g, bl)), math.Min(r, math.Min(g, bl))
+			if mx-mn < 0.35 || mx < 0.3 {
+				continue
+			}
+			var h float64
+			switch mx {
+			case r:
+				h = math.Mod((g-bl)/(mx-mn), 6)
+			case g:
+				h = (bl-r)/(mx-mn) + 2
+			default:
+				h = (r-g)/(mx-mn) + 4
+			}
+			if h < 0 {
+				h += 6
+			}
+			hues[int(h)%6]++
+			total++
+		}
+	}
+	if total == 0 {
+		return false
+	}
+	n := 0
+	for _, v := range hues {
+		if v/total > 0.08 {
+			n++
+		}
+	}
+	return n >= 3
 }
 
 func luminance(c color.NRGBA) float64 {
