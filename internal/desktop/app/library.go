@@ -70,7 +70,7 @@ func (a *App) libraryView(c *ui.Context) {
 				a.ui.save()
 			}
 			ui.Spacer(c)
-			search := lobeui.SearchBar(c.Key("search"), &l.query, T("library.search"), "mod+f").Width(220)
+			search := lobeui.SearchBar(c.Key("search"), &l.query, T("library.search"), "mod+f").Width(220).Label(T("library.search"))
 			search.Bind(&l.searchH)
 			if l.focusSearch {
 				l.focusSearch = false
@@ -320,6 +320,9 @@ func (a *App) appMenu(m *ui.Menu, in domain.Installation) {
 		a.create.setInput(in.SourceURL)
 		a.create.name, a.create.nameEdited = in.Name, true
 		a.nav(secCreate)
+	}
+	if in.State == domain.InstallMissing && m.Item(T("locate.remove")).Chosen() {
+		a.forgetApp(in.ID, in.Name)
 	}
 	if m.Item(T("action.reveal")).Disabled(in.State == domain.InstallMissing).Chosen() {
 		a.reveal(in.Path)

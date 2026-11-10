@@ -117,7 +117,7 @@ func (f *fakeSvc) ListInstallations(context.Context) ([]domain.Installation, err
 	return []domain.Installation{{ID: "ins_1", Name: "Site", State: domain.InstallManaged}}, nil
 }
 
-func run(t *testing.T, f *fakeSvc, args ...string) (code int, stdout, stderr string) {
+func run(t *testing.T, f appservice.Service, args ...string) (code int, stdout, stderr string) {
 	t.Helper()
 	var out, errb bytes.Buffer
 	code = RunWith(Deps{NewService: func() (appservice.Service, error) { return f, nil }}, args, &out, &errb)
@@ -487,5 +487,75 @@ func TestServiceOpenFailure(t *testing.T) {
 		[]string{"project", "list", "--json"}, &out, &errb)
 	if m := oneJSON(t, out.String()); code != ExitGeneric || m["ok"] != false {
 		t.Errorf("open failure: %d %v", code, m)
+	}
+}
+
+// licSvc adds license + relocate behaviour to the fake.
+type licSvc struct {
+	*fakeSvc
+	edition string
+	located [2]string
+}
+
+func (l *licSvc) License(context.Context) (appservice.LicenseStatus, error) {
+	if l.edition == "pro" {
+		return appservice.LicenseStatus{Edition: "pro", Valid: true, Email: "a@b.c", LicenseID: "lic_1"}, nil
+	}
+	return appservice.LicenseStatus{Edition: "free", ManagedApps: 1, FreeLimit: 2}, nil
+}
+func (l *licSvc) ActivateLicense(_ context.Context, tok, _ string) (appservice.LicenseStatus, error) {
+	if tok != "good" {
+		return appservice.LicenseStatus{}, &domain.Error{Code: "LICENSE_INVALID", Message: "bad", Remediation: "fix"}
+	}
+	l.edition = "pro"
+	return l.License(context.Background())
+}
+func (l *licSvc) DeactivateLicense(context.Context, string) error { l.edition = ""; return nil }
+func (l *licSvc) RelocateInstallation(_ context.Context, id, p, _ string) (domain.Installation, error) {
+	if id == "other" {
+		return domain.Installation{}, &domain.Error{Code: "NOT_SAME_APP", Message: "no"}
+	}
+	l.located = [2]string{id, p}
+	return domain.Installation{ID: id, Name: "Site", Path: p}, nil
+}
+
+func TestLicenseAndLocate(t *testing.T) {
+	l := &licSvc{fakeSvc: newFake()}
+	code, out, _ := run(t, l, "license", "status", "--json")
+	m := oneJSON(t, out)
+	if code != 0 || m["license"].(map[string]any)["edition"] != "free" {
+		t.Fatalf("status: %d %v", code, m)
+	}
+	if code, out, _ := run(t, l, "license", "status"); code != 0 || !strings.Contains(out, "1 of 2") {
+		t.Errorf("human status: %q", out)
+	}
+	code, out, _ = run(t, l, "license", "activate", "bad", "--json")
+	m = oneJSON(t, out)
+	if code != ExitValidation || m["error"].(map[string]any)["code"] != "LICENSE_INVALID" {
+		t.Errorf("bad activate: %d %v", code, m)
+	}
+	code, out, _ = run(t, l, "license", "activate", "good", "--json")
+	if m = oneJSON(t, out); code != 0 || m["license"].(map[string]any)["edition"] != "pro" {
+		t.Errorf("activate: %d %v", code, m)
+	}
+	if code, out, _ := run(t, l, "license", "status"); code != 0 || !strings.Contains(out, "Pro") {
+		t.Errorf("pro status: %q", out)
+	}
+	if code, _, _ := run(t, l, "license", "deactivate"); code != 0 || l.edition != "" {
+		t.Errorf("deactivate: %d", code)
+	}
+	if code, _, _ := run(t, l, "license"); code != ExitUsage {
+		t.Errorf("usage: %d", code)
+	}
+
+	if code, _, _ := run(t, l, "apps", "locate", "inst_1", "/x/Site.app"); code != 0 || l.located != [2]string{"inst_1", "/x/Site.app"} {
+		t.Errorf("locate: %v", l.located)
+	}
+	code, out, _ = run(t, l, "apps", "locate", "other", "/y.app", "--json")
+	if m = oneJSON(t, out); code != ExitValidation || m["error"].(map[string]any)["code"] != "NOT_SAME_APP" {
+		t.Errorf("locate mismatch: %d %v", code, m)
+	}
+	if code, _, _ := run(t, l, "apps", "locate", "only-one"); code != ExitUsage {
+		t.Errorf("locate usage: %d", code)
 	}
 }

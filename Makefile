@@ -6,10 +6,12 @@ VERSION   ?= 1.0.0
 DIST      := $(CURDIR)/dist
 REGISTRY  ?= file://$(DIST)/registry/registry.json
 PUBKEY     = $(shell cat $(DIST)/keys/registry.pub 2>/dev/null)
+LICPUB     = $(shell cat $(DIST)/keys/license.pub 2>/dev/null)
 LDFLAGS    = -s -w -X github.com/egoist/mygo.production=1 \
              -X mypack.dev/mypack/internal/cli.Version=$(VERSION) \
              -X mypack.dev/mypack/internal/appservice.DefaultRegistryURL=$(REGISTRY) \
-             -X mypack.dev/mypack/internal/runtimemanager.trustedKeysB64=$(PUBKEY)
+             -X mypack.dev/mypack/internal/runtimemanager.trustedKeysB64=$(PUBKEY) \
+             -X mypack.dev/mypack/internal/licensing.issuerKeysB64=$(LICPUB)
 
 .PHONY: all test vet runtimes cli gui app dmg run run-fake clean
 

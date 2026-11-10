@@ -1,12 +1,15 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
+	"mypack.dev/mypack/internal/appservice"
 	"mypack.dev/mypack/internal/desktop/components"
 	"mypack.dev/mypack/internal/desktop/design"
 	"mypack.dev/mypack/internal/desktop/lobeui"
@@ -18,6 +21,10 @@ type settingsState struct {
 	scrollAbout bool
 	registry    string
 	regInit     bool
+
+	licKey  string
+	licErr  string
+	licBusy bool
 }
 
 func (a *App) saveSettings() {
@@ -72,6 +79,8 @@ func (a *App) settingsView(c *ui.Context) {
 				}
 			})
 		})
+
+		a.licenseGroup(c)
 
 		// Appearance.
 		components.Group(c, T("settings.appearance"), func() {
@@ -178,3 +187,80 @@ Lucide icons — lucide.dev — ISC License
 modernc.org/sqlite — BSD-3-Clause
 golang.org/x/* — BSD-3-Clause
 Full license texts ship in mypack.app/Contents/Resources/licenses.`
+
+// licenseGroup is Settings › License (spec §9E): edition, free-app usage,
+// offline activation and deactivation. No prices are shown.
+func (a *App) licenseGroup(c *ui.Context) {
+	p := design.Of(c)
+	s, lic := &a.set, a.license
+	components.Group(c, T("settings.license"), func() {
+		pro := lic.Valid
+		note := T("license.freeNote", "limit", appservice.FreeManagedApps)
+		label, tone := T("license.free"), components.ToneNeutral
+		if pro {
+			note, label, tone = T("license.proNote"), T("license.pro"), components.ToneAccent
+		}
+		components.SettingRow(c, T("license.edition"), note, func() { components.StatusPill(c, label, tone) })
+		count := T("license.managed.unlimited", "used", lic.ManagedApps)
+		if !pro {
+			count = T("license.managed.count", "used", lic.ManagedApps, "limit", appservice.FreeManagedApps)
+		}
+		components.SettingRow(c.Key("managed"), T("license.managed"), "", func() {
+			ui.Text(c, count).FontSize(design.FontBody).TextColor(p.TextSecondary)
+		})
+		if pro {
+			who := T("license.id")
+			if lic.Email != "" {
+				who = T("license.licensedTo", "email", lic.Email)
+			}
+			components.SettingRow(c.Key("who"), who, lic.LicenseID, func() {
+				if components.Button(c.Key("deact"), T("license.deactivate"), components.ButtonOpts{Size: design.ControlSM}).Clicked() {
+					a.dlg.deactivateLicense = licenseConfirm{open: true}
+				}
+			})
+			return
+		}
+		if lic.Error != "" {
+			ui.Column(c).Padding(12, 14, 0, 14).Children(func() {
+				components.Note(c, lobeui.IconWarning(), T("license.savedInvalid"), components.ToneWarning)
+			})
+		}
+		components.SettingBlock(c, T("license.key.label"), T("license.key.desc"), func() {
+			ui.Row(c).Gap(8).Children(func() {
+				lobeui.Input(c.Key("lickey"), &s.licKey, lobeui.InputOpts{Size: lobeui.Small, Placeholder: T("license.key.placeholder"), Invalid: s.licErr != ""}).Font("Menlo").Grow(1)
+				if components.Button(c.Key("licgo"), T("license.activate"), components.ButtonOpts{Variant: components.Primary, Size: design.ControlSM, Loading: s.licBusy}).Clicked() {
+					a.activateLicense()
+				}
+			})
+			if s.licErr != "" {
+				ui.Text(c, s.licErr).FontSize(design.FontSmall).TextColor(p.Danger).LineHeight(1.4)
+			}
+		})
+	})
+}
+
+func (a *App) activateLicense() {
+	s := &a.set
+	key := strings.TrimSpace(s.licKey)
+	if key == "" {
+		s.licErr = T("license.empty")
+		return
+	}
+	s.licBusy, s.licErr = true, ""
+	a.do(func(ctx context.Context) error {
+		_, err := a.svc.ActivateLicense(ctx, key, "gui")
+		return err
+	}, func(err error) {
+		s.licBusy = false
+		switch {
+		case errCode(err) == appservice.CodeLicenseInvalid:
+			s.licErr = T("license.invalid")
+		case err != nil:
+			s.licErr = friendly(err)
+		default:
+			s.licKey = ""
+			a.reload("license")
+			a.toast(T("license.activated"), "", 1)
+		}
+	})
+}

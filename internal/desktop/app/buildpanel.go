@@ -419,6 +419,10 @@ func (a *App) installArtifact(artifactID string, replace bool) {
 			a.dlg.installConflict = true
 			return
 		}
+		if errCode(err) == appservice.CodeLicenseLimit {
+			a.dlg.licenseLimit = true
+			return
+		}
 		if err != nil {
 			a.toastErr(err)
 			return

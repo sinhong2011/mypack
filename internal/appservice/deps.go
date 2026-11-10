@@ -2,6 +2,7 @@ package appservice
 
 import (
 	"context"
+	"crypto/ed25519"
 
 	"mypack.dev/mypack/internal/builder"
 	"mypack.dev/mypack/internal/domain"
@@ -80,6 +81,12 @@ type Options struct {
 	Metadata     MetadataFetcher
 	Capabilities CapabilityFunc
 	Host         *config.Target // overrides builder.HostTarget()
+
+	// LicenseDir holds license.json ("" = beside DBPath when set, else
+	// <UserConfigDir>/mypack). LicenseKeys overrides the trusted issuer keys
+	// (nil = ldflags + MYPACK_LICENSE_PUBKEY); tests use it.
+	LicenseDir  string
+	LicenseKeys []ed25519.PublicKey
 }
 
 // ---- production adapters --------------------------------------------------

@@ -2,10 +2,13 @@ package app
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
+	"mypack.dev/mypack/internal/appservice"
 	"mypack.dev/mypack/internal/desktop/components"
 	"mypack.dev/mypack/internal/desktop/design"
 	"mypack.dev/mypack/internal/desktop/lobeui"
@@ -25,6 +28,13 @@ type dialogs struct {
 	update    installDialog
 	repair    installDialog
 	details   detailsDialog
+
+	licenseLimit      bool // free-edition limit explainer (spec §9E.6)
+	deactivateLicense licenseConfirm
+}
+
+type licenseConfirm struct {
+	open, busy bool
 }
 
 type identityDialog struct {
@@ -283,6 +293,60 @@ func (a *App) dialogs(c *ui.Context) {
 		}
 	}
 
+	// Free-edition limit: calm and factual, no countdowns, no price (spec §9E.6).
+	if d.licenseLimit {
+		limit := a.license.FreeLimit
+		if limit == 0 {
+			limit = appservice.FreeManagedApps
+		}
+		lobeui.Modal(c.Key("dlg-limit"), &d.licenseLimit, T("license.limit.title"), 460, func() {
+			ui.Column(c).Gap(12).Children(func() {
+				ui.Text(c, T("license.limit.body", "limit", limit)).FontSize(design.FontBody).TextColor(p.TextSecondary).LineHeight(1.45)
+				ui.Text(c, T("license.limit.options")).FontSize(design.FontBody).TextColor(p.TextSecondary).LineHeight(1.45)
+				ui.Row(c).Gap(8).Justify(ui.End).Margin(8, 0, 0, 0).Children(func() {
+					if components.Button(c.Key("later"), T("license.limit.later"), components.ButtonOpts{Variant: components.Ghost}).Clicked() {
+						d.licenseLimit = false
+					}
+					if components.Button(c.Key("manage"), T("license.limit.manage"), components.ButtonOpts{}).Clicked() {
+						d.licenseLimit = false
+						a.lib.tab, a.ui.LibraryTab = 0, 0
+						a.nav(secLibrary)
+					}
+					if components.Button(c.Key("enter"), T("license.limit.enter"), components.ButtonOpts{Variant: components.Primary}).Clicked() {
+						d.licenseLimit = false
+						a.nav(secSettings)
+					}
+				})
+			})
+		})
+	}
+
+	// Deactivate license.
+	if d.deactivateLicense.open {
+		u := &d.deactivateLicense
+		lobeui.Modal(c.Key("dlg-deact"), &u.open, T("license.deactivate.title"), 440, func() {
+			ui.Column(c).Gap(12).Children(func() {
+				ui.Text(c, T("license.deactivate.body")).FontSize(design.FontBody).TextColor(p.TextSecondary).LineHeight(1.45)
+				ok, cancel := footer(c, T("common.cancel"), T("license.deactivate"), components.Primary, u.busy, false)
+				if cancel {
+					u.open = false
+				}
+				if ok {
+					u.busy = true
+					a.do(func(ctx context.Context) error { return a.svc.DeactivateLicense(ctx, "gui") }, func(err error) {
+						u.busy, u.open = false, false
+						if err != nil {
+							a.toastErr(err)
+							return
+						}
+						a.reload("license")
+						a.toast(T("license.deactivated"), "", 1)
+					})
+				}
+			})
+		})
+	}
+
 	// Install conflict.
 	if d.installConflict {
 		lobeui.Modal(c.Key("dlg-conflict"), &d.installConflict, T("installConflict.title"), 440, func() {
@@ -316,6 +380,7 @@ func (a *App) detailsModal(c *ui.Context, u *detailsDialog, in *domain.Installat
 			switch in.State {
 			case domain.InstallMissing:
 				components.Note(c, lobeui.IconWarning(), T("myapps.missing"), components.ToneWarning)
+				components.Caption(c, T("locate.hint"))
 			case domain.InstallExternal:
 				components.Note(c, lobeui.IconLock(), T("myapps.readOnly"), components.ToneNeutral)
 			}
@@ -363,6 +428,10 @@ func (a *App) detailsModal(c *ui.Context, u *detailsDialog, in *domain.Installat
 					u.open = false
 					a.dlg.repair = installDialog{open: true, id: in.ID}
 				}
+				if in.State == domain.InstallMissing && components.Button(c.Key("forget"), T("locate.remove"), components.ButtonOpts{Variant: components.Ghost}).Clicked() {
+					u.open = false
+					a.forgetApp(in.ID, in.Name)
+				}
 				if in.State != domain.InstallMissing && components.Button(c.Key("reveal"), T("action.reveal"), components.ButtonOpts{}).Clicked() {
 					a.reveal(in.Path)
 				}
@@ -387,15 +456,51 @@ func (a *App) detailsModal(c *ui.Context, u *detailsDialog, in *domain.Installat
 	})
 }
 
-// locateApp asks where a moved app went. The service has no "reconnect"
-// call yet, so we reveal the chosen app and explain (see report).
+// locateApp asks where a moved app went and reconnects the library entry to
+// it. The service refuses a different app (NOT_SAME_APP).
 func (a *App) locateApp(id string) {
+	in := a.install(id)
+	if in == nil {
+		return
+	}
+	name, start := in.Name, filepath.Dir(in.Path)
+	if _, err := os.Stat(start); err != nil {
+		start = a.settings.InstallDir
+	}
 	go func() {
-		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.win, Title: T("locate.title"),
+		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.win, Title: T("locate.title"), DefaultPath: start,
 			Filters: []mygo.FileFilter{{Name: T("import.filter"), Extensions: []string{"app", "exe", "AppImage"}}}})
 		if err != nil || len(paths) == 0 {
 			return
 		}
-		a.win.Update(func() { a.toast(T("locate.unsupported"), paths[0], 0) })
+		a.relocate(id, name, paths[0])
 	}()
+}
+
+// relocate reconnects installation id to path (main-thread safe).
+func (a *App) relocate(id, name, path string) {
+	a.do(func(ctx context.Context) error {
+		_, err := a.svc.RelocateInstallation(ctx, id, path, "gui")
+		return err
+	}, func(err error) {
+		switch {
+		case errCode(err) == appservice.CodeNotSameApp:
+			a.toast(T("locate.notSame", "name", name), errInfo(err).Remediation, 2)
+		case err != nil:
+			a.toastErr(err)
+		default:
+			a.toast(T("locate.done", "name", name), "", 1)
+		}
+	})
+}
+
+// forgetApp drops the library entry only; files and website data stay.
+func (a *App) forgetApp(id, name string) {
+	a.do(func(ctx context.Context) error { return a.svc.ForgetInstallation(ctx, id, "gui") }, func(err error) {
+		if err != nil {
+			a.toastErr(err)
+			return
+		}
+		a.toast(T("locate.removed", "name", name), "", 1)
+	})
 }

@@ -111,6 +111,7 @@ type fakeInstaller struct {
 	cleared   []string
 	uninst    []string
 	launchErr error
+	info      func(p string) (installer.AppInfo, error) // optional ReadAppInfo override
 }
 
 func (f *fakeInstaller) DefaultInstallDir() string   { return filepath.Join(f.dir, "Applications") }
@@ -147,6 +148,9 @@ func (f *fakeInstaller) Uninstall(p string) error {
 }
 func (f *fakeInstaller) ClearProfile(id string) error { f.cleared = append(f.cleared, id); return nil }
 func (f *fakeInstaller) ReadAppInfo(p string) (installer.AppInfo, error) {
+	if f.info != nil {
+		return f.info(p)
+	}
 	return installer.AppInfo{Name: "Ext", Identifier: "com.ext.app", Version: "2"}, nil
 }
 

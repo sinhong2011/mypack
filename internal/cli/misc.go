@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 
@@ -42,12 +43,25 @@ func (a *app) cmdApps(args []string) int {
 	var asJSON bool
 	fs := a.flagSet("apps", &asJSON)
 	pos, err := parse(fs, args)
-	if err != nil || len(pos) != 1 || pos[0] != "list" {
-		return a.usageErr(asJSON, "usage: mypack apps list [--json]")
+	if err != nil || len(pos) == 0 || (pos[0] == "list" && len(pos) != 1) || (pos[0] == "locate" && len(pos) != 3) ||
+		(pos[0] != "list" && pos[0] != "locate") {
+		return a.usageErr(asJSON, "usage: mypack apps list [--json] | apps locate <id> <path> [--json]")
 	}
 	svc, err := a.service()
 	if err != nil {
 		return a.fail(err, asJSON, nil)
+	}
+	if pos[0] == "locate" {
+		in, err := svc.RelocateInstallation(context.Background(), pos[1], pos[2], "cli")
+		if err != nil {
+			return a.fail(err, asJSON, nil)
+		}
+		if asJSON {
+			a.okJSON(map[string]any{"installation": in})
+		} else {
+			fmt.Fprintf(a.out, "reconnected %s at %s\n", in.Name, in.Path)
+		}
+		return ExitOK
 	}
 	l, err := svc.ListInstallations(context.Background())
 	if err != nil {
@@ -196,6 +210,70 @@ func (a *app) cmdMCP(args []string) int {
 	if err := srv.Serve(ctx, a.d.Stdin, a.out); err != nil && ctx.Err() == nil {
 		fmt.Fprintf(a.errw, "mypack: mcp: %v\n", err)
 		return ExitGeneric
+	}
+	return ExitOK
+}
+
+func (a *app) cmdLicense(args []string) int {
+	var asJSON bool
+	fs := a.flagSet("license", &asJSON)
+	pos, err := parse(fs, args)
+	if err != nil || len(pos) == 0 {
+		return a.usageErr(asJSON, "usage: mypack license status | activate <token|-> | deactivate [--json]")
+	}
+	svc, err := a.service()
+	if err != nil {
+		return a.fail(err, asJSON, nil)
+	}
+	ctx := context.Background()
+	var st appservice.LicenseStatus
+	switch pos[0] {
+	case "status":
+		if len(pos) != 1 {
+			return a.usageErr(asJSON, "usage: mypack license status [--json]")
+		}
+		st, err = svc.License(ctx)
+	case "activate":
+		if len(pos) != 2 {
+			return a.usageErr(asJSON, "usage: mypack license activate <token|-> [--json]")
+		}
+		tok := pos[1]
+		if tok == "-" {
+			b, rerr := io.ReadAll(io.LimitReader(a.d.Stdin, 64<<10))
+			if rerr != nil {
+				return a.fail(rerr, asJSON, nil)
+			}
+			tok = string(b)
+		}
+		st, err = svc.ActivateLicense(ctx, tok, "cli")
+	case "deactivate":
+		if len(pos) != 1 {
+			return a.usageErr(asJSON, "usage: mypack license deactivate [--json]")
+		}
+		if err = svc.DeactivateLicense(ctx, "cli"); err == nil {
+			st, err = svc.License(ctx)
+		}
+	default:
+		return a.usageErr(asJSON, "usage: mypack license status | activate <token|-> | deactivate [--json]")
+	}
+	if err != nil {
+		return a.fail(err, asJSON, nil)
+	}
+	if asJSON {
+		a.okJSON(map[string]any{"license": st})
+		return ExitOK
+	}
+	if st.Valid {
+		fmt.Fprintf(a.out, "Edition: Pro (unlimited managed apps)\n")
+		if st.Email != "" {
+			fmt.Fprintf(a.out, "Licensed to: %s\n", st.Email)
+		}
+		fmt.Fprintf(a.out, "License ID: %s\n", st.LicenseID)
+	} else {
+		fmt.Fprintf(a.out, "Edition: Free (%d of %d managed apps)\n", st.ManagedApps, st.FreeLimit)
+		if st.Error != "" {
+			fmt.Fprintf(a.out, "Saved license is not valid: %s\n", st.Error)
+		}
 	}
 	return ExitOK
 }

@@ -35,6 +35,13 @@ func (s *Impl) InstallAndOpen(ctx context.Context, req InstallRequest) (inst dom
 	}
 	existing := s.managedInstallationFor(ctx, art.ProjectID)
 	replace := req.Replace
+	if existing == nil {
+		// Only a NEW managed app counts against the Free allowance; re-installing
+		// one's own app is an update and is never gated.
+		if err = s.checkManagedQuota(ctx); err != nil {
+			return inst, err
+		}
+	}
 	if existing != nil {
 		replace = true // re-installing our own managed app is an update, not a conflict
 		if s.inst.IsRunning(existing.Path) {

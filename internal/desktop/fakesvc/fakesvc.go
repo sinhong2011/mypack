@@ -27,6 +27,7 @@ import (
 	"mypack.dev/mypack/internal/appservice"
 	"mypack.dev/mypack/internal/domain"
 	"mypack.dev/mypack/internal/icons"
+	"mypack.dev/mypack/internal/licensing"
 	"mypack.dev/mypack/pkg/config"
 )
 
@@ -46,6 +47,8 @@ type Service struct {
 	nextID    int
 	host      config.Target
 	speed     float64
+
+	licenseToken string // verified token, "" = Free
 
 	subMu sync.Mutex
 	subs  map[int]chan appservice.Event
@@ -820,6 +823,12 @@ func (s *Service) InstallAndOpen(ctx context.Context, req appservice.InstallRequ
 		}
 	}
 	name := config.ExecutableName(j.Snapshot.App.Name)
+	if inst == nil && s.licenseTokenLocked() == "" && s.managedCountLocked() >= appservice.FreeManagedApps {
+		s.mu.Unlock()
+		return domain.Installation{}, &domain.Error{Code: appservice.CodeLicenseLimit,
+			Message:     "The free edition includes up to 2 managed apps, and you have 2.",
+			Remediation: "Manage or uninstall an existing app, export its config, or enter a license key to add more."}
+	}
 	if inst == nil {
 		inst = &domain.Installation{ID: s.id("inst"), ProjectID: a.ProjectID, InstalledAt: time.Now()}
 		s.installs = append(s.installs, inst)
@@ -935,6 +944,103 @@ func (s *Service) Uninstall(ctx context.Context, id string, clearData bool, acto
 	}
 	s.mu.Unlock()
 	return notFound("The app")
+}
+
+func (s *Service) RelocateInstallation(ctx context.Context, id, newPath, actor string) (domain.Installation, error) {
+	s.mu.Lock()
+	in := s.inst(id)
+	if in == nil {
+		s.mu.Unlock()
+		return domain.Installation{}, notFound("The app")
+	}
+	// Demo hook: a chosen app whose name contains "other" is a different app.
+	if strings.Contains(strings.ToLower(filepath.Base(newPath)), "other") {
+		s.mu.Unlock()
+		return domain.Installation{}, &domain.Error{Code: appservice.CodeNotSameApp,
+			Message:     "That app is not " + in.Name + " (its identifier does not match).",
+			Remediation: "Choose the app this entry was created from, or remove the entry from your library."}
+	}
+	in.Path = newPath
+	if in.State == domain.InstallMissing {
+		in.State = domain.InstallManaged
+	}
+	out := *in
+	s.logActivity(actorOr(actor), "installation.relocate", id, "")
+	s.mu.Unlock()
+	s.publish(appservice.Event{Kind: appservice.EventInstallChanged, InstallID: id, ProjectID: out.ProjectID})
+	return out, nil
+}
+
+func (s *Service) ForgetInstallation(ctx context.Context, id, actor string) error {
+	s.mu.Lock()
+	for i, in := range s.installs {
+		if in.ID == id {
+			s.installs = append(s.installs[:i], s.installs[i+1:]...)
+			s.logActivity(actorOr(actor), "installation.forget", id, "")
+			s.mu.Unlock()
+			s.publish(appservice.Event{Kind: appservice.EventInstallChanged, InstallID: id})
+			return nil
+		}
+	}
+	s.mu.Unlock()
+	return notFound("The app")
+}
+
+// ---- license ---------------------------------------------------------------------
+
+func (s *Service) licenseTokenLocked() string { return s.licenseToken }
+
+func (s *Service) managedCountLocked() int {
+	n := 0
+	for _, in := range s.installs {
+		if in.State == domain.InstallManaged || in.State == domain.InstallAttention {
+			n++
+		}
+	}
+	return n
+}
+
+func (s *Service) License(ctx context.Context) (appservice.LicenseStatus, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	st := appservice.LicenseStatus{Edition: licensing.EditionFree, FreeLimit: appservice.FreeManagedApps, ManagedApps: s.managedCountLocked()}
+	if s.licenseToken == "" {
+		return st, nil
+	}
+	p, err := licensing.Verify(s.licenseToken, nil)
+	if err != nil {
+		st.Error = err.Error()
+		return st, nil
+	}
+	st.Edition, st.Valid, st.FreeLimit, st.Email, st.LicenseID = p.Edition, true, 0, p.Email, p.LicenseID
+	return st, nil
+}
+
+// ActivateLicense verifies real tokens against MYPACK_LICENSE_PUBKEY, exactly
+// like the production service (generate one with scripts/issuelicense).
+func (s *Service) ActivateLicense(ctx context.Context, token, actor string) (appservice.LicenseStatus, error) {
+	token = strings.Join(strings.Fields(token), "")
+	if _, err := licensing.Verify(token, nil); err != nil {
+		msg := err.Error()
+		if token == "" {
+			msg = "paste your license key to activate it"
+		}
+		return appservice.LicenseStatus{}, &domain.Error{Code: appservice.CodeLicenseInvalid,
+			Message: strings.ToUpper(msg[:1]) + msg[1:] + ".", Remediation: "Check that you copied the whole key, or contact support to recover your license."}
+	}
+	s.mu.Lock()
+	s.licenseToken = token
+	s.logActivity(actorOr(actor), "license.activate", "", "")
+	s.mu.Unlock()
+	return s.License(ctx)
+}
+
+func (s *Service) DeactivateLicense(ctx context.Context, actor string) error {
+	s.mu.Lock()
+	s.licenseToken = ""
+	s.logActivity(actorOr(actor), "license.deactivate", "", "")
+	s.mu.Unlock()
+	return nil
 }
 
 func (s *Service) ImportExistingApp(ctx context.Context, path, actor string) (domain.Installation, error) {

@@ -15,6 +15,7 @@ import (
 
 	"mypack.dev/mypack/internal/builder"
 	"mypack.dev/mypack/internal/domain"
+	"mypack.dev/mypack/internal/licensing"
 	"mypack.dev/mypack/internal/metadata"
 	"mypack.dev/mypack/internal/runtimemanager"
 	"mypack.dev/mypack/internal/storage"
@@ -46,6 +47,7 @@ type Impl struct {
 	host     config.Target
 
 	bus *bus
+	lic licensing.Store
 
 	ctx    context.Context // lifetime of background work
 	cancel context.CancelFunc
@@ -78,6 +80,14 @@ func New(opts Options) (*Impl, error) {
 			return nil, err
 		}
 		s.store, s.ownStore = st, true
+	}
+	switch {
+	case opts.LicenseDir != "":
+		s.lic.Dir = opts.LicenseDir
+	case opts.DBPath != "":
+		s.lic.Dir = filepath.Dir(opts.DBPath)
+	default:
+		s.lic.Dir, _ = licensing.DefaultDir()
 	}
 	n := opts.Concurrency
 	if n <= 0 {

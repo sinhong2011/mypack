@@ -76,8 +76,25 @@ type Service interface {
 	// Uninstall removes the program; clearData additionally removes the
 	// website data (profile) and must be separately confirmed in UI.
 	Uninstall(ctx context.Context, id string, clearData bool, actor string) error
+	// RelocateInstallation reconnects a missing installation to the app now at
+	// newPath (spec §9C.7). The app must be the same one (identifier match and,
+	// for managed apps, created by mypack), else NOT_SAME_APP.
+	RelocateInstallation(ctx context.Context, id, newPath, actor string) (domain.Installation, error)
+	// ForgetInstallation removes the library record only; no files or website
+	// data are touched.
+	ForgetInstallation(ctx context.Context, id, actor string) error
 	// ImportExistingApp registers a third-party app read-only (spec §9C.7).
 	ImportExistingApp(ctx context.Context, path, actor string) (domain.Installation, error)
+
+	// ---- License (spec §9E, offline-first, Builder-only) -----------------
+
+	// License reports the local entitlement. It never needs the network.
+	License(ctx context.Context) (LicenseStatus, error)
+	// ActivateLicense verifies an entitlement token locally and stores it.
+	// Failure: LICENSE_INVALID. The Free edition's managed-app allowance is
+	// enforced by InstallAndOpen (LICENSE_LIMIT); nothing else is gated.
+	ActivateLicense(ctx context.Context, token, actor string) (LicenseStatus, error)
+	DeactivateLicense(ctx context.Context, actor string) error
 
 	// ---- Runtimes -------------------------------------------------------
 
