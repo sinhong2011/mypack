@@ -22,7 +22,8 @@ import (
 )
 
 // DefaultRegistryURL is the placeholder production registry.
-const DefaultRegistryURL = "https://registry.mypack.dev/runtimes/registry.json"
+// DefaultRegistryURL is overridable at link time (-X ...appservice.DefaultRegistryURL=...).
+var DefaultRegistryURL = "https://registry.mypack.dev/runtimes/registry.json"
 
 // Auditor is an optional capability of the service: frontends that perform
 // read-only calls (the MCP server) record them in the activity log through it.
