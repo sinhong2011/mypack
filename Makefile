@@ -13,7 +13,7 @@ LDFLAGS    = -s -w -X github.com/egoist/mygo.production=1 \
              -X mypack.dev/mypack/internal/runtimemanager.trustedKeysB64=$(PUBKEY) \
              -X mypack.dev/mypack/internal/licensing.issuerKeysB64=$(LICPUB)
 
-.PHONY: all test vet runtimes cli gui app dmg run run-fake clean
+.PHONY: all test vet runtimes cli gui app dmg release run run-fake clean
 
 all: runtimes app
 
@@ -38,6 +38,10 @@ app: gui
 
 dmg: app
 	scripts/package-app.sh $(VERSION) dmg
+
+# make release SIGN_IDENTITY="Developer ID Application: …" NOTARY_PROFILE=mypack
+release: gui
+	SIGN_IDENTITY="$(SIGN_IDENTITY)" NOTARY_PROFILE="$(NOTARY_PROFILE)" scripts/package-app.sh $(VERSION) dmg
 
 run:
 	MYPACK_REGISTRY=$(REGISTRY) MYPACK_DEV_TRUST=1 go run ./cmd/mypack

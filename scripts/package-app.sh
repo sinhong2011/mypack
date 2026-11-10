@@ -43,7 +43,17 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </dict>
 </plist>
 PLIST
-codesign --force --deep --sign - --timestamp=none "$APP"
+# SIGN_IDENTITY: "-" (ad-hoc, default) or a Developer ID Application identity.
+SIGN_IDENTITY="${SIGN_IDENTITY:--}"
+if [ "$SIGN_IDENTITY" = "-" ]; then
+  codesign --force --deep --sign - --timestamp=none "$APP"
+else
+  # Inside-out: helper executables first, then the bundle; hardened runtime for notarization.
+  for bin in "$APP/Contents/MacOS/mypack-native-host" "$APP/Contents/MacOS/mypack"; do
+    [ -f "$bin" ] && codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$bin"
+  done
+  codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$APP"
+fi
 codesign --verify --deep --strict "$APP"
 echo "built $APP ($(du -sh "$APP" | cut -f1))"
 
@@ -54,5 +64,15 @@ if [ "${2:-}" = "dmg" ]; then
   rm -f "dist/mypack-$VERSION.dmg"
   hdiutil create -volname "mypack" -srcfolder "$STAGE" -ov -format UDZO "dist/mypack-$VERSION.dmg" >/dev/null
   rm -rf "$STAGE"
+  if [ "$SIGN_IDENTITY" != "-" ]; then
+    codesign --force --timestamp --sign "$SIGN_IDENTITY" "dist/mypack-$VERSION.dmg"
+  fi
   echo "built dist/mypack-$VERSION.dmg"
+  # NOTARY_PROFILE: a profile stored with `xcrun notarytool store-credentials`.
+  if [ -n "${NOTARY_PROFILE:-}" ]; then
+    xcrun notarytool submit "dist/mypack-$VERSION.dmg" --keychain-profile "$NOTARY_PROFILE" --wait
+    xcrun stapler staple "dist/mypack-$VERSION.dmg"
+    xcrun stapler validate "dist/mypack-$VERSION.dmg"
+    spctl --assess --type open --context context:primary-signature -v "dist/mypack-$VERSION.dmg"
+  fi
 fi
