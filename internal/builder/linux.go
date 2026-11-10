@@ -25,7 +25,7 @@ func (j *job) desktopFile(exec, icon string) []byte {
 Type=Application
 Version=1.0
 Name=%s
-Exec=%s
+Exec="%s"
 Icon=%s
 Terminal=false
 Categories=Network;
