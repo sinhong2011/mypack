@@ -19,7 +19,7 @@ import (
 const SchemaVersion = 1
 
 // DefaultRuntimeVersion is the runtime version new projects pin (ADR-005).
-const DefaultRuntimeVersion = "1.0.1"
+const DefaultRuntimeVersion = "1.0.2"
 
 // Config is the full mypack.json document.
 type Config struct {

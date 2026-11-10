@@ -46,6 +46,9 @@ type State struct {
 	// configured zoom (rebuilt app) wins over a stale user choice.
 	Zoom     int `json:"zoom,omitempty"`
 	ZoomBase int `json:"zoomBase,omitempty"`
+	// Tint is the last top-strip color ("r,g,b"), so the next launch starts
+	// with the right color instead of flashing the default.
+	Tint string `json:"tint,omitempty"`
 }
 
 // Store persists State atomically.

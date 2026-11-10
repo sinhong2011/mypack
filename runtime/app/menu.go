@@ -75,7 +75,14 @@ func (a *App) buildMenu() *mygo.Menu {
 		{Role: mygo.RoleToggleFullScreen},
 	}
 	if a.cfg.WebView.DevTools {
-		view = append(view, mygo.Separator(), &mygo.MenuItem{Role: mygo.RoleToggleDevTools})
+		// Not RoleToggleDevTools: in a window of native UI (strip layout) that
+		// role opens MyGo's UI inspector, not the page's.
+		acc := "Alt+Cmd+I"
+		if runtime.GOOS != "darwin" {
+			acc = "Ctrl+Shift+I"
+		}
+		view = append(view, mygo.Separator(), &mygo.MenuItem{Label: "Toggle Developer Tools", Accelerator: a.acc(acc),
+			Click: click(func(_ *mygo.Window, p *mygo.Page) { p.ToggleDevTools() })})
 	}
 
 	items := []*mygo.MenuItem{

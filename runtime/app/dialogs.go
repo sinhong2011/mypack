@@ -90,7 +90,7 @@ func (a *App) promptCredentials(parent *mygo.Window, req mygo.AuthRequest, key s
 		a.mu.Unlock()
 		done()
 		if parent != nil && !parent.IsDestroyed() {
-			if pg := parent.Page(); pg != nil {
+			if pg := a.pageOf(parent); pg != nil {
 				pg.Reload()
 			}
 		}

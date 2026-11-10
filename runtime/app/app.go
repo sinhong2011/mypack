@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/ui"
 	"mypack.dev/mypack/pkg/config"
 	"mypack.dev/mypack/runtime/inject"
 	"mypack.dev/mypack/runtime/navigation"
@@ -37,7 +38,7 @@ type App struct {
 
 	mu       sync.Mutex
 	main     *mygo.Window
-	windows  map[*mygo.Window]bool // web windows
+	windows  map[*mygo.Window]*mygo.Page // app windows -> their web page
 	zoom     int
 	quitting bool
 	shown    bool
@@ -88,7 +89,7 @@ func fatal(title, msg string) {
 func New(cfg *config.Config, cfgDir string) (*App, error) {
 	a := &App{
 		cfg: cfg, cfgDir: cfgDir,
-		windows:  map[*mygo.Window]bool{},
+		windows:  map[*mygo.Window]*mygo.Page{},
 		creds:    map[string]credEntry{},
 		prompts:  map[string]bool{},
 		finds:    map[*mygo.Window]*mygo.Window{},
@@ -249,43 +250,61 @@ func (a *App) buildPreload() string {
 			css = append(css, content)
 		}
 	}
-	return inject.Build(inject.Options{JS: js, CSS: css, DragStrip: a.customTitleBar(), DisabledShortcuts: a.cfg.WebView.DisabledKeys})
+	return inject.Build(inject.Options{JS: js, CSS: css, DragStrip: a.framelessBar(), DisabledShortcuts: a.cfg.WebView.DisabledKeys})
 }
 
-func (a *App) customTitleBar() bool {
+// framelessBar: only frameless windows (decorations:false) still need the
+// injected drag region; hidden/overlay use the native strip (shell.go).
+func (a *App) framelessBar() bool {
 	w := a.cfg.Window
-	return w.TitleBarStyle == "hidden" || w.TitleBarStyle == "overlay" || (w.Decorations != nil && !*w.Decorations)
+	return w.Decorations != nil && !*w.Decorations
 }
 
-// windowOptions returns the shared options of every app window.
-func (a *App) windowOptions(main bool) mygo.WindowOptions {
-	w := a.cfg.Window
-	o := mygo.WindowOptions{
-		Title:       a.title(),
-		Width:       w.Width,
-		Height:      w.Height,
-		MinWidth:    w.MinWidth,
-		MinHeight:   w.MinHeight,
-		AlwaysOnTop: w.AlwaysOnTop,
-		Page: mygo.PageOptions{
-			Session:          a.session,
-			UserAgent:        userAgent(a.cfg.WebView.UserAgent),
-			ZoomFactor:       float64(a.zoom) / 100,
-			PreloadScript:    a.preload,
-			PreloadAllFrames: false,
-			SwipeNavigation:  true,
-			DevTools:         mygo.DevToolsDisabled,
-		},
-		BackgroundColor: w.Background,
+// pageOptions are the web page options of every app page.
+func (a *App) pageOptions() mygo.PageOptions {
+	p := mygo.PageOptions{
+		Session:          a.session,
+		UserAgent:        userAgent(a.cfg.WebView.UserAgent),
+		ZoomFactor:       float64(a.zoom) / 100,
+		PreloadScript:    a.preload,
+		PreloadAllFrames: false,
+		SwipeNavigation:  true,
+		DevTools:         mygo.DevToolsDisabled,
 	}
 	if a.cfg.WebView.DevTools {
-		o.Page.DevTools = mygo.DevToolsEnabled
+		p.DevTools = mygo.DevToolsEnabled
 	}
-	switch w.TitleBarStyle {
-	case "hidden":
-		o.TitleBarStyle = mygo.TitleBarHidden
-	case "overlay":
-		o.TitleBarStyle = mygo.TitleBarHiddenInset
+	return p
+}
+
+// windowOptions returns the shared options of every app window. With strip
+// the window shows native UI (strip + web view, see shell.go) instead of a
+// page; popups opened by pages pass strip=false and get a regular title bar.
+func (a *App) windowOptions(main, strip bool) mygo.WindowOptions {
+	w := a.cfg.Window
+	o := mygo.WindowOptions{
+		Title:           a.title(),
+		Width:           w.Width,
+		Height:          w.Height,
+		MinWidth:        w.MinWidth,
+		MinHeight:       w.MinHeight,
+		AlwaysOnTop:     w.AlwaysOnTop,
+		BackgroundColor: w.Background,
+	}
+	if !strip {
+		o.Page = a.pageOptions()
+	}
+	if strip {
+		h := a.stripHeight()
+		if w.TitleBarStyle == "overlay" {
+			o.TitleBarStyle = mygo.TitleBarHiddenInset
+			// Traffic lights (14px) vertically centered in the strip.
+			o.TrafficLightPosition = &mygo.Point{X: 18, Y: (h - 14) / 2}
+		} else {
+			o.TitleBarStyle = mygo.TitleBarHidden
+			o.TrafficLightPosition = &mygo.Point{X: 13, Y: (h - 14) / 2}
+		}
+		o.TitleBarHeight = 32
 	}
 	if w.Decorations != nil && !*w.Decorations {
 		o.Frameless, o.TitleBarStyle = true, ""
@@ -294,6 +313,30 @@ func (a *App) windowOptions(main bool) mygo.WindowOptions {
 		o.Maximized, o.FullScreen = w.Maximized, w.Fullscreen
 	}
 	return o
+}
+
+// openWindow creates an app window loading url and returns it with its web
+// page. Main thread.
+func (a *App) openWindow(main bool, url, stateKey string, hidden bool) (*mygo.Window, *mygo.Page) {
+	strip := a.useStrip()
+	o := a.windowOptions(main, strip)
+	o.Hidden, o.StateKey = hidden, stateKey
+	if !strip {
+		o.URL = url
+		w := safeNewWindow(o)
+		return w, w.Page()
+	}
+	s := a.newShell()
+	o.Content = ui.View(s.viewFn)
+	w := safeNewWindow(o)
+	s.win = w
+	p, err := s.attach(url)
+	if err != nil {
+		log.Printf("mypack-runtime: web view: %v", err)
+		return w, nil
+	}
+	a.registerPage(w, p)
+	return w, p
 }
 
 // safeNewWindow tolerates an invalid background color (NewWindow panics).
@@ -312,15 +355,11 @@ func safeNewWindow(o mygo.WindowOptions) (w *mygo.Window) {
 }
 
 func (a *App) start() {
-	o := a.windowOptions(true)
-	o.URL = a.startURL
-	o.Hidden = true
-	o.StateKey = "main"
-	w := safeNewWindow(o)
+	w, p := a.openWindow(true, a.startURL, "main", true)
 	a.mu.Lock()
 	a.main = w
 	a.mu.Unlock()
-	a.attachMain(w)
+	a.attachMain(w, p)
 
 	startHidden := a.cfg.Native.StartToTray
 	if a.cfg.Native.Tray {
@@ -352,11 +391,12 @@ func (a *App) start() {
 }
 
 // attachMain wires what only the main window does.
-func (a *App) attachMain(w *mygo.Window) {
-	p := w.Page()
+func (a *App) attachMain(w *mygo.Window, p *mygo.Page) {
 	title := a.title()
-	p.OnPageTitleUpdated(func(e *mygo.TitleEvent) { e.PreventDefault(); w.SetTitle(title) })
-	if a.cfg.WebView.RestoreLastURL && !a.cfg.WebView.Incognito && a.cfg.App.Source.Type == config.SourceURL {
+	if p != nil {
+		p.OnPageTitleUpdated(func(e *mygo.TitleEvent) { e.PreventDefault(); w.SetTitle(title) })
+	}
+	if p != nil && a.cfg.WebView.RestoreLastURL && !a.cfg.WebView.Incognito && a.cfg.App.Source.Type == config.SourceURL {
 		p.OnDidNavigate(func(u string) {
 			if strings.HasPrefix(u, "http") && SameOrigin(a.home, u) {
 				a.state.Update(func(s *State) { s.LastURL = u })
@@ -375,13 +415,22 @@ func (a *App) attachMain(w *mygo.Window) {
 }
 
 // setupWindow runs for every window MyGo creates (main, popups, new windows).
+// Windows showing native UI (the strip layout) register their page from
+// openWindow instead.
 func (a *App) setupWindow(w *mygo.Window) {
-	p := w.Page()
-	if p == nil {
-		return // native UI helper window
+	if p := w.Page(); p != nil {
+		a.registerPage(w, p)
 	}
+}
+
+// registerPage wires every per-page feature of window w showing page p.
+func (a *App) registerPage(w *mygo.Window, p *mygo.Page) {
 	a.mu.Lock()
-	a.windows[w] = true
+	if _, dup := a.windows[w]; dup {
+		a.mu.Unlock()
+		return
+	}
+	a.windows[w] = p
 	a.mu.Unlock()
 	w.OnClosed(func() {
 		a.mu.Lock()
@@ -437,7 +486,7 @@ func (a *App) onWillNavigate(e *mygo.NavigateEvent) {
 func (a *App) onWindowOpen(req mygo.WindowOpenRequest) *mygo.WindowOptions {
 	switch a.policy.Popup(req.URL, req.UserInitiated) {
 	case navigation.Internal:
-		o := a.windowOptions(false)
+		o := a.windowOptions(false, false) // popups keep window.opener: regular title bar
 		o.Title = a.title()
 		if req.Width > 0 {
 			o.Width, o.Height = req.Width, req.Height
@@ -485,13 +534,11 @@ func (a *App) showMain() {
 		if a.policy == nil {
 			return
 		}
-		o := a.windowOptions(true)
-		o.URL, o.StateKey = a.home, "main"
-		w = safeNewWindow(o)
+		w, p := a.openWindow(true, a.home, "main", false)
 		a.mu.Lock()
 		a.main = w
 		a.mu.Unlock()
-		a.attachMain(w)
+		a.attachMain(w, p)
 		return
 	}
 	if w.IsMinimized() {
@@ -513,29 +560,32 @@ func (a *App) toggleMain() {
 }
 
 func (a *App) newWindow() {
-	o := a.windowOptions(false)
-	o.URL = a.home
-	safeNewWindow(o)
+	a.openWindow(false, a.home, "", false)
 }
 
 // pageFor returns the web page of win, else of the main/any web window.
 func (a *App) pageFor(win *mygo.Window) (*mygo.Window, *mygo.Page) {
-	if win != nil {
-		if p := win.Page(); p != nil {
-			return win, p
-		}
-	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.main != nil && a.main.Page() != nil {
-		return a.main, a.main.Page()
+	if p := a.windows[win]; p != nil {
+		return win, p
 	}
-	for w := range a.windows {
-		if p := w.Page(); p != nil {
+	if p := a.windows[a.main]; p != nil {
+		return a.main, p
+	}
+	for w, p := range a.windows {
+		if p != nil {
 			return w, p
 		}
 	}
 	return nil, nil
+}
+
+// pageOf returns the web page shown by window w, or nil.
+func (a *App) pageOf(w *mygo.Window) *mygo.Page {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.windows[w]
 }
 
 func (a *App) setZoom(delta int, reset bool) {
@@ -550,15 +600,13 @@ func (a *App) setZoom(delta int, reset bool) {
 		a.zoom = clampZoom(a.zoom + delta)
 	}
 	z := a.zoom
-	ws := make([]*mygo.Window, 0, len(a.windows))
-	for w := range a.windows {
-		ws = append(ws, w)
+	ps := make([]*mygo.Page, 0, len(a.windows))
+	for _, p := range a.windows {
+		ps = append(ps, p)
 	}
 	a.mu.Unlock()
 	a.state.Update(func(s *State) { s.Zoom, s.ZoomBase = z, base })
-	for _, w := range ws {
-		if p := w.Page(); p != nil {
-			p.SetZoomFactor(float64(z) / 100)
-		}
+	for _, p := range ps {
+		p.SetZoomFactor(float64(z) / 100)
 	}
 }
