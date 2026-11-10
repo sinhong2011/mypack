@@ -29,6 +29,7 @@ cli:
 
 gui:
 	go build -trimpath -tags mygo_noinspector -ldflags "$(LDFLAGS)" -o bin/mypack ./cmd/mypack
+	go build -trimpath -ldflags "$(LDFLAGS)" -o bin/mypack-native-host ./cmd/mypack-native-host
 
 app: gui
 	scripts/package-app.sh $(VERSION)

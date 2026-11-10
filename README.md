@@ -28,3 +28,19 @@ make runtimes   # cross-compile + sign generated-app runtimes into dist/registry
 make app        # build dist/mypack.app (macOS)
 make test
 ```
+
+## Using it
+
+- **App:** open `dist/mypack-1.0.0.dmg` and drag mypack to Applications (or `open dist/mypack.app`).
+- **CLI:** the same binary is the CLI — `mypack.app/Contents/MacOS/mypack help`.
+  `mypack create github.com --json`, `mypack build <id> --yes --json`, exit codes in ARCHITECTURE.md.
+- **Agents (MCP):** `mypack.app/Contents/MacOS/mypack mcp serve --transport stdio`
+  (Settings › Agent Connections shows copy-ready config for Claude Code / Codex).
+- **Browser Companion (optional):** load `apps/browser-companion` unpacked in Chrome/Edge, then
+  `mypack.app/Contents/MacOS/mypack-native-host install --extension-id <ID> --browser all`.
+  See [docs/companion.md](docs/companion.md).
+- **Demo mode:** `make run-fake` runs the GUI against an in-memory demo service.
+
+Dev runtime registry: `make runtimes` signs `dist/registry` with a dev key in `dist/keys/`
+(never commit it); `make app` embeds that registry URL and public key into the build.
+A production release needs a hosted registry and a real signing key.

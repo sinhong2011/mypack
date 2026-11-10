@@ -12,6 +12,7 @@ export GOTOOLCHAIN="${GOTOOLCHAIN:-auto}"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp bin/mypack "$APP/Contents/MacOS/mypack"
+[ -x bin/mypack-native-host ] && cp bin/mypack-native-host "$APP/Contents/MacOS/mypack-native-host"
 go run ./scripts/mkicns assets/AppIcon-1024.png "$APP/Contents/Resources/AppIcon.icns"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 cat > "$APP/Contents/Info.plist" <<PLIST
@@ -33,6 +34,11 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>NSPrincipalClass</key><string>NSApplication</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSSupportsAutomaticGraphicsSwitching</key><true/>
+  <key>CFBundleURLTypes</key>
+  <array><dict>
+    <key>CFBundleURLName</key><string>dev.mypack.builder</string>
+    <key>CFBundleURLSchemes</key><array><string>mypack</string></array>
+  </dict></array>
   <key>NSHumanReadableCopyright</key><string>© 2026 mypack. All rights reserved.</string>
 </dict>
 </plist>

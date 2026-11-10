@@ -49,6 +49,9 @@ func isCLI(args []string) bool {
 		if strings.HasPrefix(a, "-psn_") || strings.HasPrefix(a, "-NS") || strings.HasPrefix(a, "-Apple") {
 			continue
 		}
+		if a == "--show-project" || strings.HasPrefix(a, "mypack://") {
+			return false // GUI launch intents (browser companion, deep links)
+		}
 		return true
 	}
 	return false

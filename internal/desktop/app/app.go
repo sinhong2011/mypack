@@ -107,6 +107,9 @@ func Run(svc appservice.Service) error {
 		a.section = secLibrary
 	}
 	a.create.reset(a.host)
+	if id := showProjectArg(os.Args[1:]); id != "" {
+		a.section, a.projectID = secProject, id
+	}
 
 	// Load settings synchronously so the first frame has the right
 	// language and appearance.
@@ -121,7 +124,12 @@ func Run(svc appservice.Service) error {
 	if !mygo.App.RequestSingleInstanceLock() {
 		return nil
 	}
-	mygo.App.OnSecondInstance(func(args []string, wd string) { a.showWindow() })
+	mygo.App.OnSecondInstance(func(args []string, wd string) {
+		if id := showProjectArg(args); id != "" && a.win != nil {
+			a.win.Update(func() { a.openProject(id, 0) })
+		}
+		a.showWindow()
+	})
 	mygo.App.OnActivate(func(visible bool) {
 		if !visible {
 			a.showWindow()
@@ -533,6 +541,16 @@ func (a *App) openExternalInput(s string) {
 	if a.win == nil {
 		return
 	}
+	if id, ok := strings.CutPrefix(s, "mypack://project/"); ok {
+		if validID(id) {
+			a.win.Update(func() { a.openProject(id, 0); a.showWindow() })
+		}
+		return
+	}
+	if s == "mypack://library" || s == "mypack://" {
+		a.win.Update(func() { a.nav(secLibrary); a.showWindow() })
+		return
+	}
 	a.win.Update(func() {
 		s = strings.TrimPrefix(s, "mypack://create?url=")
 		a.create.reset(a.host)
@@ -544,3 +562,26 @@ func (a *App) openExternalInput(s string) {
 
 // isFake reports whether we're running against the demo service.
 func isFake() bool { return os.Getenv("MYPACK_FAKE") == "1" }
+
+// showProjectArg extracts "--show-project <id>" (browser companion launch).
+func showProjectArg(args []string) string {
+	for i, v := range args {
+		if v == "--show-project" && i+1 < len(args) && validID(args[i+1]) {
+			return args[i+1]
+		}
+	}
+	return ""
+}
+
+// validID accepts service IDs like "prj_ab12cd34" only.
+func validID(id string) bool {
+	if id == "" || len(id) > 64 {
+		return false
+	}
+	for _, r := range id {
+		if !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '_') {
+			return false
+		}
+	}
+	return true
+}

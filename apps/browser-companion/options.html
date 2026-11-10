@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>mypack Companion</title>
+  <link rel="stylesheet" href="ui.css">
+</head>
+<body class="options">
+  <main>
+    <h1 id="title"></h1>
+    <div class="row">
+      <label for="lang" id="langLabel"></label>
+      <select id="lang"></select>
+      <p class="muted" id="langHelp"></p>
+      <p class="muted" id="desktopLang"></p>
+      <p class="status" id="saved" role="status"></p>
+    </div>
+    <div class="row">
+      <h2 id="connLabel"></h2>
+      <p id="connStatus" role="status"></p>
+      <button id="check" type="button"></button>
+    </div>
+    <section class="card">
+      <h2 id="privTitle"></h2>
+      <p class="muted" id="privBody"></p>
+    </section>
+  </main>
+  <script type="module" src="options.js"></script>
+</body>
+</html>
