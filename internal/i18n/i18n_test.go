@@ -1,6 +1,9 @@
 package i18n
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestResolve(t *testing.T) {
 	cases := map[string]string{
@@ -46,26 +49,26 @@ func TestCatalogParity(t *testing.T) {
 }
 
 func placeholders(s string) string {
-	var names []string
-	for i := 0; i < len(s); i++ {
-		if s[i] == '{' {
-			j := i + 1
-			for j < len(s) && s[j] != '}' && s[j] != ',' && s[j] != '{' {
-				j++
-			}
-			n := s[i+1 : j]
-			if n != "" && !containsSpace(n) {
-				names = append(names, n)
-			}
-		}
-	}
+	// Only top-level {name} / {name, plural, ...} count; plural branch
+	// bodies are translatable text, not placeholders.
 	m := map[string]bool{}
-	out := ""
-	for _, n := range names {
-		if !m[n] {
-			m[n] = true
+	depth := 0
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '{':
+			if depth == 0 {
+				j := i + 1
+				for j < len(s) && s[j] != '}' && s[j] != ',' {
+					j++
+				}
+				m[strings.TrimSpace(s[i+1:j])] = true
+			}
+			depth++
+		case '}':
+			depth--
 		}
 	}
+	out := ""
 	for _, n := range sortedKeys(m) {
 		out += n + ","
 	}
