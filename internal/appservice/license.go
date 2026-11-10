@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -66,6 +67,12 @@ func (s *Impl) License(ctx context.Context) (LicenseStatus, error) {
 	if err != nil {
 		st.Error = "The saved license could not be read."
 		return st, nil
+	}
+	if tok == "" {
+		// Development convenience: a token supplied through the environment
+		// (see `make dev-license`). It is verified like any other token, so
+		// it grants nothing without a key this build trusts.
+		tok = strings.TrimSpace(os.Getenv("MYPACK_LICENSE"))
 	}
 	if tok == "" {
 		return st, nil
