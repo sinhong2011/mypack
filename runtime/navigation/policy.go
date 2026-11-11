@@ -5,6 +5,7 @@
 package navigation
 
 import (
+	"golang.org/x/net/publicsuffix"
 	"net/url"
 	"regexp"
 	"strings"
@@ -71,6 +72,13 @@ func New(safeDomains []string, internalRegex string, externalByDefault *bool, po
 		d = strings.TrimPrefix(d, "*.")
 		if d != "" {
 			p.SafeDomains = append(p.SafeDomains, d)
+			// The whole site counts, not just the starting host: a site's
+			// sign-in and app hosts are siblings (mail.proton.me →
+			// account.proton.me). The public-suffix list keeps this safe for
+			// shared hosts (user.github.io stays user.github.io).
+			if site, err := publicsuffix.EffectiveTLDPlusOne(d); err == nil && site != d {
+				p.SafeDomains = append(p.SafeDomains, site)
+			}
 		}
 	}
 	if internalRegex != "" {
@@ -194,6 +202,13 @@ func (p *Policy) Navigate(raw string, userInitiated bool) Action {
 			return Block
 		}
 		if p.isLocal(u) || p.webInternal(u, raw) {
+			return Internal
+		}
+		// Redirects the user did not click (server redirects, sign-in
+		// hand-offs such as notion.so → notion.com, SSO providers) stay in
+		// the app, as they would in a browser tab. Only links the user
+		// actually follows to another site leave for the default browser.
+		if !userInitiated {
 			return Internal
 		}
 		return External

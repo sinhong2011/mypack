@@ -101,3 +101,31 @@ func TestWildcardDomain(t *testing.T) {
 		t.Fatal("wildcard should match subdomain")
 	}
 }
+
+func TestSiteAndRedirects(t *testing.T) {
+	p, err := New([]string{"mail.proton.me"}, "", nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cases := []struct {
+		url  string
+		user bool
+		want Action
+	}{
+		{"https://account.proton.me/login", false, Internal}, // sibling host, redirect
+		{"https://account.proton.me/login", true, Internal},  // sibling host, clicked
+		{"https://proton.me/support", true, Internal},        // same site
+		{"https://example.com/", true, External},             // clicked link elsewhere
+		{"https://www.notion.com/login", false, Internal},    // unclicked redirect off-site
+	}
+	for _, c := range cases {
+		if got := p.Navigate(c.url, c.user); got != c.want {
+			t.Errorf("Navigate(%q, user=%v) = %v, want %v", c.url, c.user, got, c.want)
+		}
+	}
+	// Shared hosting: one user's pages do not make the whole suffix internal.
+	g, _ := New([]string{"alice.github.io"}, "", nil, "")
+	if got := g.Navigate("https://bob.github.io/", true); got != External {
+		t.Errorf("bob.github.io = %v, want External", got)
+	}
+}
