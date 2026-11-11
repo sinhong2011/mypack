@@ -186,7 +186,7 @@
   "library.search": "Buscar",
   "library.subtitle": "{count, plural, one {# app} other {# apps}}",
   "library.tab.myApps": "Mis apps",
-  "library.tab.projects": "Proyectos",
+  "library.tab.projects": "No instaladas",
   "library.tip.new": "Crea una app de cualquier sitio",
   "library.updates": "{count, plural, one {# actualización} other {# actualizaciones}}",
   "library.view.grid": "Cuadrícula",

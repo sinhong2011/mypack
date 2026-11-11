@@ -186,7 +186,7 @@
   "library.search": "搜索",
   "library.subtitle": "{count, plural, one {# 个应用} other {# 个应用}}",
   "library.tab.myApps": "我的应用",
-  "library.tab.projects": "项目",
+  "library.tab.projects": "未安装",
   "library.tip.new": "把任何网站变成应用",
   "library.updates": "{count, plural, one {# 个更新} other {# 个更新}}",
   "library.view.grid": "网格",

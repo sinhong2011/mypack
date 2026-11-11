@@ -186,7 +186,7 @@
   "library.search": "搜尋",
   "library.subtitle": "{count, plural, one {# 個 App} other {# 個 App}}",
   "library.tab.myApps": "我的 App",
-  "library.tab.projects": "專案",
+  "library.tab.projects": "未安裝",
   "library.tip.new": "把任何網站變成 App",
   "library.updates": "{count, plural, one {# 項更新} other {# 項更新}}",
   "library.view.grid": "格狀",
