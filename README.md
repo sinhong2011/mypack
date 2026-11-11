@@ -1,8 +1,8 @@
-# mypack
+# Mypack
 
 **Any website. Any desktop. One beautiful native builder.**
 
-mypack turns a website (or a local HTML project) into a real, standalone desktop
+Mypack turns a website (or a local HTML project) into a real, standalone desktop
 app for the computer you're on — no Go, Rust, Node or Xcode project required.
 
 ```
@@ -10,7 +10,7 @@ Paste URL → confirm name & icon → Build for This Mac → Install & Open
 ```
 
 - **Native builder** — the GUI is drawn by [MyGo](https://github.com/egoist/mygo) in pure Go (no Electron, no web frontend).
-- **Tiny, independent apps** — generated apps use the system WebView (WKWebView / WebView2 / WebKitGTK), have their own identity, icon and isolated profile, and keep working if mypack is uninstalled.
+- **Tiny, independent apps** — generated apps use the system WebView (WKWebView / WebView2 / WebKitGTK), have their own identity, icon and isolated profile, and keep working if Mypack is uninstalled.
 - **Prebuilt runtime + config injection** — no compiling on your machine. The runtime is downloaded once from a signed (Ed25519) registry, verified and cached.
 - **Manage what you built** — Library › My Apps: Install & Open, one-click Update (keeps your logins), Repair, Uninstall.
 - **Agent-ready** — headless CLI with `--json` and stable exit codes, plus an MCP stdio server (`mypack mcp serve`). No built-in chat or LLM.
@@ -25,19 +25,19 @@ Requires Go ≥ 1.27.3 (`GOTOOLCHAIN=auto` fetches it automatically).
 
 ```sh
 make runtimes   # cross-compile + sign generated-app runtimes into dist/registry
-make app        # build dist/mypack.app (macOS)
+make app        # build dist/Mypack.app (macOS)
 make test
 ```
 
 ## Using it
 
-- **App:** open `dist/mypack-1.0.0.dmg` and drag mypack to Applications (or `open dist/mypack.app`).
-- **CLI:** the same binary is the CLI — `mypack.app/Contents/MacOS/mypack help`.
+- **App:** open `dist/Mypack-1.0.0.dmg` and drag Mypack to Applications (or `open dist/Mypack.app`).
+- **CLI:** the same binary is the CLI — `Mypack.app/Contents/MacOS/mypack help`.
   `mypack create github.com --json`, `mypack build <id> --yes --json`, exit codes in ARCHITECTURE.md.
-- **Agents (MCP):** `mypack.app/Contents/MacOS/mypack mcp serve --transport stdio`
+- **Agents (MCP):** `Mypack.app/Contents/MacOS/mypack mcp serve --transport stdio`
   (Settings › Agent Connections shows copy-ready config for Claude Code / Codex).
 - **Browser Companion (optional):** load `apps/browser-companion` unpacked in Chrome/Edge, then
-  `mypack.app/Contents/MacOS/mypack-native-host install --extension-id <ID> --browser all`.
+  `Mypack.app/Contents/MacOS/mypack-native-host install --extension-id <ID> --browser all`.
   See [docs/companion.md](docs/companion.md).
 - **Demo mode:** `make run-fake` runs the GUI against an in-memory demo service.
 
