@@ -62,31 +62,53 @@ func (a *App) flyTo(c *ui.Context, key string, e ui.Element) ui.Element {
 		c.Invalidate()
 		return e.Opacity(0)
 	}
+	// The live position: the page may still be sliding in.
 	f.to, f.toRadius = r, design.AppIconRadius(r.W)
 	if f.start.IsZero() {
 		f.start = time.Now()
 	}
+	// Landed: the hand-off is atomic. In this very frame the overlay is
+	// gone (flightsView no longer sees it) and the icon shows, so there is
+	// never a frame with both or neither.
+	if flightT(f) >= flightEnd {
+		delete(a.flights, key)
+		return e
+	}
 	return e.Opacity(0)
 }
 
-// flightsView draws the icons on their way, over the window.
+// A flight's spring and when it has settled.
+const (
+	flightDur = 0.5
+	flightEnd = flightDur * 1.25
+)
+
+func flightT(f *flight) float64 {
+	return time.Since(f.start).Seconds() * float64(design.Speed())
+}
+
+// flightsView draws the icons on their way, over the window: from where
+// they were chosen until their destination takes over (flyTo).
 func (a *App) flightsView(c *ui.Context) {
 	for key, f := range a.flights {
-		if f.start.IsZero() {
-			continue
+		r := f.from
+		if !f.start.IsZero() {
+			t := flightT(f)
+			if t >= flightEnd+1 {
+				delete(a.flights, key) // its destination never showed
+				continue
+			}
+			k := float32(kit.SpringAt(t, flightDur, 0.14))
+			if t >= flightEnd {
+				k = 1 // hold at the destination until it takes over
+			}
+			lerp := func(x, y float32) float32 { return x + (y-x)*k }
+			r = ui.Rect{X: lerp(f.from.X, f.to.X), Y: lerp(f.from.Y, f.to.Y), W: lerp(f.from.W, f.to.W), H: lerp(f.from.H, f.to.H)}
+			// It arcs a little on its way, as a thing thrown does.
+			r.Y -= 24 * float32(4*float64(k)*(1-float64(k)))
 		}
-		t := time.Since(f.start).Seconds() * float64(design.Speed())
-		const dur = 0.5
-		if t >= dur*1.25 {
-			delete(a.flights, key)
-			c.Invalidate()
-			continue
-		}
-		k := float32(kit.SpringAt(t, dur, 0.14))
-		lerp := func(x, y float32) float32 { return x + (y-x)*k }
-		r := ui.Rect{X: lerp(f.from.X, f.to.X), Y: lerp(f.from.Y, f.to.Y), W: lerp(f.from.W, f.to.W), H: lerp(f.from.H, f.to.H)}
-		// It arcs a little on its way, as a thing thrown does.
-		r.Y -= 24 * float32(4*float64(k)*(1-float64(k)))
+		// Until the destination is laid out it waits where it was chosen,
+		// so the icon never blinks out at the start either.
 		ui.Box(c.Key("flight:"+key)).Absolute().Left(r.X).Top(r.Y).Size(r.W, r.H).PassThrough().AccessHidden(true).ZIndex(50).
 			Children(func() { kit.AppIconOpts(c, f.png, f.name, r.W, kit.IconOpts{Shadow: true}) })
 		c.Invalidate()

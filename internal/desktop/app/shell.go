@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/egoist/mygo/ui"
 
@@ -94,8 +95,8 @@ func (a *App) view(c *ui.Context) {
 func (a *App) escape() {
 	switch a.section {
 	case secCreate:
-		if a.create.busy {
-			return
+		if a.create.busy || a.create.building != "" {
+			return // Esc cancels the build there (buildStatus)
 		}
 		a.nav(secLibrary)
 	case secProject:
@@ -133,9 +134,12 @@ func (a *App) sidebar(c *ui.Context) {
 			}
 			a.navItem(c, secLibrary, icons.Library, T("nav.library"), badge)
 			a.navItem(c, secDiscover, icons.Discover, T("nav.discover"), "")
+			// Builds running: a spinner, and their count when more than one.
 			running := ""
-			if n := len(a.activeJobs()); n > 0 {
+			if n := len(a.activeJobs()); n == 1 {
 				running = "•"
+			} else if n > 1 {
+				running = "•" + fmt.Sprint(n)
 			}
 			a.navItem(c, secBuilds, icons.Builds, T("nav.builds"), running)
 		})
@@ -214,10 +218,13 @@ func (a *App) navItem(c *ui.Context, s section, ic *ui.SVG, label, badge string)
 			w = design.WeightSemibold
 		}
 		ui.Text(c, label).FontSize(design.FontBody).FontWeight(w).TextColor(tc).SingleLine().Grow(1).MinWidth(0)
-		switch badge {
-		case "":
-		case "•":
+		switch {
+		case badge == "":
+		case strings.HasPrefix(badge, "•"):
 			kit.Spinner(c, 12, p.Accent)
+			if n := strings.TrimPrefix(badge, "•"); n != "" {
+				kit.NavCount(c, n, false)
+			}
 		default:
 			kit.NavCount(c, badge, s == secLibrary) // Library counts updates
 		}
@@ -238,7 +245,6 @@ func (a *App) toolbar(c *ui.Context) {
 	row.Children(func() {
 		a.toolbarTitle(c)
 		ui.Spacer(c).MinWidth(8)
-		a.activityIndicator(c)
 		switch a.section {
 		case secLibrary:
 			a.libraryToolbar(c)
@@ -310,43 +316,6 @@ func (a *App) toolbarTitle(c *ui.Context) {
 			}
 		})
 	})
-}
-
-// activityIndicator shows only while work is running (spec §9, §12.2).
-func (a *App) activityIndicator(c *ui.Context) {
-	p := design.Of(c)
-	active := a.activeJobs()
-	if len(active) == 0 {
-		return
-	}
-	j := active[0]
-	if a.section == secProject && a.projectID == j.ProjectID && len(active) == 1 {
-		return
-	}
-	label := j.Snapshot.App.Name + " · " + stageLabel(j)
-	if len(active) > 1 {
-		label = T("activity.many", "count", len(active))
-	}
-	b := ui.ButtonBase(c.Key("activity")).Label(label).Row().Justify(ui.Start).Height(design.ToolbarControl).Padding(0, 14, 0, 10).Gap(8).AlignItems(ui.Center).
-		Radius(kit.PillRadius(design.ToolbarControl)).Background(p.Raised).Border(1, p.BorderStrong).Cursor(ui.CursorPointer).Role(ui.RoleStatus)
-	kit.Pop(b)
-	b.Children(func() {
-		if j.Status == domain.JobAwaitingApproval {
-			kit.Glyph(c, icons.Download, 15, p.Warning)
-		} else if j.Progress >= 0 {
-			kit.ProgressRing(c, 16, 2.5, j.Progress, p.Accent, p.Fill)
-		} else {
-			kit.Spinner(c, 15, p.Accent)
-		}
-		ui.Text(c, label).FontSize(design.FontSmall).FontWeight(design.WeightMedium).TextColor(p.Text).SingleLine().MaxWidth(240)
-	})
-	if b.Clicked() {
-		if len(active) > 1 {
-			a.nav(secBuilds)
-		} else {
-			a.openProject(j.ProjectID, 0)
-		}
-	}
 }
 
 // ---- content --------------------------------------------------------------------

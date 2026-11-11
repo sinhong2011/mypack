@@ -53,88 +53,10 @@ func visibleStepLabel(s domain.Stage) string {
 	return visibleSteps[i].id + ".active"
 }
 
-// timelineSteps converts a job into honest timeline steps; a project
-// that is built first gets a "Build project" step ahead of the rest.
-func (a *App) timelineSteps(j domain.BuildJob) []kit.Step {
-	steps := a.pipelineSteps(j)
-	if !jobBuildsProject(j) {
-		return steps
-	}
-	prep := kit.Step{Label: T("step.prepare"), Progress: -1}
-	switch {
-	case j.Status == domain.JobAwaitingApproval && j.Approval != nil && j.Approval.Kind == "project_build":
-		prep.State = kit.StepPending
-	case j.Stage == domain.StagePreparing && j.Status == domain.JobFailed:
-		prep.State = kit.StepFailed
-	case j.Stage == domain.StagePreparing && (j.Status == domain.JobRunning || j.Status == domain.JobQueued):
-		prep.State = kit.StepActive
-		for i := range steps {
-			steps[i].State = kit.StepPending
-		}
-	default:
-		prep.State = kit.StepDone
-	}
-	return append([]kit.Step{prep}, steps...)
-}
-
 // jobBuildsProject reports whether the job's source is a JS project the
 // Builder builds first.
 func jobBuildsProject(j domain.BuildJob) bool {
 	return j.Snapshot.App.Source.Build != nil || j.Stage == domain.StagePreparing
-}
-
-func (a *App) pipelineSteps(j domain.BuildJob) []kit.Step {
-	cur := stepIndex(j.Stage)
-	downloaded := false
-	for _, l := range a.logs[j.ID] {
-		if l.Stage == domain.StageDownloading {
-			downloaded = true
-		}
-	}
-	if j.Stage == domain.StageDownloading {
-		downloaded = true
-	}
-	out := make([]kit.Step, len(visibleSteps))
-	for i, v := range visibleSteps {
-		st := kit.Step{Label: T(v.id), Progress: -1}
-		switch {
-		case j.Status == domain.JobAwaitingApproval:
-			st.State = kit.StepPending
-			if i == 0 {
-				st.State = kit.StepDone
-			}
-		case i < cur:
-			st.State = kit.StepDone
-		case i == cur && j.Status == domain.JobFailed:
-			st.State = kit.StepFailed
-		case i == cur && (j.Status == domain.JobRunning || j.Status == domain.JobQueued):
-			st.State = kit.StepActive
-			if j.Progress >= 0 {
-				st.Progress = j.Progress
-			}
-		case j.Status == domain.JobSucceeded:
-			st.State = kit.StepDone
-		}
-		if i == 1 {
-			if (st.State == kit.StepDone || j.Status == domain.JobSucceeded) && !downloaded && cur > 1 {
-				st.State = kit.StepSkipped
-				st.Detail = T("step.download.cached")
-			}
-			if st.State == kit.StepActive && j.Progress >= 0 {
-				var total int64
-				for _, t := range j.Targets {
-					if rt := a.runtimeInfo(t); rt != nil {
-						total += rt.Size
-					}
-				}
-				if total > 0 {
-					st.Detail = T("step.download.detail", "done", bytesLabel(int64(float64(total)*j.Progress)), "total", bytesLabel(total))
-				}
-			}
-		}
-		out[i] = st
-	}
-	return out
 }
 
 // buildPanel renders the inline build state for a project's watched job.
@@ -161,46 +83,21 @@ func (a *App) buildPanel(c *ui.Context, pr *domain.Project, j *domain.BuildJob) 
 		ui.Column(c).FillWidth().Gap(0).Margin(8, 0, 0, 0).Children(func() {
 			running := j.Status == domain.JobRunning || j.Status == domain.JobQueued
 			a.sceneFor(c, pr, j, 280)
-			// Aligned to the content edge: what is happening, in one line.
-			ui.Column(c).Gap(4).Margin(8, 0, 0, 0).Children(func() {
-				title := T("build.progress.title", "device", targetsWord(a.host, j.Targets))
-				if j.Status == domain.JobCancelled {
-					title = T("build.cancelled.title")
-				}
-				kit.PageTitle(c, title).SingleLine()
-				if running && j.Stage == domain.StagePreparing {
-					// The project's own build: its latest output, line by line.
-					last := ""
-					if ls := a.logs[j.ID]; len(ls) > 0 {
-						last = ls[len(ls)-1].Message
-					}
-					ui.Text(c, T("step.prepare.active")).FontSize(design.FontBody).TextColor(p.TextSecondary).SingleLine()
-					if last != "" {
-						kit.Mono(c, last).SingleLine().TextColor(p.TextTertiary).Role(ui.RoleStatus).Margin(2, 0, 0, 0)
-					}
-				} else if running {
-					// The stage name rolls in as it changes.
-					ui.Box(c).Height(20).FillWidth().Clip().Children(func() {
-						kit.Roll(ui.Text(c.Key(T(visibleStepLabel(j.Stage))), stageLabel(*j)).FontSize(design.FontBody).
-							TextColor(p.TextSecondary).Role(ui.RoleStatus).SingleLine().FontFeatures("tnum").Absolute().Left(0).Right(0))
-					})
-				} else {
+			if j.Status == domain.JobCancelled {
+				ui.Column(c).Gap(4).Margin(8, 0, 0, 0).Children(func() {
+					kit.PageTitle(c, T("build.cancelled.title")).SingleLine()
 					ui.Text(c, T("build.cancelled.sub")).FontSize(design.FontBody).TextColor(p.TextSecondary)
-				}
-			})
-			switch j.Status {
-			case domain.JobRunning, domain.JobQueued:
-				id := j.ID
-				kit.Links(c.Key("links"), []kit.Link{{Label: T("common.cancel"), Run: func() { a.cancelJob(id) }}}).Margin(10, 0, 0, -6)
-			case domain.JobCancelled:
+				})
 				ui.Row(c).Margin(16, 0, 0, 0).Children(func() {
 					if kit.Button(c.Key("rebuild"), T("action.buildAgain"), kit.ButtonOpts{Variant: kit.Primary, Size: design.ControlLG}).Clicked() {
 						a.startBuild(pr.ID, j.Targets)
 					}
 				})
+			} else {
+				ui.Column(c).FillWidth().AlignItems(ui.Center).Margin(12, 0, 0, 0).Children(func() { a.buildSteps(c, pr, j, false, false) })
 			}
-			ui.Column(c).FillWidth().Gap(10).Margin(20, 0, 0, 0).Children(func() {
-				kit.BuildTimeline(c, a.timelineSteps(*j))
+			_ = running
+			ui.Column(c).FillWidth().Gap(10).Margin(16, 0, 0, 0).Children(func() {
 				a.logDisclosure(c, j.ID)
 			})
 		}).Role(ui.RoleRegion).Label(T("build.progress.region"))
@@ -264,7 +161,9 @@ func (a *App) projectBuildApproval(c *ui.Context, j *domain.BuildJob) {
 			path := ap.Path
 			ui.Row(c).Gap(4).AlignItems(ui.Center).Margin(8, 0, 0, 0).Children(func() {
 				ui.Text(c, T("projectBuild.in", "path", shortPath(path))).FontSize(design.FontSmall).TextColor(p.TextSecondary).SingleLine().MinWidth(0).Shrink(1)
-				kit.Links(c.Key("reveal"), []kit.Link{{Label: T("action.showInFinder"), Run: func() { a.reveal(path) }}})
+				if kit.Button(c.Key("reveal"), T("action.showInFinder"), kit.ButtonOpts{Variant: kit.Ghost, Size: 26}).FontWeight(design.WeightRegular).Clicked() {
+					a.reveal(path)
+				}
 			})
 			if _, err := os.Stat(filepath.Join(path, "node_modules")); err != nil {
 				ui.Text(c, T("projectBuild.depsFirst")).FontSize(design.FontSmall).TextColor(p.TextSecondary).Margin(2, 0, 0, 0)
@@ -276,7 +175,9 @@ func (a *App) projectBuildApproval(c *ui.Context, j *domain.BuildJob) {
 				Loading: a.dlg.approving == id}).Clicked() {
 				a.approveJob(id)
 			}
-			kit.Links(c.Key("cancel"), []kit.Link{{Label: T("common.cancel"), Run: func() { a.cancelJob(id) }}})
+			if kit.Button(c.Key("cancel"), T("common.cancel"), kit.ButtonOpts{Variant: kit.Ghost, Size: 26}).FontWeight(design.WeightRegular).Clicked() {
+				a.cancelJob(id)
+			}
 		})
 	})
 }
@@ -338,105 +239,54 @@ func (a *App) runtimeCacheDir() string {
 	return "~/Library/Caches/mypack/runtimes"
 }
 
-func (a *App) successPanel(c *ui.Context, pr *domain.Project, j *domain.BuildJob) {
-	p := design.Of(c)
-	art := a.hostArtifact(*j)
-	if art == nil && len(j.Artifacts) > 0 {
-		art = &j.Artifacts[0]
-	}
-	inst := a.installFor(pr.ID)
-	installed := art != nil && inst != nil && inst.ArtifactID == art.ID
-	opened, auto := a.autoOpen[j.ID]
-	installing := art != nil && a.dlg.installing == art.ID
-	ui.Column(c).FillWidth().Padding(8, 0, 8, 0).Gap(0).Children(func() {
-		// The scene's last frame is the hero: the app settled in the Dock.
-		a.sceneFor(c, pr, j, 260)
-		// Then, aligned to the content edge: its name and one quiet line.
-		ui.Column(c).Gap(4).Margin(8, 0, 0, 0).Children(func() {
-			kit.PageTitle(c, pr.Config.App.Name).SingleLine()
-			var parts []string
-			switch {
-			case installing:
-				parts = append(parts, T("autoInstall.installing"))
-			case installed:
-				parts = append(parts, installedWhere(a.host))
-				if auto && !opened.IsZero() {
-					parts = append(parts, T("success.openedAgo", "when", agoShort(opened)))
-				}
-			default:
-				parts = append(parts, T("success.builtFor", "device", targetsWord(a.host, j.Targets)))
-			}
-			if art != nil {
-				parts = append(parts, bytesLabel(art.Size))
-			}
-			if j.StartedAt != nil && j.FinishedAt != nil {
-				parts = append(parts, duration(j.FinishedAt.Sub(*j.StartedAt)))
-			}
-			ui.Text(c, strings.Join(parts, " · ")).FontSize(design.FontBody).TextColor(p.TextSecondary).FontFeatures("tnum").SingleLine()
-		})
-		// One primary action, only when there is something to do.
-		if art != nil && art.Target.OS == a.host.OS && !installed {
-			ui.Row(c).Margin(16, 0, 0, 0).Children(func() {
-				if kit.Button(c.Key("install"), T("action.installOpen"), kit.ButtonOpts{Variant: kit.Primary, Size: design.ControlLG,
-					Loading: installing}).Clicked() || c.Shortcut(0, ui.KeyEnter) {
-					a.installArtifact(art.ID, false)
-				}
-			})
-		}
-		// Everything else is a quiet row of links.
-		var links []kit.Link
-		if installed {
-			label := T("action.open")
-			if auto {
-				label = T("success.openAgain")
-			}
-			id := inst.ID
-			links = append(links, kit.Link{Label: label, Run: func() { a.openInstall(id) }})
-		}
-		if art != nil {
-			path := art.Path
-			links = append(links, kit.Link{Label: T("action.showInFinder"), Icon: icons.Folder, Run: func() { a.reveal(path) }})
-		}
-		if a.section == secCreate {
-			id := pr.ID
-			links = append([]kit.Link{{Label: T("create.viewProject"), Run: func() {
-				a.create.reset(a.host)
-				a.openProject(id, 0)
-			}}}, links...)
-		}
-		links = append(links,
-			kit.Link{Label: T("action.rebuild"), Run: func() { a.startBuild(pr.ID, j.Targets) }},
-			kit.Link{Label: T("build.viewLog"), Run: func() { a.logOpen[j.ID] = !a.logOpen[j.ID] }},
-			kit.Link{Label: T("success.addAccount"), Run: func() {
-				src := pr.Config.App.Source.Value
-				a.create.reset(a.host)
-				a.create.setInput(src)
-				a.nav(secCreate)
-			}})
-		kit.Links(c.Key("links"), links).Margin(installedMargin(installed), 0, 0, -6)
-		if len(j.Warnings) > 0 {
-			ui.Column(c).FillWidth().Gap(8).Margin(16, 0, 0, 0).Children(func() {
-				for i, w := range j.Warnings {
-					kit.Note(c.Key(i), icons.Info, w, kit.ToneWarning)
-				}
-			})
-		}
-		if a.logOpen[j.ID] {
-			ui.Column(c).FillWidth().Margin(16, 0, 0, 0).Children(func() {
-				if art != nil {
-					kit.Mono(c, art.Path).SingleLine().Selectable().Margin(0, 0, 8, 0)
-				}
-				a.logView(c, j.ID, 220)
-			})
-		}
-	}).Role(ui.RoleRegion).Label(T("build.success.title"))
+// successInfo is what a finished build offers, for the success views.
+type successInfo struct {
+	art                         *domain.Artifact
+	inst                        *domain.Installation
+	installed, auto, installing bool
+	opened                      time.Time
 }
 
-func installedMargin(installed bool) float32 {
-	if installed {
-		return 12
+func (a *App) successOf(pr *domain.Project, j *domain.BuildJob) successInfo {
+	si := successInfo{art: a.hostArtifact(*j)}
+	if si.art == nil && len(j.Artifacts) > 0 {
+		si.art = &j.Artifacts[0]
 	}
-	return 10
+	si.inst = a.installFor(pr.ID)
+	si.installed = si.art != nil && si.inst != nil && si.inst.ArtifactID == si.art.ID
+	si.opened, si.auto = a.autoOpen[j.ID]
+	si.installing = si.art != nil && a.dlg.installing == si.art.ID
+	return si
+}
+
+// successExtras are a finished build's warnings and, when asked, its log.
+func (a *App) successExtras(c *ui.Context, j *domain.BuildJob, si successInfo) {
+	if len(j.Warnings) > 0 {
+		ui.Column(c).FillWidth().Gap(8).Margin(16, 0, 0, 0).Children(func() {
+			for i, w := range j.Warnings {
+				kit.Note(c.Key(i), icons.Info, w, kit.ToneWarning)
+			}
+		})
+	}
+	if a.logOpen[j.ID] {
+		ui.Column(c).FillWidth().Margin(16, 0, 0, 0).Children(func() {
+			if si.art != nil {
+				kit.Mono(c, si.art.Path).SingleLine().Selectable().Margin(0, 0, 8, 0)
+			}
+			a.logView(c, j.ID, 220)
+		})
+	}
+}
+
+func (a *App) successPanel(c *ui.Context, pr *domain.Project, j *domain.BuildJob) {
+	si := a.successOf(pr, j)
+	ui.Column(c).FillWidth().Padding(8, 0, 8, 0).Gap(16).Children(func() {
+		// The result is the app, launched (its window springs open); under
+		// it the steps, then the result bar.
+		mockup(c, c.Key("launched"), pr.Config, pr.IconPNG, pr.Config.App.Name, 260, true)
+		ui.Column(c).FillWidth().AlignItems(ui.Center).Children(func() { a.buildFooter(c, pr, j) })
+		a.successExtras(c, j, si)
+	}).Role(ui.RoleRegion).Label(T("build.success.title"))
 }
 
 // installedWhere says where an installed app now lives.
@@ -455,58 +305,13 @@ func agoShort(t time.Time) string {
 	return ago(t)
 }
 
+// failurePanel is a failed build on its project page: the scene (it shook),
+// the result bar in its failed state, then why and what to do.
 func (a *App) failurePanel(c *ui.Context, pr *domain.Project, j *domain.BuildJob) {
-	e := j.Error
-	if e == nil {
-		e = &domain.Error{Code: "BUILD_FAILED", Message: T("build.failed.generic")}
-	}
-	hasPrev := false
-	for _, o := range a.jobs {
-		if o.ProjectID == pr.ID && o.Status == domain.JobSucceeded && o.CreatedAt.Before(j.CreatedAt) {
-			hasPrev = true
-			break
-		}
-	}
-	note := T("build.failed.noteDraft")
-	if hasPrev {
-		note = T("build.failed.notePrev")
-	}
-	a.sceneFor(c, pr, j, 220)
-	why := e.Cause
-	if e.Code == "PROJECT_BUILD_FAILED" {
-		why = "" // its last lines show below, as code
-	}
-	retry, copy, extra := kit.ErrorPanel(c, kit.ErrorInfo{
-		What: e.Message, Why: why, Fix: e.Remediation, Code: e.Code,
-		WhyLabel: T("error.why"), FixLabel: T("error.fix"), Note: note,
-		Retry: T("action.retry"), Copy: T("error.copyDiagnostic"), Extra: T("build.viewLog"),
-	})
-	if retry {
-		a.startBuild(pr.ID, j.Targets)
-	}
-	if copy {
-		c.WriteClipboard(a.diagnostic(j))
-		a.toast(T("error.copied"), "", 1)
-	}
-	if extra {
-		a.logOpen[j.ID] = !a.logOpen[j.ID]
-	}
-	switch e.Code {
-	case "NODE_NOT_FOUND":
-		kit.Links(c.Key("node"), []kit.Link{{Label: T("projectBuild.getNode"), Run: func() {
-			a.do(func(ctx context.Context) error { return a.svc.OpenURL(ctx, "https://nodejs.org") }, a.toastErr)
-		}}}).Margin(8, 0, 0, -6)
-	case "PROJECT_BUILD_FAILED":
-		if strings.TrimSpace(e.Cause) != "" {
-			p := design.Of(c)
-			ui.Column(c).FillWidth().Margin(12, 0, 0, 0).Padding(10, 12).Radius(design.RadiusField).Background(p.Sunken).Border(1, p.Border).Children(func() {
-				kit.Mono(c, strings.TrimRight(e.Cause, "\n")).Selectable()
-			})
-		}
-	}
-	if a.logOpen[j.ID] {
-		a.logView(c, j.ID, 220)
-	}
+	ui.Column(c).FillWidth().Padding(8, 0, 8, 0).Gap(16).Children(func() {
+		mockup(c, c.Key("mockup"), pr.Config, pr.IconPNG, pr.Config.App.Name, 220, false)
+		ui.Column(c).FillWidth().AlignItems(ui.Center).Children(func() { a.buildFooter(c, pr, j) })
+	}).Role(ui.RoleRegion).Label(T("build.failed.generic"))
 }
 
 // diagnostic is a stable, parseable, non-localized report (spec §9D.3).
@@ -701,7 +506,7 @@ func (a *App) sceneFor(c *ui.Context, pr *domain.Project, j *domain.BuildJob, h 
 		}
 	}
 	native := func() {
-		kit.BuildScene(c, kit.SceneOpts{IconSlot: slot, Stage: st, StageAt: m.at, Progress: j.Progress, Failed: j.Status == domain.JobFailed,
+		kit.BuildScene(c, kit.SceneOpts{IconSlot: slot, Stage: st, StageAt: m.at, Progress: a.statusProgress(*j), Failed: j.Status == domain.JobFailed,
 			Cancelled: j.Status == domain.JobCancelled, Icon: pr.IconPNG, Name: pr.Config.App.Name, Host: host,
 			Tint: kit.IconTint(pr.IconPNG, pr.Config.App.Name), Height: h})
 	}

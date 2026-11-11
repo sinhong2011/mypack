@@ -8,6 +8,8 @@
 //   - a URL whose host contains "offline" or ends in ".invalid" fails the
 //     metadata fetch (Fallback=true);
 //   - a project whose name or URL contains "fail" fails at the signing stage;
+//   - "brokenbuild" fails its project build (with output), "nodeless" finds
+//     no Node.js, "nonet" fails the app engine download midway;
 //   - MYPACK_FAKE_SEED=empty starts with an empty library;
 //   - MYPACK_FAKE_FAST=1 shortens every simulated delay.
 package fakesvc
@@ -827,6 +829,33 @@ func (s *Service) run(id string) {
 		finish(domain.JobCancelled, &domain.Error{Code: appservice.CodeCancelled, Message: "The build was cancelled."})
 	}
 
+	key := strings.ToLower(snap.App.Name + snap.App.Source.Value)
+	switch {
+	case strings.Contains(key, "nodeless"):
+		s.update(id, func(j *domain.BuildJob) { j.Stage, j.Progress = domain.StagePreparing, -1 })
+		s.log(id, domain.StagePreparing, "info", "Looking for Node.js (node, npm) on PATH")
+		s.sleep(ctx, 700*time.Millisecond)
+		s.log(id, domain.StagePreparing, "error", "node: command not found")
+		finish(domain.JobFailed, &domain.Error{Code: appservice.CodeNodeNotFound, Message: "Node.js was not found.",
+			Cause: "No node executable on PATH or in the usual install locations.", Remediation: "Install Node.js 18 or later, then build again."})
+		return
+	case strings.Contains(key, "brokenbuild"):
+		s.update(id, func(j *domain.BuildJob) { j.Stage, j.Progress = domain.StagePreparing, -1 })
+		lines := []string{"$ npm install", "added 214 packages in 3s", "$ npm run build", "> app@1.0.0 build", "> vite build",
+			"vite v5.4.2 building for production...", "transforming (38) src/main.ts", "✗ Build failed in 812ms",
+			"error during build:", "src/App.vue (14:9): Unexpected token (Note that you need plugins to import files that are not JavaScript)",
+			"    at error (node_modules/rollup/dist/es/shared/rollup.js:198:30)", "npm ERR! code ELIFECYCLE", "npm ERR! errno 1"}
+		for _, l := range lines {
+			s.log(id, domain.StagePreparing, "info", l)
+			if s.sleep(ctx, 300*time.Millisecond) != nil {
+				cancelled()
+				return
+			}
+		}
+		finish(domain.JobFailed, &domain.Error{Code: appservice.CodeProjectBuildFailed, Message: "The project's build script failed (exit 1).",
+			Cause: strings.Join(lines[len(lines)-6:], "\n"), Remediation: "Fix the error in your project, then build again."})
+		return
+	}
 	if b := snap.App.Source.Build; b != nil {
 		// The project's own build, its output streamed line by line.
 		s.update(id, func(j *domain.BuildJob) { j.Stage, j.Progress = domain.StagePreparing, -1 })
@@ -856,12 +885,25 @@ func (s *Service) run(id string) {
 		rt := s.runtimeFor(t)
 		missing := rt != nil && !rt.Cached
 		s.mu.Unlock()
+		if strings.Contains(key, "nonet") && rt != nil {
+			missing = true
+		}
 		if !missing {
 			s.log(id, domain.StageResolving, "info", "Runtime "+t.Key()+" is cached and verified")
 			continue
 		}
 		s.update(id, func(j *domain.BuildJob) { j.Stage, j.Progress = domain.StageDownloading, 0 })
 		s.log(id, domain.StageDownloading, "info", fmt.Sprintf("Downloading runtime %s (%s)", t.Key(), humanBytes(rt.Size)))
+		if strings.Contains(key, "nonet") {
+			for f := 0.0; f < 0.38; f += 0.04 {
+				s.update(id, func(j *domain.BuildJob) { j.Progress = f })
+				s.sleep(ctx, 120*time.Millisecond)
+			}
+			s.log(id, domain.StageDownloading, "error", "GET "+rt.Source+": read tcp: connection reset by peer")
+			finish(domain.JobFailed, &domain.Error{Code: "RUNTIME_DOWNLOAD_FAILED", Message: "The runtime download failed.",
+				Cause: "The connection was reset after 3.7 MB.", Remediation: "Check your internet connection, then build again."})
+			return
+		}
 		if err := s.download(ctx, rt, func(done, total int64) {
 			s.update(id, func(j *domain.BuildJob) { j.Progress = float64(done) / float64(total) })
 		}); err != nil {

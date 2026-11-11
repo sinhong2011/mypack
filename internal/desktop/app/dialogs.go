@@ -55,12 +55,14 @@ type uninstallDialog struct {
 	id        string
 	clearData bool
 	busy      bool
+	err       *domain.Error
 }
 
 type installDialog struct {
 	open bool
 	id   string
 	busy bool
+	err  *domain.Error // the last attempt failed: said in the sheet
 }
 
 type detailsDialog struct {
@@ -169,6 +171,9 @@ func (a *App) dialogs(c *ui.Context) {
 							kit.Caption(c, T("uninstall.keepData"))
 						}
 					})
+					if u.err != nil {
+						a.failureBody(c, u.err, "", a.fixesFor(u.err, "", nil))
+					}
 					ok, cancel := kit.SheetFooter(c, T("common.cancel"), T("action.uninstall"), kit.Danger, u.busy, false)
 					if cancel {
 						u.open = false
@@ -177,11 +182,13 @@ func (a *App) dialogs(c *ui.Context) {
 						u.busy = true
 						id, clear, name := u.id, u.clearData, in.Name
 						a.do(func(ctx context.Context) error { return a.svc.Uninstall(ctx, id, clear, "gui") }, func(err error) {
-							u.busy, u.open = false, false
+							u.busy = false
 							if err != nil {
-								a.toastErr(err)
+								// Said in the sheet, which stays open to try again.
+								u.err = errInfo(err)
 								return
 							}
+							u.open, u.err = false, nil
 							a.toast(T("uninstall.done", "name", name), "", 1)
 						})
 					}
@@ -213,6 +220,9 @@ func (a *App) dialogs(c *ui.Context) {
 						row(icons.Shield, T("update.profileKept"))
 						row(icons.Retry, T("update.rollback"))
 					})
+					if u.err != nil {
+						a.failureBody(c, u.err, "", a.fixesFor(u.err, in.ProjectID, nil))
+					}
 					ok, cancel := kit.SheetFooter(c, T("action.later"), T("action.update"), kit.Primary, u.busy, false)
 					if cancel {
 						u.open = false
@@ -227,11 +237,13 @@ func (a *App) dialogs(c *ui.Context) {
 							}
 							return err
 						}, func(err error) {
-							u.busy, u.open = false, false
+							u.busy = false
 							if err != nil {
-								a.toastErr(err)
+								// Said in the sheet, which stays open to try again.
+								u.err = errInfo(err)
 								return
 							}
+							u.open, u.err = false, nil
 							if pid != "" {
 								a.openProject(pid, 0)
 							}
@@ -253,6 +265,9 @@ func (a *App) dialogs(c *ui.Context) {
 				kit.SheetHeader(c, T("repair.title", "name", in.Name), nil)
 				ui.Column(c).Gap(12).Children(func() {
 					ui.Text(c, T("repair.body")).FontSize(design.FontBody).TextColor(p.TextSecondary).LineHeight(1.45)
+					if u.err != nil {
+						a.failureBody(c, u.err, "", a.fixesFor(u.err, in.ProjectID, nil))
+					}
 					ok, cancel := kit.SheetFooter(c, T("common.cancel"), T("action.repair"), kit.Primary, u.busy, false)
 					if cancel {
 						u.open = false
@@ -267,11 +282,13 @@ func (a *App) dialogs(c *ui.Context) {
 							}
 							return err
 						}, func(err error) {
-							u.busy, u.open = false, false
+							u.busy = false
 							if err != nil {
-								a.toastErr(err)
+								// Said in the sheet, which stays open to try again.
+								u.err = errInfo(err)
 								return
 							}
+							u.open, u.err = false, nil
 							a.openProject(pid, 0)
 						})
 					}

@@ -55,6 +55,7 @@ type URLFieldOpts struct {
 	Action      string // trailing prominent button label; "" = none
 	ActionOff   bool
 	Paste       string // trailing Paste button label (shown while empty); "" = none
+	Open        string // trailing "Open…" button label (shown while empty); "" = none
 	AutoFocus   bool
 	Handle      *ui.Handle
 	Height      float32 // 0 = 52
@@ -65,9 +66,9 @@ type URLFieldOpts struct {
 
 // URLFieldResult reports what happened this frame.
 type URLFieldResult struct {
-	Changed, Submitted, Action, Paste bool
-	Dropped                           []string
-	DragOver                          bool
+	Changed, Submitted, Action, Paste, Open bool
+	Dropped                                 []string
+	DragOver                                bool
 }
 
 // URLField is the big "paste a website" field: a raised slab with a globe,
@@ -106,7 +107,12 @@ func URLField(c *ui.Context, value *string, o URLFieldOpts) URLFieldResult {
 		bh := h - 14
 		switch {
 		case o.Paste != "" && *value == "":
-			r.Paste = Button(c.Key("paste"), o.Paste, ButtonOpts{Size: bh, Icon: icons.Paste}).Clicked()
+			ui.Row(c).Gap(6).Children(func() {
+				r.Paste = Button(c.Key("paste"), o.Paste, ButtonOpts{Variant: Ghost, Size: bh, Icon: icons.Paste}).Clicked()
+				if o.Open != "" {
+					r.Open = Button(c.Key("open"), o.Open, ButtonOpts{Variant: Ghost, Size: bh, Icon: icons.Folder, Hotkey: "mod+o"}).Clicked()
+				}
+			})
 		case o.Action != "":
 			r.Action = Button(c.Key("action"), o.Action, ButtonOpts{Variant: Primary, Size: bh, Disabled: o.ActionOff, Trailing: icons.ArrowRight}).Clicked()
 		default:

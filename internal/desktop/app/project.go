@@ -10,6 +10,7 @@ import (
 	"mypack.dev/mypack/internal/desktop/kit"
 	"mypack.dev/mypack/internal/desktop/kit/icons"
 	"mypack.dev/mypack/internal/domain"
+	"mypack.dev/mypack/pkg/config"
 )
 
 // projectStatus maps a project to its library status.
@@ -112,6 +113,9 @@ func (a *App) projectIcon(c *ui.Context, pr *domain.Project, size float32) {
 				a.do(func(ctx context.Context) error { _, err := a.svc.SetProjectIcon(ctx, id, b, "gui"); return err }, a.toastErr)
 			})
 		}
+		if pr.Config.App.Source.Type == config.SourceURL && m.Item(T("icon.refresh")).Chosen() {
+			a.refreshIcon(pr)
+		}
 		if m.Item(T("create.icon.reset")).Disabled(pr.Config.App.Icon.Source != "file").Chosen() {
 			id := pr.ID
 			a.do(func(ctx context.Context) error { _, err := a.svc.SetProjectIcon(ctx, id, nil, "gui"); return err }, a.toastErr)
@@ -164,6 +168,9 @@ func (a *App) projectMenu(m *ui.Menu, pr *domain.Project) {
 	}
 	if m.Item(T("action.edit")).Chosen() {
 		a.openProject(id, 1)
+	}
+	if pr.Config.App.Source.Type == config.SourceURL && m.Item(T("icon.refresh")).Chosen() {
+		a.refreshIcon(pr)
 	}
 	m.Separator()
 	if m.Item(T("action.duplicate")).Chosen() {
@@ -398,7 +405,7 @@ func (a *App) projectSettingsView(c *ui.Context, pr *domain.Project) {
 	p := design.Of(c)
 	ed := a.editorFor(pr)
 	a.previewInspector(c, func() {
-		ui.Column(c).AlignItems(ui.Start).Gap(0).Padding(32, 0, 24, 0).Children(func() {
+		ui.Column(c).AlignItems(ui.Center).Gap(0).Padding(32, 0, 24, 0).Children(func() {
 			a.projectIcon(c, pr, heroIcon)
 			kit.PageTitle(c, ed.cfg.App.Name).Margin(16, 0, 2, 0).SingleLine()
 			ui.Row(c).Gap(5).AlignItems(ui.Center).Children(func() {
@@ -423,7 +430,9 @@ func (a *App) projectSettingsView(c *ui.Context, pr *domain.Project) {
 				}
 				if in := a.installFor(pr.ID); in != nil {
 					id := in.ID
-					kit.Links(c.Key("links"), []kit.Link{{Label: T("action.open"), Run: func() { a.openInstall(id) }}})
+					if kit.Button(c.Key("links"), T("action.open"), kit.ButtonOpts{Variant: kit.Ghost, Size: 26}).FontWeight(design.WeightRegular).Clicked() {
+						a.openInstall(id)
+					}
 				}
 			})
 			a.appDockPreview(c, pr.IconPNG, ed.cfg.App.Name)
@@ -449,4 +458,27 @@ func (a *App) projectSettingsView(c *ui.Context, pr *domain.Project) {
 			a.settingsEditor(c, ed, pr)
 		})
 	}, nil)
+}
+
+// refreshIcon fetches a URL project's icon from its website again, through
+// today's icon pipeline, and sets it (Refresh Icon from Website).
+func (a *App) refreshIcon(pr *domain.Project) {
+	id, src, name := pr.ID, pr.Config.App.Source.Value, pr.Config.App.Name
+	a.do(func(ctx context.Context) error {
+		m, err := a.svc.FetchMetadata(ctx, src)
+		if err != nil {
+			return err
+		}
+		if len(m.IconPNG) == 0 || m.Fallback {
+			return &domain.Error{Code: "ICON_NOT_FOUND", Message: T("icon.refresh.none", "name", name)}
+		}
+		_, err = a.svc.SetProjectIcon(ctx, id, m.IconPNG, "gui")
+		return err
+	}, func(err error) {
+		if err != nil {
+			a.toastErr(err)
+			return
+		}
+		a.toast(T("icon.refresh.done", "name", name), "", 1)
+	})
 }

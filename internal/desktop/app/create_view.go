@@ -15,11 +15,10 @@ import (
 
 const heroIcon float32 = 128
 
-// createView is the URL → app transformation: a large glass address
-// field; as the site is looked up its icon shimmers, then pops into a real
-// macOS app icon above an editable name, sitting in a little Dock.
+// createView is the URL → app transformation: the address, the app's
+// identity and Build action, and a stage previewing the app (the build
+// plays there), beside the settings inspector.
 func (a *App) createView(c *ui.Context) {
-	p := design.Of(c)
 	s := &a.create
 	if s.input != s.lastInput {
 		s.lastEdit = time.Now()
@@ -47,9 +46,11 @@ func (a *App) createView(c *ui.Context) {
 	a.previewInspector(c, func() {
 		if s.building != "" {
 			if bpr != nil && bjob != nil {
-				a.buildPanel(c, bpr, bjob)
+				a.createBuilding(c, bpr, bjob)
 			} else {
-				ui.Column(c).AlignItems(ui.Center).Padding(80, 0).Children(func() { kit.Spinner(c, 22, p.TextTertiary) })
+				// The project and its job are still arriving: keep the
+				// same view (identity, stage) and say it's starting.
+				a.createStarting(c)
 			}
 			return
 		}
@@ -71,6 +72,7 @@ func (a *App) createView(c *ui.Context) {
 			// Look & Behaviour: the common choices, with good defaults.
 			ui.Column(c).Gap(14).Children(func() {
 				kit.SectionHeader(c, T("look.title"), "")
+				a.autoInstallSetting(c)
 				a.lookAndBehaviourOpts(c, a.ensureCfg(), func() {}, &s.account, true)
 			})
 			// Advanced Settings (collapsed).
@@ -90,81 +92,180 @@ func (a *App) createView(c *ui.Context) {
 	}
 }
 
-// createPreview is the live preview: the app icon (shimmering while the
-// site is looked up), its name to rename in place, its source, a compact
-// hint when the site could not be reached, and the Dock.
+// createPreview is the live preview, on one centred axis: the app's icon,
+// its name (rename in place) and host, the stage with a live mockup of its
+// window that follows the inspector's settings (and the Dock), and the
+// Build pill in a footer under it.
 func (a *App) createPreview(c *ui.Context) {
 	p := design.Of(c)
 	s := &a.create
-	ui.Column(c).AlignItems(ui.Start).Gap(0).Padding(32, 0, 24, 0).Children(func() {
-		loading := s.normalized != "" && s.meta == nil && s.metaFor != s.normalized
-		ui.Box(c).Size(heroIcon, heroIcon).Children(func() {
+	loading := s.normalized != "" && s.meta == nil && s.metaFor != s.normalized
+	ui.Column(c.Key("identity")).AlignItems(ui.Center).Gap(2).Margin(18, 0, 0, 0).Children(func() {
+		ui.Box(c).Size(identityIcon, identityIcon).Children(func() {
 			if loading && s.iconPNG == nil {
-				kit.Shimmer(c, heroIcon, heroIcon, design.AppIconRadius(heroIcon))
+				kit.Shimmer(c, identityIcon, identityIcon, design.AppIconRadius(identityIcon))
 				return
 			}
-			icon := a.iconPicker(c.Key("icon:"+s.metaFor), a.createIcon(), s.displayName(), heroIcon)
-			entered := ui.Local(icon, "in", func() bool { return false })
-			pose := ui.Pose{}
-			if !*entered {
-				pose, *entered = ui.Pose{Scale: 0.82, Fade: 1}, true
-				c.Invalidate()
-			}
-			icon.AnimatePose(pose, design.SpringPop)
-		})
+			icon := a.iconPicker(c.Key("icon:"+s.metaFor), a.createIcon(), s.displayName(), identityIcon)
+			a.iconAt["create"] = icon.Bounds()
+		}).Margin(0, 0, 8, 0)
 		a.renameField(c, loading)
-		ui.Row(c).Gap(5).AlignItems(ui.Center).Margin(2, 0, 0, 0).Children(func() {
+		ui.Row(c).Gap(5).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
 			ic := icons.Link
 			src := config.RegistrableHost(s.normalized)
 			if s.local != "" {
 				ic, src = icons.Folder, shortPath(s.local)
 			}
 			kit.Glyph(c, ic, 12, p.TextTertiary)
-			ui.Text(c, src).FontSize(design.FontSmall).TextColor(p.TextSecondary).SingleLine().MinWidth(0)
+			ui.Text(c, src).FontSize(design.FontSmall).TextColor(p.TextSecondary).SingleLine().MinWidth(0).Shrink(1)
 			if loading {
 				ui.Text(c, "· "+T("create.fetching")).FontSize(design.FontSmall).TextColor(p.TextTertiary).SingleLine()
 			}
-		})
-		// A web project: what it is, under the host.
-		if s.local != "" {
-			if hint, ok := projectKind(s.local); ok {
-				ui.Text(c, hint).FontSize(design.FontCaption).TextColor(p.TextTertiary).Margin(2, 0, 0, 0)
+			if s.local != "" {
+				if hint, ok := projectKind(s.local); ok {
+					ui.Text(c, "· "+hint).FontSize(design.FontSmall).TextColor(p.TextTertiary).SingleLine()
+				}
 			}
-		}
+		})
 		// Couldn't reach the site: a compact hint, never a banner.
 		if s.meta != nil && s.meta.Fallback && s.metaFor == s.normalized {
-			ui.Row(c).Gap(5).AlignItems(ui.Center).Margin(6, 0, 0, 0).MaxWidth(420).Children(func() {
+			ui.Row(c).Gap(5).AlignItems(ui.Center).Justify(ui.Center).Margin(4, 0, 0, 0).Children(func() {
 				kit.Glyph(c, icons.Info, 12, p.Warning)
-				ui.Text(c, T("create.offline")).FontSize(design.FontCaption).TextColor(p.TextSecondary).TextAlign(ui.Center).LineHeight(1.35)
+				ui.Text(c, T("create.offline")).FontSize(design.FontCaption).TextColor(p.TextSecondary).SingleLine().MinWidth(0).Shrink(1)
 			})
 		}
-		a.createAction(c)
-		a.dockPreview(c, loading)
 	})
-}
-
-// createAction is the build action under the app's identity: one pill,
-// with the Install & Open switch and the download hint as one quiet line
-// under it. (⌘B builds too.)
-func (a *App) createAction(c *ui.Context) {
-	p := design.Of(c)
-	s := &a.create
-	if !s.autoSet {
-		s.autoInstall, s.autoSet = a.ui.autoInstallDefault(), true
-	}
-	ui.Column(c.Key("action")).Gap(10).AlignItems(ui.Start).Margin(18, 0, 0, 0).Children(func() {
+	a.createMockupStage(c)
+	// The footer: Build, centred.
+	ui.Row(c.Key("footer")).Justify(ui.Center).Margin(16, 0, 0, 0).Children(func() {
 		if kit.Button(c.Key("build"), a.buildCTA(), kit.ButtonOpts{Variant: kit.Primary, Size: design.ControlLG,
 			Loading: s.busy, Disabled: len(s.targets) == 0, Hotkey: "mod+b", Icon: icons.Build}).Clicked() {
 			s.buildRequested = true
 		}
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			kit.Switch(c.Key("auto"), &s.autoInstall, T("autoInstall.label"))
-			ui.Text(c, T("autoInstall.label")).FontSize(design.FontSmall).TextColor(p.TextSecondary).SingleLine()
-			if pf := a.createDownloadHint(); pf != "" {
-				ui.Text(c, "· "+pf).FontSize(design.FontSmall).TextColor(p.TextTertiary).SingleLine().MinWidth(0).Shrink(1)
-			}
+	})
+}
+
+// createMockupStage is the stage with the live mockup of the app.
+func (a *App) createMockupStage(c *ui.Context) {
+	s := &a.create
+	cfg := a.ensureCfg()
+	a.stage(c, 0, func(h float32) {
+		mockup(c, c.Key("mockup"), cfg, a.createIcon(), s.displayName(), h, false)
+	})
+}
+
+// mockup is the live window mockup for a config; launched springs it
+// open (a finished build's result).
+func mockup(c *ui.Context, key *ui.Context, cfg *config.Config, icon []byte, name string, h float32, launched bool) {
+	p := design.Of(c)
+	w := cfg.Window
+	dark := w.DarkMode == "dark" || ((w.DarkMode == "" || w.DarkMode == "system") && p.Dark)
+	kit.AppMockup(key, kit.MockupOpts{Icon: icon, Name: name,
+		Tint: kit.IconTint(icon, name), Seamless: w.TitleBarStyle == "overlay" || w.TitleBarStyle == "hidden",
+		Dark: dark, W: w.Width, H: w.Height, Fill: w.Maximized, Tray: cfg.Native.Tray, Height: h, Launched: launched})
+}
+
+// autoInstallSetting is the inspector's first row: Install & Open when
+// done, with the one-time download as its quiet sub-line until cached.
+func (a *App) autoInstallSetting(c *ui.Context) {
+	s := &a.create
+	if !s.autoSet {
+		s.autoInstall, s.autoSet = a.ui.autoInstallDefault(), true
+	}
+	kit.GroupBox(c).Children(func() {
+		kit.SettingIconRow(c.Key("auto"), nil, ui.Color{}, T("autoInstall.label"), a.createDownloadHint(), func() {
+			kit.Switch(c.Key("sw"), &s.autoInstall, T("autoInstall.label"))
 		})
 	})
+}
+
+// identityIcon is the preview's icon size.
+const identityIcon float32 = 88
+
+// stage is the preview's large panel, filling the column's remaining
+// height: one surface step off the canvas, radius 16, no border. The
+// footer under it keeps its room.
+// footerRoom is the height kept under the stage for Create's footer.
+const footerRoom = 16 + 56 + 8 + 16 + 12
+
+func (a *App) stage(c *ui.Context, cap float32, body func(h float32)) {
+	p := design.Of(c)
+	st := ui.Column(c.Key("stage")).FillWidth().Radius(16).Background(p.Group).Margin(16, 0, 0, 0).Clip()
+	// Fill the rest of the column's viewport, less the footer, but never
+	// less than 300 pt. The footer's room is the same in every state (the
+	// Build pill, the status block, the result bar and its caption), so
+	// the stage never jumps as one gives way to the next.
+	h := float32(300)
+	if b, v := st.Bounds(), a.previewBox; b.H > 0 && v.H > 0 {
+		h = max(h, v.Y+v.H-b.Y-28-footerRoom)
+	}
+	if cap > 0 {
+		h = min(h, cap)
+	}
+	st.Height(h)
+	st.Children(func() { body(h) })
+}
+
+// createStarting holds Create's view for the moment between pressing Build
+// and the project and its job arriving: the same identity and stage, and
+// "Starting…" in the footer.
+func (a *App) createStarting(c *ui.Context) {
+	p := design.Of(c)
+	s := &a.create
+	a.createIdentity(c, a.createIcon(), s.displayName(), "")
+	a.createMockupStage(c)
+	ui.Row(c.Key("footer")).Gap(8).AlignItems(ui.Center).Justify(ui.Center).Margin(16, 0, 0, 0).Children(func() {
+		kit.Spinner(c, 14, p.TextTertiary)
+		ui.Text(c, T("create.starting")).FontSize(design.FontBody).TextColor(p.TextSecondary)
+	})
+}
+
+// createIdentity is the centred icon, name and host of an app that is
+// building or built.
+func (a *App) createIdentity(c *ui.Context, icon []byte, name, host string) {
+	p := design.Of(c)
+	ui.Column(c.Key("identity")).AlignItems(ui.Center).Gap(2).Margin(18, 0, 0, 0).Children(func() {
+		kit.AppIconOpts(c, icon, name, identityIcon, kit.IconOpts{Shadow: true}).Margin(0, 0, 8, 0)
+		kit.PageTitle(c, name).SingleLine()
+		if host != "" {
+			ui.Text(c, host).FontSize(design.FontSmall).TextColor(p.TextSecondary).SingleLine()
+		}
+	})
+}
+
+// createBuilding is Create while its build runs and after: the same
+// centred identity; the build plays in the stage; the footer holds Cancel,
+// then the result and its links.
+func (a *App) createBuilding(c *ui.Context, pr *domain.Project, j *domain.BuildJob) {
+	si := a.successOf(pr, j)
+	a.createIdentity(c, pr.IconPNG, pr.Config.App.Name, addressLabel(pr.Config.App.Source, pr.Config.App.Name))
+	// A failure keeps the stage short, so the failed step and its fix
+	// sit in view under it.
+	var cap float32
+	if j.Status == domain.JobFailed {
+		cap = 220
+	}
+	a.stage(c, cap, func(h float32) {
+		switch j.Status {
+		case domain.JobAwaitingApproval:
+			ui.Column(c).Padding(4, 20, 20, 20).Children(func() { a.approvalCard(c, j) })
+		case domain.JobSucceeded:
+			// The result is the app, launched: its window springs open.
+			mockup(c, c.Key("launched"), pr.Config, pr.IconPNG, pr.Config.App.Name, h, true)
+		case domain.JobFailed:
+			// The app as it would be; the step list below says why not.
+			mockup(c, c.Key("mockup"), pr.Config, pr.IconPNG, pr.Config.App.Name, h, false)
+		default:
+			a.sceneFor(c, pr, j, h)
+		}
+	})
+	ui.Column(c.Key("footer")).AlignItems(ui.Center).Gap(8).Margin(16, 0, 0, 0).Children(func() {
+		a.buildFooter(c, pr, j)
+	})
+	switch j.Status {
+	case domain.JobSucceeded:
+		a.successExtras(c, j, si)
+	}
 }
 
 // createStart is Create before an address: a centered, inviting field.
@@ -184,11 +285,11 @@ func (a *App) createStart(c *ui.Context) {
 func (a *App) createURLField(c *ui.Context, h float32) {
 	p := design.Of(c)
 	s := &a.create
-	ui.Column(c).Gap(10).Children(func() {
+	ui.Column(c).Gap(10).FillWidth().MaxWidth(640).Children(func() {
 		r := kit.URLField(c.Key("url"), &s.input, kit.URLFieldOpts{
 			Placeholder: T("create.url.placeholder"), Label: T("create.url.label"), Height: h,
 			Loading: s.fetchingFor != "" && s.fetchingFor == s.normalized, Invalid: s.invalidMsg != "" && s.input != "",
-			AutoFocus: true, Handle: &s.urlHandle, Paste: T("create.paste"),
+			AutoFocus: true, Handle: &s.urlHandle, Paste: T("create.paste"), Open: T("create.open"),
 			OnPaste: func(text string) bool {
 				t := strings.TrimSpace(text)
 				if t == "" {
@@ -214,27 +315,19 @@ func (a *App) createURLField(c *ui.Context, h float32) {
 		if r.Submitted && s.ready() {
 			s.buildRequested = true
 		}
-		ui.Row(c).Gap(6).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
+		if r.Open {
+			a.openSource()
+		}
+		// One quiet line under the field, starting at its text edge.
+		ui.Row(c).Gap(6).AlignItems(ui.Center).Padding(0, 0, 0, 48).Children(func() {
 			switch {
 			case s.invalidMsg != "" && s.input != "" && time.Since(s.lastEdit) > 700*time.Millisecond:
-				ui.Text(c, s.invalidMsg).FontSize(design.FontSmall).TextColor(p.Warning).TextAlign(ui.Center)
+				ui.Text(c, s.invalidMsg).FontSize(design.FontSmall).TextColor(p.Warning).SingleLine()
 			case r.DragOver:
-				ui.Text(c, T("create.drop.release")).FontSize(design.FontSmall).TextColor(p.AccentText)
+				ui.Text(c, T("create.drop.release")).FontSize(design.FontSmall).TextColor(p.AccentText).SingleLine()
 			case s.ready():
 			default:
-				kit.Footnote(c, T("create.drop.hint"))
-				if kit.Button(c.Key("choose"), T("create.chooseFile"), kit.ButtonOpts{Variant: kit.Plain, Size: 18}).
-					FontSize(design.FontSmall).Clicked() {
-					a.chooseLocalSource()
-				}
-				if kit.Button(c.Key("choosedir"), T("create.chooseFolder"), kit.ButtonOpts{Variant: kit.Plain, Size: 18}).
-					FontSize(design.FontSmall).Clicked() {
-					a.chooseLocalFolder()
-				}
-				if kit.Button(c.Key("importcfg"), T("menu.importConfig"), kit.ButtonOpts{Variant: kit.Plain, Size: 18,
-					Tooltip: T("importConfig.sub")}).FontSize(design.FontSmall).Clicked() {
-					a.importConfig()
-				}
+				ui.Text(c, T("create.drop.hint")).FontSize(design.FontSmall).TextColor(p.TextTertiary).SingleLine().MinWidth(0).Shrink(1)
 			}
 		})
 	})
@@ -254,12 +347,12 @@ func (a *App) renameField(c *ui.Context, loading bool) {
 		shown = s.displayName()
 	}
 	if loading && shown == "" {
-		kit.Shimmer(c, 160, 22, 8).Margin(18, 0, 8, 0)
+		kit.Shimmer(c, 160, 20, 6).Margin(4, 0, 4, 0)
 		return
 	}
-	in := ui.TextInputBase(c.Key("name"), &shown).FontSize(design.FontTitle1).FontWeight(design.WeightBold).
+	in := ui.TextInputBase(c.Key("name"), &shown).FontSize(design.FontTitle2).FontWeight(design.WeightSemibold).
 		Placeholder(placeholder).PlaceholderColor(p.TextTertiary).TextColor(p.Text).FocusRing(false).Label(T("create.name.label")).
-		TextAlign(ui.Start).Width(320).MaxWidthPercent(100).Height(34).Padding(0, 12).Radius(10).Margin(14, 0, 2, -12).
+		TextAlign(ui.Center).Width(320).MaxWidthPercent(100).Height(30).Padding(0, 8).Radius(8).
 		Transition(design.Transition(c)).Tooltip(T("create.name.tip"))
 	if in.Focused() {
 		kit.FieldStyle(c, in, true, false)

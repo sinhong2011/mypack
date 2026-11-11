@@ -19,6 +19,9 @@ type uiState struct {
 	// on) seeds new projects.
 	AutoInstall        map[string]bool `json:"autoInstall,omitempty"`
 	AutoInstallDefault *bool           `json:"autoInstallDefault,omitempty"`
+	// ShowHUD (nil = on) shows build progress near the notch while
+	// Mypack's window is not in front.
+	ShowHUD *bool `json:"showHud,omitempty"`
 }
 
 // autoInstallDefault is the default for new projects (on unless turned off).

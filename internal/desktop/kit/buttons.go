@@ -1,7 +1,6 @@
 package kit
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -302,29 +301,4 @@ func Kbd(c *ui.Context, keys string) ui.Element {
 	p := design.Of(c)
 	return ui.Text(c, HotkeyText(keys)).FontSize(design.FontCaption).FontWeight(design.WeightMedium).TextColor(p.TextSecondary).
 		Padding(1, 6).Radius(5).Background(p.Fill).Border(0.5, p.Border).AccessHidden(true)
-}
-
-// Link is one quiet action in a Links row.
-type Link struct {
-	Label string
-	Icon  *ui.SVG // optional, 14 pt, only where it clarifies
-	Run   func()
-}
-
-// Links is a row of small text links separated by thin dots: the quiet
-// home of secondary actions.
-func Links(c *ui.Context, links []Link) ui.Element {
-	p := design.Of(c)
-	row := ui.Row(c).Gap(2).Wrap().AlignItems(ui.Center)
-	row.Children(func() {
-		for i, l := range links {
-			if i > 0 {
-				ui.Text(c.Key(fmt.Sprint("dot", i)), "·").FontSize(design.FontBody).TextColor(p.TextTertiary).AccessHidden(true)
-			}
-			if Button(c.Key(i), l.Label, ButtonOpts{Variant: Ghost, Size: 26, Icon: l.Icon}).FontWeight(design.WeightRegular).PaddingX(8).Clicked() && l.Run != nil {
-				l.Run()
-			}
-		}
-	})
-	return row
 }

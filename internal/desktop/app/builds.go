@@ -178,12 +178,7 @@ func (a *App) jobDetails(c *ui.Context, j domain.BuildJob) {
 	p := design.Of(c)
 	ui.Column(c).Padding(10, 14, 16, 44).Gap(12).Background(p.Alt).Children(func() {
 		if j.Error != nil {
-			ui.Column(c).Gap(4).Padding(10, 12).Radius(design.RadiusCard).Background(p.DangerSoft).Children(func() {
-				ui.Text(c, j.Error.Message).FontSize(design.FontBody).FontWeight(design.WeightMedium).TextColor(p.Text)
-				if j.Error.Remediation != "" {
-					ui.Text(c, j.Error.Remediation).FontSize(design.FontSmall).TextColor(p.TextSecondary)
-				}
-			})
+			a.failureBody(c, j.Error, j.ID, a.fixesFor(j.Error, j.ProjectID, nil))
 		}
 		for _, art := range j.Artifacts {
 			art := art

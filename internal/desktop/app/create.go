@@ -57,6 +57,11 @@ func (s *createState) reset(host config.Target) {
 	s.targets = map[string]config.Target{t.Key(): t}
 }
 
+// buildStarted notes that the build of project id started from Create: the
+// view stays as it is (input, name, settings) and the build plays in its
+// stage. Nothing is reset.
+func (s *createState) buildStarted(id string) { s.building = id }
+
 func (s *createState) setInput(v string) {
 	s.input = strings.TrimSpace(v)
 	s.lastEdit = time.Time{} // fetch immediately
@@ -324,7 +329,7 @@ func (a *App) createAndBuild() {
 		}
 		a.reload("projects")
 		// The build plays in Create's preview, where it started.
-		a.create.building = projectID
+		a.create.buildStarted(projectID)
 	})
 }
 
@@ -405,5 +410,32 @@ func (a *App) chooseLocalFolder() {
 			return
 		}
 		a.win.Update(func() { a.create.setInput(paths[0]) })
+	}()
+}
+
+// openSource is the one open panel for Create (⌘O): an HTML file, a web
+// project or static site (pick its package.json or index.html: the panel
+// can't take folders and files at once), or an app config (.json), which
+// goes to the config importer through the same Create flow.
+func (a *App) openSource() {
+	go func() {
+		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.win, Title: T("create.open.title"),
+			Message: T("create.open.message"), ButtonLabel: T("create.chooseFile.button"),
+			Filters: []mygo.FileFilter{{Name: T("create.open.filter"), Extensions: []string{"html", "htm", "json"}}}})
+		if err != nil || len(paths) == 0 {
+			return
+		}
+		pick := paths[0]
+		switch strings.ToLower(filepath.Base(pick)) {
+		case "package.json", "index.html":
+			pick = filepath.Dir(pick) // the project or site folder
+		}
+		a.win.Update(func() {
+			if a.section != secCreate {
+				a.create.reset(a.host)
+				a.nav(secCreate)
+			}
+			a.create.setInput(pick)
+		})
 	}()
 }

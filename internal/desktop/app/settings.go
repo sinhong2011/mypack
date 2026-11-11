@@ -129,6 +129,16 @@ func (a *App) settingsView(c *ui.Context) {
 					a.ui.save()
 				}
 			})
+			hudOn := a.ui.ShowHUD == nil || *a.ui.ShowHUD
+			kit.SettingIconRow(c.Key("hud"), icons.Monitor, ui.Color{}, T("hud.setting"), T("hud.setting.desc"), func() {
+				old := hudOn
+				kit.Switch(c.Key("sw-hud"), &hudOn, T("hud.setting"))
+				if hudOn != old {
+					a.ui.ShowHUD = &hudOn
+					a.ui.save()
+					a.syncHUD()
+				}
+			})
 			dir("out", T("settings.outputDir"), T("settings.outputDir.desc"), &a.settings.OutputDir, ui.Color{})
 			dir("inst", T("settings.installDir"), T("settings.installDir.desc"), &a.settings.InstallDir, ui.Color{})
 		})

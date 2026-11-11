@@ -45,15 +45,21 @@ type App struct {
 	host config.Target
 	ui   uiState
 
-	section   section
-	projectID string
-	projTab   int                  // 0 overview, 1 settings
-	navDir    float32              // +1 the last page change went deeper, -1 back
-	flights   map[string]*flight   // app icons on their way between screens
-	toolbarW  float32              // the toolbar's width last frame (compact controls when narrow)
-	autoOpen  map[string]time.Time // jobs installed & opened automatically, and when
-	iconAt    iconRects            // where the project hero's icon showed last
-	reduced   bool                 // the user asked for reduced motion
+	section    section
+	projectID  string
+	projTab    int                // 0 overview, 1 settings
+	navDir     float32            // +1 the last page change went deeper, -1 back
+	flights    map[string]*flight // app icons on their way between screens
+	toolbarW   float32            // the toolbar's width last frame (compact controls when narrow)
+	hud        hudState
+	status     map[string]*statusState // the build status blocks, per job
+	steps      map[string]*stepTrack   // the build step lists, per job
+	trayPhase  float64                 // the menu-bar ring's turn while a build's % is unknown
+	traySpin   bool                    // the build HUD near the notch
+	previewBox ui.Rect                 // the preview column's viewport last frame (the stage fills it)
+	autoOpen   map[string]time.Time    // jobs installed & opened automatically, and when
+	iconAt     iconRects               // where the project hero's icon showed last
+	reduced    bool                    // the user asked for reduced motion
 
 	loaded   bool
 	settings appservice.Settings
@@ -188,6 +194,7 @@ func Run(svc appservice.Service) error {
 		}
 		svc.Subscribe(a.onEvent)
 		a.reload("projects", "installs", "jobs", "runtimes", "storage", "license")
+		a.watchFront()
 		a.syncTray()
 		if isFake() && os.Getenv("MYPACK_FAKE_FLYOUT") == "1" {
 			// Demo/screenshots: open the menu bar flyout once loaded.
@@ -486,6 +493,7 @@ func (a *App) upsertJob(j domain.BuildJob) {
 		}
 	}
 	a.syncTray()
+	a.syncHUD()
 }
 
 // ---- lookups --------------------------------------------------------------------

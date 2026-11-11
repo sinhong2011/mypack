@@ -323,7 +323,10 @@ func (a *App) settingsEditor(c *ui.Context, ed *editorState, pr *domain.Project)
 						}
 						if g.reset != nil && q == "" {
 							reset := g.reset
-							kit.Links(c.Key("reset"), []kit.Link{{Label: T("editor.resetGroup"), Run: func() { reset(); ed.changed() }}}).Margin(4, 0, 0, -8)
+							if kit.Button(c.Key("reset"), T("editor.resetGroup"), kit.ButtonOpts{Variant: kit.Ghost, Size: 26}).FontWeight(design.WeightRegular).Margin(4, 0, 0, -8).Clicked() {
+								reset()
+								ed.changed()
+							}
 						}
 					})
 				}
@@ -339,7 +342,9 @@ func (a *App) settingsEditor(c *ui.Context, ed *editorState, pr *domain.Project)
 		if !any {
 			kit.EmptyState(c, icons.Search, T("editor.noResults"), "", nil)
 		}
-		kit.Links(c.Key("resetall"), []kit.Link{{Label: T("editor.reset"), Run: func() { a.dlg.reset = resetDialog{open: true, ed: ed} }}}).Margin(10, 0, 0, -8)
+		if kit.Button(c.Key("resetall"), T("editor.reset"), kit.ButtonOpts{Variant: kit.Ghost, Size: 26}).FontWeight(design.WeightRegular).Margin(10, 0, 0, -8).Clicked() {
+			a.dlg.reset = resetDialog{open: true, ed: ed}
+		}
 	})
 	a.autosave(c, ed)
 }

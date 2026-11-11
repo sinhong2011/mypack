@@ -104,8 +104,9 @@ These rules hold on every screen. A screen that breaks one is a bug.
   icon only where it says something, such as a folder on "Show in Finder".
 - No duplicate status: one source of truth per state. A result on screen
   gets no toast; toasts are for builds that finish while you are elsewhere.
-- At most one primary button per view. Secondary actions are quiet links
-  (`kit.Links`, separated by thin dots) or ghost buttons.
+- At most one primary button per view. Secondary actions are ghost
+  buttons or 32 pt circular icon buttons; no rows of dot-separated text
+  links.
 - Copy is specific and short, with no "You can…" or "Let's…" filler.
 - Density over decoration.
 
@@ -427,15 +428,42 @@ Accessibility is built in:
     "Open links to my other Mypack apps in those apps".
   - While a build runs from Create, the inspector is held: it is quieter
     (0.8) but still readable, and does not take clicks.
-  - The build action lives in the preview, under the app's name and host:
-    one pill ("Build & Open" or "Build for This Mac"). Under it, one quiet
-    line holds the "Install & Open when done" switch and the download
-    hint. ⌘B builds too. The inspector holds settings only, with no
-    footer.
-  - When a build starts, the action area becomes the build in place: the
-    scene, the title, the rolling stage line and a Cancel link. Then comes
-    the success state, whose link row starts with "View project". New App
-    stays in the toolbar, as a quiet plus while on Create.
+  - The build action is one pill ("Build & Open" or "Build for This Mac")
+    in a centred footer at the bottom of the left column. ⌘B builds too.
+    "Install & Open when done" is the inspector's first row.
+  - When a build starts, the stage plays the scene and the footer becomes
+    a live step list (about 420 pt wide), one 28 pt row per step the build
+    actually uses: Build project (JS projects), Get app engine (only when
+    a download is needed), Make it an app, Sign, Check, Install & Open
+    (when that switch is on). Each row has a 16 pt glyph (hollow circle,
+    spinner, a check that draws on in ~220 ms, a red ✕, a dash), the label
+    and, on the right, the live detail or the step's time ("2.1s"). The
+    running row opens under its label (a 2 pt bar for a download, the
+    latest output line for a project build); three or more finished steps
+    fold into "✓ 3 steps done · 4.2s". Cancel (Esc) sits under the list.
+    The menu-bar flyout and the HUD show the same list, compact. The
+    detail and the scene's address bar read one clock, and progress never
+    goes backwards.
+  - On success the list gives way to the result bar and the stage shows
+    the app launched: its window springs open at its size, appearance and
+    title-bar style, the favicon in its title. The app's icon appears once
+    per view (the identity block); the mockup has no Dock. The result bar
+    is a 56 pt pill with the name and state (no icon), a hairline, then Open (or an
+    "Opened" chip that offers Open again), Show in Finder, Rebuild, View
+    log and a "⋯" menu (View Project, Add Another Account…, Copy Path,
+    Reveal Build Folder), with one caption of size and build time under
+    it. A failure keeps the list, its failed row open, and the bar says
+    "Build failed · Step 3 of 5" with Retry, View log and Copy diagnostic.
+  - Failures are said where they happen, never in a box: under the failed
+    step (or in the update, repair or uninstall sheet), what happened in
+    one plain sentence, up to two small fixes ("Get Node.js", "Project
+    Settings", "Open Settings", "Manage Apps"), the remediation when no
+    button covers it, and a folded "Details" with the code, the cause and
+    the last lines of the log (monospace, sunken, Copy). Red is the ✕ and
+    the word "failed", nothing else. Return opens
+    (or retries), ⌘R rebuilds, ⌘L shows the log. The project page uses
+    the same bar. New App stays in the toolbar, as a quiet plus while on
+    Create.
   - The project's Settings tab is the same: Build or Rebuild (and an Open
     link when installed) sits under the preview. The toolbar drops its
     Build there.

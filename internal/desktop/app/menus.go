@@ -5,6 +5,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -45,6 +46,7 @@ func (a *App) installMenu() {
 			mygo.Separator(),
 			{Label: T("menu.importApp"), Click: on(a.importExistingApp)},
 			{Label: T("menu.importConfig"), Click: on(a.importConfig)},
+			{Label: T("create.open"), Accelerator: "CmdOrCtrl+O", Click: on(a.openSource)},
 			mygo.Separator(),
 			{Role: mygo.RoleClose},
 		}},
@@ -68,10 +70,23 @@ func (a *App) installMenu() {
 // newApp opens Create (⌘N).
 func (a *App) newApp() {
 	a.showWindow()
-	if a.section != secCreate {
+	// A fresh Create, unless Create is already in front with something in
+	// hand (an address being typed, a build still running); a finished
+	// build there gives way to a new app.
+	if a.section != secCreate || (a.create.building != "" && !a.buildingNow(a.create.building)) {
 		a.create.reset(a.host)
 	}
 	a.nav(secCreate)
+}
+
+// buildingNow reports whether a project has a build running or waiting.
+func (a *App) buildingNow(projectID string) bool {
+	for _, j := range a.activeJobs() {
+		if j.ProjectID == projectID {
+			return true
+		}
+	}
+	return false
 }
 
 // buildShortcut builds what's in front (⌘B).
@@ -103,7 +118,28 @@ func (a *App) syncTray() {
 		return
 	}
 	active := a.activeJobs()
-	icon := kit.TrayIconPNG(len(active) > 0)
+	// While builds run the glyph sits in a progress ring: the most recent
+	// build's %, or a turning arc when it has none.
+	icon := kit.TrayProgressPNG(-2, 0)
+	if len(active) > 0 {
+		pr := active[0].Progress
+		if active[0].Status != domain.JobRunning {
+			pr = -1
+		}
+		if pr < 0 {
+			pr = -1
+			a.trayPhase += 0.08
+			if !a.traySpin {
+				a.traySpin = true
+				time.AfterFunc(90*time.Millisecond, func() {
+					if a.win != nil {
+						a.win.Update(func() { a.traySpin = false; a.syncTray() })
+					}
+				})
+			}
+		}
+		icon = kit.TrayProgressPNG(pr, a.trayPhase)
+	}
 	if a.tray == nil {
 		t, err := mygo.NewTray(mygo.TrayOptions{ID: "mypack", Icon: icon, IconIsTemplate: true, ToolTip: "Mypack"})
 		if err != nil {
@@ -214,10 +250,6 @@ func (a *App) flyoutView(c *ui.Context) {
 		if len(active) > 0 {
 			ui.Column(c).Gap(8).Children(func() {
 				flyoutHeader(c, T("tray.activity"))
-				if pr := a.project(active[0].ProjectID); pr != nil {
-					j := active[0]
-					ui.Box(c).Radius(design.RadiusCard).Clip().Children(func() { a.sceneFor(c, pr, &j, 132) })
-				}
 				for _, j := range active {
 					j := j
 					var png []byte
@@ -235,16 +267,15 @@ func (a *App) flyoutView(c *ui.Context) {
 								ui.Text(c, j.Snapshot.App.Name).FontSize(design.FontBody).FontWeight(design.WeightMedium).TextColor(p.Text).SingleLine().Grow(1).MinWidth(0)
 								ui.Text(c, stageLabel(j)).FontSize(design.FontCaption).TextColor(p.TextSecondary).SingleLine()
 							})
-							prog := -1.0
-							if j.Progress >= 0 {
-								prog = (float64(stepIndex(j.Stage)) + j.Progress) / float64(len(visibleSteps))
-							}
-							kit.ProgressBar(c, prog)
 						})
 					})
 					if row.Clicked() {
 						a.closeFlyoutAnd(func() { a.openProject(j.ProjectID, 0) })
 					}
+					// Its steps, compact, under it.
+					ui.Column(c.Key(j.ID+"-steps")).Padding(0, 8, 4, 48).Children(func() {
+						a.buildSteps(c, a.project(j.ProjectID), &j, true, false)
+					})
 				}
 			})
 		}
@@ -281,6 +312,17 @@ func (a *App) flyoutView(c *ui.Context) {
 				a.closeFlyoutAnd(func() { a.nav(secBuilds) })
 			}
 			ui.Spacer(c)
+			// A footer menu: the notch HUD toggle (the same as Settings ›
+			// Builds), and Quit.
+			kit.IconButton(c.Key("more"), icons.More, T("common.more")).Menu(func(m *ui.Menu) {
+				on := a.ui.ShowHUD == nil || *a.ui.ShowHUD
+				if m.Item(T("hud.setting")).Checked(on).Chosen() {
+					v := !on
+					a.ui.ShowHUD = &v
+					a.ui.save()
+					a.syncHUD()
+				}
+			})
 			if kit.IconButton(c.Key("quit"), icons.Power, T("menu.quit")).Clicked() {
 				mygo.App.Quit()
 			}

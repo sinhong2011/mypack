@@ -28,57 +28,6 @@ type Step struct {
 	Progress float64 // 0..1 when measurable, <0 otherwise (active only)
 }
 
-// BuildTimeline renders the pipeline stages as a compact grouped list with
-// honest progress: a bar only where the stage has a trustworthy
-// denominator.
-func BuildTimeline(c *ui.Context, steps []Step) ui.Element {
-	p := design.Of(c)
-	return GroupBox(c).Role(ui.RoleList).Children(func() {
-		for i, s := range steps {
-			ui.Column(c.Key(i)).Padding(9, 14).Gap(6).Role(ui.RoleListItem).Children(func() {
-				ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-					ui.Row(c).Size(18, 18).Center().Shrink(0).Children(func() { stepGlyph(c, p, s.State) })
-					fg := p.TextSecondary
-					w := design.WeightRegular
-					switch s.State {
-					case StepActive:
-						fg, w = p.Text, design.WeightSemibold
-					case StepDone:
-						fg = p.Text
-					case StepFailed:
-						fg, w = p.Danger, design.WeightSemibold
-					case StepPending, StepSkipped:
-						fg = p.TextTertiary
-					}
-					ui.Text(c, s.Label).FontSize(design.FontBody).FontWeight(w).TextColor(fg).SingleLine()
-					ui.Spacer(c)
-					if s.Detail != "" {
-						ui.Text(c, s.Detail).FontSize(design.FontSmall).TextColor(p.TextTertiary).SingleLine().FontFeatures("tnum")
-					}
-				})
-				if s.State == StepActive && s.Progress >= 0 {
-					ui.Column(c).Padding(0, 0, 2, 28).Children(func() { ProgressBar(c, s.Progress) })
-				}
-			})
-		}
-	})
-}
-
-func stepGlyph(c *ui.Context, p *design.Palette, st StepState) {
-	switch st {
-	case StepDone:
-		Glyph(c, icons.Success, 17, p.Success)
-	case StepActive:
-		Spinner(c, 15, p.Accent)
-	case StepFailed:
-		Glyph(c, icons.Failed, 17, p.Danger)
-	case StepSkipped:
-		Glyph(c, icons.Skipped, 16, p.TextTertiary)
-	default:
-		ui.Box(c).Size(14, 14).Radius(7).Border(1.5, p.BorderStrong)
-	}
-}
-
 // LogLine is one rendered log line.
 type LogLine struct {
 	Time, Level, Text string
@@ -134,65 +83,6 @@ func RuntimeDownloadCard(c *ui.Context, d RuntimeDownloadInfo) (approve, cancel 
 		ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 			cancel = Button(c.Key("cancel"), d.Cancel, ButtonOpts{}).Clicked()
 			approve = Button(c.Key("approve"), d.Approve, ButtonOpts{Variant: Primary, Loading: d.Busy, Icon: icons.Download}).Clicked() || (!d.Busy && c.Shortcut(0, ui.KeyEnter))
-		})
-	})
-	return
-}
-
-// ErrorInfo is the content of an ErrorPanel: what happened → why → how to
-// fix → retry (spec §9.5).
-type ErrorInfo struct {
-	What, Why, Fix   string
-	WhyLabel         string
-	FixLabel         string
-	Code             string
-	Note             string // e.g. "Your previous build is untouched."
-	Retry, Copy      string
-	Extra            string // optional third action label (e.g. View Log)
-	CopiedDiagnostic string
-}
-
-// ErrorPanel renders a structured failure with Retry and Copy Diagnostic.
-func ErrorPanel(c *ui.Context, e ErrorInfo) (retry, copy, extra bool) {
-	p := design.Of(c)
-	Card(c).Padding(22).Gap(16).Children(func() {
-		ui.Row(c).Gap(14).AlignItems(ui.Start).Children(func() {
-			ui.Column(c).Grow(1).MinWidth(0).Gap(10).Children(func() {
-				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-					Glyph(c, icons.Alert, 18, p.Danger)
-					Heading(c, e.What).Grow(1).MinWidth(0)
-					if e.Code != "" {
-						ui.Text(c, e.Code).Font(MonoFont).FontSize(10.5).TextColor(p.TextSecondary).
-							Padding(2, 7).Radius(5).Background(p.Fill).Shrink(0)
-					}
-				})
-				if e.Why != "" {
-					ui.Column(c).Gap(2).Children(func() {
-						ui.Text(c, e.WhyLabel).FontSize(design.FontCaption).FontWeight(design.WeightSemibold).TextColor(p.TextTertiary)
-						ui.Text(c, e.Why).FontSize(design.FontBody).TextColor(p.TextSecondary).LineHeight(1.4).Selectable()
-					})
-				}
-				if e.Fix != "" {
-					ui.Column(c).Gap(2).Children(func() {
-						ui.Text(c, e.FixLabel).FontSize(design.FontCaption).FontWeight(design.WeightSemibold).TextColor(p.TextTertiary)
-						ui.Text(c, e.Fix).FontSize(design.FontBody).TextColor(p.Text).LineHeight(1.4).Selectable()
-					})
-				}
-			})
-		})
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			if e.Note != "" {
-				Glyph(c, icons.Shield, 14, p.TextTertiary)
-				Caption(c, e.Note).MinWidth(0).Shrink(1)
-			}
-			ui.Spacer(c)
-			if e.Extra != "" {
-				extra = Button(c.Key("extra"), e.Extra, ButtonOpts{Variant: Ghost, Icon: icons.Log}).Clicked()
-			}
-			copy = Button(c.Key("copy"), e.Copy, ButtonOpts{Icon: icons.Copy}).Clicked()
-			if e.Retry != "" {
-				retry = Button(c.Key("retry"), e.Retry, ButtonOpts{Variant: Primary, Icon: icons.Retry}).Clicked()
-			}
 		})
 	})
 	return

@@ -5,8 +5,10 @@ import (
 	"hash/fnv"
 	"image"
 	"image/color"
+	"image/draw"
 	_ "image/jpeg"
 	"image/png"
+	"math"
 	"strings"
 	"sync"
 	"unicode"
@@ -35,18 +37,53 @@ func BrandMark(c *ui.Context, size float32) ui.Element {
 
 // TrayIconPNG renders the monochrome template cube for the status item at
 // 2x (36 px for an 18 pt icon).
-func TrayIconPNG(active bool) []byte {
-	img := cubeTemplateSVG.Image(36, 36, color.Black)
-	if active {
-		// A small dot at the lower right signals a build in progress.
-		for y := 26; y < 36; y++ {
-			for x := 26; x < 36; x++ {
-				dx, dy := float64(x)-31, float64(y)-31
-				if dx*dx+dy*dy <= 20 {
-					img.Set(x, y, color.Black)
-				} else if dx*dx+dy*dy <= 32 {
-					img.Set(x, y, color.Transparent)
+func TrayIconPNG(active bool) []byte { return TrayProgressPNG(-2, 0) }
+
+// TrayProgressPNG is the menu-bar template glyph; while a build runs
+// (progress ≥ 0, or -1 for unknown) it shrinks inside a thin progress ring:
+// a sweep to progress, or a 90° arc turning with phase (0…1) when the
+// progress is unknown. progress < -1 is the plain glyph.
+func TrayProgressPNG(progress, phase float64) []byte {
+	const n = 36
+	if progress < -1 {
+		img := cubeTemplateSVG.Image(n, n, color.Black)
+		var b bytes.Buffer
+		_ = png.Encode(&b, img)
+		return b.Bytes()
+	}
+	img := image.NewNRGBA(image.Rect(0, 0, n, n))
+	glyph := cubeTemplateSVG.Image(22, 22, color.Black)
+	draw.Draw(img, image.Rect(7, 7, 29, 29), glyph, image.Point{}, draw.Over)
+	from, span := -math.Pi/2, 0.0
+	if progress < 0 {
+		from, span = -math.Pi/2+phase*2*math.Pi, math.Pi/2
+	} else {
+		span = math.Max(0.04, math.Min(1, progress)) * 2 * math.Pi
+	}
+	const cx, cy, r, th = 17.5, 17.5, 16.0, 2.6
+	for y := 0; y < n; y++ {
+		for x := 0; x < n; x++ {
+			// 4×4 supersampling for a smooth ring.
+			cov := 0.0
+			for sy := 0; sy < 4; sy++ {
+				for sx := 0; sx < 4; sx++ {
+					px, py := float64(x)+(float64(sx)+0.5)/4, float64(y)+(float64(sy)+0.5)/4
+					d := math.Hypot(px-cx, py-cy)
+					if math.Abs(d-r) > th/2 {
+						continue
+					}
+					ang := math.Mod(math.Atan2(py-cy, px-cx)-from+4*math.Pi, 2*math.Pi)
+					a := 0.3 // the track
+					if ang <= span {
+						a = 1
+					}
+					cov += a / 16
 				}
+			}
+			if cov > 0 {
+				_, _, _, ga := img.At(x, y).RGBA()
+				al := math.Max(float64(ga)/65535, cov)
+				img.SetNRGBA(x, y, color.NRGBA{0, 0, 0, uint8(math.Round(al * 255))})
 			}
 		}
 	}
