@@ -39,6 +39,7 @@ type editorState struct {
 	conflict bool
 
 	query    string
+	search   searchState // the header's search: icon → field
 	group    int
 	headers  map[string]*ui.Handle // accordion rows, for ↑/↓
 	moveDown string
@@ -263,7 +264,6 @@ func (a *App) settingsEditor(c *ui.Context, ed *editorState, pr *domain.Project)
 		shown[i] = sg.g.id
 	}
 	ui.Column(c).Gap(0).Children(func() {
-		kit.SearchField(c.Key("search"), &ed.query, T("editor.search"), nil, 0).Margin(0, 0, 10, 0)
 		if len(list) == 0 {
 			kit.EmptyState(c, icons.Search, T("editor.noResults"), "", nil)
 		} else {
@@ -364,6 +364,45 @@ func (a *App) settingsEditor(c *ui.Context, ed *editorState, pr *domain.Project)
 		}
 	})
 	a.autosave(c, ed)
+}
+
+// searchState is the Advanced Settings header's search.
+type searchState struct {
+	open, focus, had bool
+	h                ui.Handle
+}
+
+// settingsSearch sits at the right of the Advanced Settings header: a
+// magnifier that opens into a compact field (⌘F too). Esc clears and folds
+// it back; so does leaving it empty.
+func (a *App) settingsSearch(c *ui.Context, ed *editorState) {
+	s := &ed.search
+	if c.Shortcut(ui.Cmd, ui.KeyF) {
+		s.open, s.focus = true, true
+	}
+	if !s.open && ed.query == "" {
+		if kit.IconButton(c.Key("searchbtn"), icons.Search, T("editor.search")).Clicked() {
+			s.open, s.focus = true, true
+		}
+		return
+	}
+	kit.SearchField(c.Key("search"), &ed.query, T("editor.search"), &s.h, 200).
+		Transition(ui.ElementTransition{Animation: &design.Spring, Enter: &ui.Motion{X: 24, Opacity: 0, Scale: 0.96}})
+	focused := s.h.Focused(c)
+	if s.focus {
+		s.h.Focus()
+		s.focus = false
+		return
+	}
+	if focused {
+		s.had = true
+		if c.Shortcut(0, ui.KeyEscape) {
+			ed.query = ""
+			s.open, s.had = false, false
+		}
+	} else if s.had && ed.query == "" {
+		s.open, s.had = false, false
+	}
 }
 
 // describeGroups gives the groups their summaries, default checks and

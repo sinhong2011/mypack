@@ -356,7 +356,11 @@ func (a *App) pageView(c *ui.Context, dir float32) {
 func page(c *ui.Context, maxW float32, body func()) {
 	ui.Scroll(c).Grow(1).Basis(0).ScrollbarInsets(design.TitleBarH, 0, 0).TrackScroll(&pageScroll).Children(func() {
 		ui.Column(c).FillWidth().AlignItems(ui.Center).Padding(design.TitleBarH+16, 32, 48, 32).Children(func() {
-			ui.Column(c).FillWidth().MaxWidth(maxW).Gap(24).Children(body)
+			col := ui.Column(c).FillWidth().Gap(24)
+			if maxW > 0 { // 0: the full width (shelves of tiles)
+				col.MaxWidth(maxW)
+			}
+			col.Children(body)
 		})
 	})
 }

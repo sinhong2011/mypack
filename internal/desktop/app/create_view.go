@@ -77,7 +77,12 @@ func (a *App) createView(c *ui.Context) {
 			})
 			// Advanced Settings (collapsed).
 			ui.Column(c).Gap(10).Children(func() {
-				kit.Disclosure(c.Key("adv"), &s.advOpen, T("create.advanced"), "").Margin(0, -8)
+				ui.Row(c).AlignItems(ui.Center).Gap(8).Margin(0, 0, 0, -8).Children(func() {
+					kit.Disclosure(c.Key("adv"), &s.advOpen, T("create.advanced"), "").Grow(1)
+					if s.advOpen {
+						a.settingsSearch(c, s.adv)
+					}
+				})
 				if s.advOpen {
 					a.ensureCfg()
 					a.settingsEditor(c, s.adv, nil)

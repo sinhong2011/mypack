@@ -454,7 +454,10 @@ func (a *App) projectSettingsView(c *ui.Context, pr *domain.Project) {
 			a.lookAndBehaviourOpts(c, ed.cfg, ed.changed, nil, true)
 		})
 		ui.Column(c).Gap(14).Children(func() {
-			kit.SectionHeader(c, T("create.advanced"), "")
+			ui.Row(c).AlignItems(ui.Center).Gap(8).MinHeight(32).Children(func() {
+				kit.SectionHeader(c, T("create.advanced"), "").Grow(1)
+				a.settingsSearch(c, ed)
+			})
 			a.settingsEditor(c, ed, pr)
 		})
 	}, nil)

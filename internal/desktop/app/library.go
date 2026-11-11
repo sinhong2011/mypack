@@ -83,7 +83,7 @@ func (a *App) libraryView(c *ui.Context) {
 		}
 	}
 	if !a.loaded {
-		page(c, design.ContentMaxW, func() {
+		page(c, 0, func() {
 			ui.Row(c).Gap(tileGap).Margin(36, 0, 0, 0).Children(func() {
 				for i := 0; i < 5; i++ {
 					ui.Column(c.Key(i)).Grow(1).Basis(0).AlignItems(ui.Center).Gap(10).Padding(14, 8).Children(func() {
@@ -100,8 +100,22 @@ func (a *App) libraryView(c *ui.Context) {
 		a.emptyLibrary(c)
 		return
 	}
-	page(c, design.ContentMaxW, func() {
+	page(c, 0, func() {
 		shown := 0
+		first := true
+		// The first section's header carries Import Existing App…, at its
+		// right, level with the title.
+		header := func(title, count string) {
+			ui.Row(c).AlignItems(ui.Center).Gap(8).MinHeight(32).Children(func() {
+				kit.SectionHeader(c, title, count).Grow(1)
+				if first {
+					if kit.Button(c.Key("imp2"), T("menu.importApp"), kit.ButtonOpts{Variant: kit.Ghost, Size: design.ControlSM, Icon: icons.Import}).Clicked() {
+						a.importExistingApp()
+					}
+				}
+			})
+			first = false
+		}
 		// Installed apps.
 		var apps []domain.Installation
 		for _, in := range a.installs {
@@ -121,7 +135,7 @@ func (a *App) libraryView(c *ui.Context) {
 		}
 		if len(a.installs) > 0 || len(drafts) == 0 {
 			ui.Column(c).Gap(14).Children(func() {
-				kit.SectionHeader(c, T("library.tab.myApps"), countLabel(len(apps)))
+				header(T("library.tab.myApps"), countLabel(len(apps)))
 				if len(apps) == 0 && a.lib.query == "" {
 					a.noApps(c)
 					return
@@ -134,7 +148,7 @@ func (a *App) libraryView(c *ui.Context) {
 		}
 		if len(drafts) > 0 {
 			ui.Column(c).Gap(14).Children(func() {
-				kit.SectionHeader(c, T("library.tab.projects"), countLabel(len(drafts)))
+				header(T("library.tab.projects"), countLabel(len(drafts)))
 				a.collection(c, len(drafts), len(a.installs) == 0, func(i int, grid bool) {
 					a.projectItem(c.Key(drafts[i].ID), drafts[i], grid, i)
 				})
@@ -162,10 +176,6 @@ func (a *App) libraryFooter(c *ui.Context) {
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(4, 4, 0, 4).Children(func() {
 		kit.Glyph(c, icons.Shield, 13, p.TextTertiary)
 		kit.Footnote(c, T("myapps.footer")).MinWidth(0).Shrink(1)
-		ui.Spacer(c)
-		if kit.Button(c.Key("imp2"), T("menu.importApp"), kit.ButtonOpts{Variant: kit.Ghost, Size: design.ControlSM, Icon: icons.Import}).Clicked() {
-			a.importExistingApp()
-		}
 	})
 }
 
@@ -203,7 +213,7 @@ func (a *App) collection(c *ui.Context, n int, ghost bool, item func(i int, grid
 	}
 	size := a.lib.iconSize
 	w, _ := c.Size()
-	avail := min(design.ContentMaxW, w-design.SidebarWidth-64)
+	avail := w - design.SidebarWidth - 64
 	minW := size + 56
 	cols := max(2, int((avail+tileGap)/(minW+tileGap)))
 	rows := (n + cols - 1) / cols
