@@ -171,8 +171,17 @@ func siteHandler(fsys fs.FS) http.Handler {
 		case p == "/index.html" || strings.HasSuffix(p, "/index.html"):
 			p = strings.TrimSuffix(p, "index.html")
 		default:
-			if st, err := fs.Stat(fsys, strings.TrimPrefix(p, "/")); err == nil && st.IsDir() && p != "/" {
+			st, err := fs.Stat(fsys, strings.TrimPrefix(p, "/"))
+			switch {
+			case err == nil && st.IsDir() && p != "/":
 				p += "/"
+			case err != nil && spaRoute(p):
+				// Single-page apps (React Router, Vue Router, SvelteKit
+				// static, …) use client-side routes like /dashboard that are
+				// not files: serve the app shell so reloads and deep links work.
+				if _, ierr := fs.Stat(fsys, "index.html"); ierr == nil {
+					p = "/"
+				}
 			}
 		}
 		r2 := r.Clone(r.Context())
@@ -181,4 +190,11 @@ func siteHandler(fsys fs.FS) http.Handler {
 		r2.URL = &u
 		inner.ServeHTTP(w, r2)
 	})
+}
+
+// spaRoute reports whether a missing path looks like a client-side route
+// (no file extension), not a missing asset such as /app.js or /logo.png,
+// which must stay a 404 so broken asset links are not masked.
+func spaRoute(p string) bool {
+	return path.Ext(path.Base(p)) == ""
 }

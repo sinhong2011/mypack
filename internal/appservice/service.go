@@ -396,11 +396,22 @@ func (s *Impl) CreateProject(ctx context.Context, req CreateRequest) (p domain.P
 			config.Source{Type: config.SourceFile, Value: path}, s.host)
 		cfg.App.Icon.Source = "default"
 	case inputDir:
+		// A JavaScript project (Vite, Next.js export, CRA, Nuxt, Astro, …)
+		// is packaged from its built output, named from package.json.
+		site, proj, isProject, perr := resolveWebProject(path)
+		if perr != nil {
+			return p, perr
+		}
+		name := filepath.Base(path)
+		if isProject {
+			path = site
+			name = firstNonEmpty(proj.Name, name)
+		}
 		entry, eerr := findEntry(path)
 		if eerr != nil {
 			return p, eerr
 		}
-		cfg = config.New(cleanName(firstNonEmpty(req.Name, filepath.Base(path))),
+		cfg = config.New(cleanName(firstNonEmpty(req.Name, name)),
 			config.Source{Type: config.SourceDir, Value: path, Entry: entry}, s.host)
 		cfg.App.Icon.Source = "default"
 	case inputConfig:

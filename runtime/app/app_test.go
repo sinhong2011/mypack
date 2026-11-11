@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	"mypack.dev/mypack/pkg/config"
 )
@@ -176,5 +177,27 @@ func TestSiteHandlerNoRedirects(t *testing.T) {
 	}
 	if entryURLPath("index.html") != "" || entryURLPath("sub/index.html") != "sub/" {
 		t.Error("entry url")
+	}
+}
+
+func TestSiteHandlerSPAFallback(t *testing.T) {
+	fsys := fstest.MapFS{
+		"index.html":    {Data: []byte("<!doctype html><title>shell</title>")},
+		"assets/app.js": {Data: []byte("console.log(1)")},
+	}
+	h := siteHandler(fsys)
+	get := func(p string) (int, string) {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest("GET", p, nil))
+		return rec.Code, rec.Body.String()
+	}
+	if code, body := get("/dashboard/settings"); code != 200 || !strings.Contains(body, "shell") {
+		t.Fatalf("client route: %d %q", code, body)
+	}
+	if code, _ := get("/assets/app.js"); code != 200 {
+		t.Fatalf("asset: %d", code)
+	}
+	if code, _ := get("/assets/missing.js"); code != 404 {
+		t.Fatalf("missing asset must 404, got %d", code)
 	}
 }
