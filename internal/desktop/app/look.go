@@ -17,18 +17,28 @@ import (
 // lookAndBehaviour draws the pickers for cfg; changed is called after
 // each edit. account, when non-nil, shows the Account label field.
 func (a *App) lookAndBehaviour(c *ui.Context, cfg *config.Config, changed func(), account *string) {
+	a.lookAndBehaviourOpts(c, cfg, changed, account, false)
+}
+
+// lookAndBehaviourOpts is lookAndBehaviour; compact sizes the thumbnails
+// for an inspector (three to a row).
+func (a *App) lookAndBehaviourOpts(c *ui.Context, cfg *config.Config, changed func(), account *string, compact bool) {
 	p := design.Of(c)
+	tw, th, sq := float32(116), float32(76), float32(76)
+	if compact {
+		tw, th, sq = 86, 56, 56
+	}
 	w := &cfg.Window
 	ui.Column(c).Gap(18).Children(func() {
 		// Title bar and appearance side by side.
 		ui.Row(c).Gap(28).Wrap().AlignItems(ui.Start).Children(func() {
 			pickerGroup(c, T("look.titleBar"), func() {
 				seamless := w.TitleBarStyle == "overlay" || w.TitleBarStyle == "hidden"
-				if thumb(c.Key("tb-std"), T("look.titleBar.standard"), "", !seamless, 116, 76, func() { windowThumb(c, p, false, 116, 76) }) {
+				if thumb(c.Key("tb-std"), T("look.titleBar.standard"), "", !seamless, tw, th, func() { windowThumb(c, p, false, tw, th) }) {
 					w.TitleBarStyle = "default"
 					changed()
 				}
-				if thumb(c.Key("tb-seam"), T("look.titleBar.seamless"), "", seamless, 116, 76, func() { windowThumb(c, p, true, 116, 76) }) {
+				if thumb(c.Key("tb-seam"), T("look.titleBar.seamless"), "", seamless, tw, th, func() { windowThumb(c, p, true, tw, th) }) {
 					w.TitleBarStyle = "overlay"
 					changed()
 				}
@@ -40,7 +50,7 @@ func (a *App) lookAndBehaviour(c *ui.Context, cfg *config.Config, changed func()
 					if cur == "" {
 						cur = "system"
 					}
-					if thumb(c.Key("ap-"+mode), label, "", cur == mode, 76, 76, func() { appearanceThumb(c, mode, 76, 76) }) {
+					if thumb(c.Key("ap-"+mode), label, "", cur == mode, sq, sq, func() { appearanceThumb(c, mode, sq, sq) }) {
 						w.DarkMode = mode
 						changed()
 					}
@@ -53,14 +63,14 @@ func (a *App) lookAndBehaviour(c *ui.Context, cfg *config.Config, changed func()
 				on := !w.Maximized && w.Width == sp.w && w.Height == sp.h
 				label := map[string]string{"compact": T("set.size.compact"), "standard": T("set.size.standard"), "large": T("set.size.large")}[sp.id]
 				sp := sp
-				if thumb(c.Key("sz-"+sp.id), label, fmt.Sprintf("%d × %d", sp.w, sp.h), on, 116, 76, func() {
-					sizeThumb(c, p, float32(sp.w)/1600, float32(sp.h)/1000, 116, 76)
+				if thumb(c.Key("sz-"+sp.id), label, fmt.Sprintf("%d × %d", sp.w, sp.h), on, tw, th, func() {
+					sizeThumb(c, p, float32(sp.w)/1600, float32(sp.h)/1000, tw, th)
 				}) {
 					w.Width, w.Height, w.Maximized = sp.w, sp.h, false
 					changed()
 				}
 			}
-			if thumb(c.Key("sz-fill"), T("look.size.fill"), T("look.size.fill.sub"), w.Maximized, 116, 76, func() { sizeThumb(c, p, 1, 1, 116, 76) }) {
+			if thumb(c.Key("sz-fill"), T("look.size.fill"), T("look.size.fill.sub"), w.Maximized, tw, th, func() { sizeThumb(c, p, 1, 1, tw, th) }) {
 				w.Maximized = true
 				changed()
 			}
@@ -81,13 +91,17 @@ func (a *App) lookAndBehaviour(c *ui.Context, cfg *config.Config, changed func()
 				}
 			})
 			ext := cfg.WebView.Navigation.ExternalByDefault == nil || *cfg.WebView.Navigation.ExternalByDefault
-			kit.SettingIconRow(c.Key("ln"), icons.Link, ui.Color{}, T("look.links"), T("look.links.desc"), func() {
+			row := kit.SettingIconRow
+			if compact {
+				row = kit.SettingIconRowStacked
+			}
+			row(c.Key("ln"), icons.Link, ui.Color{}, T("look.links"), T("look.links.desc"), func() {
 				v := "browser"
 				if !ext {
 					v = "app"
 				}
 				old := v
-				kit.PopUp(c.Key("pp-ln"), &v, []kit.Option{{Value: "browser", Label: T("look.links.browser")}, {Value: "app", Label: T("look.links.app")}}, T("look.links")).Width(190)
+				kit.PopUp(c.Key("pp-ln"), &v, []kit.Option{{Value: "browser", Label: T("look.links.browser")}, {Value: "app", Label: T("look.links.app")}}, T("look.links")).Width(map[bool]float32{true: 220, false: 190}[compact])
 				if v != old {
 					if v == "browser" {
 						cfg.WebView.Navigation.ExternalByDefault = nil
@@ -110,8 +124,8 @@ func (a *App) lookAndBehaviour(c *ui.Context, cfg *config.Config, changed func()
 				}
 			})
 			if account != nil {
-				kit.SettingIconRow(c.Key("ac"), icons.Person, ui.Color{}, T("look.account"), T("look.account.desc"), func() {
-					kit.TextField(c.Key("tf-ac"), account, T("look.account"), kit.FieldOpts{Placeholder: T("look.account.placeholder")}).Width(170)
+				row(c.Key("ac"), icons.Person, ui.Color{}, T("look.account"), T("look.account.desc"), func() {
+					kit.TextField(c.Key("tf-ac"), account, T("look.account"), kit.FieldOpts{Placeholder: T("look.account.placeholder")}).Width(map[bool]float32{true: 220, false: 170}[compact])
 				})
 			}
 		})

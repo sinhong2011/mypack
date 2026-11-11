@@ -366,6 +366,21 @@ Accessibility is built in:
     sections, appearance, language and import.
   - Typing a website address offers "Make app from …".
   - Keyboard-first (↑↓ ↩ esc), with a spring-in panel over the dimmed window.
+- **Preview + inspector** (`inspector.go`): Create and a project's Settings
+  tab share one layout.
+  - On the left is the live preview: the URL field, the app icon
+    (shimmering while the site is looked up), its name to rename in place,
+    its host, a compact "couldn't reach the site" hint when needed, and the
+    Dock.
+  - On the right is a fixed 364 pt inspector, set off by a hairline and
+    scrolling on its own: Look & Behaviour with compact thumbnails, the
+    rows, Advanced Settings and the targets.
+  - The inspector's footer is pinned: the download hint and the "Build for
+    This Mac" pill.
+  - When a build starts, the build scene plays in the preview, with no page
+    jump, and then the success state. The footer then offers View Project
+    and New App.
+  - Below about 900 pt of window width it becomes one column.
 - **Whole-window drop:** drag an HTML file or folder anywhere and the window
   becomes a drop target ("Drop to make an app").
 - **Project bento:** a hero tile (icon, display name, the one-click Open or

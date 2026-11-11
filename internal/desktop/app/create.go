@@ -43,6 +43,7 @@ type createState struct {
 
 	busy           bool
 	buildRequested bool
+	building       string // the project whose build plays in the preview
 	focus          bool
 	urlHandle      ui.Handle
 }
@@ -314,8 +315,8 @@ func (a *App) createAndBuild() {
 			}
 		}
 		a.reload("projects")
-		a.create.reset(a.host)
-		a.openProject(projectID, 0)
+		// The build plays in Create's preview, where it started.
+		a.create.building = projectID
 	})
 }
 

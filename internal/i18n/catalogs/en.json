@@ -523,5 +523,6 @@
   "update.changing": "What's changing",
   "update.profileKept": "Your login data is expected to stay on this device.",
   "update.rollback": "If anything goes wrong, the current version is restored.",
-  "update.title": "Update {name}"
+  "update.title": "Update {name}",
+  "create.viewProject": "View Project"
 }

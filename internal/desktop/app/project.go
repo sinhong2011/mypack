@@ -56,6 +56,10 @@ func (a *App) projectView(c *ui.Context) {
 		return
 	}
 	p := design.Of(c)
+	if a.projTab == 1 {
+		a.projectSettingsView(c, pr)
+		return
+	}
 	page(c, 880, func() {
 		// Header (the build panel shows the icon itself while it is up).
 		var watched *domain.BuildJob
@@ -93,23 +97,6 @@ func (a *App) projectView(c *ui.Context) {
 				}
 			})
 		})
-		if a.projTab == 1 {
-			ed := a.editorFor(pr)
-			ui.Row(c).Children(func() {
-				ui.Spacer(c)
-				a.saveIndicator(c, ed)
-			}).Margin(-12, 0, -12, 0)
-			a.conflictBanner(c, pr, ed)
-			ui.Column(c).Gap(14).Children(func() {
-				kit.SectionHeader(c, T("settings.general"), "")
-				a.lookAndBehaviour(c, ed.cfg, ed.changed, nil)
-			})
-			ui.Column(c).Gap(14).Children(func() {
-				kit.SectionHeader(c, T("create.advanced"), "")
-				a.settingsEditor(c, ed, pr)
-			})
-			return
-		}
 		a.projectOverview(c, pr, p)
 	})
 }
@@ -402,4 +389,34 @@ func (a *App) projectBento(c *ui.Context, pr *domain.Project) {
 		stat(3, "runtime", T("app.runtime"), runtime, true, nil)
 		stat(4, "built", T("project.bento.built"), built, false, nil)
 	})
+}
+
+// projectSettingsView is the project's Settings tab: the app previewed on
+// the left (icon, name, site, Dock), its settings in the inspector on the
+// right, saved as they change.
+func (a *App) projectSettingsView(c *ui.Context, pr *domain.Project) {
+	p := design.Of(c)
+	ed := a.editorFor(pr)
+	a.previewInspector(c, func() {
+		ui.Column(c).AlignItems(ui.Center).Gap(0).Padding(48, 24, 24, 24).Children(func() {
+			a.projectIcon(c, pr, heroIcon)
+			kit.PageTitle(c, ed.cfg.App.Name).Margin(16, 0, 2, 0).SingleLine().TextAlign(ui.Center)
+			ui.Row(c).Gap(5).AlignItems(ui.Center).Children(func() {
+				kit.Glyph(c, icons.Link, 12, p.TextTertiary)
+				ui.Text(c, domainOf(pr.Config.App.Source)).FontSize(design.FontSmall).TextColor(p.TextSecondary).SingleLine()
+			})
+			a.saveIndicator(c, ed)
+			a.appDockPreview(c, pr.IconPNG, ed.cfg.App.Name)
+		})
+	}, func() {
+		a.conflictBanner(c, pr, ed)
+		ui.Column(c).Gap(14).Children(func() {
+			kit.SectionHeader(c, T("settings.general"), "")
+			a.lookAndBehaviourOpts(c, ed.cfg, ed.changed, nil, true)
+		})
+		ui.Column(c).Gap(14).Children(func() {
+			kit.SectionHeader(c, T("create.advanced"), "")
+			a.settingsEditor(c, ed, pr)
+		})
+	}, nil)
 }

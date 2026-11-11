@@ -9,6 +9,7 @@ import (
 	"mypack.dev/mypack/internal/desktop/design"
 	"mypack.dev/mypack/internal/desktop/kit"
 	"mypack.dev/mypack/internal/desktop/kit/icons"
+	"mypack.dev/mypack/internal/domain"
 	"mypack.dev/mypack/pkg/config"
 )
 
@@ -34,86 +35,122 @@ func (a *App) createView(c *ui.Context) {
 		return
 	}
 
-	page(c, 640, func() {
-		a.createURLField(c, 46)
-
-		// The hero: icon, name, source and the Dock preview.
-		ui.Column(c).AlignItems(ui.Center).Gap(0).Padding(28, 24, 24, 24).Radius(28).Children(func() {
-			loading := s.normalized != "" && s.meta == nil && s.metaFor != s.normalized
-			ui.Box(c).Size(heroIcon, heroIcon).Children(func() {
-				if loading && s.iconPNG == nil {
-					kit.Shimmer(c, heroIcon, heroIcon, design.AppIconRadius(heroIcon))
-					return
-				}
-				icon := a.iconPicker(c.Key("icon:"+s.metaFor), a.createIcon(), s.displayName(), heroIcon)
-				entered := ui.Local(icon, "in", func() bool { return false })
-				pose := ui.Pose{}
-				if !*entered {
-					pose, *entered = ui.Pose{Scale: 0.82, Fade: 1}, true
-					c.Invalidate()
-				}
-				icon.AnimatePose(pose, design.SpringPop)
-			})
-			a.renameField(c, loading)
-			ui.Row(c).Gap(5).AlignItems(ui.Center).Margin(2, 0, 0, 0).Children(func() {
-				ic := icons.Link
-				src := config.RegistrableHost(s.normalized)
-				if s.local != "" {
-					ic, src = icons.Folder, shortPath(s.local)
-				}
-				kit.Glyph(c, ic, 12, p.TextTertiary)
-				ui.Text(c, src).FontSize(design.FontSmall).TextColor(p.TextSecondary).SingleLine().MinWidth(0)
-				if loading {
-					ui.Text(c, "· "+T("create.fetching")).FontSize(design.FontSmall).TextColor(p.TextTertiary).SingleLine()
-				}
-			})
-			a.dockPreview(c, loading)
-		})
-		if s.meta != nil && s.meta.Fallback && s.metaFor == s.normalized {
-			kit.Note(c, icons.Info, T("create.offline"), kit.ToneWarning)
+	// Building (or built): the scene plays right here in the preview.
+	var bpr *domain.Project
+	var bjob *domain.BuildJob
+	if s.building != "" {
+		bpr = a.project(s.building)
+		if id, ok := a.watch[s.building]; ok {
+			bjob = a.jobByID(id)
 		}
-
-		// Look & Behaviour: the common choices, with good defaults.
-		ui.Column(c).Gap(14).Children(func() {
-			kit.SectionHeader(c, T("look.title"), "")
-			a.lookAndBehaviour(c, a.ensureCfg(), func() {}, &s.account)
-		})
-
-		a.createTargets(c)
-
-		// Advanced Settings (collapsed): an inspector-style grouped form.
-		ui.Column(c).Gap(10).Children(func() {
-			kit.Disclosure(c.Key("adv"), &s.advOpen, T("create.advanced"), T("create.advanced.sub")).Margin(0, -8)
-			if s.advOpen {
-				a.ensureCfg()
-				a.settingsEditor(c, s.adv, nil)
+	}
+	a.previewInspector(c, func() {
+		if s.building != "" {
+			if bpr != nil && bjob != nil {
+				a.buildPanel(c, bpr, bjob)
+			} else {
+				ui.Column(c).AlignItems(ui.Center).Padding(80, 0).Children(func() { kit.Spinner(c, 22, p.TextTertiary) })
 			}
-		})
-
-		// The primary call to action.
-		ui.Column(c).AlignItems(ui.Center).Gap(10).Margin(4, 0, 0, 0).Children(func() {
-			label := a.buildCTA()
-			if kit.Button(c.Key("build"), label, kit.ButtonOpts{Variant: kit.Primary, Size: design.ControlXL,
-				Loading: s.busy, Disabled: len(s.targets) == 0, Hotkey: "mod+b", Icon: icons.Build}).MinWidth(260).Clicked() {
-				s.buildRequested = true
-			}
-			ui.Row(c).Gap(14).AlignItems(ui.Center).Children(func() {
-				if pf := a.createDownloadHint(); pf != "" {
-					ui.Row(c).Gap(5).AlignItems(ui.Center).Children(func() {
-						kit.Glyph(c, icons.Download, 12, p.TextTertiary)
-						kit.Footnote(c, pf)
-					})
-				}
-				if kit.Button(c.Key("cancel"), T("common.cancel"), kit.ButtonOpts{Variant: kit.Plain, Size: 20}).FontSize(design.FontSmall).Clicked() {
-					a.nav(secLibrary)
+			return
+		}
+		a.createURLField(c, 46)
+		a.createPreview(c)
+	}, func() {
+		disabled := s.building != ""
+		ui.Column(c).Gap(22).Opacity(map[bool]float32{true: 0.5, false: 1}[disabled]).Disabled(disabled).Children(func() {
+			// Look & Behaviour: the common choices, with good defaults.
+			ui.Column(c).Gap(14).Children(func() {
+				kit.SectionHeader(c, T("look.title"), "")
+				a.lookAndBehaviourOpts(c, a.ensureCfg(), func() {}, &s.account, true)
+			})
+			// Advanced Settings (collapsed).
+			ui.Column(c).Gap(10).Children(func() {
+				kit.Disclosure(c.Key("adv"), &s.advOpen, T("create.advanced"), "").Margin(0, -8)
+				if s.advOpen {
+					a.ensureCfg()
+					a.settingsEditor(c, s.adv, nil)
 				}
 			})
+			a.createTargets(c)
 		})
+	}, func() {
+		if s.building != "" {
+			// The build is under way or done: carry on from its page, or
+			// make another.
+			ui.Row(c).Gap(8).Children(func() {
+				if kit.Button(c.Key("viewproj"), T("create.viewProject"), kit.ButtonOpts{Size: design.ControlLG, Grow: true}).Clicked() {
+					id := s.building
+					a.create.reset(a.host)
+					a.openProject(id, 0)
+				}
+				if kit.Button(c.Key("another"), T("menu.newApp"), kit.ButtonOpts{Variant: kit.Primary, Size: design.ControlLG, Icon: icons.Plus, Grow: true}).Clicked() {
+					a.create.reset(a.host)
+					a.create.focus = true
+				}
+			})
+			return
+		}
+		if pf := a.createDownloadHint(); pf != "" {
+			ui.Row(c).Gap(5).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
+				kit.Glyph(c, icons.Download, 12, p.TextTertiary)
+				kit.Footnote(c, pf)
+			})
+		}
+		if kit.Button(c.Key("build"), a.buildCTA(), kit.ButtonOpts{Variant: kit.Primary, Size: design.ControlLG,
+			Loading: s.busy, Disabled: len(s.targets) == 0, Hotkey: "mod+b", Icon: icons.Build, Grow: true}).Clicked() {
+			s.buildRequested = true
+		}
 	})
 	if s.buildRequested {
 		s.buildRequested = false
 		a.createAndBuild()
 	}
+}
+
+// createPreview is the live preview: the app icon (shimmering while the
+// site is looked up), its name to rename in place, its source, a compact
+// hint when the site could not be reached, and the Dock.
+func (a *App) createPreview(c *ui.Context) {
+	p := design.Of(c)
+	s := &a.create
+	ui.Column(c).AlignItems(ui.Center).Gap(0).Padding(36, 24, 24, 24).Children(func() {
+		loading := s.normalized != "" && s.meta == nil && s.metaFor != s.normalized
+		ui.Box(c).Size(heroIcon, heroIcon).Children(func() {
+			if loading && s.iconPNG == nil {
+				kit.Shimmer(c, heroIcon, heroIcon, design.AppIconRadius(heroIcon))
+				return
+			}
+			icon := a.iconPicker(c.Key("icon:"+s.metaFor), a.createIcon(), s.displayName(), heroIcon)
+			entered := ui.Local(icon, "in", func() bool { return false })
+			pose := ui.Pose{}
+			if !*entered {
+				pose, *entered = ui.Pose{Scale: 0.82, Fade: 1}, true
+				c.Invalidate()
+			}
+			icon.AnimatePose(pose, design.SpringPop)
+		})
+		a.renameField(c, loading)
+		ui.Row(c).Gap(5).AlignItems(ui.Center).Margin(2, 0, 0, 0).Children(func() {
+			ic := icons.Link
+			src := config.RegistrableHost(s.normalized)
+			if s.local != "" {
+				ic, src = icons.Folder, shortPath(s.local)
+			}
+			kit.Glyph(c, ic, 12, p.TextTertiary)
+			ui.Text(c, src).FontSize(design.FontSmall).TextColor(p.TextSecondary).SingleLine().MinWidth(0)
+			if loading {
+				ui.Text(c, "· "+T("create.fetching")).FontSize(design.FontSmall).TextColor(p.TextTertiary).SingleLine()
+			}
+		})
+		// Couldn't reach the site: a compact hint, never a banner.
+		if s.meta != nil && s.meta.Fallback && s.metaFor == s.normalized {
+			ui.Row(c).Gap(5).AlignItems(ui.Center).Margin(6, 0, 0, 0).MaxWidth(420).Children(func() {
+				kit.Glyph(c, icons.Info, 12, p.Warning)
+				ui.Text(c, T("create.offline")).FontSize(design.FontCaption).TextColor(p.TextSecondary).TextAlign(ui.Center).LineHeight(1.35)
+			})
+		}
+		a.dockPreview(c, loading)
+	})
 }
 
 // createStart is Create before an address: a centered, inviting field.
@@ -233,8 +270,24 @@ var dockIcons = []struct {
 // dockPreview shows the new app sitting in a Dock, magnified, with the
 // running dot under it.
 func (a *App) dockPreview(c *ui.Context, loading bool) {
-	p := design.Of(c)
 	s := &a.create
+	a.dockWith(c, func(big float32) {
+		if loading && s.iconPNG == nil {
+			kit.Shimmer(c, big, big, design.AppIconRadius(big))
+		} else {
+			a.iconAt["create"] = kit.AppIconOpts(c, a.createIcon(), s.displayName(), big, kit.IconOpts{Shadow: true}).Bounds()
+		}
+	})
+}
+
+// appDockPreview is the Dock with an app's icon in it.
+func (a *App) appDockPreview(c *ui.Context, png []byte, name string) {
+	a.dockWith(c, func(big float32) { kit.AppIconOpts(c, png, name, big, kit.IconOpts{Shadow: true}) })
+}
+
+// dockWith draws the little Dock with icon() in its middle slot.
+func (a *App) dockWith(c *ui.Context, icon func(big float32)) {
+	p := design.Of(c)
 	const sz float32 = 40
 	ui.Column(c).AlignItems(ui.Center).Gap(8).Margin(24, 0, 0, 0).AccessHidden(true).Children(func() {
 		dock := ui.Row(c).Height(64).Padding(0, 12).Gap(10).AlignItems(ui.End).Radius(18).Background(p.Overlay).Border(0.5, p.BorderStrong)
@@ -245,13 +298,7 @@ func (a *App) dockPreview(c *ui.Context, loading bool) {
 					ui.Column(c).AlignItems(ui.Center).Gap(3).Padding(0, 0, 3, 0).Children(func() {
 						big := sz * 1.3
 						holder := ui.Box(c).Size(big, big)
-						holder.Children(func() {
-							if loading && s.iconPNG == nil {
-								kit.Shimmer(c, big, big, design.AppIconRadius(big))
-							} else {
-								a.iconAt["create"] = kit.AppIconOpts(c, a.createIcon(), s.displayName(), big, kit.IconOpts{Shadow: true}).Bounds()
-							}
-						})
+						holder.Children(func() { icon(big) })
 						ui.Box(c).Size(4, 4).Radius(2).Background(p.Text.Alpha(0.6))
 					})
 					continue
@@ -349,7 +396,7 @@ func (a *App) createTargets(c *ui.Context) {
 			}
 		})
 		host := config.DefaultTarget(a.host)
-		ui.Grid(c).ColumnTracks(ui.Fr(1), ui.Fr(1)).Gap(8).Children(func() {
+		ui.Grid(c).ColumnTracks(ui.Fr(1)).Gap(8).Children(func() {
 			_, on := s.targets[host.Key()]
 			if kit.TargetChip(c.Key("host"), icons.Laptop, thisDevice(a.host), T("target.recommended"), on, false).Clicked() {
 				s.toggleTarget(host)

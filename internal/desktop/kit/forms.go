@@ -183,6 +183,26 @@ func SettingIconRow(c *ui.Context, ic *ui.SVG, tint ui.Color, label, desc string
 	})
 }
 
+// SettingIconRowStacked is SettingIconRow with its control under the text,
+// for narrow inspectors where a wide control would squeeze the label.
+func SettingIconRowStacked(c *ui.Context, ic *ui.SVG, tint ui.Color, label, desc string, control func()) {
+	p := design.Of(c)
+	ui.Row(c).MinHeight(design.Row+4).Padding(10, 14).Gap(12).AlignItems(ui.Start).Children(func() {
+		if ic != nil {
+			SymbolTile(c, ic, tint, 28)
+		}
+		ui.Column(c).Grow(1).Basis(0).MinWidth(0).Gap(2).Children(func() {
+			ui.Text(c, label).FontSize(design.FontBody).FontWeight(design.WeightMedium).TextColor(p.Text)
+			if desc != "" {
+				ui.Text(c, desc).FontSize(design.FontSmall).TextColor(p.TextSecondary).LineHeight(1.35)
+			}
+			if control != nil {
+				ui.Row(c).Gap(8).AlignItems(ui.Center).Margin(8, 0, 0, 0).Children(control)
+			}
+		})
+	})
+}
+
 // SymbolTile is a quiet tile holding an icon in a tint: tinted ink on a
 // soft wash of the same hue, never a loud gradient.
 func SymbolTile(c *ui.Context, ic *ui.SVG, tint ui.Color, size float32) ui.Element {
