@@ -7,11 +7,15 @@ import (
 	"path/filepath"
 
 	"mypack.dev/mypack/internal/icons"
+	"mypack.dev/mypack/pkg/config"
 )
 
 const (
 	camUsage = "This app needs access to the camera for websites that request it."
 	micUsage = "This app needs access to the microphone for websites that request it."
+
+	// menuBarRuntime is the first runtime with window.mode "menubar".
+	menuBarRuntime = "1.0.6"
 )
 
 func (j *job) infoPlist() []byte {
@@ -40,6 +44,12 @@ func (j *job) infoPlist() []byte {
 	}
 	if c.Native.Microphone {
 		d["NSMicrophoneUsageDescription"] = micUsage
+	}
+	// A menu-bar app has no Dock icon from launch on. Only runtimes that
+	// show the menu-bar panel get it: an older runtime would open a window
+	// with no Dock icon and no menu-bar icon to bring it back.
+	if c.Window.EffectiveMode() == config.ModeMenuBar && config.RuntimeAtLeast(c.Runtime.Version, menuBarRuntime) {
+		d["LSUIElement"] = true
 	}
 	return writePlist(d)
 }

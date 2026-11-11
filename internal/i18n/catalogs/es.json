@@ -523,5 +523,20 @@
   "update.changing": "Qué cambia",
   "update.profileKept": "Tus datos de inicio de sesión deberían permanecer en este dispositivo.",
   "update.rollback": "Si algo sale mal, se restaura la versión actual.",
-  "update.title": "Actualizar {name}"
+  "update.title": "Actualizar {name}",
+  "look.mode": "Mostrar como",
+  "look.mode.window": "Ventana",
+  "look.mode.compact": "Compacta",
+  "look.mode.menubar": "Barra de menús",
+  "look.mode.compact.desc": "Empieza como una ventana pequeña que flota sobre las demás. Visualización → Ventana compacta (⌥⌘P) la devuelve a su tamaño.",
+  "look.mode.menubar.desc": "Vive en la barra de menús, sin icono en el Dock. Haz clic en su icono para abrir el sitio en un panel; sigue funcionando al cerrarlo.",
+  "set.panelSize": "Tamaño del panel",
+  "set.panelSize.desc": "Tamaño del panel de la barra de menús y de la ventana compacta. La barra lateral usa el ancho.",
+  "look.mode.sidebar": "Barra lateral",
+  "look.mode.sidebar.desc": "Se acopla al borde de la pantalla a toda altura, sobre las demás ventanas. Arrastra su borde interior para cambiar el ancho; cambia de diseño desde el menú Visualización de la app.",
+  "set.sidebarEdge": "Borde de la barra lateral",
+  "set.sidebarEdge.left": "Izquierda",
+  "set.sidebarEdge.right": "Derecha",
+  "set.sidebarAutoHide": "Ocultar cuando no se use",
+  "set.sidebarAutoHide.desc": "La barra lateral se oculta al cambiar a otra app. Su atajo global o su icono del Dock la vuelven a mostrar."
 }

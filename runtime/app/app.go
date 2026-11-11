@@ -52,6 +52,8 @@ type App struct {
 	prompts  map[string]bool
 	finds    map[*mygo.Window]*mygo.Window
 	tray     *mygo.Tray
+	menu     *mygo.Menu // the application menu
+	lay      layoutState // the main window's layout (layout.go)
 }
 
 type credEntry struct {
@@ -172,6 +174,13 @@ func (a *App) Run() error {
 	a.badges = newBadgeController(cfg.Native.BadgeMode() == "auto", func(label string) {
 		log.Printf("mypack-runtime: badge: set %q", label)
 		mygo.App.Dock.SetBadge(label)
+		// A menu-bar app has no Dock icon: the count goes next to its icon.
+		a.mu.Lock()
+		t := a.tray
+		a.mu.Unlock()
+		if t != nil && a.menuBarMode() {
+			t.SetTitle(label)
+		}
 	})
 	a.bridge = a.newBridge()
 	mygo.BindAs("mypack", a.bridge)
@@ -185,13 +194,15 @@ func (a *App) Run() error {
 		a.mu.Lock()
 		a.quitting = true
 		a.mu.Unlock()
+		a.saveLayoutOnQuit()
 	})
 	mygo.App.OnActivate(func(has bool) {
 		if !has {
 			a.showMain()
 		}
 	})
-	mygo.App.SetMenu(a.buildMenu())
+	a.menu = a.buildMenu()
+	mygo.App.SetMenu(a.menu)
 	mygo.App.WhenReady(a.start)
 	return mygo.App.Run()
 }
@@ -398,14 +409,25 @@ func (a *App) start() {
 	startURL := a.startURL
 	a.mu.Unlock()
 	a.e2eAppHook()
+	if a.menuBarMode() {
+		if a.startMenuBar(startURL) {
+			a.registerGlobalShortcut()
+			return
+		}
+		// No icon could be made: be a normal app, with a Dock icon.
+		log.Printf("mypack-runtime: menu-bar icon unavailable; showing a window instead")
+		mygo.App.SetActivationPolicy(mygo.ActivationPolicyRegular)
+	}
 	w, p := a.openWindow(true, startURL, "main", true)
 	a.mu.Lock()
 	a.main = w
 	a.mu.Unlock()
 	a.attachMain(w, p)
 
+	a.applyStartLayout(w)
+
 	startHidden := a.cfg.Native.StartToTray
-	if a.cfg.Native.Tray {
+	if a.cfg.Native.Tray && !a.menuBarMode() {
 		if !a.createTray() {
 			startHidden = false // never leave the user with no way in
 		}
@@ -425,7 +447,10 @@ func (a *App) start() {
 	w.OnReadyToShow(reveal)
 	// A page that never paints (offline, blocked) must still show a window.
 	time.AfterFunc(6*time.Second, func() { mygo.RunOnMain(reveal) })
+	a.registerGlobalShortcut()
+}
 
+func (a *App) registerGlobalShortcut() {
 	if acc := strings.TrimSpace(a.cfg.Native.GlobalShortcut); acc != "" {
 		if err := mygo.GlobalShortcut.Register(acc, a.toggleMain); err != nil {
 			log.Printf("mypack-runtime: global shortcut %q: %v", acc, err)
@@ -435,6 +460,21 @@ func (a *App) start() {
 
 // attachMain wires what only the main window does.
 func (a *App) attachMain(w *mygo.Window, p *mygo.Page) {
+	a.attachMainPage(w, p)
+	w.OnClose(func(e *mygo.CloseEvent) {
+		a.mu.Lock()
+		quitting := a.quitting
+		a.mu.Unlock()
+		if a.hidesOnClose() && !quitting {
+			e.PreventDefault()
+			w.Hide()
+		}
+	})
+}
+
+// attachMainPage wires what the main page does, in a window or the
+// menu-bar panel: a fixed title and the last-URL memory.
+func (a *App) attachMainPage(w *mygo.Window, p *mygo.Page) {
 	title := a.title()
 	if p != nil {
 		p.OnPageTitleUpdated(func(e *mygo.TitleEvent) { e.PreventDefault(); w.SetTitle(title) })
@@ -446,15 +486,6 @@ func (a *App) attachMain(w *mygo.Window, p *mygo.Page) {
 			}
 		})
 	}
-	w.OnClose(func(e *mygo.CloseEvent) {
-		a.mu.Lock()
-		quitting := a.quitting
-		a.mu.Unlock()
-		if a.cfg.Window.HideOnClose && !quitting {
-			e.PreventDefault()
-			w.Hide()
-		}
-	})
 }
 
 // setupWindow runs for every window MyGo creates (main, popups, new windows).
@@ -482,6 +513,7 @@ func (a *App) registerPage(w *mygo.Window, p *mygo.Page) {
 		delete(a.windows, w)
 		if a.main == w {
 			a.main = nil
+			a.lay.cur = ""
 		}
 		f := a.finds[w]
 		delete(a.finds, w)
@@ -577,6 +609,15 @@ func (a *App) onPermission(req mygo.PermissionRequest) bool {
 }
 
 func (a *App) showMain() {
+	if a.menuBarMode() {
+		if w := a.panel(); w != nil {
+			if !w.IsVisible() {
+				w.Show()
+			}
+			w.Focus()
+			return
+		}
+	}
 	a.mu.Lock()
 	w := a.main
 	a.mu.Unlock()
@@ -589,6 +630,7 @@ func (a *App) showMain() {
 		a.main = w
 		a.mu.Unlock()
 		a.attachMain(w, p)
+		a.applyStartLayout(w)
 		return
 	}
 	if w.IsMinimized() {
@@ -599,6 +641,10 @@ func (a *App) showMain() {
 }
 
 func (a *App) toggleMain() {
+	if a.menuBarMode() && a.panel() != nil {
+		a.togglePanel()
+		return
+	}
 	a.mu.Lock()
 	w := a.main
 	a.mu.Unlock()

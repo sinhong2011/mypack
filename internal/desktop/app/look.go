@@ -91,16 +91,18 @@ func (a *App) lookAndBehaviourOpts(c *ui.Context, cfg *config.Config, changed fu
 					changed()
 				}
 			})
-			a.lookRow(c.Key("tr"), icons.Layers, ui.Color{}, T("look.tray"), T("look.tray.desc"), func() {
-				kit.Switch(c.Key("sw-tr"), &tray, T("look.tray"))
-				if tray != cfg.Native.Tray {
-					cfg.Native.Tray, w.HideOnClose = tray, tray
-					if !tray {
-						cfg.Native.StartToTray = false
+			if w.EffectiveMode() != config.ModeMenuBar {
+				a.lookRow(c.Key("tr"), icons.Layers, ui.Color{}, T("look.tray"), T("look.tray.desc"), func() {
+					kit.Switch(c.Key("sw-tr"), &tray, T("look.tray"))
+					if tray != cfg.Native.Tray {
+						cfg.Native.Tray, w.HideOnClose = tray, tray
+						if !tray {
+							cfg.Native.StartToTray = false
+						}
+						changed()
 					}
-					changed()
-				}
-			})
+				})
+			}
 			if account != nil {
 				a.lookRow(c.Key("ac"), icons.Person, ui.Color{}, T("look.account"), T("look.account.desc"), func() {
 					kit.TextField(c.Key("tf-ac"), account, T("look.account"), kit.FieldOpts{Placeholder: T("look.account.placeholder")}).Width(150)
@@ -216,6 +218,43 @@ func sizeThumb(c *ui.Context, p *design.Palette, fw, fh, w, h float32) {
 	})
 }
 
+// modeThumb previews how the app shows: a window, a small window floating
+// in a corner, or a panel hanging from the menu bar.
+func modeThumb(c *ui.Context, p *design.Palette, mode string, w, h float32) {
+	switch mode {
+	case config.ModeCompact:
+		desktop(c, p.Dark)
+		ww, wh := w*0.34, h*0.62
+		ui.Column(c).Absolute().Left(w-ww-5).Top(h-wh-5).Size(ww, wh).Radius(4).Clip().Background(ui.RGB(255, 255, 255)).
+			Shadow(0, 2, 6, 0, ui.RGBA(0, 0, 0, 0.25)).Children(func() {
+			ui.Box(c).Height(6).Background(ui.RGB(236, 236, 238))
+			pageLines(c, ui.RGBA(0, 0, 0, 0.1), 2)
+		})
+	case config.ModeSidebar:
+		desktop(c, p.Dark)
+		ui.Column(c).Absolute().Right(0).Top(0).Bottom(0).Width(w*0.3).Clip().Background(ui.RGB(255, 255, 255)).
+			Shadow(-2, 0, 6, 0, ui.RGBA(0, 0, 0, 0.25)).Children(func() {
+			ui.Box(c).Height(6).Background(ui.RGB(236, 236, 238))
+			pageLines(c, ui.RGBA(0, 0, 0, 0.1), 4)
+		})
+	case config.ModeMenuBar:
+		desktop(c, p.Dark)
+		ui.Row(c).Absolute().Left(0).Top(0).Right(0).Height(7).PaddingX(4).Gap(3).AlignItems(ui.Center).Justify(ui.End).
+			Background(ui.RGBA(255, 255, 255, 0.7)).Children(func() {
+			ui.Box(c).Size(4, 4).Radius(1).Background(p.Accent)
+			ui.Box(c).Size(4, 4).Radius(1).Background(ui.RGBA(0, 0, 0, 0.35))
+			ui.Box(c).Size(4, 4).Radius(1).Background(ui.RGBA(0, 0, 0, 0.35))
+		})
+		pw, ph := w*0.4, h*0.66
+		ui.Column(c).Absolute().Left(w-pw-4).Top(10).Size(pw, ph).Radius(4).Clip().Background(ui.RGB(255, 255, 255)).
+			Shadow(0, 2, 6, 0, ui.RGBA(0, 0, 0, 0.25)).Children(func() {
+			pageLines(c, ui.RGBA(0, 0, 0, 0.1), 3)
+		})
+	default:
+		sizeThumb(c, p, 0.8, 0.8, w, h)
+	}
+}
+
 // compactPickers are the inspector's pickers: three single rows of small
 // tiles of one size (up to 80×56), a caption under each; the selected window
 // size's dimensions in one line under its row.
@@ -226,18 +265,41 @@ func (a *App) compactPickers(c *ui.Context, p *design.Palette, w *config.WindowC
 	inner := a.inspectorWidth() - 40 - 2 // its padding, and a hair for rounding
 	slot := (inner - 3*gap) / 4
 	ui.Column(c).Gap(16).Children(func() {
-		a.pickerRowIf(c, T("look.titleBar"), func() {
-			seamless := w.TitleBarStyle == "overlay" || w.TitleBarStyle == "hidden"
+		a.pickerRowIf(c, T("look.mode"), func() {
+			cur := w.EffectiveMode()
 			tw, th := slot-6, (slot-6)*aspect
-			if kit.ChoiceTileSmall(c.Key("tb-std"), T("look.titleBar.standard"), "", !seamless, slot, aspect, func() { windowThumb(c, p, false, tw, th) }) {
-				w.TitleBarStyle = "default"
-				changed()
-			}
-			if kit.ChoiceTileSmall(c.Key("tb-seam"), T("look.titleBar.seamless"), "", seamless, slot, aspect, func() { windowThumb(c, p, true, tw, th) }) {
-				w.TitleBarStyle = "overlay"
-				changed()
+			for _, m := range []struct{ id, label string }{
+				{config.ModeWindow, T("look.mode.window")}, {config.ModeCompact, T("look.mode.compact")},
+				{config.ModeSidebar, T("look.mode.sidebar")}, {config.ModeMenuBar, T("look.mode.menubar")},
+			} {
+				m := m
+				if kit.ChoiceTileSmall(c.Key("md-"+m.id), m.label, "", cur == m.id, slot, aspect, func() { modeThumb(c, p, m.id, tw, th) }) {
+					w.Mode = m.id
+					if m.id == config.ModeWindow {
+						w.Mode = "" // the default is never written
+					}
+					changed()
+				}
 			}
 		})
+		if w.EffectiveMode() != config.ModeWindow && a.settingHit(T("look.mode")) {
+			ui.Text(c, map[string]string{config.ModeCompact: T("look.mode.compact.desc"), config.ModeSidebar: T("look.mode.sidebar.desc"), config.ModeMenuBar: T("look.mode.menubar.desc")}[w.EffectiveMode()]).FontSize(design.FontCaption).TextColor(p.TextSecondary).Padding(0, 2)
+		}
+		menuBar := w.EffectiveMode() == config.ModeMenuBar
+		if !menuBar {
+			a.pickerRowIf(c, T("look.titleBar"), func() {
+				seamless := w.TitleBarStyle == "overlay" || w.TitleBarStyle == "hidden"
+				tw, th := slot-6, (slot-6)*aspect
+				if kit.ChoiceTileSmall(c.Key("tb-std"), T("look.titleBar.standard"), "", !seamless, slot, aspect, func() { windowThumb(c, p, false, tw, th) }) {
+					w.TitleBarStyle = "default"
+					changed()
+				}
+				if kit.ChoiceTileSmall(c.Key("tb-seam"), T("look.titleBar.seamless"), "", seamless, slot, aspect, func() { windowThumb(c, p, true, tw, th) }) {
+					w.TitleBarStyle = "overlay"
+					changed()
+				}
+			})
+		}
 		a.pickerRowIf(c, T("set.appearance"), func() {
 			cur := w.DarkMode
 			if cur == "" {
@@ -252,6 +314,9 @@ func (a *App) compactPickers(c *ui.Context, p *design.Palette, w *config.WindowC
 				}
 			}
 		})
+		if m := w.EffectiveMode(); m == config.ModeMenuBar || m == config.ModeSidebar {
+			return // the panel / sidebar has its own size; the window size does not apply
+		}
 		a.pickerRowIf(c, T("look.size"), func() {
 			tw, th := slot-6, (slot-6)*aspect
 			for _, sp := range sizePresets {

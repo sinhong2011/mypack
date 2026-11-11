@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -20,7 +21,7 @@ import (
 const SchemaVersion = 1
 
 // DefaultRuntimeVersion is the runtime version new projects pin (ADR-005).
-const DefaultRuntimeVersion = "1.0.5"
+const DefaultRuntimeVersion = "1.0.6"
 
 // Config is the full mypack.json document.
 type Config struct {
@@ -108,6 +109,70 @@ type WindowConfig struct {
 	MultiInstance bool   `json:"multiInstance,omitempty"`
 	DarkMode      string `json:"darkMode,omitempty"` // "system" | "light" | "dark"
 	Background    string `json:"background,omitempty"`
+	// Mode is how the app shows (runtime 1.0.6+): "window" (default, empty),
+	// "compact" (starts as a small floating window; View > Compact Window
+	// switches back), "menubar" (lives in the menu bar / tray: its icon
+	// opens the page in a panel, no Dock icon) or "sidebar" (docked to an
+	// edge of the screen at full height, above other windows).
+	Mode string `json:"mode,omitempty"`
+	// SidebarEdge is the screen edge of a sidebar: "right" (default, empty)
+	// or "left".
+	SidebarEdge string `json:"sidebarEdge,omitempty"`
+	// SidebarAutoHide hides a sidebar when another app takes the focus;
+	// the global shortcut or the Dock icon brings it back.
+	SidebarAutoHide bool `json:"sidebarAutoHide,omitempty"`
+	// PanelWidth and PanelHeight size the menu-bar panel and the compact
+	// window (0 = 400 x 640); a sidebar takes PanelWidth as its width.
+	PanelWidth  int `json:"panelWidth,omitempty"`
+	PanelHeight int `json:"panelHeight,omitempty"`
+}
+
+// Window modes (window.mode).
+const (
+	ModeWindow  = "window"
+	ModeCompact = "compact"
+	ModeMenuBar = "menubar"
+	ModeSidebar = "sidebar"
+)
+
+// Sidebar edges (window.sidebarEdge).
+const (
+	EdgeLeft  = "left"
+	EdgeRight = "right"
+)
+
+// EffectiveSidebarEdge returns "left" or "right" (empty = "right").
+func (w WindowConfig) EffectiveSidebarEdge() string {
+	if w.SidebarEdge == EdgeLeft {
+		return EdgeLeft
+	}
+	return EdgeRight
+}
+
+// Default panel size of the menu-bar panel and the compact window.
+const (
+	DefaultPanelWidth  = 400
+	DefaultPanelHeight = 640
+)
+
+// EffectiveMode returns "window", "compact", "menubar" or "sidebar" (empty = "window").
+func (w WindowConfig) EffectiveMode() string {
+	if w.Mode == "" {
+		return ModeWindow
+	}
+	return w.Mode
+}
+
+// PanelSize returns the size of the menu-bar panel and the compact window.
+func (w WindowConfig) PanelSize() (int, int) {
+	pw, ph := w.PanelWidth, w.PanelHeight
+	if pw == 0 {
+		pw = DefaultPanelWidth
+	}
+	if ph == 0 {
+		ph = DefaultPanelHeight
+	}
+	return pw, ph
 }
 
 // WebViewConfig covers WEB-01..13 and CUS-01..03.
@@ -472,6 +537,22 @@ func (c *Config) Validate() error {
 	default:
 		add("window.darkMode", "INVALID_ENUM", "must be system, light or dark")
 	}
+	switch w.Mode {
+	case "", ModeWindow, ModeCompact, ModeMenuBar, ModeSidebar:
+	default:
+		add("window.mode", "INVALID_ENUM", "must be window, compact, menubar or sidebar")
+	}
+	switch w.SidebarEdge {
+	case "", EdgeLeft, EdgeRight:
+	default:
+		add("window.sidebarEdge", "INVALID_ENUM", "must be left or right")
+	}
+	if w.PanelWidth != 0 && (w.PanelWidth < 240 || w.PanelWidth > 1600) {
+		add("window.panelWidth", "OUT_OF_RANGE", "panel width must be between 240 and 1600")
+	}
+	if w.PanelHeight != 0 && (w.PanelHeight < 240 || w.PanelHeight > 1600) {
+		add("window.panelHeight", "OUT_OF_RANGE", "panel height must be between 240 and 1600")
+	}
 	switch c.Native.Notifications {
 	case "", "ask", "allow", "deny":
 	default:
@@ -696,4 +777,36 @@ func ExecutableName(name string) string {
 		return "App"
 	}
 	return out
+}
+
+// RuntimeAtLeast reports whether runtime version v (like "1.0.6") is min or
+// later. A version that does not parse is never at least min.
+func RuntimeAtLeast(v, min string) bool {
+	a, ok1 := parseVersion(v)
+	b, ok2 := parseVersion(min)
+	if !ok1 || !ok2 {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return a[i] > b[i]
+		}
+	}
+	return true
+}
+
+func parseVersion(v string) ([4]int, bool) {
+	var out [4]int
+	parts := strings.Split(strings.TrimSpace(v), ".")
+	if len(parts) == 0 || len(parts) > 4 {
+		return out, false
+	}
+	for i, p := range parts {
+		n, err := strconv.Atoi(p)
+		if err != nil || n < 0 {
+			return out, false
+		}
+		out[i] = n
+	}
+	return out, true
 }

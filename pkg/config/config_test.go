@@ -61,7 +61,7 @@ func TestProjectBuildValidation(t *testing.T) {
 
 func TestNativeAndUAPresetDefaults(t *testing.T) {
 	c := New("Mail", Source{Type: SourceURL, Value: "https://mail.example.com"}, Target{OS: "darwin", Arch: "arm64"})
-	if c.Runtime.Version != DefaultRuntimeVersion || DefaultRuntimeVersion != "1.0.5" {
+	if c.Runtime.Version != DefaultRuntimeVersion || DefaultRuntimeVersion != "1.0.6" {
 		t.Fatalf("runtime version = %q", c.Runtime.Version)
 	}
 	if c.Native.NotificationsMode() != "allow" || c.Native.BadgeMode() != "auto" || !c.Native.LinkRoutingEnabled() {
@@ -126,5 +126,66 @@ func TestNativeAndUAPresetValidation(t *testing.T) {
 	back, err := Parse(b)
 	if err != nil || back.Native.Notifications != "ask" || back.Native.LinkRoutingEnabled() || back.WebView.UserAgentPreset != "firefox" {
 		t.Fatalf("round trip: %+v %v", back, err)
+	}
+}
+
+func TestWindowModeAndPanel(t *testing.T) {
+	c := New("Chat", Source{Type: SourceURL, Value: "https://chat.example.com"}, Target{OS: "darwin", Arch: "arm64"})
+	if c.Window.EffectiveMode() != ModeWindow {
+		t.Fatalf("default mode = %q", c.Window.EffectiveMode())
+	}
+	if w, h := c.Window.PanelSize(); w != DefaultPanelWidth || h != DefaultPanelHeight {
+		t.Fatalf("default panel = %dx%d", w, h)
+	}
+	b, _ := c.Marshal()
+	for _, k := range []string{`"mode"`, `"panelWidth"`, `"panelHeight"`} {
+		if strings.Contains(string(b), k) {
+			t.Fatalf("default %s written to mypack.json", k)
+		}
+	}
+	for _, m := range []string{"", ModeWindow, ModeCompact, ModeMenuBar, ModeSidebar} {
+		c.Window.Mode = m
+		if err := c.Validate(); err != nil {
+			t.Fatalf("mode %q: %v", m, err)
+		}
+	}
+	c.Window.Mode, c.Window.SidebarEdge = ModeSidebar, EdgeLeft
+	if err := c.Validate(); err != nil || c.Window.EffectiveSidebarEdge() != EdgeLeft {
+		t.Fatalf("sidebar left: %v", err)
+	}
+	c.Window.SidebarEdge = "top"
+	if err := c.Validate(); err == nil || !strings.Contains(err.Error(), "window.sidebarEdge") {
+		t.Fatalf("bad edge accepted: %v", err)
+	}
+	c.Window.SidebarEdge = ""
+	if c.Window.EffectiveSidebarEdge() != EdgeRight {
+		t.Fatal("default edge must be right")
+	}
+	c.Window.Mode = "floating"
+	if err := c.Validate(); err == nil || !strings.Contains(err.Error(), "window.mode") {
+		t.Fatalf("bad mode accepted: %v", err)
+	}
+	c.Window.Mode, c.Window.PanelWidth, c.Window.PanelHeight = ModeMenuBar, 100, 2000
+	err := c.Validate()
+	if err == nil || !strings.Contains(err.Error(), "window.panelWidth") || !strings.Contains(err.Error(), "window.panelHeight") {
+		t.Fatalf("bad panel accepted: %v", err)
+	}
+	c.Window.PanelWidth, c.Window.PanelHeight = 360, 0
+	if w, h := c.Window.PanelSize(); w != 360 || h != DefaultPanelHeight {
+		t.Fatalf("panel = %dx%d", w, h)
+	}
+}
+
+func TestRuntimeAtLeast(t *testing.T) {
+	for _, tc := range []struct {
+		v, min string
+		want   bool
+	}{
+		{"1.0.6", "1.0.6", true}, {"1.0.10", "1.0.6", true}, {"1.1", "1.0.6", true}, {"2.0.0", "1.0.6", true},
+		{"1.0.5", "1.0.6", false}, {"1.0", "1.0.6", false}, {"", "1.0.6", false}, {"x", "1.0.6", false},
+	} {
+		if got := RuntimeAtLeast(tc.v, tc.min); got != tc.want {
+			t.Errorf("RuntimeAtLeast(%q, %q) = %v", tc.v, tc.min, got)
+		}
 	}
 }

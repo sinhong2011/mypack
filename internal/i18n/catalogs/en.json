@@ -631,5 +631,20 @@
   "fail.projectSettings": "Project Settings",
   "fail.manageApps": "Manage Apps",
   "fail.openSettings": "Open Settings",
-  "fail.details": "Details"
+  "fail.details": "Details",
+  "look.mode": "Show as",
+  "look.mode.window": "Window",
+  "look.mode.compact": "Compact",
+  "look.mode.menubar": "Menu bar",
+  "look.mode.compact.desc": "Starts as a small window that floats above others. View → Compact Window (⌥⌘P) switches back.",
+  "look.mode.menubar.desc": "Lives in the menu bar with no Dock icon. Click its icon to open the site in a panel; it keeps running when the panel closes.",
+  "set.panelSize": "Panel size",
+  "set.panelSize.desc": "Size of the menu-bar panel and the compact window. A sidebar uses the width.",
+  "look.mode.sidebar": "Sidebar",
+  "look.mode.sidebar.desc": "Docks to the edge of the screen at full height, above other windows. Drag its inner edge to resize; switch layouts from the app's View menu.",
+  "set.sidebarEdge": "Sidebar edge",
+  "set.sidebarEdge.left": "Left",
+  "set.sidebarEdge.right": "Right",
+  "set.sidebarAutoHide": "Hide when not in use",
+  "set.sidebarAutoHide.desc": "The sidebar slides away when you switch to another app. Its global shortcut or Dock icon brings it back."
 }

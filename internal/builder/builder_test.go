@@ -722,3 +722,19 @@ func TestHashArtifactDeterministic(t *testing.T) {
 		t.Fatal("hash must change with content")
 	}
 }
+
+func TestInfoPlistMenuBarMode(t *testing.T) {
+	cfg := config.New("Chat", config.Source{Type: config.SourceURL, Value: "https://chat.example.com"}, config.Target{OS: "darwin", Arch: "arm64"})
+	plist := func() string { return string((&job{cfg: cfg, name: "Chat"}).infoPlist()) }
+	if strings.Contains(plist(), "LSUIElement") {
+		t.Fatal("window mode must keep the Dock icon")
+	}
+	cfg.Window.Mode = config.ModeMenuBar
+	if !strings.Contains(plist(), "LSUIElement") {
+		t.Fatal("menubar mode on runtime 1.0.6 must hide the Dock icon")
+	}
+	cfg.Runtime.Version = "1.0.5"
+	if strings.Contains(plist(), "LSUIElement") {
+		t.Fatal("an older runtime must keep the Dock icon")
+	}
+}

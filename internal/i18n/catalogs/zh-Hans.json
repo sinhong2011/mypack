@@ -523,5 +523,20 @@
   "update.changing": "更新内容",
   "update.profileKept": "你的登录数据预计会保留在此设备上。",
   "update.rollback": "如有任何问题，将恢复当前版本。",
-  "update.title": "更新 {name}"
+  "update.title": "更新 {name}",
+  "look.mode": "显示方式",
+  "look.mode.window": "窗口",
+  "look.mode.compact": "紧凑",
+  "look.mode.menubar": "菜单栏",
+  "look.mode.compact.desc": "以浮在其他窗口上方的小窗口启动。显示 → 紧凑窗口（⌥⌘P）可切换回来。",
+  "look.mode.menubar.desc": "常驻菜单栏，不显示程序坞图标。点按图标即在面板中打开网站；关闭面板后仍保持运行。",
+  "set.panelSize": "面板大小",
+  "set.panelSize.desc": "菜单栏面板和紧凑窗口的大小。侧边栏使用其宽度。",
+  "look.mode.sidebar": "侧边栏",
+  "look.mode.sidebar.desc": "以全高停靠在屏幕边缘，浮在其他窗口上方。拖移内侧边缘调整宽度；在应用的显示菜单中切换布局。",
+  "set.sidebarEdge": "侧边栏位置",
+  "set.sidebarEdge.left": "左",
+  "set.sidebarEdge.right": "右",
+  "set.sidebarAutoHide": "不用时隐藏",
+  "set.sidebarAutoHide.desc": "切换到其他应用时侧边栏会收起。使用全局快捷键或程序坞图标即可唤回。"
 }

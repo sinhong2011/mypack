@@ -74,6 +74,7 @@ func (a *App) buildMenu() *mygo.Menu {
 		mygo.Separator(),
 		{Role: mygo.RoleToggleFullScreen},
 	}
+	view = append(view, a.layoutMenuItems()...)
 	if a.cfg.WebView.DevTools {
 		// Not RoleToggleDevTools: in a window of native UI (strip layout) that
 		// role opens MyGo's UI inspector, not the page's.
@@ -97,16 +98,8 @@ func (a *App) buildMenu() *mygo.Menu {
 
 // createTray builds the tray icon; false when it could not be made.
 func (a *App) createTray() bool {
-	icon := a.cfg.Native.TrayIcon
-	if icon == "" {
-		icon = "icon.png"
-	}
-	if !filepath.IsAbs(icon) {
-		icon = filepath.Join(a.cfgDir, icon)
-	}
-	b, err := os.ReadFile(icon)
-	if err != nil {
-		log.Printf("mypack-runtime: tray icon: %v", err)
+	b, ok := a.trayIconPNG()
+	if !ok {
 		return false
 	}
 	menu := mygo.NewMenu([]*mygo.MenuItem{
@@ -126,4 +119,21 @@ func (a *App) createTray() bool {
 	}
 	a.tray = t
 	return true
+}
+
+// trayIconPNG reads the tray icon (native.trayIcon, else the app icon).
+func (a *App) trayIconPNG() ([]byte, bool) {
+	icon := a.cfg.Native.TrayIcon
+	if icon == "" {
+		icon = "icon.png"
+	}
+	if !filepath.IsAbs(icon) {
+		icon = filepath.Join(a.cfgDir, icon)
+	}
+	b, err := os.ReadFile(icon)
+	if err != nil {
+		log.Printf("mypack-runtime: tray icon: %v", err)
+		return nil, false
+	}
+	return b, true
 }

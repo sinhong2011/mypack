@@ -523,5 +523,20 @@
   "update.changing": "Ce qui change",
   "update.profileKept": "Vos données de connexion devraient rester sur cet appareil.",
   "update.rollback": "En cas de problème, la version actuelle est restaurée.",
-  "update.title": "Mettre à jour {name}"
+  "update.title": "Mettre à jour {name}",
+  "look.mode": "Afficher comme",
+  "look.mode.window": "Fenêtre",
+  "look.mode.compact": "Compacte",
+  "look.mode.menubar": "Barre des menus",
+  "look.mode.compact.desc": "S’ouvre en petite fenêtre flottant au-dessus des autres. Présentation → Fenêtre compacte (⌥⌘P) la rétablit.",
+  "look.mode.menubar.desc": "Vit dans la barre des menus, sans icône dans le Dock. Cliquez sur son icône pour ouvrir le site dans un panneau ; l’app continue de tourner une fois le panneau fermé.",
+  "set.panelSize": "Taille du panneau",
+  "set.panelSize.desc": "Taille du panneau de la barre des menus et de la fenêtre compacte. La barre latérale en reprend la largeur.",
+  "look.mode.sidebar": "Barre latérale",
+  "look.mode.sidebar.desc": "Se fixe au bord de l’écran sur toute la hauteur, au-dessus des autres fenêtres. Faites glisser son bord intérieur pour la redimensionner ; changez de disposition depuis le menu Présentation de l’app.",
+  "set.sidebarEdge": "Bord de la barre latérale",
+  "set.sidebarEdge.left": "Gauche",
+  "set.sidebarEdge.right": "Droite",
+  "set.sidebarAutoHide": "Masquer quand inutilisée",
+  "set.sidebarAutoHide.desc": "La barre latérale se retire quand vous passez à une autre app. Son raccourci global ou son icône du Dock la fait revenir."
 }

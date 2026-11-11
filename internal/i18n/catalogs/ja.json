@@ -523,5 +523,20 @@
   "update.changing": "変更内容",
   "update.profileKept": "ログインデータはこのデバイスに残る見込みです。",
   "update.rollback": "問題が起きた場合は、現在のバージョンに戻されます。",
-  "update.title": "{name}をアップデート"
+  "update.title": "{name}をアップデート",
+  "look.mode": "表示方法",
+  "look.mode.window": "ウインドウ",
+  "look.mode.compact": "コンパクト",
+  "look.mode.menubar": "メニューバー",
+  "look.mode.compact.desc": "ほかのウインドウの上に浮かぶ小さなウインドウで起動します。表示 → コンパクトウインドウ（⌥⌘P）で元に戻せます。",
+  "look.mode.menubar.desc": "Dock にアイコンを出さず、メニューバーに常駐します。アイコンをクリックするとパネルでサイトを開き、閉じても動作し続けます。",
+  "set.panelSize": "パネルのサイズ",
+  "set.panelSize.desc": "メニューバーのパネルとコンパクトウインドウのサイズ。サイドバーは幅を使います。",
+  "look.mode.sidebar": "サイドバー",
+  "look.mode.sidebar.desc": "画面の端に全高でドッキングし、ほかのウインドウの上に表示します。内側の端をドラッグして幅を変更し、アプリの表示メニューでレイアウトを切り替えられます。",
+  "set.sidebarEdge": "サイドバーの位置",
+  "set.sidebarEdge.left": "左",
+  "set.sidebarEdge.right": "右",
+  "set.sidebarAutoHide": "使っていないときは隠す",
+  "set.sidebarAutoHide.desc": "ほかのアプリに切り替えるとサイドバーが隠れます。グローバルショートカットか Dock アイコンで再表示できます。"
 }

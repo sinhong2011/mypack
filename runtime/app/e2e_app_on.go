@@ -3,6 +3,7 @@
 package app
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -41,8 +42,68 @@ func (a *App) e2eAppHook() {
 				a.handleIncomingURL(arg)
 			case "open-link":
 				a.openLink(arg)
+			case "panel": // a click on the menu-bar icon
+				mygo.RunOnMain(a.togglePanel)
+				time.Sleep(700 * time.Millisecond)
+				out = a.e2eInfo()
+			case "compact": // View > Compact Window
+				mygo.RunOnMain(a.toggleCompact)
+				time.Sleep(700 * time.Millisecond)
+				out = a.e2eInfo()
+			case "eval":
+				if _, p := a.pageFor(nil); p != nil {
+					v, err := p.Eval(arg)
+					out = fmt.Sprintf("%v %v", v, err)
+				}
+			case "layout": // View > Window / Compact Window / Sidebar
+				mygo.RunOnMain(func() { a.pickLayout(arg) })
+				time.Sleep(900 * time.Millisecond)
+				out = a.e2eInfo()
+			case "flip": // View > Move Sidebar to …
+				mygo.RunOnMain(a.flipSidebarEdge)
+				time.Sleep(700 * time.Millisecond)
+				out = a.e2eInfo()
+			case "resize": // the user drags the sidebar's inner edge: "resize <w>"
+				var nw int
+				fmt.Sscan(arg, &nw)
+				mygo.RunOnMain(func() {
+					b := a.main.Bounds()
+					a.main.SetBounds(mygo.Rectangle{X: b.X + b.Width - nw, Y: b.Y, Width: nw, Height: b.Height})
+				})
+				time.Sleep(900 * time.Millisecond)
+				out = a.e2eInfo()
+			case "move": // the user drags the window away
+				mygo.RunOnMain(func() { b := a.main.Bounds(); a.main.SetPosition(b.X-300, b.Y+100) })
+				time.Sleep(900 * time.Millisecond)
+				out = a.e2eInfo()
+			case "info":
+				out = a.e2eInfo()
+			case "shot":
+				a.mu.Lock()
+				w := a.main
+				a.mu.Unlock()
+				if w != nil {
+					if png, err := w.CapturePage(); err == nil {
+						_ = os.WriteFile(filepath.Join(dir, arg+".png"), png, 0o644)
+					} else {
+						out = "shot: " + err.Error()
+					}
+				}
 			}
 			_ = os.WriteFile(filepath.Join(dir, "appcmd.out"), []byte(out+"\n"), 0o644)
 		}
 	}()
+}
+
+func (a *App) e2eInfo() string {
+	a.mu.Lock()
+	w, tray := a.main, a.tray != nil
+	compact := a.lay.cur
+	a.mu.Unlock()
+	if w == nil {
+		return "main=nil"
+	}
+	b := w.Bounds()
+	return fmt.Sprintf("visible=%v flyout=%v layout=%v tray=%v onTop=%v bounds=%d,%d,%dx%d policy=%s",
+		w.IsVisible(), w.IsFlyout(), compact, tray, w.IsAlwaysOnTop(), b.X, b.Y, b.Width, b.Height, mygo.App.ActivationPolicy())
 }

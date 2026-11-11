@@ -187,6 +187,7 @@ func (a *App) conflictBanner(c *ui.Context, pr *domain.Project, ed *editorState)
 type setting struct {
 	label, desc string
 	wide        bool
+	hidden      bool // does not apply to the current configuration
 	control     func()
 }
 
@@ -251,7 +252,7 @@ func (a *App) settingsEditor(c *ui.Context, ed *editorState, pr *domain.Project)
 	for _, g := range groups {
 		var rows []setting
 		for _, r := range g.rows {
-			if matches(q, r) {
+			if !r.hidden && matches(q, r) {
 				rows = append(rows, r)
 			}
 		}
@@ -602,6 +603,34 @@ func (a *App) settingGroups(c *ui.Context, ed *editorState, pr *domain.Project) 
 			kit.Caption(c, "×")
 			num("h", &cfg.Window.Height, 240, 4320)
 			kit.Caption(c, "pt")
+		}},
+		{label: T("set.panelSize"), desc: T("set.panelSize.desc"), hidden: cfg.Window.EffectiveMode() == config.ModeWindow, control: func() {
+			pw, ph := cfg.Window.PanelSize()
+			num("pw", &pw, 240, 1600)
+			kit.Caption(c, "×")
+			num("ph", &ph, 240, 1600)
+			kit.Caption(c, "pt")
+			if dw, dh := cfg.Window.PanelSize(); pw != dw || ph != dh {
+				cfg.Window.PanelWidth, cfg.Window.PanelHeight = pw, ph
+				if pw == config.DefaultPanelWidth && ph == config.DefaultPanelHeight {
+					cfg.Window.PanelWidth, cfg.Window.PanelHeight = 0, 0 // the default is never written
+				}
+			}
+		}},
+		{label: T("set.sidebarEdge"), hidden: cfg.Window.EffectiveMode() != config.ModeSidebar, control: func() {
+			v := cfg.Window.EffectiveSidebarEdge()
+			old := v
+			kit.PopUp(k("sb-edge"), &v, []kit.Option{{Value: config.EdgeLeft, Label: T("set.sidebarEdge.left")}, {Value: config.EdgeRight, Label: T("set.sidebarEdge.right")}}, T("set.sidebarEdge")).Width(100)
+			if v != old {
+				cfg.Window.SidebarEdge = v
+				if v == config.EdgeRight {
+					cfg.Window.SidebarEdge = "" // the default is never written
+				}
+				ed.changed()
+			}
+		}},
+		{label: T("set.sidebarAutoHide"), desc: T("set.sidebarAutoHide.desc"), hidden: cfg.Window.EffectiveMode() != config.ModeSidebar, control: func() {
+			sw("sb-ah", &cfg.Window.SidebarAutoHide, T("set.sidebarAutoHide"))
 		}},
 		{label: T("set.minSize"), control: func() {
 			num("mw", &cfg.Window.MinWidth, 0, 7680)

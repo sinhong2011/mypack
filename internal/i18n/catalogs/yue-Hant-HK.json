@@ -523,5 +523,20 @@
   "update.changing": "更新內容",
   "update.profileKept": "你嘅登入資料預計會留喺呢部裝置。",
   "update.rollback": "如果有咩問題，會還原返而家嘅版本。",
-  "update.title": "更新 {name}"
+  "update.title": "更新 {name}",
+  "look.mode": "顯示方式",
+  "look.mode.window": "視窗",
+  "look.mode.compact": "精簡",
+  "look.mode.menubar": "選單列",
+  "look.mode.compact.desc": "以浮喺其他視窗上面嘅細視窗開啟。顯示 → 精簡視窗（⌥⌘P）可以轉返。",
+  "look.mode.menubar.desc": "常駐喺選單列，Dock 冇圖示。㩒個圖示就會喺面板打開網站；關咗面板都會繼續運行。",
+  "set.panelSize": "面板大小",
+  "set.panelSize.desc": "選單列面板同精簡視窗嘅大小。側邊欄會用闊度。",
+  "look.mode.sidebar": "側邊欄",
+  "look.mode.sidebar.desc": "以全高貼住螢幕邊緣，浮喺其他視窗上面。拖曳內側邊緣調整闊度；喺 app 嘅顯示選單切換版面。",
+  "set.sidebarEdge": "側邊欄位置",
+  "set.sidebarEdge.left": "左",
+  "set.sidebarEdge.right": "右",
+  "set.sidebarAutoHide": "唔用嗰陣收埋",
+  "set.sidebarAutoHide.desc": "轉去其他 app 嗰陣側邊欄會收埋。用全域快捷鍵或者 Dock 圖示可以叫返出嚟。"
 }

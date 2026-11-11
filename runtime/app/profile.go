@@ -52,6 +52,26 @@ type State struct {
 	// Notify remembers the answers of native.notifications "ask" per origin
 	// ("granted" | "denied").
 	Notify map[string]string `json:"notify,omitempty"`
+	// Layout is the main window's layout the user last picked in the View
+	// menu: "window", "compact" or "sidebar" ("" = follow window.mode).
+	// LayoutMode is the window.mode it was picked under: a rebuilt app with
+	// another mode starts in that mode again.
+	Layout     string `json:"layout,omitempty"`
+	LayoutMode string `json:"layoutMode,omitempty"`
+	// CompactBounds is where the compact window was; NormalBounds is the
+	// normal window. SidebarWidth and SidebarEdge are the sidebar's.
+	CompactBounds *Bounds `json:"compactBounds,omitempty"`
+	NormalBounds  *Bounds `json:"normalBounds,omitempty"`
+	SidebarWidth  int     `json:"sidebarWidth,omitempty"`
+	SidebarEdge   string  `json:"sidebarEdge,omitempty"`
+}
+
+// Bounds is a window rectangle in screen coordinates.
+type Bounds struct {
+	X int `json:"x"`
+	Y int `json:"y"`
+	W int `json:"w"`
+	H int `json:"h"`
 }
 
 // Store persists State atomically.

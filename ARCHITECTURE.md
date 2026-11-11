@@ -70,6 +70,14 @@ app opens it if the URL is internal for it (else the browser; never re-routed). 
 `webview.userAgentPreset` (safari|chrome|edge|firefox|mobile-safari|custom) maps to per-OS user agent strings in
 `runtime/app/useragent.go`. See `docs/gui-handoff-p0.md` for the GUI surface.
 
+## Window modes (1.0.6)
+
+`window.mode` (window|compact|sidebar|menubar; `runtime/app/modes.go` menu bar, `runtime/app/layout.go` layouts). Menu bar: a tray icon toggles a hidden-not-closed
+`mygo.NewFlyout` popover holding the page; accessory activation policy, and the Builder writes `LSUIElement` for
+runtime ≥ 1.0.6 (`internal/builder/darwin.go`). Window/compact/sidebar are layouts of the main window the user
+switches at runtime (View menu); the sidebar docks full-height to a screen edge. Choice and bounds live in `state.json`. Panel size: `window.panelWidth/panelHeight` (default 400×640).
+See `docs/gui-handoff-window-modes.md`.
+
 ## Runtime registry
 
 `registry.json` (schemaVersion 1) + `registry.json.sig` (Ed25519 over the exact bytes).
