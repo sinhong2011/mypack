@@ -24,57 +24,9 @@ func (a *App) lookAndBehaviour(c *ui.Context, cfg *config.Config, changed func()
 // for an inspector (three to a row).
 func (a *App) lookAndBehaviourOpts(c *ui.Context, cfg *config.Config, changed func(), account *string, compact bool) {
 	p := design.Of(c)
-	tw, th, sq := float32(116), float32(76), float32(76)
-	if compact {
-		tw, th, sq = 86, 56, 56
-	}
 	w := &cfg.Window
+	a.compactPickers(c, p, w, changed) // one family of single-row pickers everywhere
 	ui.Column(c).Gap(18).Children(func() {
-		// Title bar and appearance side by side.
-		ui.Row(c).Gap(28).Wrap().AlignItems(ui.Start).Children(func() {
-			pickerGroup(c, T("look.titleBar"), func() {
-				seamless := w.TitleBarStyle == "overlay" || w.TitleBarStyle == "hidden"
-				if thumb(c.Key("tb-std"), T("look.titleBar.standard"), "", !seamless, tw, th, func() { windowThumb(c, p, false, tw, th) }) {
-					w.TitleBarStyle = "default"
-					changed()
-				}
-				if thumb(c.Key("tb-seam"), T("look.titleBar.seamless"), "", seamless, tw, th, func() { windowThumb(c, p, true, tw, th) }) {
-					w.TitleBarStyle = "overlay"
-					changed()
-				}
-			})
-			pickerGroup(c, T("set.appearance"), func() {
-				for i, mode := range []string{"system", "light", "dark"} {
-					label := []string{T("appearance.system"), T("appearance.light"), T("appearance.dark")}[i]
-					cur := w.DarkMode
-					if cur == "" {
-						cur = "system"
-					}
-					if thumb(c.Key("ap-"+mode), label, "", cur == mode, sq, sq, func() { appearanceThumb(c, mode, sq, sq) }) {
-						w.DarkMode = mode
-						changed()
-					}
-				}
-			})
-		})
-		// Window size.
-		pickerGroup(c, T("look.size"), func() {
-			for _, sp := range sizePresets {
-				on := !w.Maximized && w.Width == sp.w && w.Height == sp.h
-				label := map[string]string{"compact": T("set.size.compact"), "standard": T("set.size.standard"), "large": T("set.size.large")}[sp.id]
-				sp := sp
-				if thumb(c.Key("sz-"+sp.id), label, fmt.Sprintf("%d × %d", sp.w, sp.h), on, tw, th, func() {
-					sizeThumb(c, p, float32(sp.w)/1600, float32(sp.h)/1000, tw, th)
-				}) {
-					w.Width, w.Height, w.Maximized = sp.w, sp.h, false
-					changed()
-				}
-			}
-			if thumb(c.Key("sz-fill"), T("look.size.fill"), T("look.size.fill.sub"), w.Maximized, tw, th, func() { sizeThumb(c, p, 1, 1, tw, th) }) {
-				w.Maximized = true
-				changed()
-			}
-		})
 		// Behaviour.
 		kit.GroupBox(c).Children(func() {
 			signedIn := !cfg.WebView.Incognito
@@ -92,16 +44,13 @@ func (a *App) lookAndBehaviourOpts(c *ui.Context, cfg *config.Config, changed fu
 			})
 			ext := cfg.WebView.Navigation.ExternalByDefault == nil || *cfg.WebView.Navigation.ExternalByDefault
 			row := kit.SettingIconRow
-			if compact {
-				row = kit.SettingIconRowStacked
-			}
 			row(c.Key("ln"), icons.Link, ui.Color{}, T("look.links"), T("look.links.desc"), func() {
 				v := "browser"
 				if !ext {
 					v = "app"
 				}
 				old := v
-				kit.PopUp(c.Key("pp-ln"), &v, []kit.Option{{Value: "browser", Label: T("look.links.browser")}, {Value: "app", Label: T("look.links.app")}}, T("look.links")).Width(map[bool]float32{true: 220, false: 190}[compact])
+				kit.PopUp(c.Key("pp-ln"), &v, []kit.Option{{Value: "browser", Label: T("look.links.browser")}, {Value: "app", Label: T("look.links.app")}}, T("look.links")).Width(116)
 				if v != old {
 					if v == "browser" {
 						cfg.WebView.Navigation.ExternalByDefault = nil
@@ -113,7 +62,26 @@ func (a *App) lookAndBehaviourOpts(c *ui.Context, cfg *config.Config, changed fu
 				}
 			})
 			tray := cfg.Native.Tray
-			kit.SettingIconRow(c.Key("tr"), icons.Bell, ui.Color{}, T("look.tray"), T("look.tray.desc"), func() {
+			notif := cfg.Native.NotificationsMode()
+			kit.SettingIconRow(c.Key("nt"), icons.Bell, ui.Color{}, T("look.notifications"), T("look.notifications.desc"), func() {
+				v := notif
+				kit.PopUp(c.Key("pp-nt"), &v, []kit.Option{{Value: "allow", Label: T("look.notifications.allow")},
+					{Value: "ask", Label: T("look.notifications.ask")}, {Value: "deny", Label: T("look.notifications.off")}}, T("look.notifications")).Width(96)
+				if v != notif {
+					cfg.Native.Notifications = v
+					changed()
+				}
+			})
+			badge := cfg.Native.BadgeMode() != "off"
+			kit.SettingIconRow(c.Key("bd"), icons.Message, ui.Color{}, T("look.badge"), T("look.badge.desc"), func() {
+				on := badge
+				kit.Switch(c.Key("sw-bd"), &on, T("look.badge"))
+				if on != badge {
+					cfg.Native.Badge = map[bool]string{true: "auto", false: "off"}[on]
+					changed()
+				}
+			})
+			kit.SettingIconRow(c.Key("tr"), icons.Layers, ui.Color{}, T("look.tray"), T("look.tray.desc"), func() {
 				kit.Switch(c.Key("sw-tr"), &tray, T("look.tray"))
 				if tray != cfg.Native.Tray {
 					cfg.Native.Tray, w.HideOnClose = tray, tray
@@ -125,25 +93,11 @@ func (a *App) lookAndBehaviourOpts(c *ui.Context, cfg *config.Config, changed fu
 			})
 			if account != nil {
 				row(c.Key("ac"), icons.Person, ui.Color{}, T("look.account"), T("look.account.desc"), func() {
-					kit.TextField(c.Key("tf-ac"), account, T("look.account"), kit.FieldOpts{Placeholder: T("look.account.placeholder")}).Width(map[bool]float32{true: 220, false: 170}[compact])
+					kit.TextField(c.Key("tf-ac"), account, T("look.account"), kit.FieldOpts{Placeholder: T("look.account.placeholder")}).Width(150)
 				})
 			}
 		})
 	})
-}
-
-// pickerGroup is a captioned row of thumbnails.
-func pickerGroup(c *ui.Context, title string, body func()) {
-	p := design.Of(c)
-	ui.Column(c).Gap(10).Children(func() {
-		ui.Text(c, title).FontSize(design.FontBody).FontWeight(design.WeightSemibold).TextColor(p.Text).Padding(0, 2).Role(ui.RoleHeading)
-		ui.Row(c).Gap(12).Wrap().Role(ui.RoleRadioGroup).Label(title).Children(body)
-	})
-}
-
-// thumb is kit.ChoiceTile.
-func thumb(c *ui.Context, label, sub string, selected bool, w, h float32, pic func()) bool {
-	return kit.ChoiceTile(c, label, sub, selected, w, h, pic)
 }
 
 // desktop paints the quiet workbench a thumbnail's window sits on.
@@ -249,5 +203,71 @@ func sizeThumb(c *ui.Context, p *design.Palette, fw, fh, w, h float32) {
 	ui.Column(c).Absolute().Left((w-ww)/2).Top((h-wh)/2).Size(ww, wh).Radius(5).Clip().Background(ui.RGB(255, 255, 255)).
 		Shadow(0, 2, 6, 0, ui.RGBA(0, 0, 0, 0.2)).Children(func() {
 		ui.Row(c).Height(10).PaddingX(4).AlignItems(ui.Center).Background(ui.RGB(236, 236, 238)).Children(func() { dots(c) })
+	})
+}
+
+// compactPickers are the inspector's pickers: three single rows of small
+// tiles of one size (up to 80×56), a caption under each; the selected window
+// size's dimensions in one line under its row.
+func (a *App) compactPickers(c *ui.Context, p *design.Palette, w *config.WindowConfig, changed func()) {
+	// One grid for all three rows: four slots across the inspector's
+	// inner width, 10 pt apart; tiles keep a 0.7 aspect and never clip.
+	const gap, aspect = 10, 0.7
+	inner := a.inspectorWidth() - 40 - 2 // its padding, and a hair for rounding
+	slot := (inner - 3*gap) / 4
+	ui.Column(c).Gap(16).Children(func() {
+		pickerRow(c, T("look.titleBar"), func() {
+			seamless := w.TitleBarStyle == "overlay" || w.TitleBarStyle == "hidden"
+			tw, th := slot-6, (slot-6)*aspect
+			if kit.ChoiceTileSmall(c.Key("tb-std"), T("look.titleBar.standard"), "", !seamless, slot, aspect, func() { windowThumb(c, p, false, tw, th) }) {
+				w.TitleBarStyle = "default"
+				changed()
+			}
+			if kit.ChoiceTileSmall(c.Key("tb-seam"), T("look.titleBar.seamless"), "", seamless, slot, aspect, func() { windowThumb(c, p, true, tw, th) }) {
+				w.TitleBarStyle = "overlay"
+				changed()
+			}
+		})
+		pickerRow(c, T("set.appearance"), func() {
+			cur := w.DarkMode
+			if cur == "" {
+				cur = "system"
+			}
+			tw, th := slot-6, (slot-6)*aspect
+			for i, mode := range []string{"system", "light", "dark"} {
+				label := []string{T("appearance.system"), T("appearance.light"), T("appearance.dark")}[i]
+				if kit.ChoiceTileSmall(c.Key("ap-"+mode), label, "", cur == mode, slot, aspect, func() { appearanceThumb(c, mode, tw, th) }) {
+					w.DarkMode = mode
+					changed()
+				}
+			}
+		})
+		pickerRow(c, T("look.size"), func() {
+			tw, th := slot-6, (slot-6)*aspect
+			for _, sp := range sizePresets {
+				sp := sp
+				on := !w.Maximized && w.Width == sp.w && w.Height == sp.h
+				label := map[string]string{"compact": T("set.size.compact"), "standard": T("set.size.standard"), "large": T("set.size.large")}[sp.id]
+				if kit.ChoiceTileSmall(c.Key("sz-"+sp.id), label, fmt.Sprintf("%d × %d", sp.w, sp.h), on, slot, aspect, func() {
+					sizeThumb(c, p, float32(sp.w)/1600, float32(sp.h)/1000, tw, th)
+				}) {
+					w.Width, w.Height, w.Maximized = sp.w, sp.h, false
+					changed()
+				}
+			}
+			if kit.ChoiceTileSmall(c.Key("sz-fill"), T("look.size.fillShort"), T("look.size.fullScreen"), w.Maximized, slot, aspect, func() { sizeThumb(c, p, 1, 1, tw, th) }) {
+				w.Maximized = true
+				changed()
+			}
+		})
+	})
+}
+
+// pickerRow is a captioned single row of small tiles.
+func pickerRow(c *ui.Context, title string, body func()) {
+	p := design.Of(c)
+	ui.Column(c).Gap(8).Children(func() {
+		ui.Text(c, title).FontSize(design.FontBody).FontWeight(design.WeightSemibold).TextColor(p.Text).Padding(0, 2).Role(ui.RoleHeading)
+		ui.Row(c).Gap(10).Role(ui.RoleRadioGroup).Label(title).Children(body)
 	})
 }

@@ -26,7 +26,7 @@ func (a *App) installMenu() {
 		}
 	}
 	menu := mygo.NewMenu([]*mygo.MenuItem{
-		{Label: "mypack", Submenu: []*mygo.MenuItem{
+		{Label: "Mypack", Submenu: []*mygo.MenuItem{
 			{Label: T("menu.about"), Click: on(func() { a.nav(secSettings); a.set.scrollAbout = true })},
 			mygo.Separator(),
 			{Label: T("menu.settings"), Accelerator: "CmdOrCtrl+,", Click: on(func() { a.showWindow(); a.nav(secSettings) })},
@@ -44,6 +44,7 @@ func (a *App) installMenu() {
 			{Label: T("menu.build"), Accelerator: "CmdOrCtrl+B", Click: on(a.buildShortcut)},
 			mygo.Separator(),
 			{Label: T("menu.importApp"), Click: on(a.importExistingApp)},
+			{Label: T("menu.importConfig"), Click: on(a.importConfig)},
 			mygo.Separator(),
 			{Role: mygo.RoleClose},
 		}},
@@ -104,7 +105,7 @@ func (a *App) syncTray() {
 	active := a.activeJobs()
 	icon := kit.TrayIconPNG(len(active) > 0)
 	if a.tray == nil {
-		t, err := mygo.NewTray(mygo.TrayOptions{ID: "mypack", Icon: icon, IconIsTemplate: true, ToolTip: "mypack"})
+		t, err := mygo.NewTray(mygo.TrayOptions{ID: "mypack", Icon: icon, IconIsTemplate: true, ToolTip: "Mypack"})
 		if err != nil {
 			return
 		}
@@ -183,7 +184,7 @@ func (a *App) flyoutView(c *ui.Context) {
 		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 			kit.BrandMark(c, 30)
 			ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-				kit.Headline(c, "mypack")
+				kit.Headline(c, "Mypack")
 				status := T("tray.ready")
 				if len(active) > 0 {
 					status = T("tray.building", "count", len(active))
@@ -306,7 +307,7 @@ func (a *App) trayMenu(active []domain.BuildJob) *mygo.Menu {
 		status = T("tray.building", "count", len(active))
 	}
 	items := []*mygo.MenuItem{
-		{Label: "mypack — " + status, Disabled: true},
+		{Label: "Mypack — " + status, Disabled: true},
 		mygo.Separator(),
 		{Label: T("tray.pasteURL"), Click: on(a.pasteToBuild)},
 		{Label: T("menu.newApp"), Click: on(a.newApp)},
@@ -371,6 +372,24 @@ func (a *App) importExistingApp() {
 			}
 			a.nav(secLibrary)
 			a.toast(T("import.done"), "", 1)
+		})
+	}()
+}
+
+// importConfig opens an app config (a Mypack config or Pake's pake.json)
+// in Create, to review before building.
+func (a *App) importConfig() {
+	a.showWindow()
+	go func() {
+		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.win, Title: T("importConfig.title"),
+			ButtonLabel: T("importConfig.button"), Filters: []mygo.FileFilter{{Name: T("importConfig.filter"), Extensions: []string{"json"}}}})
+		if err != nil || len(paths) == 0 {
+			return
+		}
+		a.win.Update(func() {
+			a.create.reset(a.host)
+			a.create.setInput(paths[0])
+			a.nav(secCreate)
 		})
 	}()
 }

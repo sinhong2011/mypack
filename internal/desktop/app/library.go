@@ -144,9 +144,6 @@ func (a *App) libraryView(c *ui.Context) {
 		if shown == 0 {
 			kit.EmptyState(c, icons.Search, T("library.noMatches", "query", a.lib.query), "", nil)
 		}
-		if shown > 0 && shown <= 12 && a.lib.query == "" {
-			a.libraryBand(c)
-		}
 		if len(a.installs) > 0 {
 			a.libraryFooter(c)
 		}
@@ -419,22 +416,13 @@ func (a *App) emptyLibrary(c *ui.Context) {
 	ui.Scroll(c).Grow(1).Basis(0).Children(func() {
 		ui.Column(c).FillWidth().MinHeightPercent(100).Center().Padding(design.TitleBarH+24, 40, 48, 40).Children(func() {
 			ui.Column(c).Width(600).MaxWidthPercent(100).Gap(0).AlignItems(ui.Stretch).Children(func() {
-				ui.Column(c).AlignItems(ui.Center).Gap(10).Children(func() {
-					ui.Box(c).Children(func() {
-						logo := kit.BrandMark(c, 128)
-						entered := ui.Local(logo, "in", func() bool { return false })
-						pose := ui.Pose{}
-						if !*entered {
-							pose, *entered = ui.Pose{Y: 10, Scale: 0.9, Fade: 1}, true
-							c.Invalidate()
-						}
-						logo.AnimatePose(pose, design.SpringPop)
-					}).Margin(0, 0, 18, 0)
-					kit.LargeTitle(c, T("library.empty.title")).TextAlign(ui.Center)
-					ui.Text(c, T("library.empty.body")).FontSize(design.FontTitle3).TextColor(p.TextSecondary).TextAlign(ui.Center)
+				// No hero: one plain line, then the field.
+				ui.Column(c).Gap(4).Children(func() {
+					kit.PageTitle(c, T("library.empty.title"))
+					ui.Text(c, T("library.empty.body")).FontSize(design.FontBody).TextColor(p.TextSecondary)
 				})
 				s := &a.create
-				ui.Box(c).Height(28)
+				ui.Box(c).Height(16)
 				r := kit.URLField(c.Key("hero"), &s.input, kit.URLFieldOpts{
 					Placeholder: T("create.url.placeholder"), Label: T("create.url.label"), AutoFocus: true,
 					Action: T("library.empty.cta"), ActionOff: strings.TrimSpace(s.input) == "", Paste: T("create.paste"),
@@ -458,7 +446,7 @@ func (a *App) emptyLibrary(c *ui.Context) {
 					s.setInput(s.input)
 					a.nav(secCreate)
 				}
-				ui.Row(c).Justify(ui.Center).Gap(6).Margin(12, 0, 0, 0).Children(func() {
+				ui.Row(c).Justify(ui.Start).Gap(6).Margin(12, 0, 0, 0).Children(func() {
 					kit.Footnote(c, T("create.drop.hint"))
 					if kit.Button(c.Key("choose"), T("create.chooseFile"), kit.ButtonOpts{Variant: kit.Plain, Size: 18}).FontSize(design.FontSmall).Clicked() {
 						a.nav(secCreate)
@@ -631,71 +619,6 @@ func (a *App) appMenu(m *ui.Menu, in domain.Installation) {
 			a.dlg.uninstall = uninstallDialog{open: true, id: in.ID}
 		}
 	}
-}
-
-// libraryBand fills a short library's lower half with what was built
-// lately and a couple of tips, on the workbench.
-func (a *App) libraryBand(c *ui.Context) {
-	p := design.Of(c)
-	type built struct {
-		pr  *domain.Project
-		job domain.BuildJob
-	}
-	var recent []built
-	seen := map[string]bool{}
-	for _, j := range a.jobs {
-		if j.Status != domain.JobSucceeded || seen[j.ProjectID] {
-			continue
-		}
-		if pr := a.project(j.ProjectID); pr != nil {
-			seen[j.ProjectID] = true
-			recent = append(recent, built{pr, j})
-		}
-		if len(recent) == 3 {
-			break
-		}
-	}
-	ui.Column(c).Gap(12).Padding(20, 20, 22, 20).Radius(design.RadiusPanel).Margin(8, 0, 0, 0).Children(func() {
-		if len(recent) > 0 {
-			kit.Eyebrow(c, T("library.recent.title"))
-			ui.Row(c).Gap(12).Children(func() {
-				for i, b := range recent {
-					b := b
-					card := ui.ButtonBase(c.Key(b.pr.ID)).Label(b.pr.Config.App.Name).Row().Justify(ui.Start).Gap(12).Padding(12, 14).
-						Radius(design.RadiusCard).AlignItems(ui.Center).Grow(1).Basis(0).MinWidth(0).Cursor(ui.CursorPointer).Border(0.5, p.GroupBorder)
-					design.Tint(card, p.CanvasTop, p.CanvasBot)
-					design.RaisedControl(c, card)
-					kit.Arrive(card, i, design.StaggerGrid)
-					kit.Lift(card, card.Hovered(), card.Pressed())
-					card.Children(func() {
-						kit.AppIconOpts(c, b.pr.IconPNG, b.pr.Config.App.Name, 36, kit.IconOpts{})
-						ui.Column(c).MinWidth(0).Grow(1).Gap(1).Children(func() {
-							kit.Headline(c, b.pr.Config.App.Name).SingleLine()
-							size := ""
-							if len(b.job.Artifacts) > 0 {
-								size = bytesLabel(b.job.Artifacts[0].Size)
-							}
-							kit.Caption(c, T("library.recent.meta", "when", ago(b.job.CreatedAt), "size", size)).SingleLine()
-						})
-						kit.Glyph(c, icons.ChevronRt, 14, p.TextTertiary)
-					})
-					if card.Clicked() {
-						a.openProject(b.pr.ID, 0)
-					}
-				}
-			})
-		}
-		ui.Row(c).Gap(18).Wrap().AlignItems(ui.Center).Margin(4, 0, 0, 0).Children(func() {
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				kit.Kbd(c, "mod+n")
-				kit.Footnote(c, T("library.tip.new"))
-			})
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				kit.Glyph(c, icons.Folder, 14, p.TextTertiary)
-				kit.Footnote(c, T("create.drop.hint"))
-			})
-		})
-	})
 }
 
 // launchButton is the round one-click action on a hovered or focused tile.

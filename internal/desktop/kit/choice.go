@@ -64,5 +64,44 @@ func ChoiceTile(c *ui.Context, label, sub string, selected bool, w, h float32, p
 		}
 	})
 	Lift(b, hov && !selected, b.Pressed())
+	if b.IsDisabled() {
+		b.Opacity(0.6)
+	}
+	return b.Clicked()
+}
+
+// ChoiceTileSmall is ChoiceTile for a single row of compact options in an
+// inspector: a tile exactly slot wide (its picture keeps aspect at h/w),
+// a 12 pt label and, when sub is set, a small tabular detail under it.
+func ChoiceTileSmall(c *ui.Context, label, sub string, selected bool, slot, aspect float32, pic func()) bool {
+	p := design.Of(c)
+	w := slot - 6
+	h := w * aspect
+	b := ui.ButtonBase(c).Label(label).Description(sub).Column().Width(slot).Shrink(0).AlignItems(ui.Center).Gap(0).Cursor(ui.CursorPointer).
+		Role(ui.RoleRadio).Checked(selected).FocusRing(false)
+	hov := b.Hovered() || b.FocusVisible()
+	b.Children(func() {
+		frame := ui.Box(c).Size(slot, h+6).Padding(3).Radius(design.RadiusCard - 2).Transition(design.Transition(c))
+		ChoiceStyle(c, frame, p.Raised, selected, hov && !selected)
+		kbd := b.FocusVisible()
+		frame.Children(func() {
+			FocusMark(c, kbd, 14)
+			ui.Box(c).Size(w, h).Radius(design.RadiusCard - 5).Clip().Children(pic)
+			if selected {
+				CheckBadge(c, 14).Absolute().Top(-5).Right(-5)
+			}
+		})
+		fg, wt := p.TextSecondary, design.WeightRegular
+		if selected {
+			fg, wt = p.Text, design.WeightSemibold
+		}
+		ui.Text(c, label).FontSize(12).FontWeight(wt).TextColor(fg).SingleLine().MaxWidth(slot).Margin(5, 0, 0, 0)
+		if sub != "" {
+			ui.Text(c, sub).FontSize(10.5).TextColor(p.TextSecondary).FontFeatures("tnum").SingleLine().MaxWidth(slot).Margin(1, 0, 0, 0)
+		}
+	})
+	if b.IsDisabled() {
+		b.Opacity(0.6)
+	}
 	return b.Clicked()
 }

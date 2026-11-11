@@ -14,6 +14,32 @@ type uiState struct {
 	ProjectID    string          `json:"projectId,omitempty"`
 	LibraryTab   int             `json:"libraryTab"` // 0 My Apps, 1 Projects
 	SettingsOpen map[string]bool `json:"advancedOpen,omitempty"`
+	// AutoInstall is, per project, whether a successful build for this
+	// device is installed and opened at once; AutoInstallDefault (nil =
+	// on) seeds new projects.
+	AutoInstall        map[string]bool `json:"autoInstall,omitempty"`
+	AutoInstallDefault *bool           `json:"autoInstallDefault,omitempty"`
+}
+
+// autoInstallDefault is the default for new projects (on unless turned off).
+func (u *uiState) autoInstallDefault() bool {
+	return u.AutoInstallDefault == nil || *u.AutoInstallDefault
+}
+
+// autoInstall reports whether project id installs and opens after a build.
+func (u *uiState) autoInstall(id string) bool {
+	if v, ok := u.AutoInstall[id]; ok {
+		return v
+	}
+	return u.autoInstallDefault()
+}
+
+func (u *uiState) setAutoInstall(id string, on bool) {
+	if u.AutoInstall == nil {
+		u.AutoInstall = map[string]bool{}
+	}
+	u.AutoInstall[id] = on
+	u.save()
 }
 
 func uiStatePath() string {

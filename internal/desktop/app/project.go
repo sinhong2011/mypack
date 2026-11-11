@@ -143,7 +143,8 @@ func (a *App) projectToolbar(c *ui.Context) {
 	if j := a.latestJob(pr.ID); j != nil && (j.Status == domain.JobRunning || j.Status == domain.JobQueued || j.Status == domain.JobAwaitingApproval) {
 		busy = true
 	}
-	if kit.Button(c.Key("build"), T("action.build"), kit.ButtonOpts{Variant: kit.Primary, Size: design.ToolbarControl, Icon: icons.Build,
+	// On Settings the Build action sits under the preview.
+	if a.projTab == 0 && kit.Button(c.Key("build"), T("action.build"), kit.ButtonOpts{Variant: kit.Primary, Size: design.ToolbarControl, Icon: icons.Build,
 		Disabled: busy, Hotkey: "mod+b"}).Clicked() {
 		a.startBuild(pr.ID, nil)
 	}
@@ -251,7 +252,6 @@ func (a *App) projectOverview(c *ui.Context, pr *domain.Project, p *design.Palet
 	if j == nil && len(hist) == 0 {
 		kit.Card(c).Padding(22).Gap(12).Children(func() {
 			ui.Row(c).Gap(16).AlignItems(ui.Center).Children(func() {
-				kit.SymbolTile(c, icons.Build, p.Accent, 44)
 				ui.Column(c).Grow(1).Gap(2).Children(func() {
 					kit.Heading(c, T("project.firstBuild.title"))
 					kit.Secondary(c, T("project.firstBuild.body"))
@@ -398,20 +398,50 @@ func (a *App) projectSettingsView(c *ui.Context, pr *domain.Project) {
 	p := design.Of(c)
 	ed := a.editorFor(pr)
 	a.previewInspector(c, func() {
-		ui.Column(c).AlignItems(ui.Center).Gap(0).Padding(48, 24, 24, 24).Children(func() {
+		ui.Column(c).AlignItems(ui.Start).Gap(0).Padding(32, 0, 24, 0).Children(func() {
 			a.projectIcon(c, pr, heroIcon)
-			kit.PageTitle(c, ed.cfg.App.Name).Margin(16, 0, 2, 0).SingleLine().TextAlign(ui.Center)
+			kit.PageTitle(c, ed.cfg.App.Name).Margin(16, 0, 2, 0).SingleLine()
 			ui.Row(c).Gap(5).AlignItems(ui.Center).Children(func() {
 				kit.Glyph(c, icons.Link, 12, p.TextTertiary)
 				ui.Text(c, domainOf(pr.Config.App.Source)).FontSize(design.FontSmall).TextColor(p.TextSecondary).SingleLine()
 			})
 			a.saveIndicator(c, ed)
+			// Actions under the preview: Build, and Open when installed.
+			busy := false
+			if j := a.latestJob(pr.ID); j != nil && (j.Status == domain.JobRunning || j.Status == domain.JobQueued || j.Status == domain.JobAwaitingApproval) {
+				busy = true
+			}
+			ui.Row(c).Gap(6).AlignItems(ui.Center).Margin(18, 0, 0, 0).Children(func() {
+				label := T("action.build")
+				if pr.LastBuild != nil {
+					label = T("action.rebuild")
+				}
+				if kit.Button(c.Key("build"), label, kit.ButtonOpts{Variant: kit.Primary, Size: design.ControlLG, Icon: icons.Build,
+					Disabled: busy, Loading: busy}).Clicked() {
+					a.startBuild(pr.ID, nil)
+					a.projTab = 0
+				}
+				if in := a.installFor(pr.ID); in != nil {
+					id := in.ID
+					kit.Links(c.Key("links"), []kit.Link{{Label: T("action.open"), Run: func() { a.openInstall(id) }}})
+				}
+			})
 			a.appDockPreview(c, pr.IconPNG, ed.cfg.App.Name)
 		})
 	}, func() {
 		a.conflictBanner(c, pr, ed)
 		ui.Column(c).Gap(14).Children(func() {
 			kit.SectionHeader(c, T("settings.general"), "")
+			kit.GroupBox(c).Children(func() {
+				on := a.ui.autoInstall(pr.ID)
+				kit.SettingIconRow(c.Key("autoinst"), icons.Play, ui.Color{}, T("autoInstall.label"), T("autoInstall.desc"), func() {
+					old := on
+					kit.Switch(c.Key("sw"), &on, T("autoInstall.label"))
+					if on != old {
+						a.ui.setAutoInstall(pr.ID, on)
+					}
+				})
+			})
 			a.lookAndBehaviourOpts(c, ed.cfg, ed.changed, nil, true)
 		})
 		ui.Column(c).Gap(14).Children(func() {

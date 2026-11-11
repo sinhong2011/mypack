@@ -7,19 +7,21 @@ import (
 )
 
 // Preview + inspector: the left column is the live preview (flexible);
-// the right is a fixed inspector of settings that scrolls on its own, set
+// the right is an inspector of settings (inspectorWidth) that scrolls on its own, set
 // off by a hairline, with its primary action pinned in a footer. Below
 // ~900 pt the inspector moves under the preview in one column. Tab order
 // follows: the preview's controls, then the inspector's, then its footer.
 
-const (
-	inspectorW      float32 = 364
-	inspectorNarrow float32 = 900
-)
+const inspectorNarrow float32 = 960 // window width below which it is one column
+
+// inspectorWidth is ~38 % of the content area, kept between 400 and 480 pt.
+func (a *App) inspectorWidth() float32 {
+	return min(max(a.toolbarW*0.38, 400), 480)
+}
 
 func (a *App) previewInspector(c *ui.Context, preview, inspector, footer func()) {
 	p := design.Of(c)
-	narrow := a.toolbarW > 0 && a.toolbarW < inspectorNarrow-design.SidebarWidth
+	narrow := a.toolbarW > 0 && a.toolbarW < inspectorNarrow-design.SidebarWidth-design.CanvasInset
 	if narrow {
 		ui.Scroll(c).Grow(1).Basis(0).ScrollbarInsets(design.TitleBarH, 0, 0).TrackScroll(&pageScroll).Children(func() {
 			ui.Column(c).FillWidth().AlignItems(ui.Center).Padding(design.TitleBarH+12, 24, 32, 24).Children(func() {
@@ -43,7 +45,7 @@ func (a *App) previewInspector(c *ui.Context, preview, inspector, footer func())
 			})
 		})
 		// The inspector: a hairline, its own scroll, a pinned footer.
-		ui.Column(c).Width(inspectorW).Shrink(0).BorderWidth(0, 0, 0, 1).BorderColor(p.Divider).Children(func() {
+		ui.Column(c).Width(a.inspectorWidth()).Shrink(0).BorderWidth(0, 0, 0, 1).BorderColor(p.Divider).Children(func() {
 			ui.Scroll(c.Key("inspector:"+string(a.section)+a.projectID)).Grow(1).Basis(0).ScrollbarInsets(design.TitleBarH, 0, 0).Children(func() {
 				ui.Column(c).FillWidth().Gap(22).Padding(design.TitleBarH+8, 20, 24, 20).Children(inspector)
 			})

@@ -117,7 +117,7 @@ func (a *App) sidebar(c *ui.Context) {
 		ui.Row(c).Height(design.TitleBarH).Shrink(0).DragWindow().AlignItems(ui.Center).Padding(0, 0, 0, max(6, bar.Left)).Gap(8).Children(func() {
 			if bar.Left == 0 {
 				kit.BrandMark(c, 22)
-				ui.Text(c, "mypack").FontSize(design.FontTitle3).FontWeight(design.WeightBold).TextColor(p.Text).LetterSpacing(design.TrackTitle)
+				ui.Text(c, "Mypack").FontSize(design.FontTitle3).FontWeight(design.WeightBold).TextColor(p.Text).LetterSpacing(design.TrackTitle)
 			}
 		})
 		ui.Column(c).Gap(1).Role(ui.RoleNavigation).Label(T("nav.label")).Children(func() {
@@ -251,9 +251,9 @@ func (a *App) toolbar(c *ui.Context) {
 			// Elsewhere the search pill opens the palette.
 			kit.ToolbarSearch(c.Key("search"), kit.ToolbarSearchOpts{Placeholder: T("library.search"), Hotkey: "mod+k", OnPalette: a.togglePalette})
 		}
-		switch a.section {
-		case secCreate:
-		case secProject:
+		switch {
+		case a.section == secCreate && a.create.building == "":
+		case a.section == secProject || a.section == secCreate:
 			// The project's own Build is the primary here.
 			if kit.ToolbarIcon(c.Key("tb-build"), icons.Plus, T("menu.newApp")).Clicked() {
 				a.newApp()
@@ -401,6 +401,11 @@ func stageLabel(j domain.BuildJob) string {
 		return T("stage.queued")
 	case domain.JobSucceeded:
 		return T("status.built")
+	}
+	if j.Stage == domain.StagePreparing && j.Status == domain.JobRunning {
+		return T("step.prepare.active")
+	}
+	switch j.Status {
 	case domain.JobFailed:
 		return T("status.failed")
 	case domain.JobCancelled:

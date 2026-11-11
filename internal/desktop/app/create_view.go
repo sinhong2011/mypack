@@ -56,8 +56,18 @@ func (a *App) createView(c *ui.Context) {
 		a.createURLField(c, 46)
 		a.createPreview(c)
 	}, func() {
-		disabled := s.building != ""
-		ui.Column(c).Gap(22).Opacity(map[bool]float32{true: 0.5, false: 1}[disabled]).Disabled(disabled).Children(func() {
+		// While its build runs the settings are locked: controls dim, labels
+		// stay readable.
+		locked := s.building != ""
+		col := ui.Column(c).Gap(22)
+		if locked {
+			col.Opacity(0.8) // quieter, still readable
+		}
+		col.Children(func() {
+			if locked {
+				// Holds the pointer: the settings can't change mid-build.
+				ui.Box(c.Key("lock")).Absolute().Fill().ZIndex(10).Cursor(ui.CursorDefault).AccessHidden(true)
+			}
 			// Look & Behaviour: the common choices, with good defaults.
 			ui.Column(c).Gap(14).Children(func() {
 				kit.SectionHeader(c, T("look.title"), "")
@@ -73,34 +83,7 @@ func (a *App) createView(c *ui.Context) {
 			})
 			a.createTargets(c)
 		})
-	}, func() {
-		if s.building != "" {
-			// The build is under way or done: carry on from its page, or
-			// make another.
-			ui.Row(c).Gap(8).Children(func() {
-				if kit.Button(c.Key("viewproj"), T("create.viewProject"), kit.ButtonOpts{Size: design.ControlLG, Grow: true}).Clicked() {
-					id := s.building
-					a.create.reset(a.host)
-					a.openProject(id, 0)
-				}
-				if kit.Button(c.Key("another"), T("menu.newApp"), kit.ButtonOpts{Variant: kit.Primary, Size: design.ControlLG, Icon: icons.Plus, Grow: true}).Clicked() {
-					a.create.reset(a.host)
-					a.create.focus = true
-				}
-			})
-			return
-		}
-		if pf := a.createDownloadHint(); pf != "" {
-			ui.Row(c).Gap(5).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
-				kit.Glyph(c, icons.Download, 12, p.TextTertiary)
-				kit.Footnote(c, pf)
-			})
-		}
-		if kit.Button(c.Key("build"), a.buildCTA(), kit.ButtonOpts{Variant: kit.Primary, Size: design.ControlLG,
-			Loading: s.busy, Disabled: len(s.targets) == 0, Hotkey: "mod+b", Icon: icons.Build, Grow: true}).Clicked() {
-			s.buildRequested = true
-		}
-	})
+	}, nil)
 	if s.buildRequested {
 		s.buildRequested = false
 		a.createAndBuild()
@@ -113,7 +96,7 @@ func (a *App) createView(c *ui.Context) {
 func (a *App) createPreview(c *ui.Context) {
 	p := design.Of(c)
 	s := &a.create
-	ui.Column(c).AlignItems(ui.Center).Gap(0).Padding(36, 24, 24, 24).Children(func() {
+	ui.Column(c).AlignItems(ui.Start).Gap(0).Padding(32, 0, 24, 0).Children(func() {
 		loading := s.normalized != "" && s.meta == nil && s.metaFor != s.normalized
 		ui.Box(c).Size(heroIcon, heroIcon).Children(func() {
 			if loading && s.iconPNG == nil {
@@ -142,6 +125,12 @@ func (a *App) createPreview(c *ui.Context) {
 				ui.Text(c, "· "+T("create.fetching")).FontSize(design.FontSmall).TextColor(p.TextTertiary).SingleLine()
 			}
 		})
+		// A web project: what it is, under the host.
+		if s.local != "" {
+			if hint, ok := projectKind(s.local); ok {
+				ui.Text(c, hint).FontSize(design.FontCaption).TextColor(p.TextTertiary).Margin(2, 0, 0, 0)
+			}
+		}
 		// Couldn't reach the site: a compact hint, never a banner.
 		if s.meta != nil && s.meta.Fallback && s.metaFor == s.normalized {
 			ui.Row(c).Gap(5).AlignItems(ui.Center).Margin(6, 0, 0, 0).MaxWidth(420).Children(func() {
@@ -149,7 +138,32 @@ func (a *App) createPreview(c *ui.Context) {
 				ui.Text(c, T("create.offline")).FontSize(design.FontCaption).TextColor(p.TextSecondary).TextAlign(ui.Center).LineHeight(1.35)
 			})
 		}
+		a.createAction(c)
 		a.dockPreview(c, loading)
+	})
+}
+
+// createAction is the build action under the app's identity: one pill,
+// with the Install & Open switch and the download hint as one quiet line
+// under it. (⌘B builds too.)
+func (a *App) createAction(c *ui.Context) {
+	p := design.Of(c)
+	s := &a.create
+	if !s.autoSet {
+		s.autoInstall, s.autoSet = a.ui.autoInstallDefault(), true
+	}
+	ui.Column(c.Key("action")).Gap(10).AlignItems(ui.Start).Margin(18, 0, 0, 0).Children(func() {
+		if kit.Button(c.Key("build"), a.buildCTA(), kit.ButtonOpts{Variant: kit.Primary, Size: design.ControlLG,
+			Loading: s.busy, Disabled: len(s.targets) == 0, Hotkey: "mod+b", Icon: icons.Build}).Clicked() {
+			s.buildRequested = true
+		}
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			kit.Switch(c.Key("auto"), &s.autoInstall, T("autoInstall.label"))
+			ui.Text(c, T("autoInstall.label")).FontSize(design.FontSmall).TextColor(p.TextSecondary).SingleLine()
+			if pf := a.createDownloadHint(); pf != "" {
+				ui.Text(c, "· "+pf).FontSize(design.FontSmall).TextColor(p.TextTertiary).SingleLine().MinWidth(0).Shrink(1)
+			}
+		})
 	})
 }
 
@@ -159,11 +173,7 @@ func (a *App) createStart(c *ui.Context) {
 	ui.Scroll(c).Grow(1).Basis(0).Children(func() {
 		ui.Column(c).FillWidth().MinHeightPercent(100).Center().Padding(design.TitleBarH+24, 40, 48, 40).Children(func() {
 			ui.Column(c).Width(600).MaxWidthPercent(100).Gap(0).AlignItems(ui.Stretch).Children(func() {
-				ui.Column(c).AlignItems(ui.Center).Gap(10).Margin(0, 0, 26, 0).Children(func() {
-					kit.BrandMark(c, 72).Margin(0, 0, 8, 0)
-					kit.LargeTitle(c, T("create.title")).TextAlign(ui.Center)
-					ui.Text(c, T("create.subtitle")).FontSize(design.FontTitle3).TextColor(p.TextSecondary).TextAlign(ui.Center)
-				})
+				ui.Text(c, T("create.subtitle")).FontSize(design.FontBody).TextColor(p.TextSecondary).Margin(0, 2, 10, 2)
 				a.createURLField(c, 52)
 				ui.Column(c).Margin(40, 0, 0, 0).Children(func() { a.createSuggestions(c) })
 			})
@@ -217,6 +227,14 @@ func (a *App) createURLField(c *ui.Context, h float32) {
 					FontSize(design.FontSmall).Clicked() {
 					a.chooseLocalSource()
 				}
+				if kit.Button(c.Key("choosedir"), T("create.chooseFolder"), kit.ButtonOpts{Variant: kit.Plain, Size: 18}).
+					FontSize(design.FontSmall).Clicked() {
+					a.chooseLocalFolder()
+				}
+				if kit.Button(c.Key("importcfg"), T("menu.importConfig"), kit.ButtonOpts{Variant: kit.Plain, Size: 18,
+					Tooltip: T("importConfig.sub")}).FontSize(design.FontSmall).Clicked() {
+					a.importConfig()
+				}
 			}
 		})
 	})
@@ -241,7 +259,7 @@ func (a *App) renameField(c *ui.Context, loading bool) {
 	}
 	in := ui.TextInputBase(c.Key("name"), &shown).FontSize(design.FontTitle1).FontWeight(design.WeightBold).
 		Placeholder(placeholder).PlaceholderColor(p.TextTertiary).TextColor(p.Text).FocusRing(false).Label(T("create.name.label")).
-		TextAlign(ui.Center).Width(320).MaxWidthPercent(100).Height(34).Padding(0, 12).Radius(10).Margin(14, 0, 2, 0).
+		TextAlign(ui.Start).Width(320).MaxWidthPercent(100).Height(34).Padding(0, 12).Radius(10).Margin(14, 0, 2, -12).
 		Transition(design.Transition(c)).Tooltip(T("create.name.tip"))
 	if in.Focused() {
 		kit.FieldStyle(c, in, true, false)
@@ -289,7 +307,7 @@ func (a *App) appDockPreview(c *ui.Context, png []byte, name string) {
 func (a *App) dockWith(c *ui.Context, icon func(big float32)) {
 	p := design.Of(c)
 	const sz float32 = 40
-	ui.Column(c).AlignItems(ui.Center).Gap(8).Margin(24, 0, 0, 0).AccessHidden(true).Children(func() {
+	ui.Column(c).AlignItems(ui.Start).Gap(8).Margin(24, 0, 0, 0).AccessHidden(true).Children(func() {
 		dock := ui.Row(c).Height(64).Padding(0, 12).Gap(10).AlignItems(ui.End).Radius(18).Background(p.Overlay).Border(0.5, p.BorderStrong)
 		design.Elevate(c, dock, design.Floating)
 		dock.Children(func() {

@@ -110,7 +110,7 @@ func (s *Service) seed() {
 	sortJobs(s.jobs)
 
 	// An external, read-only app.
-	s.installs = append(s.installs, &domain.Installation{ID: s.id("inst"), Name: "ChatGPT", Identifier: "com.pake.chatgpt",
+	s.installs = append(s.installs, &domain.Installation{ID: s.id("inst"), Name: "ChatGPT", Identifier: "app.mypack.chatgpt",
 		SourceURL: "https://chatgpt.com/", Path: "/Applications/ChatGPT.app", Version: "2.9.0", State: domain.InstallExternal,
 		InstalledAt: ago(40 * 24 * time.Hour), LastManagedAt: ago(40 * 24 * time.Hour), IconPNG: demoIcon("ChatGPT")})
 

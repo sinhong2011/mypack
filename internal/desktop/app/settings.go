@@ -44,7 +44,7 @@ func (a *App) settingsView(c *ui.Context) {
 		ui.Row(c).Gap(16).Padding(16, 18).Radius(design.RadiusPanel).Background(p.Group).Border(0.5, p.GroupBorder).AlignItems(ui.Center).Children(func() {
 			kit.BrandMark(c, 60)
 			ui.Column(c).Gap(2).Grow(1).MinWidth(0).Children(func() {
-				ui.Text(c, "mypack").FontSize(design.FontTitle1).FontWeight(design.WeightBold).TextColor(p.Text)
+				ui.Text(c, "Mypack").FontSize(design.FontTitle1).FontWeight(design.WeightBold).TextColor(p.Text)
 				kit.Secondary(c, T("settings.about.tagline"))
 				kit.Caption(c, T("settings.about.version", "v", Version)).TextColor(p.TextTertiary)
 			})
@@ -120,6 +120,15 @@ func (a *App) settingsView(c *ui.Context) {
 					}
 				})
 			}
+			on := a.ui.autoInstallDefault()
+			kit.SettingIconRow(c.Key("autoinst"), icons.Play, ui.Color{}, T("autoInstall.default"), T("autoInstall.default.desc"), func() {
+				old := on
+				kit.Switch(c.Key("sw"), &on, T("autoInstall.default"))
+				if on != old {
+					a.ui.AutoInstallDefault = &on
+					a.ui.save()
+				}
+			})
 			dir("out", T("settings.outputDir"), T("settings.outputDir.desc"), &a.settings.OutputDir, ui.Color{})
 			dir("inst", T("settings.installDir"), T("settings.installDir.desc"), &a.settings.InstallDir, ui.Color{})
 		})

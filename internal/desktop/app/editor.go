@@ -3,7 +3,10 @@ package app
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"regexp"
+	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -35,12 +38,14 @@ type editorState struct {
 	saveErr  string
 	conflict bool
 
-	query  string
-	group  int
-	newDom string
-	cssBuf string
-	jsBuf  string
-	inited bool
+	query    string
+	group    int
+	headers  map[string]*ui.Handle // accordion rows, for ↑/↓
+	moveDown string
+	newDom   string
+	cssBuf   string
+	jsBuf    string
+	inited   bool
 }
 
 func (a *App) editorFor(pr *domain.Project) *editorState {
@@ -188,14 +193,28 @@ type settingGroup struct {
 	title string
 	icon  *ui.SVG
 	rows  []setting
+	// summary is a quiet line of the group's current values; modified
+	// reports a change from the recommended defaults; reset restores
+	// them for this group only (nil: no reset).
+	summary  func() string
+	modified func() bool
+	reset    func()
 }
+
+// settingOrder is the accordion's order, most-used first.
+var settingOrder = []string{"window", "webview", "custom", "native", "network", "identity", "runtime", "packaging", "diagnostics"}
 
 func matches(q string, s setting) bool {
 	q = strings.ToLower(strings.TrimSpace(q))
 	return q == "" || strings.Contains(strings.ToLower(s.label), q) || strings.Contains(strings.ToLower(s.desc), q)
 }
 
-// settingsEditor renders the searchable, grouped Advanced Settings (§9C.2).
+// settingsEditor renders Advanced Settings as an accordion (§9C.2): one
+// full-width row per group (icon, name, a dot when it differs from the
+// recommended defaults, a quiet summary of its values, a chevron), opening
+// in place; several can be open, remembered per project. Search filters to
+// matching settings, opens their groups and marks the matches; clearing
+// it restores what was open.
 func (a *App) settingsEditor(c *ui.Context, ed *editorState, pr *domain.Project) {
 	p := design.Of(c)
 	if !ed.inited {
@@ -203,49 +222,30 @@ func (a *App) settingsEditor(c *ui.Context, ed *editorState, pr *domain.Project)
 		ed.cssBuf, ed.jsBuf = injection(ed.cfg, "css"), injection(ed.cfg, "js")
 	}
 	groups := a.settingGroups(c, ed, pr)
-	ui.Column(c).Gap(14).Children(func() {
-		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-			kit.SearchField(c.Key("search"), &ed.query, T("editor.search"), nil, 0).Grow(1)
-			if kit.Button(c.Key("reset"), T("editor.reset"), kit.ButtonOpts{Variant: kit.Ghost, Icon: icons.Undo}).Clicked() {
-				a.dlg.reset = resetDialog{open: true, ed: ed}
-			}
-		})
-		if ed.query == "" {
-			// Category chips.
-			ui.Row(c).Gap(6).Wrap().Role(ui.RoleTabList).Label(T("editor.groups")).Children(func() {
-				for i, g := range groups {
-					i := i
-					sel := ed.group == i
-					chip := ui.ButtonBase(c.Key(g.id)).Label(g.title).Row().Justify(ui.Start).Height(28).PaddingX(12).Gap(6).AlignItems(ui.Center).
-						Radius(kit.PillRadius(28)).Cursor(ui.CursorPointer).Transition(design.Transition(c)).Selected(sel).Role(ui.RoleTab)
-					fg := p.Text
-					switch {
-					case sel:
-						chip.Background(p.Accent)
-						fg = p.TextOnAccent
-					case chip.Hovered():
-						chip.Background(p.Pressed)
-					default:
-						chip.Background(p.Fill)
-					}
-					chip.Children(func() {
-						kit.Glyph(c, g.icon, 13, fg)
-						ui.Text(c, g.title).FontSize(design.FontSmall).FontWeight(design.WeightMedium).TextColor(fg)
-					})
-					if chip.Clicked() {
-						ed.group = i
-					}
-				}
-			})
-		}
+	a.describeGroups(ed, groups)
+	sort.SliceStable(groups, func(i, j int) bool {
+		return slices.Index(settingOrder, groups[i].id) < slices.Index(settingOrder, groups[j].id)
+	})
+	scope := "create"
+	if pr != nil {
+		scope = pr.ID
+	}
+	key := func(gid string) string { return scope + "/" + gid }
+	if a.ui.SettingsOpen == nil {
+		a.ui.SettingsOpen = map[string]bool{}
+	}
+	if ed.headers == nil {
+		ed.headers = map[string]*ui.Handle{}
+	}
+	q := strings.TrimSpace(ed.query)
+	ui.Column(c).Gap(0).Children(func() {
+		kit.SearchField(c.Key("search"), &ed.query, T("editor.search"), nil, 0).Margin(0, 0, 8, 0)
 		any := false
-		for i, g := range groups {
-			if ed.query == "" && i != ed.group {
-				continue
-			}
+		var shown []string
+		for _, g := range groups {
 			var rows []setting
 			for _, r := range g.rows {
-				if matches(ed.query, r) {
+				if matches(q, r) {
 					rows = append(rows, r)
 				}
 			}
@@ -253,30 +253,184 @@ func (a *App) settingsEditor(c *ui.Context, ed *editorState, pr *domain.Project)
 				continue
 			}
 			any = true
-			title := ""
-			if ed.query != "" {
-				title = g.title
+			shown = append(shown, g.id)
+			g := g
+			open := q != "" || a.ui.SettingsOpen[key(g.id)]
+			h := ed.headers[g.id]
+			if h == nil {
+				h = &ui.Handle{}
+				ed.headers[g.id] = h
 			}
-			ui.Column(c.Key(g.id)).Children(func() {
-				kit.Group(c, title, func() {
-					for k, r := range rows {
-						r := r
-						ui.Column(c.Key(k)).Children(func() {
-							if r.wide {
-								kit.SettingBlock(c, r.label, r.desc, r.control)
-							} else {
-								kit.SettingRow(c, r.label, r.desc, r.control)
+			ui.Column(c.Key(g.id)).BorderWidth(0, 0, 1, 0).BorderColor(p.Divider).Children(func() {
+				hdr := ui.ButtonBase(c.Key("h")).Label(g.title).Row().Justify(ui.Start).MinHeight(48).Padding(8, 6).Gap(12).
+					AlignItems(ui.Center).Radius(design.RadiusControl).Cursor(ui.CursorPointer).Role(ui.RoleDisclosure).Expanded(open).
+					FocusRing(false).Transition(design.Transition(c)).Bind(h)
+				if hdr.Hovered() || hdr.FocusVisible() {
+					hdr.Background(p.Hover)
+				}
+				hdr.Children(func() {
+					kit.FocusMark(c, hdr.FocusVisible(), 0)
+					kit.Glyph(c, g.icon, 16, p.TextSecondary)
+					ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {
+						ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+							ui.Text(c, g.title).FontSize(design.FontBody).FontWeight(design.WeightSemibold).TextColor(p.Text).SingleLine()
+							if g.modified != nil && g.modified() {
+								ui.Box(c).Size(6, 6).Radius(3).Background(p.Accent).Label(T("editor.modified"))
 							}
 						})
+						if g.summary != nil {
+							if sm := g.summary(); sm != "" {
+								ui.Text(c, sm).FontSize(design.FontSmall).TextColor(p.TextSecondary).SingleLine().MinWidth(0)
+							}
+						}
+					})
+					ch := kit.Glyph(c, icons.ChevronRt, 14, p.TextTertiary)
+					turn := float32(0)
+					if open {
+						turn = 90
 					}
+					ch.Rotate(ch.AnimateTo("turn", turn, design.Spring))
 				})
+				if hdr.Clicked() && q == "" {
+					a.ui.SettingsOpen[key(g.id)] = !a.ui.SettingsOpen[key(g.id)]
+					a.ui.save()
+				}
+				// ↑/↓ move between the rows.
+				if hdr.Focused() {
+					i := slices.Index(shown, g.id)
+					if c.Shortcut(0, ui.KeyUp) && i > 0 {
+						ed.headers[shown[i-1]].Focus()
+					}
+					if c.Shortcut(0, ui.KeyDown) {
+						ed.moveDown = g.id
+					}
+				}
+				if open {
+					kit.Reveal(ui.Column(c.Key("body")).Padding(2, 0, 12, 34).Gap(0)).Children(func() {
+						for k, r := range rows {
+							r := r
+							row := ui.Column(c.Key(k)).Radius(design.RadiusControl)
+							if q != "" {
+								row.Background(p.ChoiceFill) // a match
+							}
+							row.Children(func() {
+								if r.wide {
+									kit.SettingBlock(c, r.label, r.desc, r.control)
+								} else {
+									kit.SettingRow(c, r.label, r.desc, r.control)
+								}
+							})
+						}
+						if g.reset != nil && q == "" {
+							reset := g.reset
+							kit.Links(c.Key("reset"), []kit.Link{{Label: T("editor.resetGroup"), Run: func() { reset(); ed.changed() }}}).Margin(4, 0, 0, -8)
+						}
+					})
+				}
 			})
+		}
+		// ↓ from the row before: focus the next one (it has a handle by now).
+		if ed.moveDown != "" {
+			if i := slices.Index(shown, ed.moveDown); i >= 0 && i+1 < len(shown) {
+				ed.headers[shown[i+1]].Focus()
+			}
+			ed.moveDown = ""
 		}
 		if !any {
 			kit.EmptyState(c, icons.Search, T("editor.noResults"), "", nil)
 		}
+		kit.Links(c.Key("resetall"), []kit.Link{{Label: T("editor.reset"), Run: func() { a.dlg.reset = resetDialog{open: true, ed: ed} }}}).Margin(10, 0, 0, -8)
 	})
 	a.autosave(c, ed)
+}
+
+// describeGroups gives the groups their summaries, default checks and
+// resets, against a fresh config with the recommended defaults.
+func (a *App) describeGroups(ed *editorState, groups []settingGroup) {
+	cfg := ed.cfg
+	def := config.New(cfg.App.Name, cfg.App.Source, a.host)
+	for i := range groups {
+		g := &groups[i]
+		switch g.id {
+		case "window":
+			g.summary = func() string {
+				w := cfg.Window
+				tb := T("look.titleBar.standard")
+				if w.TitleBarStyle == "overlay" || w.TitleBarStyle == "hidden" {
+					tb = T("look.titleBar.seamless")
+				}
+				ap := map[string]string{"": T("appearance.system"), "system": T("appearance.system"), "light": T("appearance.light"), "dark": T("appearance.dark")}[w.DarkMode]
+				size := fmt.Sprintf("%d × %d", w.Width, w.Height)
+				if w.Maximized {
+					size = T("look.size.fullScreen")
+				}
+				return strings.Join([]string{tb, ap, size}, " · ")
+			}
+			g.modified = func() bool { return !reflect.DeepEqual(cfg.Window, def.Window) }
+			g.reset = func() { cfg.Window = def.Window }
+		case "webview":
+			g.summary = func() string {
+				ua := map[string]string{config.UAPresetSafari: "Safari", config.UAPresetChrome: "Chrome", config.UAPresetEdge: "Edge",
+					config.UAPresetFirefox: "Firefox", config.UAPresetMobileSafari: T("set.userAgent.mobileSafari"),
+					config.UAPresetCustom: T("set.userAgent.custom")}[cfg.WebView.EffectiveUAPreset()]
+				links := T("editor.sum.linksBrowser")
+				if e := cfg.WebView.Navigation.ExternalByDefault; e != nil && !*e {
+					links = T("editor.sum.linksApp")
+				}
+				return T("editor.sum.ua", "ua", ua) + " · " + links
+			}
+			g.modified = func() bool {
+				a, b := cfg.WebView, def.WebView
+				a.Injections, b.Injections = nil, nil
+				return !reflect.DeepEqual(a, b)
+			}
+			g.reset = func() {
+				inj := cfg.WebView.Injections
+				cfg.WebView = def.WebView
+				cfg.WebView.Injections = inj
+			}
+		case "custom":
+			g.summary = func() string {
+				var parts []string
+				if injection(cfg, "css") != "" {
+					parts = append(parts, "CSS")
+				}
+				if injection(cfg, "js") != "" {
+					parts = append(parts, "JavaScript")
+				}
+				if len(parts) == 0 {
+					return T("editor.sum.none")
+				}
+				return strings.Join(parts, " · ")
+			}
+			g.modified = func() bool { return len(cfg.WebView.Injections) > 0 }
+			g.reset = func() { cfg.WebView.Injections, ed.cssBuf, ed.jsBuf = nil, "", "" }
+		case "native":
+			g.summary = func() string {
+				n := map[string]string{"allow": T("look.notifications.allow"), "ask": T("look.notifications.ask"), "deny": T("look.notifications.off")}[cfg.Native.NotificationsMode()]
+				parts := []string{T("editor.sum.notifications", "mode", n)}
+				if cfg.Native.Tray {
+					parts = append(parts, T("editor.sum.menuBar"))
+				}
+				return strings.Join(parts, " · ")
+			}
+			g.modified = func() bool { return !reflect.DeepEqual(cfg.Native, def.Native) }
+			g.reset = func() { cfg.Native = def.Native; cfg.Window.HideOnClose = def.Window.HideOnClose }
+		case "network":
+			g.summary = func() string {
+				if cfg.Network.Proxy != "" {
+					return T("editor.sum.proxy", "proxy", cfg.Network.Proxy)
+				}
+				return T("editor.sum.direct")
+			}
+			g.modified = func() bool { return !reflect.DeepEqual(cfg.Network, def.Network) }
+			g.reset = func() { cfg.Network = def.Network }
+		case "identity":
+			g.summary = func() string { return cfg.App.Identifier + " · " + cfg.App.Version }
+		case "runtime":
+			g.summary = func() string { return T("editor.sum.runtime", "version", cfg.Runtime.Version) }
+		}
+	}
 }
 
 func injection(cfg *config.Config, typ string) string {
@@ -426,9 +580,25 @@ func (a *App) settingGroups(c *ui.Context, ed *editorState, pr *domain.Project) 
 				{Value: "external", Label: T("set.popups.external")}, {Value: "block", Label: T("set.popups.block")}}, T("set.popups"), 220)
 		}},
 		{label: T("set.userAgent"), desc: T("set.userAgent.desc"), wide: true, control: func() {
-			in := kit.TextField(k("ua"), &cfg.WebView.UserAgent, T("set.userAgent"), kit.FieldOpts{Placeholder: T("set.userAgent.placeholder")})
-			if in.Changed() {
+			// A preset by default; Custom shows the text field.
+			preset := cfg.WebView.EffectiveUAPreset()
+			v := preset
+			kit.PopUp(k("uap"), &v, []kit.Option{{Value: config.UAPresetSafari, Label: "Safari"}, {Value: config.UAPresetChrome, Label: "Chrome"},
+				{Value: config.UAPresetEdge, Label: "Edge"}, {Value: config.UAPresetFirefox, Label: "Firefox"},
+				{Value: config.UAPresetMobileSafari, Label: T("set.userAgent.mobileSafari")}, {Value: config.UAPresetCustom, Label: T("set.userAgent.custom")}},
+				T("set.userAgent")).Width(200)
+			if v != preset {
+				cfg.WebView.UserAgentPreset = v
+				if v != config.UAPresetCustom {
+					cfg.WebView.UserAgent = ""
+				}
 				ed.changed()
+			}
+			if v == config.UAPresetCustom {
+				in := kit.TextField(k("ua"), &cfg.WebView.UserAgent, T("set.userAgent"), kit.FieldOpts{Placeholder: T("set.userAgent.placeholder")})
+				if in.Changed() {
+					ed.changed()
+				}
 			}
 		}},
 		{label: T("set.restore"), desc: T("set.restore.desc"), control: func() { sw("restore", &cfg.WebView.RestoreLastURL, T("set.restore")) }},
@@ -464,7 +634,7 @@ func (a *App) settingGroups(c *ui.Context, ed *editorState, pr *domain.Project) 
 			}
 		}},
 		{label: T("set.js"), desc: T("set.js.desc"), wide: true, control: func() {
-			kit.Note(c, icons.Warning, T("set.js.risk"), kit.ToneWarning)
+			ui.Text(c, T("set.js.risk")).FontSize(design.FontCaption).TextColor(p.TextTertiary)
 			in := ui.TextArea(k("js"), &ed.jsBuf).Placeholder("// document.title = 'Hello'").Lines(3, 10).Font(kit.MonoFont).FontSize(12).Label(T("set.js")).Radius(design.RadiusControl)
 			if in.Changed() {
 				setInjection(cfg, "js", ed.jsBuf)
@@ -486,6 +656,20 @@ func (a *App) settingGroups(c *ui.Context, ed *editorState, pr *domain.Project) 
 			}
 		}},
 		{label: T("set.shortcut"), desc: T("set.shortcut.desc"), control: func() { text("gs", &cfg.Native.GlobalShortcut, T("set.shortcut"), "CmdOrCtrl+Shift+Space", 200) }},
+		{label: T("set.linkRouting"), desc: T("set.linkRouting.desc"), control: func() {
+			on := cfg.Native.LinkRoutingEnabled()
+			old := on
+			kit.Switch(k("lr"), &on, T("set.linkRouting"))
+			if on != old {
+				if on {
+					cfg.Native.LinkRouting = nil
+				} else {
+					off := false
+					cfg.Native.LinkRouting = &off
+				}
+				ed.changed()
+			}
+		}},
 		{label: T("set.camera"), desc: T("set.camera.desc"), control: func() { sw("cam", &cfg.Native.Camera, T("set.camera")) }},
 		{label: T("set.mic"), desc: T("set.mic.desc"), control: func() { sw("mic", &cfg.Native.Microphone, T("set.mic")) }},
 		{label: T("set.dragDrop"), control: func() { sw("dd", &cfg.Native.DragDrop, T("set.dragDrop")) }},

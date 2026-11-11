@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/url"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -122,6 +124,25 @@ func domainOf(src config.Source) string {
 		return shortPath(src.Value)
 	}
 	return src.Value
+}
+
+// addressLabel is what a window's address bar shows for a source: the
+// bare host of a website, or "<name> · local" for a file or folder.
+func addressLabel(src config.Source, name string) string {
+	if src.Type == config.SourceURL {
+		if u, err := url.Parse(src.Value); err == nil && u.Hostname() != "" {
+			return strings.TrimPrefix(u.Hostname(), "www.")
+		}
+		return config.RegistrableHost(src.Value)
+	}
+	if name == "" {
+		base := src.Value
+		if src.Project != "" {
+			base = src.Project
+		}
+		name = filepath.Base(base)
+	}
+	return T("address.local", "name", name)
 }
 
 func shortPath(p string) string {

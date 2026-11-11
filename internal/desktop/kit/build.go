@@ -125,7 +125,6 @@ func RuntimeDownloadCard(c *ui.Context, d RuntimeDownloadInfo) (approve, cancel 
 	p := design.Of(c)
 	Card(c).Padding(22).Gap(16).Children(func() {
 		ui.Row(c).Gap(14).AlignItems(ui.Start).Children(func() {
-			SymbolTile(c, icons.Download, p.Accent, 40)
 			ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
 				Heading(c, d.Title)
 				ui.Text(c, d.Body).FontSize(design.FontBody).TextColor(p.TextSecondary).LineHeight(1.4)
@@ -158,9 +157,9 @@ func ErrorPanel(c *ui.Context, e ErrorInfo) (retry, copy, extra bool) {
 	p := design.Of(c)
 	Card(c).Padding(22).Gap(16).Children(func() {
 		ui.Row(c).Gap(14).AlignItems(ui.Start).Children(func() {
-			SymbolTile(c, icons.Alert, p.Danger, 40)
 			ui.Column(c).Grow(1).MinWidth(0).Gap(10).Children(func() {
 				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+					Glyph(c, icons.Alert, 18, p.Danger)
 					Heading(c, e.What).Grow(1).MinWidth(0)
 					if e.Code != "" {
 						ui.Text(c, e.Code).Font(MonoFont).FontSize(10.5).TextColor(p.TextSecondary).

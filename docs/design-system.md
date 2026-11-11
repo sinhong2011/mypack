@@ -87,6 +87,28 @@ internal/desktop/app      screens: compose kit components, read roles, never raw
 `lobe-mygo` is gone from go.mod. The Liquid Glass plugin and SF Symbols are no
 longer used.
 
+## Never
+
+These rules hold on every screen. A screen that breaks one is a bug.
+
+- No eyebrow label above a row of three feature cards.
+- No cards made of an icon in a tinted square, a bold title and a line.
+  Settings rows show the glyph alone.
+- No compositions that centre everything. Align to the left content edge
+  by default; centre only the build scene and true empty states.
+- No hero headlines on utility screens: Discover, Create, an empty
+  Library, build results. The toolbar names the screen; content starts
+  with the content.
+- No gradients, glows or glossy sweeps on UI surfaces.
+- No decorative, emoji-like icons (rockets, sparkles, magic wands). Use an
+  icon only where it says something, such as a folder on "Show in Finder".
+- No duplicate status: one source of truth per state. A result on screen
+  gets no toast; toasts are for builds that finish while you are elsewhere.
+- At most one primary button per view. Secondary actions are quiet links
+  (`kit.Links`, separated by thin dots) or ghost buttons.
+- Copy is specific and short, with no "You can…" or "Let's…" filler.
+- Density over decoration.
+
 ## Colour: the primary comes from the logo
 
 The accent is extracted from `assets/AppIcon-1024.png`. Its blue runs from
@@ -372,15 +394,89 @@ Accessibility is built in:
     (shimmering while the site is looked up), its name to rename in place,
     its host, a compact "couldn't reach the site" hint when needed, and the
     Dock.
-  - On the right is a fixed 364 pt inspector, set off by a hairline and
-    scrolling on its own: Look & Behaviour with compact thumbnails, the
-    rows, Advanced Settings and the targets.
-  - The inspector's footer is pinned: the download hint and the "Build for
-    This Mac" pill.
-  - When a build starts, the build scene plays in the preview, with no page
-    jump, and then the success state. The footer then offers View Project
-    and New App.
-  - Below about 900 pt of window width it becomes one column.
+  - On the right is the inspector: about 38 % of the content area, kept
+    between 400 and 480 pt. It is set off by a hairline and scrolls on its
+    own: Look & Behaviour, the rows, Advanced Settings and the targets.
+  - The pickers are one family of single rows on one grid: Title bar (2),
+    Appearance (3) and Window size (4: Compact, Standard, Large, Fill).
+    - Every slot is (inner width − 3 × 10) / 4, so tiles align across rows
+      and never clip, at 400 pt as at 480 pt.
+    - Each tile keeps a 0.7 aspect, with a 12 pt label under it.
+    - Window sizes add their pixels under the label in 10.5 pt tabular
+      numerals ("1200 × 780", "Full screen").
+  - Setting rows keep the label on the left and the control on the right.
+  - The Look & Behaviour rows are Stay signed in, Links, Notifications
+    (Allow / Ask / Off), Dock badge for unread count, Keep running in the
+    menu bar, and the Account label.
+  - **Advanced Settings is an accordion.**
+    - Each group is one full-width row with hairlines between: a 16 pt
+      icon, the name, an accent dot when it differs from the recommended
+      defaults, a one-line summary of its values (such as "Standard ·
+      System · 1200 × 780") and a chevron that turns as it opens.
+    - Groups open in place, and several can be open; this is remembered
+      per project. ↑/↓ move between rows, and Space or Return toggles.
+    - Each open group has a quiet Reset link, and "Reset to Recommended
+      Defaults" is a link at the bottom.
+    - Search filters to matching settings, opens their groups and tints
+      the matches; clearing it restores what was open.
+    - Order: Window & Appearance, WebView & Navigation, Customization,
+      Native, Network & Privacy, Identity & Version, Runtime &
+      Compatibility, Packaging, Diagnostics.
+  - Advanced adds the user agent as a preset (Safari, Chrome, Edge,
+    Firefox, Mobile Safari, or Custom, which shows the text field) and
+    "Open links to my other Mypack apps in those apps".
+  - While a build runs from Create, the inspector is held: it is quieter
+    (0.8) but still readable, and does not take clicks.
+  - The build action lives in the preview, under the app's name and host:
+    one pill ("Build & Open" or "Build for This Mac"). Under it, one quiet
+    line holds the "Install & Open when done" switch and the download
+    hint. ⌘B builds too. The inspector holds settings only, with no
+    footer.
+  - When a build starts, the action area becomes the build in place: the
+    scene, the title, the rolling stage line and a Cancel link. Then comes
+    the success state, whose link row starts with "View project". New App
+    stays in the toolbar, as a quiet plus while on Create.
+  - The project's Settings tab is the same: Build or Rebuild (and an Open
+    link when installed) sits under the preview. The toolbar drops its
+    Build there.
+  - Below about 960 pt of window width it becomes one column.
+- **Build result** (`buildPanel`, in the preview column):
+  - The scene's last frame is the hero: the app settled in the Dock.
+  - Under it, aligned to the content edge: the app's name (Title 20) and
+    one quiet line, such as "Installed in Applications · opened just now ·
+    11.2 MB · 7 s".
+  - At most one primary action: "Install & Open", only when nothing is
+    installed yet.
+  - Everything else is one row of links: Open again · Show in Finder ·
+    Rebuild · View log · Add another account…
+  - No headline, no eyebrow, no cards and no path bar; the path shows in
+    View log. No toast while the result is on screen.
+  - A running build shows a title, a rolling stage line, a Cancel link and
+    the timeline.
+- **Install & Open when done:**
+  - A switch sits in Create's footer, on by default, and turns the pill
+    into "Build & Open".
+  - The same switch is per project in Settings › General, and the default
+    for new apps is in Settings › Builds. They are stored GUI-side in
+    ui-state.
+  - On success the build's artifact for this device is installed and
+    opened with `InstallAndOpen`. Only a Mypack-managed install is
+    replaced. Anything else asks (the conflict dialog); the free limit
+    shows its dialog, and a running app gets "Quit X to update it".
+- **Web projects** (a dropped folder with package.json):
+  - The preview shows "Vite project · pnpm" under the host.
+  - The approval for `project_build` reads "Build TraderMemos first?" and
+    shows the exact command in monospace (copyable), the folder and
+    whether dependencies install first. "Run & Continue" is the only
+    primary action, beside a Cancel link.
+  - While `preparing` runs, the stage line reads "Building your
+    project…", with the latest output line in monospace under it, and the
+    timeline starts with "Build project".
+  - Errors:
+    - `NODE_NOT_FOUND` offers "Get Node.js".
+    - `PROJECT_BUILD_FAILED` shows the last log lines as code.
+    - `PROJECT_OUTPUT_MISSING` explains through its remediation, with
+      Retry.
 - **Whole-window drop:** drag an HTML file or folder anywhere and the window
   becomes a drop target ("Drop to make an app").
 - **Project bento:** a hero tile (icon, display name, the one-click Open or

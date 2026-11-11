@@ -31,35 +31,10 @@ var templates = []template{
 func templateIcon(name string) []byte { return sampleicons.Icon(name) }
 
 func (a *App) discoverView(c *ui.Context) {
-	p := design.Of(c)
 	page(c, design.ContentMaxW, func() {
-		// Hero: an editorial headline beside a few floating apps.
-		hero := ui.Row(c).Gap(28).Padding(28, 32).Radius(design.RadiusPanel).AlignItems(ui.Center).Clip().
-			Background(p.Group).Border(0.5, p.GroupBorder)
-		hero.Children(func() {
-			ui.Column(c).Grow(1).MinWidth(0).Gap(8).Children(func() {
-				kit.Eyebrow(c, T("discover.hero.eyebrow")).TextColor(p.AccentText)
-				ui.Text(c, T("discover.hero.title")).FontSize(design.FontDisplay).FontWeight(design.WeightBold).TextColor(p.Text).
-					LetterSpacing(design.TrackDisplay).LineHeight(1.1)
-				ui.Text(c, T("discover.later.body")).FontSize(design.FontBody).TextColor(p.TextSecondary).LineHeight(1.45).MaxWidth(420)
-			})
-			ui.Column(c).Shrink(0).AlignItems(ui.Center).Children(func() {
-				ui.Row(c).Gap(14).AlignItems(ui.End).Padding(0, 16).Children(func() {
-					for i, n := range []string{"Figma", "Linear", "ChatGPT"} {
-						sz := float32(64)
-						if i == 1 {
-							sz = 80
-						}
-						icon := ui.Box(c.Key(n))
-						kit.Arrive(icon, i, design.StaggerGrid)
-						icon.Children(func() { a.presetIconView(c, presetNamed(n), sz, true) })
-					}
-				})
-			})
-		})
 		ui.Column(c).Gap(4).Children(func() {
 			kit.SectionHeader(c, T("discover.popular"), "")
-			kit.Caption(c, T("discover.footnote"))
+			kit.Caption(c, T("discover.later.body"))
 		})
 		// Shelves by kind of site.
 		shelves := []struct {

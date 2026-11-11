@@ -515,7 +515,19 @@ func drawScene(pt *ui.Painter, p *design.Palette, s *sceneSim, o SceneOpts, icon
 				if host == "" {
 					host = "website"
 				}
-				pt.RichText(bx+24, by+3, bw-30, ui.Span{Text: host, Size: 9, Color: sceneAlpha(ink, a)})
+				// Centred in the pill by its measured height, clipped to the
+				// pill with an ellipsis.
+				tx, tw := bx+22, bw-28
+				span := ui.Span{Text: host, Size: 9, Color: sceneAlpha(ink, a)}
+				w, lh := pt.MeasureText(0, span)
+				for w > tw && len([]rune(span.Text)) > 2 {
+					r := []rune(strings.TrimSuffix(span.Text, "…"))
+					span.Text = string(r[:len(r)-1]) + "…"
+					w, _ = pt.MeasureText(0, span)
+				}
+				pt.Clip(ui.Rect{X: bx, Y: by, W: bw, H: bh}, 8, func() {
+					pt.RichText(tx, by+(bh-lh)/2, tw+4, span)
+				})
 			}
 			pt.Fill(ui.Rect{X: x, Y: y + 28, W: w, H: 1}, sceneAlpha(rule, a), 0)
 			pt.FillPath(roundRect(x+14, y+40, w-28, 34, 10), sceneAlpha(site, .9*a))

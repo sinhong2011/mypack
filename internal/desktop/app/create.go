@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,6 +45,8 @@ type createState struct {
 	busy           bool
 	buildRequested bool
 	building       string // the project whose build plays in the preview
+	autoInstall    bool   // install & open when the build succeeds
+	autoSet        bool   // autoInstall was seeded
 	focus          bool
 	urlHandle      ui.Handle
 }
@@ -133,6 +136,9 @@ func localSource(p string) config.Source {
 // buildCTA is "Build for This Mac" (or PC / Linux, or N platforms).
 func (a *App) buildCTA() string {
 	s := &a.create
+	if _, here := s.targets[config.DefaultTarget(a.host).Key()]; here && s.autoInstall {
+		return T("create.cta.buildOpen")
+	}
 	if len(s.targets) == 1 {
 		for _, t := range s.targets {
 			if t.OS == a.host.OS && t.Arch == a.host.Arch {
@@ -278,6 +284,8 @@ func (a *App) createAndBuild() {
 			return err
 		}
 		projectID = pr.ID
+		auto := s.autoInstall
+		a.win.Update(func() { a.ui.setAutoInstall(pr.ID, auto) })
 		if icon != nil {
 			if pr, err = a.svc.SetProjectIcon(ctx, pr.ID, icon, "gui"); err != nil {
 				return err
@@ -346,5 +354,56 @@ func (a *App) chooseIcon(set func([]byte)) {
 			return
 		}
 		a.win.Update(func() { set(b) })
+	}()
+}
+
+// projectKind reads a dropped folder's package.json for a short hint of
+// what it is ("Vite project · pnpm"); ok is false for anything else.
+func projectKind(dir string) (hint string, ok bool) {
+	b, err := os.ReadFile(filepath.Join(dir, "package.json"))
+	if err != nil {
+		return "", false
+	}
+	var pkg struct {
+		Deps    map[string]string `json:"dependencies"`
+		DevDeps map[string]string `json:"devDependencies"`
+	}
+	_ = json.Unmarshal(b, &pkg)
+	has := func(n string) bool { _, a := pkg.Deps[n]; _, b := pkg.DevDeps[n]; return a || b }
+	framework := ""
+	for _, f := range []struct{ dep, name string }{
+		{"next", "Next.js"}, {"nuxt", "Nuxt"}, {"astro", "Astro"}, {"@sveltejs/kit", "SvelteKit"},
+		{"@angular/core", "Angular"}, {"react-scripts", "Create React App"}, {"vite", "Vite"},
+	} {
+		if has(f.dep) {
+			framework = f.name
+			break
+		}
+	}
+	pm := "npm"
+	for _, l := range []struct{ file, pm string }{
+		{"pnpm-lock.yaml", "pnpm"}, {"yarn.lock", "yarn"}, {"bun.lockb", "bun"}, {"bun.lock", "bun"},
+	} {
+		if _, err := os.Stat(filepath.Join(dir, l.file)); err == nil {
+			pm = l.pm
+			break
+		}
+	}
+	if framework == "" {
+		return T("create.projectKindPlain", "pm", pm), true
+	}
+	return T("create.projectKind", "framework", framework, "pm", pm), true
+}
+
+// chooseLocalFolder opens a folder chooser (a web project or a folder of
+// HTML).
+func (a *App) chooseLocalFolder() {
+	go func() {
+		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.win, Title: T("create.chooseFile.title"),
+			ButtonLabel: T("create.chooseFile.button"), Directory: true})
+		if err != nil || len(paths) == 0 {
+			return
+		}
+		a.win.Update(func() { a.create.setInput(paths[0]) })
 	}()
 }

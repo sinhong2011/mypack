@@ -47,12 +47,13 @@ type App struct {
 
 	section   section
 	projectID string
-	projTab   int                // 0 overview, 1 settings
-	navDir    float32            // +1 the last page change went deeper, -1 back
-	flights   map[string]*flight // app icons on their way between screens
-	toolbarW  float32            // the toolbar's width last frame (compact controls when narrow)
-	iconAt    iconRects          // where the project hero's icon showed last
-	reduced   bool               // the user asked for reduced motion
+	projTab   int                  // 0 overview, 1 settings
+	navDir    float32              // +1 the last page change went deeper, -1 back
+	flights   map[string]*flight   // app icons on their way between screens
+	toolbarW  float32              // the toolbar's width last frame (compact controls when narrow)
+	autoOpen  map[string]time.Time // jobs installed & opened automatically, and when
+	iconAt    iconRects            // where the project hero's icon showed last
+	reduced   bool                 // the user asked for reduced motion
 
 	loaded   bool
 	settings appservice.Settings
@@ -139,7 +140,7 @@ func Run(svc appservice.Service) error {
 	i18n.SetLocale(a.settings.Language)
 	applyAppearance(a.settings.Appearance)
 
-	mygo.App.SetName("mypack")
+	mygo.App.SetName("Mypack") // the display name; data folders keep their paths
 	mygo.App.SetVersion(Version)
 	if !mygo.App.RequestSingleInstanceLock() {
 		return nil
@@ -163,7 +164,7 @@ func Run(svc appservice.Service) error {
 
 	mygo.App.WhenReady(func() {
 		a.win = mygo.NewWindow(mygo.WindowOptions{
-			Title:                "mypack",
+			Title:                "Mypack",
 			Width:                1200,
 			Height:               780,
 			MinWidth:             880,
@@ -470,15 +471,16 @@ func (a *App) upsertJob(j domain.BuildJob) {
 		switch j.Status {
 		case domain.JobSucceeded:
 			a.successAt[j.ID] = time.Now()
+			a.autoInstall(j)
 			c := a.win
 			if c != nil {
 				// announce for screen readers via a toast when not on the page
-				if !(a.section == secProject && a.projectID == j.ProjectID) {
+				if !a.showsBuild(j.ProjectID) {
 					a.toast(T("build.done.toast", "name", j.Snapshot.App.Name), "", 1)
 				}
 			}
 		case domain.JobFailed:
-			if !(a.section == secProject && a.projectID == j.ProjectID) {
+			if !a.showsBuild(j.ProjectID) {
 				a.toast(T("build.failed.toast", "name", j.Snapshot.App.Name), "", 2)
 			}
 		}
@@ -523,6 +525,12 @@ func (a *App) activeJobs() []domain.BuildJob {
 		}
 	}
 	return out
+}
+
+// showsBuild reports whether the screen shows project id's build (its page,
+// or Create where it started): its result needs no toast then.
+func (a *App) showsBuild(id string) bool {
+	return (a.section == secProject && a.projectID == id) || (a.section == secCreate && a.create.building == id)
 }
 
 func (a *App) installFor(projectID string) *domain.Installation {

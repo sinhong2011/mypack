@@ -37,18 +37,19 @@ const runtimeVersion = config.DefaultRuntimeVersion
 
 // Service implements appservice.Service in memory.
 type Service struct {
-	mu        sync.Mutex
-	projects  map[string]*domain.Project
-	jobs      []*domain.BuildJob
-	installs  []*domain.Installation
-	runtimes  map[string]*domain.RuntimeInfo // key "version/os-arch"
-	settings  appservice.Settings
-	activity  []domain.Activity
-	cancels   map[string]context.CancelFunc
-	approvals map[string]bool
-	nextID    int
-	host      config.Target
-	speed     float64
+	mu              sync.Mutex
+	projects        map[string]*domain.Project
+	jobs            []*domain.BuildJob
+	installs        []*domain.Installation
+	runtimes        map[string]*domain.RuntimeInfo // key "version/os-arch"
+	settings        appservice.Settings
+	activity        []domain.Activity
+	cancels         map[string]context.CancelFunc
+	projectApproved map[string]bool // projects whose own build was approved
+	approvals       map[string]bool
+	nextID          int
+	host            config.Target
+	speed           float64
 
 	licenseToken string // verified token, "" = Free
 
@@ -62,13 +63,14 @@ var _ appservice.Service = (*Service)(nil)
 // New returns a seeded fake service.
 func New() *Service {
 	s := &Service{
-		projects:  map[string]*domain.Project{},
-		runtimes:  map[string]*domain.RuntimeInfo{},
-		cancels:   map[string]context.CancelFunc{},
-		approvals: map[string]bool{},
-		subs:      map[int]chan appservice.Event{},
-		host:      config.Target{OS: runtime.GOOS, Arch: runtime.GOARCH},
-		speed:     1,
+		projects:        map[string]*domain.Project{},
+		runtimes:        map[string]*domain.RuntimeInfo{},
+		cancels:         map[string]context.CancelFunc{},
+		projectApproved: map[string]bool{},
+		approvals:       map[string]bool{},
+		subs:            map[int]chan appservice.Event{},
+		host:            config.Target{OS: runtime.GOOS, Arch: runtime.GOARCH},
+		speed:           1,
 	}
 	if os.Getenv("MYPACK_FAKE_FAST") == "1" {
 		s.speed = 0.15
@@ -97,6 +99,9 @@ func New() *Service {
 	}
 	if l := os.Getenv("MYPACK_FAKE_LANG"); l != "" {
 		s.settings.Language = l
+	}
+	if os.Getenv("MYPACK_FAKE_PRO") == "1" {
+		s.licenseToken = "demo-pro" // no managed-app limit, for demos of installing
 	}
 	if os.Getenv("MYPACK_FAKE_SEED") != "empty" {
 		s.seed()
@@ -317,6 +322,15 @@ func (s *Service) CreateProject(ctx context.Context, req appservice.CreateReques
 		path, _ := filepath.Abs(expandHome(in))
 		if st.IsDir() {
 			src = config.Source{Type: config.SourceDir, Value: path, Entry: "index.html"}
+			if _, err := os.Stat(filepath.Join(path, "package.json")); err == nil {
+				// A JS project: built first (demo of the project build).
+				pm := "npm"
+				if _, err := os.Stat(filepath.Join(path, "pnpm-lock.yaml")); err == nil {
+					pm = "pnpm"
+				}
+				src = config.Source{Type: config.SourceDir, Value: filepath.Join(path, "dist"), Entry: "index.html", Project: path,
+					Build: &config.ProjectBuild{PackageManager: pm, Script: "build", OutDir: "dist"}}
+			}
 		} else {
 			src = config.Source{Type: config.SourceFile, Value: path}
 		}
@@ -339,7 +353,11 @@ func (s *Service) CreateProject(ctx context.Context, req appservice.CreateReques
 		if src.Type == config.SourceURL {
 			name = titleForHost(config.RegistrableHost(src.Value))
 		} else {
-			name = strings.TrimSuffix(filepath.Base(src.Value), filepath.Ext(src.Value))
+			base := src.Value
+			if src.Project != "" {
+				base = src.Project
+			}
+			name = strings.TrimSuffix(filepath.Base(base), filepath.Ext(base))
 		}
 	}
 	cfg := config.New(name, src, s.host)
@@ -621,11 +639,28 @@ func (s *Service) StartBuild(ctx context.Context, req appservice.BuildRequest) (
 		}
 	}
 	s.jobs = append([]*domain.BuildJob{job}, s.jobs...)
+	if b := p.Config.App.Source.Build; b != nil && !s.projectApproved[p.ID] && !req.AllowProjectBuild {
+		cmd := b.PackageManager + " run " + b.Script
+		if _, err := os.Stat(filepath.Join(p.Config.App.Source.Project, "node_modules")); err != nil {
+			cmd = b.PackageManager + " install && " + cmd
+		}
+		job.Status = domain.JobAwaitingApproval
+		job.Approval = &domain.ApprovalRequest{Kind: "project_build", Command: cmd, Path: p.Config.App.Source.Project,
+			Detail: "To make this app, Mypack runs your project's build on this computer."}
+		job.Error = &domain.Error{Code: "PROJECT_BUILD_REQUIRED", Message: "The project must be built first.", Cause: cmd + "  (in " + p.Config.App.Source.Project + ")"}
+		out := *job
+		s.mu.Unlock()
+		s.publish(appservice.Event{Kind: appservice.EventJobChanged, JobID: job.ID, ProjectID: p.ID, Job: &out})
+		s.publish(appservice.Event{Kind: appservice.EventApprovalNeeded, JobID: job.ID, ProjectID: p.ID, Job: &out})
+		return out, nil
+	}
 	if needDownload && !req.AllowDownload {
 		job.Status = domain.JobAwaitingApproval
 		job.Error = &domain.Error{Code: appservice.CodeDownloadRequired,
 			Message:     "A runtime must be downloaded before this build can continue.",
 			Remediation: "Approve the download to continue."}
+		job.Approval = &domain.ApprovalRequest{Kind: "runtime_download", Command: "Download Mypack runtime " + runtimeVersion,
+			Detail: "A small, signed component is needed to build apps for this computer. It's downloaded once and reused."}
 		out := *job
 		s.mu.Unlock()
 		s.publish(appservice.Event{Kind: appservice.EventJobChanged, JobID: job.ID, ProjectID: p.ID, Job: &out})
@@ -650,8 +685,11 @@ func (s *Service) ApproveJob(ctx context.Context, jobID, actor string) error {
 		s.mu.Unlock()
 		return nil
 	}
+	if j.Approval != nil && j.Approval.Kind == "project_build" {
+		s.projectApproved[j.ProjectID] = true
+	}
 	j.Status = domain.JobQueued
-	j.Error = nil
+	j.Error, j.Approval = nil, nil
 	out := *j
 	s.mu.Unlock()
 	s.publish(appservice.Event{Kind: appservice.EventJobChanged, JobID: jobID, ProjectID: j.ProjectID, Job: &out})
@@ -789,6 +827,21 @@ func (s *Service) run(id string) {
 		finish(domain.JobCancelled, &domain.Error{Code: appservice.CodeCancelled, Message: "The build was cancelled."})
 	}
 
+	if b := snap.App.Source.Build; b != nil {
+		// The project's own build, its output streamed line by line.
+		s.update(id, func(j *domain.BuildJob) { j.Stage, j.Progress = domain.StagePreparing, -1 })
+		for _, l := range []string{"$ " + b.PackageManager + " install", "Lockfile is up to date, resolution step is skipped",
+			"Packages: +214", "Progress: resolved 214, reused 214, downloaded 0, added 214, done",
+			"$ " + b.PackageManager + " run " + b.Script, "vite v5.4.2 building for production...", "✓ 38 modules transformed.",
+			"dist/index.html                  0.46 kB │ gzip:  0.30 kB", "dist/assets/index-4f2c1a.css   12.84 kB │ gzip:  3.21 kB",
+			"dist/assets/index-9b7e0d.js   148.20 kB │ gzip: 47.66 kB", "✓ built in 1.42s"} {
+			s.log(id, domain.StagePreparing, "info", l)
+			if s.sleep(ctx, 420*time.Millisecond) != nil {
+				cancelled()
+				return
+			}
+		}
+	}
 	if stage(domain.StageValidating, 500*time.Millisecond, "Validating configuration "+snap.App.Identifier, "Source: "+snap.App.Source.Value) != nil {
 		cancelled()
 		return
@@ -1004,7 +1057,7 @@ func (s *Service) rebuildInstall(id, actor string) (domain.BuildJob, error) {
 	}
 	if in.State == domain.InstallExternal {
 		s.mu.Unlock()
-		return domain.BuildJob{}, &domain.Error{Code: appservice.CodeNotManaged, Message: "mypack doesn't manage this app."}
+		return domain.BuildJob{}, &domain.Error{Code: appservice.CodeNotManaged, Message: "Mypack doesn't manage this app."}
 	}
 	pid := in.ProjectID
 	s.mu.Unlock()
@@ -1048,7 +1101,7 @@ func (s *Service) Uninstall(ctx context.Context, id string, clearData bool, acto
 		if in.ID == id {
 			if in.State == domain.InstallExternal {
 				s.mu.Unlock()
-				return &domain.Error{Code: appservice.CodeNotManaged, Message: "mypack doesn't manage this app."}
+				return &domain.Error{Code: appservice.CodeNotManaged, Message: "Mypack doesn't manage this app."}
 			}
 			s.installs = append(s.installs[:i], s.installs[i+1:]...)
 			s.logActivity(actorOr(actor), "installation.uninstall", id, fmt.Sprintf("clearData=%v", clearData))

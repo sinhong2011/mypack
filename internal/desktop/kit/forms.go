@@ -169,7 +169,7 @@ func SettingIconRow(c *ui.Context, ic *ui.SVG, tint ui.Color, label, desc string
 	p := design.Of(c)
 	ui.Row(c).MinHeight(design.Row+4).Padding(10, 14).Gap(12).AlignItems(ui.Center).Children(func() {
 		if ic != nil {
-			SymbolTile(c, ic, tint, 28)
+			rowGlyph(c, ic)
 		}
 		ui.Column(c).Grow(1).Basis(0).MinWidth(0).Gap(2).Children(func() {
 			ui.Text(c, label).FontSize(design.FontBody).FontWeight(design.WeightMedium).TextColor(p.Text)
@@ -189,7 +189,7 @@ func SettingIconRowStacked(c *ui.Context, ic *ui.SVG, tint ui.Color, label, desc
 	p := design.Of(c)
 	ui.Row(c).MinHeight(design.Row+4).Padding(10, 14).Gap(12).AlignItems(ui.Start).Children(func() {
 		if ic != nil {
-			SymbolTile(c, ic, tint, 28)
+			rowGlyph(c, ic)
 		}
 		ui.Column(c).Grow(1).Basis(0).MinWidth(0).Gap(2).Children(func() {
 			ui.Text(c, label).FontSize(design.FontBody).FontWeight(design.WeightMedium).TextColor(p.Text)
@@ -201,6 +201,13 @@ func SettingIconRowStacked(c *ui.Context, ic *ui.SVG, tint ui.Color, label, desc
 			}
 		})
 	})
+}
+
+// rowGlyph is a settings row's icon: the glyph alone, in secondary ink,
+// in a 20 pt slot. No tinted square behind it.
+func rowGlyph(c *ui.Context, ic *ui.SVG) {
+	p := design.Of(c)
+	ui.Row(c).Size(20, 20).Center().Shrink(0).Margin(1, 0, 0, 0).Children(func() { Glyph(c, ic, 16, p.TextSecondary) })
 }
 
 // SymbolTile is a quiet tile holding an icon in a tint: tinted ink on a
@@ -282,7 +289,7 @@ func Switch(c *ui.Context, on *bool, label string) ui.Element {
 	}
 	track.Background(track.AnimateColor("bg", bg, design.Tween(design.MotionBase, design.EaseStd)))
 	if track.IsDisabled() {
-		track.Opacity(0.45)
+		track.Opacity(0.6)
 	}
 	pressed := track.Pressed()
 	track.Children(func() {
@@ -566,9 +573,7 @@ func Note(c *ui.Context, ic *ui.SVG, text string, tone Tone) ui.Element {
 func EmptyState(c *ui.Context, ic *ui.SVG, title, body string, actions func()) {
 	p := design.Of(c)
 	ui.Column(c).AlignItems(ui.Center).Gap(8).Padding(44, 24).Children(func() {
-		tile := ui.Row(c).Size(52, 52).Radius(14).Center().Background(p.Raised).Border(0.5, p.GroupBorder).Margin(0, 0, 8, 0)
-		design.Elevate(c, tile, design.Floating)
-		tile.Children(func() { Glyph(c, ic, 22, p.TextSecondary) })
+		Glyph(c, ic, 24, p.TextTertiary).Margin(0, 0, 6, 0)
 		ui.Text(c, title).FontSize(design.FontTitle3).FontWeight(design.WeightSemibold).TextColor(p.Text).TextAlign(ui.Center)
 		if body != "" {
 			ui.Text(c, body).FontSize(design.FontBody).TextColor(p.TextSecondary).TextAlign(ui.Center).MaxWidth(380).LineHeight(1.45)
