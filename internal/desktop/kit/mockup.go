@@ -59,27 +59,46 @@ func AppMockup(c *ui.Context, o MockupOpts) ui.Element {
 	tray := e.AnimateTo("tray", b2f(o.Tray), design.Spring)
 	e.Draw(func(pt *ui.Painter, r ui.Rect) {
 		mix := func(a, b ui.Color, k float32) ui.Color { return a.Mix(b, k) }
-		// The screen: a faint outline. (No Dock: the app's icon shows once
-		// on a page, in its identity block; the window's title has the
-		// favicon.)
-		scr := ui.Rect{X: r.X + 28, Y: r.Y + 26, W: r.W - 56, H: r.H - 52}
-		// Keep the screen's 16:10 shape, centred.
-		if scr.W/scr.H > 1.6 {
-			nw := scr.H * 1.6
-			scr.X += (scr.W - nw) / 2
-			scr.W = nw
-		} else {
-			nh := scr.W / 1.6
-			scr.Y += (scr.H - nh) / 2
-			scr.H = nh
+		// The stage IS the desktop: a soft wallpaper tinted by the site's
+		// colour fills it edge to edge (no screen outline, no nested frames),
+		// with a translucent menu bar along the top. The window floats on it.
+		// (No Dock: the app's icon shows once on a page, in its identity
+		// block; the window's title has the favicon.)
+		desk := roundRect(r.X, r.Y, r.W, r.H, 16)
+		base := p.Group
+		// A colourless site (black, white, grey) would make a grey slab:
+		// its wallpaper takes Mypack's accent instead.
+		hue := tint
+		if chroma(tint) < 40 {
+			hue = p.Accent
 		}
-		pt.StrokePath(roundRect(scr.X, scr.Y, scr.W, scr.H, 10), 1, design.Fade(p.Text, 0.08))
-		// The menu bar strip at the screen's top, with the app's glyph.
-		pt.Fill(ui.Rect{X: scr.X + 1, Y: scr.Y + 1, W: scr.W - 2, H: 9}, design.Fade(p.Text, 0.04), 0)
-		if tray > 0.01 {
-			gx, gy := scr.X+scr.W-26, scr.Y+1.5
-			pt.FillPath(roundRect(gx, gy+(1-tray)*-6, 6, 6, 1.6), design.Fade(tint, tray))
+		hue.A = 255
+		glow := float32(0.45)
+		if p.Dark {
+			glow = 0.6
 		}
+		pt.ClipPath(desk, func() {
+			pt.FillGradient(r, ui.LinearGradient{
+				From:  mix(base, hue, 0.22),
+				To:    mix(base, hue, 0.06),
+				Angle: 160,
+			}, 0)
+			// Two soft blooms: the hue upper left, a lighter wash lower
+			// right, so the window floats over light rather than a flat fill.
+			bloom := func(x, y, rad float32, col ui.Color) {
+				pt.Shadow(ui.Rect{X: x, Y: y, W: 1, H: 1}, 0, 0, 0, rad, rad*0.35, col)
+			}
+			bloom(r.X+r.W*0.18, r.Y+r.H*0.22, r.H*0.55, hue.Alpha(glow))
+			bloom(r.X+r.W*0.86, r.Y+r.H*0.92, r.H*0.5, mix(hue, ui.Hex("#ffffff"), 0.45).Alpha(glow*0.6))
+			// The menu bar, with the app's glyph when it keeps running there.
+			barH := float32(16)
+			pt.Fill(ui.Rect{X: r.X, Y: r.Y, W: r.W, H: barH}, mix(ui.RGBA(255, 255, 255, 0.45), ui.RGBA(255, 255, 255, 0.06), b2f(p.Dark)), 0)
+			if tray > 0.01 {
+				gx, gy := r.X+r.W-30, r.Y+4
+				pt.FillPath(roundRect(gx, gy+(1-tray)*-8, 8, 8, 2), design.Fade(hue, tray))
+			}
+		})
+		scr := ui.Rect{X: r.X + 20, Y: r.Y + 16, W: r.W - 40, H: r.H - 28}
 		// The window, sized to the screen.
 		ww, wh := scr.W*sw*0.94, scr.H*sh*0.86
 		if o.Fill {
@@ -152,3 +171,10 @@ func drawIcon(pt *ui.Painter, art *iconArt, name string, x, y, s float32) {
 }
 
 var _ = math.Pi
+
+// chroma is a colour's max−min channel spread: near 0 for greys.
+func chroma(c ui.Color) int {
+	hi := max(c.R, c.G, c.B)
+	lo := min(c.R, c.G, c.B)
+	return int(hi) - int(lo)
+}

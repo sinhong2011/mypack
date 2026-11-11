@@ -45,6 +45,7 @@ type editorState struct {
 	newDom   string
 	cssBuf   string
 	jsBuf    string
+	nums     map[string]string // number fields' text while being edited
 	inited   bool
 }
 
@@ -238,95 +239,114 @@ func (a *App) settingsEditor(c *ui.Context, ed *editorState, pr *domain.Project)
 		ed.headers = map[string]*ui.Handle{}
 	}
 	q := strings.TrimSpace(ed.query)
+	// The same grouped card as the common settings above: each group is a
+	// row (icon, name, summary, chevron) and opens in place into its own
+	// hairline rows, indented to the name.
+	type shownGroup struct {
+		g    settingGroup
+		rows []setting
+	}
+	var list []shownGroup
+	for _, g := range groups {
+		var rows []setting
+		for _, r := range g.rows {
+			if matches(q, r) {
+				rows = append(rows, r)
+			}
+		}
+		if len(rows) > 0 {
+			list = append(list, shownGroup{g, rows})
+		}
+	}
+	shown := make([]string, len(list))
+	for i, sg := range list {
+		shown[i] = sg.g.id
+	}
 	ui.Column(c).Gap(0).Children(func() {
-		kit.SearchField(c.Key("search"), &ed.query, T("editor.search"), nil, 0).Margin(0, 0, 8, 0)
-		any := false
-		var shown []string
-		for _, g := range groups {
-			var rows []setting
-			for _, r := range g.rows {
-				if matches(q, r) {
-					rows = append(rows, r)
-				}
-			}
-			if len(rows) == 0 {
-				continue
-			}
-			any = true
-			shown = append(shown, g.id)
-			g := g
-			open := q != "" || a.ui.SettingsOpen[key(g.id)]
-			h := ed.headers[g.id]
-			if h == nil {
-				h = &ui.Handle{}
-				ed.headers[g.id] = h
-			}
-			ui.Column(c.Key(g.id)).BorderWidth(0, 0, 1, 0).BorderColor(p.Divider).Children(func() {
-				hdr := ui.ButtonBase(c.Key("h")).Label(g.title).Row().Justify(ui.Start).MinHeight(48).Padding(8, 6).Gap(12).
-					AlignItems(ui.Center).Radius(design.RadiusControl).Cursor(ui.CursorPointer).Role(ui.RoleDisclosure).Expanded(open).
-					FocusRing(false).Transition(design.Transition(c)).Bind(h)
-				if hdr.Hovered() || hdr.FocusVisible() {
-					hdr.Background(p.Hover)
-				}
-				hdr.Children(func() {
-					kit.FocusMark(c, hdr.FocusVisible(), 0)
-					kit.Glyph(c, g.icon, 16, p.TextSecondary)
-					ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {
-						ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-							ui.Text(c, g.title).FontSize(design.FontBody).FontWeight(design.WeightSemibold).TextColor(p.Text).SingleLine()
-							if g.modified != nil && g.modified() {
-								ui.Box(c).Size(6, 6).Radius(3).Background(p.Accent).Label(T("editor.modified"))
-							}
-						})
-						if g.summary != nil {
-							if sm := g.summary(); sm != "" {
-								ui.Text(c, sm).FontSize(design.FontSmall).TextColor(p.TextSecondary).SingleLine().MinWidth(0)
-							}
+		kit.SearchField(c.Key("search"), &ed.query, T("editor.search"), nil, 0).Margin(0, 0, 10, 0)
+		if len(list) == 0 {
+			kit.EmptyState(c, icons.Search, T("editor.noResults"), "", nil)
+		} else {
+			kit.GroupBox(c.Key("card")).Children(func() {
+				for _, sg := range list {
+					g, rows := sg.g, sg.rows
+					open := q != "" || a.ui.SettingsOpen[key(g.id)]
+					h := ed.headers[g.id]
+					if h == nil {
+						h = &ui.Handle{}
+						ed.headers[g.id] = h
+					}
+					ui.Column(c.Key(g.id)).Children(func() {
+						hdr := ui.ButtonBase(c.Key("h")).Label(g.title).Row().Justify(ui.Start).MinHeight(design.Row+4).Padding(10, 14).Gap(12).
+							AlignItems(ui.Center).Cursor(ui.CursorPointer).Role(ui.RoleDisclosure).Expanded(open).
+							FocusRing(false).Transition(design.Transition(c)).Bind(h)
+						if hdr.Hovered() || hdr.FocusVisible() {
+							hdr.Background(p.Hover)
 						}
-					})
-					ch := kit.Glyph(c, icons.ChevronRt, 14, p.TextTertiary)
-					turn := float32(0)
-					if open {
-						turn = 90
-					}
-					ch.Rotate(ch.AnimateTo("turn", turn, design.Spring))
-				})
-				if hdr.Clicked() && q == "" {
-					a.ui.SettingsOpen[key(g.id)] = !a.ui.SettingsOpen[key(g.id)]
-					a.ui.save()
-				}
-				// ↑/↓ move between the rows.
-				if hdr.Focused() {
-					i := slices.Index(shown, g.id)
-					if c.Shortcut(0, ui.KeyUp) && i > 0 {
-						ed.headers[shown[i-1]].Focus()
-					}
-					if c.Shortcut(0, ui.KeyDown) {
-						ed.moveDown = g.id
-					}
-				}
-				if open {
-					kit.Reveal(ui.Column(c.Key("body")).Padding(2, 0, 12, 34).Gap(0)).Children(func() {
-						for k, r := range rows {
-							r := r
-							row := ui.Column(c.Key(k)).Radius(design.RadiusControl)
-							if q != "" {
-								row.Background(p.ChoiceFill) // a match
-							}
-							row.Children(func() {
-								if r.wide {
-									kit.SettingBlock(c, r.label, r.desc, r.control)
-								} else {
-									kit.SettingRow(c, r.label, r.desc, r.control)
+						hdr.Children(func() {
+							kit.FocusMark(c, hdr.FocusVisible(), 0)
+							ui.Row(c).Size(20, 20).Center().Shrink(0).Children(func() { kit.Glyph(c, g.icon, 16, p.TextSecondary) })
+							ui.Column(c).Grow(1).Basis(0).MinWidth(0).Gap(2).Children(func() {
+								ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+									ui.Text(c, g.title).FontSize(design.FontBody).FontWeight(design.WeightMedium).TextColor(p.Text).SingleLine()
+									if g.modified != nil && g.modified() {
+										ui.Box(c).Size(6, 6).Radius(3).Background(p.Accent).Label(T("editor.modified"))
+									}
+								})
+								if g.summary != nil {
+									if sm := g.summary(); sm != "" {
+										ui.Text(c, sm).FontSize(design.FontSmall).TextColor(p.TextSecondary).SingleLine().MinWidth(0)
+									}
 								}
 							})
-						}
-						if g.reset != nil && q == "" {
-							reset := g.reset
-							if kit.Button(c.Key("reset"), T("editor.resetGroup"), kit.ButtonOpts{Variant: kit.Ghost, Size: 26}).FontWeight(design.WeightRegular).Margin(4, 0, 0, -8).Clicked() {
-								reset()
-								ed.changed()
+							ch := kit.Glyph(c, icons.ChevronRt, 14, p.TextTertiary)
+							turn := float32(0)
+							if open {
+								turn = 90
 							}
+							ch.Rotate(ch.AnimateTo("turn", turn, design.Spring))
+						})
+						if hdr.Clicked() && q == "" {
+							a.ui.SettingsOpen[key(g.id)] = !a.ui.SettingsOpen[key(g.id)]
+							a.ui.save()
+						}
+						// ↑/↓ move between the rows.
+						if hdr.Focused() {
+							i := slices.Index(shown, g.id)
+							if c.Shortcut(0, ui.KeyUp) && i > 0 {
+								ed.headers[shown[i-1]].Focus()
+							}
+							if c.Shortcut(0, ui.KeyDown) {
+								ed.moveDown = g.id
+							}
+						}
+						if open {
+							kit.Reveal(ui.Column(c.Key("body")).Padding(0, 0, 4, 32).BorderWidth(0.5, 0, 0, 0).BorderColor(p.Divider).
+								Dividers(0.5, p.Divider)).Children(func() {
+								for k, r := range rows {
+									r := r
+									row := ui.Column(c.Key(k))
+									if q != "" {
+										row.Background(p.ChoiceFill) // a match
+									}
+									row.Children(func() {
+										if r.wide {
+											kit.SettingBlock(c, r.label, r.desc, r.control)
+										} else {
+											kit.SettingRow(c, r.label, r.desc, r.control)
+										}
+									})
+								}
+								if g.reset != nil && q == "" {
+									reset := g.reset
+									ui.Row(c.Key("resetrow")).Padding(6, 8).Children(func() {
+										if kit.Button(c.Key("reset"), T("editor.resetGroup"), kit.ButtonOpts{Variant: kit.Ghost, Size: 26}).FontWeight(design.WeightRegular).Clicked() {
+											reset()
+											ed.changed()
+										}
+									})
+								}
+							})
 						}
 					})
 				}
@@ -339,10 +359,7 @@ func (a *App) settingsEditor(c *ui.Context, ed *editorState, pr *domain.Project)
 			}
 			ed.moveDown = ""
 		}
-		if !any {
-			kit.EmptyState(c, icons.Search, T("editor.noResults"), "", nil)
-		}
-		if kit.Button(c.Key("resetall"), T("editor.reset"), kit.ButtonOpts{Variant: kit.Ghost, Size: 26}).FontWeight(design.WeightRegular).Margin(10, 0, 0, -8).Clicked() {
+		if kit.Button(c.Key("resetall"), T("editor.reset"), kit.ButtonOpts{Variant: kit.Ghost, Size: 26}).FontWeight(design.WeightRegular).Margin(10, 0, 0, 0).AlignSelf(ui.Start).Clicked() {
 			a.dlg.reset = resetDialog{open: true, ed: ed}
 		}
 	})
@@ -492,12 +509,26 @@ func (a *App) settingGroups(c *ui.Context, ed *editorState, pr *domain.Project) 
 			ed.changed()
 		}
 	}
+	// num is a compact numeric field (no stepper buttons): typing applies
+	// as soon as the text is a whole number in range; anything else is
+	// kept as typed and marked invalid until it is fixed.
 	num := func(key string, v *int, lo, hi float64) {
-		f := float64(*v)
-		ui.NumberInput(k(key), &f, lo, hi, 10).Width(132)
-		if int(f) != *v {
-			*v = int(f)
-			ed.changed()
+		if ed.nums == nil {
+			ed.nums = map[string]string{}
+		}
+		buf, ok := ed.nums[key]
+		if !ok || (buf != strconv.Itoa(*v) && validInt(buf, lo, hi)) {
+			buf = strconv.Itoa(*v)
+		}
+		bad := !validInt(buf, lo, hi)
+		in := kit.TextField(k(key), &buf, T("set.dimensions"), kit.FieldOpts{Invalid: bad}).Width(72)
+		ed.nums[key] = buf
+		if in.Changed() && validInt(buf, lo, hi) {
+			n, _ := strconv.Atoi(buf)
+			if n != *v {
+				*v = n
+				ed.changed()
+			}
 		}
 	}
 
@@ -543,11 +574,13 @@ func (a *App) settingGroups(c *ui.Context, ed *editorState, pr *domain.Project) 
 			num("w", &cfg.Window.Width, 320, 7680)
 			kit.Caption(c, "×")
 			num("h", &cfg.Window.Height, 240, 4320)
+			kit.Caption(c, "pt")
 		}},
 		{label: T("set.minSize"), control: func() {
 			num("mw", &cfg.Window.MinWidth, 0, 7680)
 			kit.Caption(c, "×")
 			num("mh", &cfg.Window.MinHeight, 0, 4320)
+			kit.Caption(c, "pt")
 		}},
 		{label: T("set.zoom"), control: func() {
 			z := strconv.Itoa(cfg.Window.Zoom)
@@ -816,4 +849,10 @@ func (a *App) targetEditor(c *ui.Context, ed *editorState) {
 			})
 		}
 	})
+}
+
+// validInt reports whether s is a whole number within [lo, hi].
+func validInt(s string, lo, hi float64) bool {
+	n, err := strconv.Atoi(strings.TrimSpace(s))
+	return err == nil && float64(n) >= lo && float64(n) <= hi
 }

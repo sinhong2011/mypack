@@ -506,8 +506,10 @@ func TargetChip(c *ui.Context, ic *ui.SVG, label, sub string, selected, disabled
 		ui.Spacer(c).MinWidth(8)
 		dot := ui.Row(c).Size(18, 18).Radius(9).Center()
 		if selected {
-			dot.Background(p.Accent)
-			Pop(Glyph(c.Key("on"), icons.Check, 11, p.TextOnAccent))
+			// The check sits INSIDE the filled dot (one indicator, not two).
+			dot.Background(p.Accent).Children(func() {
+				Pop(Glyph(c.Key("on"), icons.Check, 11, p.TextOnAccent))
+			})
 		} else {
 			dot.Border(1.5, p.BorderStrong)
 		}
