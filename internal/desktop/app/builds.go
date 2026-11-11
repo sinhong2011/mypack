@@ -18,7 +18,6 @@ type buildsState struct {
 }
 
 func (a *App) buildsView(c *ui.Context) {
-	p := design.Of(c)
 	b := &a.builds
 	if b.expanded == nil {
 		b.expanded = map[string]bool{}
@@ -45,7 +44,7 @@ func (a *App) buildsView(c *ui.Context) {
 			kit.EmptyState(c, icons.Builds, T("builds.empty.title"), T("builds.empty.body"), nil)
 			return
 		}
-		ui.Column(c).Radius(design.RadiusCard).Background(p.Group).Border(0.5, p.GroupBorder).Clip().Role(ui.RoleTable).Label(T("nav.builds")).Children(func() {
+		design.Well(c, ui.Column(c).Radius(design.RadiusCard).Clip()).Role(ui.RoleTable).Label(T("nav.builds")).Children(func() {
 			kit.TableHeader(c, buildCols(true), 14)
 			for i, j := range list {
 				a.jobRow(c.Key(j.ID), j, true, i)

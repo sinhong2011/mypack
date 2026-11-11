@@ -127,37 +127,9 @@ func pickerGroup(c *ui.Context, title string, body func()) {
 	})
 }
 
-// thumb is a selectable preview, as System Settings' appearance pickers:
-// the picture with a ring when chosen, its label (and detail) under it.
+// thumb is kit.ChoiceTile.
 func thumb(c *ui.Context, label, sub string, selected bool, w, h float32, pic func()) bool {
-	p := design.Of(c)
-	b := ui.ButtonBase(c).Label(label).Description(sub).Column().AlignItems(ui.Center).Gap(6).Cursor(ui.CursorPointer).
-		Role(ui.RoleRadio).Checked(selected)
-	hov := b.Hovered()
-	b.Children(func() {
-		frame := ui.Box(c).Size(w+8, h+8).Padding(4).Radius(14).Transition(design.Transition(c))
-		switch {
-		case selected:
-			frame.Border(2.5, p.Accent)
-		case hov:
-			frame.Border(2.5, p.BorderStrong)
-		default:
-			frame.Border(2.5, ui.Transparent)
-		}
-		frame.Children(func() {
-			ui.Box(c).Size(w, h).Radius(10).Clip().Border(0.5, p.BorderStrong).Children(pic)
-		})
-		fg, wt := p.TextSecondary, design.WeightRegular
-		if selected {
-			fg, wt = p.Text, design.WeightSemibold
-		}
-		ui.Text(c, label).FontSize(design.FontSmall).FontWeight(wt).TextColor(fg).SingleLine().MaxWidth(w + 16)
-		if sub != "" {
-			ui.Text(c, sub).FontSize(10).TextColor(p.TextTertiary).SingleLine().FontFeatures("tnum").Margin(-4, 0, 0, 0)
-		}
-	})
-	kit.Lift(b, hov, b.Pressed())
-	return b.Clicked()
+	return kit.ChoiceTile(c, label, sub, selected, w, h, pic)
 }
 
 // desktop paints the quiet workbench a thumbnail's window sits on.
@@ -168,8 +140,8 @@ func desktop(c *ui.Context, dark bool) ui.Element {
 		pal = &design.Dark
 		from, to = design.Ink[5], design.Ink[3]
 	}
-	return ui.Box(c).Absolute().Fill().LinearGradient(ui.LinearGradient{From: from, To: to, Angle: 160}).
-		Draw(func(pt *ui.Painter, r ui.Rect) { design.PaintDots(pt, r, pal, false) })
+	_ = pal
+	return ui.Box(c).Absolute().Fill().Background(from.Mix(to, 0.5))
 }
 
 func dots(c *ui.Context) {
@@ -211,30 +183,49 @@ func windowThumb(c *ui.Context, p *design.Palette, seamless bool, w, h float32) 
 	})
 }
 
-// appearanceThumb previews light, dark or both.
+// appearanceThumb previews light, dark or both (System: a diagonal split).
+// Each side is a real little window in that appearance: its desktop, a
+// chrome bar with the traffic lights, page lines and an accent button.
 func appearanceThumb(c *ui.Context, mode string, w, h float32) {
-	half := func(dark bool) {
-		bg, ink := ui.RGB(255, 255, 255), ui.RGBA(0, 0, 0, 0.12)
-		if dark {
-			bg, ink = ui.RGB(38, 38, 42), ui.RGBA(255, 255, 255, 0.18)
+	ui.Box(c).Absolute().Fill().Draw(func(pt *ui.Painter, r ui.Rect) {
+		switch mode {
+		case "system":
+			paintAppearance(pt, r, false)
+			split := &ui.Path{}
+			split.MoveTo(r.X+r.W*0.62, r.Y).LineTo(r.X+r.W, r.Y).LineTo(r.X+r.W, r.Y+r.H).LineTo(r.X+r.W*0.38, r.Y+r.H).Close()
+			pt.ClipPath(split, func() { paintAppearance(pt, r, true) })
+		default:
+			paintAppearance(pt, r, mode == "dark")
 		}
-		desktop(c, dark)
-		ui.Column(c).Absolute().Left(10).Top(12).Right(-4).Bottom(-4).Radius(6).Clip().Background(bg).Children(func() {
-			ui.Row(c).Height(11).PaddingX(4).AlignItems(ui.Center).Children(func() { dots(c) })
-			pageLines(c, ink, 3)
-		})
+	})
+}
+
+// paintAppearance paints one appearance's desktop and window into r.
+func paintAppearance(pt *ui.Painter, r ui.Rect, dark bool) {
+	pal := &design.Light
+	desk, chrome, page, ink, rule := design.Paper[4], design.Paper[2], design.Paper[0], ui.RGBA(27, 27, 25, 0.13), ui.RGBA(27, 27, 25, 0.1)
+	if dark {
+		pal = &design.Dark
+		desk, chrome, page, ink, rule = design.Ink[0], design.Ink[4], design.Ink[2], ui.RGBA(255, 255, 255, 0.2), ui.RGBA(0, 0, 0, 0.5)
 	}
-	switch mode {
-	case "system":
-		ui.Box(c).Absolute().Top(0).Bottom(0).Left(0).WidthPercent(50).Clip().Children(func() {
-			ui.Box(c).Absolute().Top(0).Bottom(0).Left(0).Width(w).Children(func() { half(false) })
-		})
-		ui.Box(c).Absolute().Top(0).Bottom(0).Right(0).WidthPercent(50).Clip().Children(func() {
-			ui.Box(c).Absolute().Top(0).Bottom(0).Right(0).Width(w).Children(func() { half(true) })
-		})
-	default:
-		half(mode == "dark")
-	}
+	pt.Fill(r, desk, 0)
+	win := ui.Rect{X: r.X + 10, Y: r.Y + 12, W: r.W - 6, H: r.H - 6}
+	pt.Shadow(win, 6, 0, 2, 6, 0, ui.RGBA(0, 0, 0, 0.22))
+	pt.Clip(win, 6, func() {
+		pt.Fill(win, page, 0)
+		bar := ui.Rect{X: win.X, Y: win.Y, W: win.W, H: 12}
+		pt.Fill(bar, chrome, 0)
+		pt.Fill(ui.Rect{X: win.X, Y: win.Y + 12, W: win.W, H: 0.5}, rule, 0)
+		for i, col := range []ui.Color{ui.RGB(255, 95, 87), ui.RGB(254, 188, 46), ui.RGB(40, 200, 64)} {
+			pt.Fill(ui.Rect{X: win.X + 5 + float32(i)*7, Y: win.Y + 3.5, W: 5, H: 5}, col, 2.5)
+		}
+		y := win.Y + 19
+		for i, f := range []float32{0.62, 0.46, 0.54} {
+			pt.Fill(ui.Rect{X: win.X + 8, Y: y + float32(i)*8, W: (win.W - 16) * f, H: 4}, ink, 2)
+		}
+		accent := pal.Accent
+		pt.Fill(ui.Rect{X: win.X + 8, Y: y + 27, W: 20, H: 7}, accent, 3.5)
+	})
 }
 
 // sizeThumb shows a window of fraction fw×fh of a screen.

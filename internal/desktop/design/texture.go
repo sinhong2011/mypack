@@ -1,84 +1,29 @@
 package design
 
 import (
-	"image"
-	"image/color"
-	"math/rand/v2"
-
 	"github.com/egoist/mygo/ui"
 )
 
-// Texture tokens: a fine film grain on the window chrome, a dot grid used
-// as the "workbench" under illustrated moments, and hairlines. Used
-// sparingly: texture is felt, not seen.
+// Surfaces. mypack is flat and modern: flat fills, 1 px hairlines, colour
+// tints and motion. No grain, no bevels, no inner highlights, no pressed-in
+// wells. The only shadows are one soft ambient level for things that float
+// (menus, sheets, ⌘K, toasts; Elevate) and a very soft one under app icons.
 
-const (
-	grainTile  = 160
-	DotSpacing = float32(14)
-	DotRadius  = float32(0.8)
-)
-
-var grainBmp [2]*ui.Bitmap
-
-// grain returns the noise tile: light specks (for dark) or dark specks
-// (for light) of random alpha.
-func grain(dark bool, strength float32) *ui.Bitmap {
-	i := 0
-	if dark {
-		i = 1
-	}
-	if grainBmp[i] != nil {
-		return grainBmp[i]
-	}
-	img := image.NewNRGBA(image.Rect(0, 0, grainTile, grainTile))
-	rng := rand.New(rand.NewPCG(7, 11))
-	for y := 0; y < grainTile; y++ {
-		for x := 0; x < grainTile; x++ {
-			v := uint8(0)
-			if dark {
-				v = 255
-			}
-			a := uint8(float32(rng.IntN(256)) * strength)
-			img.SetNRGBA(x, y, color.NRGBA{v, v, v, a})
-		}
-	}
-	grainBmp[i] = ui.NewBitmap(img)
-	return grainBmp[i]
+// Tint fills e flat with the middle of top and bot (surfaces used to carry
+// a vertical tint; they are flat now).
+func Tint(e ui.Element, top, bot ui.Color) ui.Element {
+	return e.Background(top.Mix(bot, 0.5))
 }
 
-// PaintGrain tiles film grain over r at the palette's strength.
-func PaintGrain(p *ui.Painter, r ui.Rect, pal *Palette) {
-	if pal.Grain <= 0 {
-		return
-	}
-	bmp := grain(pal.Dark, pal.Grain)
-	t := float32(grainTile) / 2 // two device pixels per grain on Retina
-	p.Clip(r, 0, func() {
-		for y := r.Y; y < r.Y+r.H; y += t {
-			for x := r.X; x < r.X+r.W; x += t {
-				p.ImageRegion(bmp, ui.Rect{W: grainTile, H: grainTile}, ui.Rect{X: x, Y: y, W: t, H: t}, ui.ImageOptions{})
-			}
-		}
-	})
+// Well is a quiet inset surface (logs, code, path chips, tracks): a flat
+// subtle fill and a hairline.
+func Well(c *ui.Context, e ui.Element) ui.Element {
+	p := Of(c)
+	return e.Background(p.Sunken).Border(1, p.Border)
 }
 
-// PaintDots draws the workbench dot grid over r, fading toward its edges
-// when vignette is set.
-func PaintDots(p *ui.Painter, r ui.Rect, pal *Palette, vignette bool) {
-	cx, cy := r.X+r.W/2, r.Y+r.H/2
-	maxd := r.W*r.W/4 + r.H*r.H/4
-	for y := r.Y + DotSpacing/2; y < r.Y+r.H; y += DotSpacing {
-		for x := r.X + DotSpacing/2; x < r.X+r.W; x += DotSpacing {
-			col := pal.Dots
-			if vignette {
-				d := ((x-cx)*(x-cx) + (y-cy)*(y-cy)) / maxd
-				k := 1 - d*1.2
-				if k <= 0.02 {
-					continue
-				}
-				col = Fade(col, k)
-			}
-			p.Fill(ui.Rect{X: x - DotRadius, Y: y - DotRadius, W: 2 * DotRadius, H: 2 * DotRadius}, col, DotRadius)
-		}
-	}
-}
+// RaisedControl is kept for callers; controls are flat, so it adds nothing.
+func RaisedControl(c *ui.Context, e ui.Element) ui.Element { return e }
+
+// Float sets the canvas apart from the chrome with a hairline only.
+func Float(c *ui.Context, e ui.Element) ui.Element { return e }

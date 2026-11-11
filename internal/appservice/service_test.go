@@ -956,3 +956,32 @@ func TestLoadConfigFileResolvesPaths(t *testing.T) {
 		t.Errorf("paths = %q %q", c.App.Source.Value, c.App.Icon.Path)
 	}
 }
+
+func TestOpenArtifactLaunchesInPlace(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	p := e.project(t)
+	job, err := e.svc.StartBuild(ctx, BuildRequest{ProjectID: p.ID, Actor: "cli"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := waitJob(t, e.svc, job.ID, domain.JobSucceeded, domain.JobFailed)
+	if done.Status != domain.JobSucceeded || len(done.Artifacts) == 0 {
+		t.Fatalf("build: %+v", done)
+	}
+	art := done.Artifacts[0]
+	_ = os.MkdirAll(art.Path, 0o755)
+	if err := e.svc.OpenArtifact(ctx, art.ID); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(e.ins.launched); n == 0 || e.ins.launched[n-1] != art.Path {
+		t.Fatalf("launched %v, want %s", e.ins.launched, art.Path)
+	}
+	if err := e.svc.OpenArtifact(ctx, "art_missing"); err == nil {
+		t.Fatal("opening an unknown artifact succeeded")
+	}
+	_ = os.RemoveAll(art.Path)
+	if err := e.svc.OpenArtifact(ctx, art.ID); err == nil {
+		t.Fatal("opening a removed artifact succeeded")
+	}
+}

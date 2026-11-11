@@ -31,9 +31,9 @@ func (p *Palette) theme() *ui.Theme {
 		Warning:         p.Warning,
 		Success:         p.Success,
 		Selection:       p.Accent.Alpha(0.24),
-		Focus:           p.Focus,
-		FocusRingWidth:  3,
-		FocusRingOffset: 1,
+		Focus:           ui.Transparent, // no rings: kit.FocusMark shows keyboard focus
+		FocusRingWidth:  2,
+		FocusRingOffset: 2,
 		Inverse:         p.Text,
 		InverseText:     p.Window,
 		Scrollbar:       p.TextTertiary.Alpha(0.55),
@@ -101,6 +101,10 @@ var (
 	SpringPop ui.Animation
 	// SpringGlide is a long, calm travel (things flying to a slot).
 	SpringGlide ui.Animation
+	// SpringPage carries pages and their blocks (≈280 ms, no bounce).
+	SpringPage ui.Animation
+	// SpringHero flies a shared element (an app icon) between screens.
+	SpringHero ui.Animation
 )
 
 func buildSprings() {
@@ -108,6 +112,8 @@ func buildSprings() {
 	SpringSoft = spring(320*time.Millisecond, 0)
 	SpringPop = spring(540*time.Millisecond, 0.42)
 	SpringGlide = spring(620*time.Millisecond, 0.06)
+	SpringPage = spring(280*time.Millisecond, 0)
+	SpringHero = spring(460*time.Millisecond, 0.12)
 }
 
 func init() { buildSprings() }
@@ -150,15 +156,15 @@ const (
 func Elevate(c *ui.Context, e ui.Element, level Elevation) ui.Element {
 	p := Of(c)
 	switch level {
-	case Lifted:
-		e.Shadow(0, 1, 2, 0, p.Shadow).Shadow(0, 2, 6, -1, Fade(p.Shadow, 0.7))
-	case Floating:
-		e.Shadow(0, 1, 2, 0, p.Shadow).Shadow(0, 8, 24, -4, Fade(p.ShadowDeep, 0.7))
-	case Modal:
-		e.Shadow(0, 2, 6, 0, p.Shadow).Shadow(0, 24, 64, -8, p.ShadowDeep)
-	}
-	if level != Flat {
-		e.InsetShadow(0, 1, 0, 0, p.Highlight)
+	case Floating, Modal:
+		// The one ambient level, for what floats over the window.
+		e.Shadow(0, 12, 32, -6, Fade(p.ShadowDeep, 0.6))
 	}
 	return e
+}
+
+// BrandFill fills e with the logo's gradient around base (the accent, or a
+// hover/pressed shade of it): a subtle top-light → deep sweep, as the icon.
+func BrandFill(e ui.Element, base ui.Color) ui.Element {
+	return e.Background(base) // flat: the logo's gradient stays in the logo
 }

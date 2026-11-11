@@ -217,11 +217,11 @@ func (a *App) settingsEditor(c *ui.Context, ed *editorState, pr *domain.Project)
 					i := i
 					sel := ed.group == i
 					chip := ui.ButtonBase(c.Key(g.id)).Label(g.title).Row().Justify(ui.Start).Height(28).PaddingX(12).Gap(6).AlignItems(ui.Center).
-						Radius(14).Cursor(ui.CursorPointer).Transition(design.Transition(c)).Selected(sel).Role(ui.RoleTab)
+						Radius(kit.PillRadius(28)).Cursor(ui.CursorPointer).Transition(design.Transition(c)).Selected(sel).Role(ui.RoleTab)
 					fg := p.Text
 					switch {
 					case sel:
-						chip.Background(p.Accent).Shadow(0, 1, 3, 0, design.Fade(p.Accent, 0.3))
+						chip.Background(p.Accent)
 						fg = p.TextOnAccent
 					case chip.Hovered():
 						chip.Background(p.Pressed)

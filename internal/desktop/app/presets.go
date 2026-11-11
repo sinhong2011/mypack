@@ -17,8 +17,7 @@ import (
 // each site's real icon, resolved lazily through FetchMetadata (at most
 // three at a time, cancelled when the screen goes), cached on disk for a
 // week so they appear at once next time. Nothing third-party is bundled;
-// offline, a preset shows its generated letter icon. The demo service uses
-// generated icons.
+// offline, a preset shows its generated letter icon.
 
 const presetTTL = 7 * 24 * time.Hour
 
@@ -42,9 +41,6 @@ func presetCacheDir() string {
 // presetIcon returns the icon for preset t, or nil while it is being
 // resolved (show a skeleton), or empty bytes for the letter fallback.
 func (a *App) presetIcon(t template) []byte {
-	if isFake() {
-		return templateIcon(t.name)
-	}
 	pi := &a.presets
 	host := hostOf(t.url)
 	pi.mu.Lock()

@@ -1,7 +1,9 @@
 package app
 
 import (
+	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -16,6 +18,14 @@ import (
 // at each stage. Developer-only: its words are not translated.
 
 func galleryEnabled() bool { return os.Getenv("MYPACK_KIT_GALLERY") == "1" }
+
+// init slows every spring and tween by MYPACK_MOTION_SPEED (0.1–1), for
+// reviewing motion frame by frame.
+func init() {
+	if v, err := strconv.ParseFloat(os.Getenv("MYPACK_MOTION_SPEED"), 32); err == nil && v > 0 {
+		design.SetSpeed(float32(v))
+	}
+}
 
 type galleryState struct {
 	speed    float64
@@ -38,6 +48,10 @@ func (a *App) galleryView(c *ui.Context) {
 		g.speed, g.progress = 1, 0.42
 	}
 	p := design.Of(c)
+	if beat := os.Getenv("MYPACK_SCENE_BEAT"); beat != "" {
+		a.sceneBeat(c, beat)
+		return
+	}
 	page(c, 820, func() {
 		kit.LargeTitle(c, "Kit")
 		kit.Group(c, "Motion", func() {
@@ -47,20 +61,34 @@ func (a *App) galleryView(c *ui.Context) {
 			})
 		})
 		kit.Group(c, "Buttons", func() {
-			ui.Row(c).Padding(14).Gap(10).Wrap().Children(func() {
-				kit.Button(c.Key("b1"), "Primary", kit.ButtonOpts{Variant: kit.Primary, Icon: icons.Build})
-				kit.Button(c.Key("b2"), "Secondary", kit.ButtonOpts{})
-				kit.Button(c.Key("b3"), "Ghost", kit.ButtonOpts{Variant: kit.Ghost})
-				kit.Button(c.Key("b4"), "Danger", kit.ButtonOpts{Variant: kit.Danger})
-				kit.Button(c.Key("b5"), "Link", kit.ButtonOpts{Variant: kit.Plain})
-				if kit.Button(c.Key("b6"), "Save", kit.ButtonOpts{Variant: kit.Primary, Loading: g.loading}).Clicked() {
-					g.loading = true
-					go func() { time.Sleep(1500 * time.Millisecond); a.win.Update(func() { g.loading = false }) }()
+			// Every variant at every size: all pills, icon-only ones circles.
+			ui.Column(c).Padding(14).Gap(10).Children(func() {
+				for _, h := range []float32{design.ControlSM, design.Control, design.ControlLG, design.ControlXL} {
+					h := h
+					ui.Row(c.Key(h)).Gap(10).AlignItems(ui.Center).Children(func() {
+						kit.Button(c.Key("p"), "Primary", kit.ButtonOpts{Variant: kit.Primary, Size: h, Icon: icons.Build})
+						kit.Button(c.Key("s"), "Secondary", kit.ButtonOpts{Size: h})
+						kit.Button(c.Key("g"), "Ghost", kit.ButtonOpts{Variant: kit.Ghost, Size: h})
+						kit.Button(c.Key("d"), "Danger", kit.ButtonOpts{Variant: kit.Danger, Size: h})
+						kit.Button(c.Key("l"), "Link", kit.ButtonOpts{Variant: kit.Plain, Size: h})
+						kit.Button(c.Key("i"), "", kit.ButtonOpts{Variant: kit.Primary, Size: h, Icon: icons.Plus, Tooltip: "Add"})
+						kit.Button(c.Key("j"), "", kit.ButtonOpts{Size: h, Icon: icons.More, Tooltip: "More"})
+						kit.Button(c.Key("x"), "Disabled", kit.ButtonOpts{Size: h, Disabled: true})
+					})
 				}
-				kit.Button(c.Key("b7"), "Disabled", kit.ButtonOpts{Disabled: true})
-				kit.GlassIcon(c.Key("b8"), icons.Plus, "New", "mod+n", true)
-				kit.IconButton(c.Key("b9"), icons.More, "More")
-				kit.Kbd(c, "mod+shift+n")
+				ui.Row(c.Key("tb")).Gap(8).AlignItems(ui.Center).Children(func() {
+					kit.NewPill(c.Key("np"), "New App", "mod+n", false)
+					kit.NewPill(c.Key("npc"), "New App", "mod+n", true)
+					kit.ToolbarIcon(c.Key("ti"), icons.More, "More")
+					kit.IconButton(c.Key("ib"), icons.Settings, "Settings")
+					kit.GlassIcon(c.Key("gi"), icons.Plus, "Add", "", true)
+					sel := 0
+					kit.PillSegmented(c.Key("seg"), &sel, []kit.PillSegment{{Icon: icons.Grid, Label: "Grid"}, {Icon: icons.List, Label: "List"}}, "View", struct{}{}, false)
+					if kit.Button(c.Key("b6"), "Save", kit.ButtonOpts{Variant: kit.Primary, Loading: g.loading}).Clicked() {
+						g.loading = true
+						go func() { time.Sleep(1500 * time.Millisecond); a.win.Update(func() { g.loading = false }) }()
+					}
+				})
 			})
 		})
 		kit.Group(c, "Controls", func() {
@@ -129,5 +157,42 @@ func (a *App) galleryView(c *ui.Context) {
 		if ok, cancel := kit.SheetFooter(c, "Cancel", "Done", kit.Primary, false, false); ok || cancel {
 			g.sheet = false
 		}
+	})
+}
+
+// sceneBeats are the build scene's beats held still, for review
+// (MYPACK_SCENE_BEAT=1…8): stage, time, progress.
+var sceneBeats = []struct {
+	name  string
+	stage int
+	t     float64
+	prog  float64
+}{
+	{"Checking the website", kit.SceneValidate, 1.0, -1},
+	{"Getting the app engine", kit.SceneDownload, 1.2, 0.6},
+	{"Making it an app", kit.SceneAssemble, 0.55, -1},
+	{"Signing", kit.SceneSign, 0.7, -1},
+	{"Checking everything", kit.SceneVerify, 0.35, -1},
+	{"In the Dock", kit.SceneDone, 2.6, -1},
+}
+
+func (a *App) sceneBeat(c *ui.Context, beat string) {
+	p := design.Of(c)
+	i, _ := strconv.Atoi(beat)
+	i = min(max(i, 1), len(sceneBeats)) - 1
+	b := sceneBeats[i]
+	icon := templateIcon("Linear")
+	opts := kit.SceneOpts{Stage: b.stage, StageAt: time.Now(), At: b.t, Progress: b.prog, Icon: icon, Name: "Linear", Host: "linear.app",
+		Tint: kit.IconTint(icon, "Linear")}
+	ui.Column(c).Absolute().Fill().Padding(design.TitleBarH+8, 24, 24, 24).Gap(16).Children(func() {
+		ui.Text(c, fmt.Sprintf("%d · %s", i+1, b.name)).FontSize(design.FontTitle2).FontWeight(design.WeightBold).TextColor(p.Text)
+		ui.Row(c).Gap(24).AlignItems(ui.End).Children(func() {
+			big := opts
+			big.Height = 300
+			ui.Box(c).Width(400).Children(func() { kit.BuildScene(c, big) })
+			small := opts
+			small.Height = 132
+			ui.Box(c).Width(176).Children(func() { kit.BuildScene(c, small) })
+		})
 	})
 }

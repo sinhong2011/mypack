@@ -299,7 +299,7 @@ func (a *App) successPanel(c *ui.Context, pr *domain.Project, j *domain.BuildJob
 			}
 		})
 		if art != nil {
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(4, 4, 4, 12).Radius(design.RadiusCard).Background(p.Fill).MaxWidth(560).Margin(16, 0, 0, 0).Children(func() {
+			design.Well(c, ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(4, 4, 4, 12).Radius(design.RadiusCard).MaxWidth(560).Margin(16, 0, 0, 0)).Children(func() {
 				kit.Glyph(c, icons.Folder, 13, p.TextTertiary)
 				kit.Mono(c, art.Path).SingleLine().MinWidth(0).Shrink(1).Selectable()
 				if kit.CopyButton(c.Key("copy"), art.Path, T("action.copyPath")) {
@@ -317,6 +317,7 @@ func (a *App) successPanel(c *ui.Context, pr *domain.Project, j *domain.BuildJob
 		if a.logOpen[j.ID] {
 			ui.Column(c).FillWidth().Margin(16, 0, 0, 0).Children(func() { a.logView(c, j.ID, 220) })
 		}
+		a.nextSteps(c, pr)
 	}).Role(ui.RoleRegion).Label(T("build.success.title"))
 }
 
@@ -471,7 +472,69 @@ func (a *App) sceneFor(c *ui.Context, pr *domain.Project, j *domain.BuildJob, h 
 		a.scenes[key] = m
 	}
 	host := domainOf(pr.Config.App.Source)
-	kit.BuildScene(c, kit.SceneOpts{Stage: st, StageAt: m.at, Progress: j.Progress, Failed: j.Status == domain.JobFailed,
-		Cancelled: j.Status == domain.JobCancelled, Icon: pr.IconPNG, Name: pr.Config.App.Name, Host: host,
-		Tint: kit.IconTint(pr.IconPNG, pr.Config.App.Name), Height: h})
+	// The icon flies in from Create onto the card; once risen, it is
+	// where the icon flies home from when the page is left.
+	slot := func(e ui.Element, stage int) {
+		if stage == kit.SceneValidate {
+			a.flyTo(c, cardKey(pr.ID), e)
+		} else {
+			a.iconAt[iconKey(pr.ID)] = e.Bounds()
+		}
+	}
+	native := func() {
+		kit.BuildScene(c, kit.SceneOpts{IconSlot: slot, Stage: st, StageAt: m.at, Progress: j.Progress, Failed: j.Status == domain.JobFailed,
+			Cancelled: j.Status == domain.JobCancelled, Icon: pr.IconPNG, Name: pr.Config.App.Name, Host: host,
+			Tint: kit.IconTint(pr.IconPNG, pr.Config.App.Name), Height: h})
+	}
+	native()
+}
+
+// nextSteps fills the space under a success with what to do next, in
+// pressed-in wells.
+func (a *App) nextSteps(c *ui.Context, pr *domain.Project) {
+	p := design.Of(c)
+	dockTitle, dockBody := T("next.dock.title"), T("next.dock.body")
+	if a.host.OS != "darwin" {
+		dockTitle, dockBody = T("next.taskbar.title"), T("next.taskbar.body")
+	}
+	steps := []struct {
+		ic          *ui.SVG
+		title, body string
+		run         func()
+	}{
+		{icons.Pin, dockTitle, dockBody, nil},
+		{icons.Person, T("next.account.title"), T("next.account.body"), func() {
+			src := pr.Config.App.Source.Value
+			a.create.reset(a.host)
+			a.create.setInput(src)
+			a.nav(secCreate)
+		}},
+		{icons.Sliders, T("next.custom.title"), T("next.custom.body"), func() { a.projTab = 1 }},
+	}
+	ui.Column(c).FillWidth().Gap(10).Margin(28, 0, 0, 0).Children(func() {
+		kit.Eyebrow(c, T("next.title")).AlignSelf(ui.Center)
+		ui.Row(c).Gap(10).AlignItems(ui.Stretch).Children(func() {
+			for i, st := range steps {
+				st := st
+				card := ui.ButtonBase(c.Key(i)).Label(st.title).Column().Gap(6).Padding(14, 14).Grow(1).Basis(0).MinWidth(0).
+					Radius(design.RadiusCard).AlignItems(ui.Start)
+				design.Well(c, card)
+				kit.Arrive(card, i+2, design.StaggerGrid)
+				if st.run != nil {
+					card.Cursor(ui.CursorPointer)
+					if card.Hovered() {
+						card.Background(p.Hover.Over(p.Sunken))
+					}
+				}
+				card.Children(func() {
+					kit.SymbolTile(c, st.ic, p.Accent, 28)
+					kit.Headline(c, st.title).Margin(4, 0, 0, 0)
+					kit.Caption(c, st.body).LineHeight(1.4)
+				})
+				if card.Clicked() && st.run != nil {
+					st.run()
+				}
+			}
+		})
+	})
 }

@@ -40,7 +40,7 @@ func (a *App) runtimesView(c *ui.Context) {
 				for i, s := range cols {
 					if total > 0 && s.n > 0 {
 						ui.Box(c.Key(i)).Grow(float32(s.n) / float32(total) * 100).Basis(0).
-							LinearGradient(ui.LinearGradient{From: s.color.Mix(ui.RGB(255, 255, 255), 0.15), To: s.color, Angle: 180})
+							Background(s.color)
 					}
 				}
 				if total == 0 {
@@ -67,7 +67,7 @@ func (a *App) runtimesView(c *ui.Context) {
 				kit.Glyph(c, icons.Folder, 12, p.TextTertiary)
 				kit.Mono(c, a.runtimeCacheDir()).FontSize(design.FontCaption).SingleLine()
 			})
-			ui.Column(c).Radius(design.RadiusCard).Background(p.Group).Border(0.5, p.GroupBorder).Clip().Role(ui.RoleTable).Label(T("runtimes.table")).Children(func() {
+			design.Well(c, ui.Column(c).Radius(design.RadiusCard).Clip()).Role(ui.RoleTable).Label(T("runtimes.table")).Children(func() {
 				kit.TableHeader(c, []kit.TableColumn{
 					{Title: T("runtimes.col.platform")}, {Title: T("runtimes.col.version"), Width: 64},
 					{Title: T("runtimes.col.size"), Width: 76, End: true}, {Title: T("runtimes.col.status"), Width: 130},

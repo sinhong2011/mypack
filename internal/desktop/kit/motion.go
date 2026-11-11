@@ -32,7 +32,7 @@ func Stagger(anim ui.Animation, i int, step time.Duration) ui.Animation {
 func Arrive(e ui.Element, i int, step time.Duration) ui.Element {
 	a := Stagger(design.SpringSoft, i, step)
 	return e.Transition(ui.ElementTransition{Animation: &a,
-		Enter: &ui.Motion{Y: 10}, Exit: &ui.Motion{Y: -4}})
+		Enter: &ui.Motion{Y: 10}, Exit: &ui.Motion{Scale: 0.92, Collapse: true}})
 }
 
 // Roll makes a changing label roll: the new text comes up from below as
@@ -56,12 +56,32 @@ func Reveal(e ui.Element) ui.Element {
 		Enter: &ui.Motion{Collapse: true}, Exit: &ui.Motion{Collapse: true}})
 }
 
-// PageSwap makes a page cross-fade in with a short rise as it replaces
-// the one before (key the element by the page).
-func PageSwap(e ui.Element) ui.Element {
-	a := design.Tween(design.MotionBase, design.EaseArrive)
-	return e.Transition(ui.ElementTransition{Animation: &a, Enter: &ui.Motion{Y: 6}})
+// PageSwap moves between pages (key the element by the page): the page
+// going fades, slides 12 pt against the way of travel and settles back to
+// .985; the one coming slides in from the way of travel. dir is +1 going
+// deeper or down the sidebar, -1 coming back. An interruptible spring of
+// about 280 ms; the page's blocks stagger in after it (Block).
+func PageSwap(e ui.Element, dir float32) ui.Element {
+	return e.Transition(ui.ElementTransition{Animation: &design.SpringPage,
+		Enter: &ui.Motion{X: 28 * dir}, Exit: &ui.Motion{X: -12 * dir, Scale: 0.985}})
 }
+
+// Block staggers the i-th block of a page in after the page itself:
+// header first, then each content block, rising 10 pt.
+func Block(e ui.Element, i int) ui.Element {
+	a := Stagger(design.SpringPage, i+1, design.StaggerBlock)
+	return e.Transition(ui.ElementTransition{Animation: &a, Enter: &ui.Motion{Y: 10}})
+}
+
+// modalAt is when a sheet, palette or popover was last open.
+var modalAt time.Time
+
+// MarkModal notes that a modal surface is open this frame; the canvas
+// behind it blurs in (ModalOpen).
+func MarkModal() { modalAt = time.Now() }
+
+// ModalOpen reports whether a modal surface was open a moment ago.
+func ModalOpen() bool { return time.Since(modalAt) < 120*time.Millisecond }
 
 // Press gives an element the shared hover/press feedback: a lift of lift
 // DIPs while hovered and a slight sink while pressed.
@@ -69,7 +89,7 @@ func Press(e ui.Element, hovered, pressed bool, lift float32) {
 	pose := ui.Pose{}
 	switch {
 	case pressed:
-		pose.Scale = 0.97
+		pose.Scale = 0.98
 	case hovered:
 		pose.Y = -lift
 	}

@@ -67,6 +67,9 @@ type Service interface {
 	InstallAndOpen(ctx context.Context, req InstallRequest) (domain.Installation, error)
 	ListInstallations(ctx context.Context) ([]domain.Installation, error)
 	OpenInstallation(ctx context.Context, id string) error
+	// OpenArtifact launches a built artifact in place, without installing
+	// it (Library › Open on a project that was built but not installed).
+	OpenArtifact(ctx context.Context, artifactID string) error
 	// UpdateInstallation rebuilds from the project and atomically replaces
 	// the installed app, keeping the previous copy and the profile data.
 	UpdateInstallation(ctx context.Context, id, actor string) (domain.BuildJob, error)

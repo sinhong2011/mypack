@@ -15,6 +15,7 @@ import (
 type viewGlide struct{}
 
 type libState struct {
+	iconSize    float32
 	query       string
 	view        int // 0 grid, 1 list
 	viewInit    bool
@@ -25,14 +26,13 @@ type libState struct {
 const (
 	tileMinW  float32 = 150
 	tileGap   float32 = 8
-	tileIcon  float32 = 88
 	listIcon  float32 = 28
 	listRowH  float32 = 44
 	listPadX  float32 = 14
 	listColSt float32 = 150
 	listColV  float32 = 96
 	listColM  float32 = 128
-	listColA  float32 = 36
+	listColA  float32 = 132
 )
 
 // draftCount is how many projects have no installed app.
@@ -49,44 +49,20 @@ func (a *App) draftCount() int {
 // libraryToolbar holds the Library's toolbar items: the view switch and
 // the search field.
 func (a *App) libraryToolbar(c *ui.Context) {
-	p := design.Of(c)
 	l := &a.lib
 	if !a.loaded || len(a.projects)+len(a.installs) == 0 {
 		return
 	}
 	ov := l.view
-	grp := ui.Row(c).Height(design.Control).Padding(2).Gap(0).Radius(design.RadiusControl + 1).Background(p.Fill).Role(ui.RoleRadioGroup).Label(T("library.view.label"))
-	grp.Children(func() {
-		for i, ic := range []*ui.SVG{icons.Grid, icons.List} {
-			label := []string{T("library.view.grid"), T("library.view.list")}[i]
-			b := ui.ButtonBase(c.Key(i)).Label(label).Size(32, design.Control-4).Center().Radius(design.RadiusControl - 1).Cursor(ui.CursorPointer).
-				Role(ui.RoleRadio).Checked(l.view == i)
-			fg := p.TextTertiary
-			if l.view == i {
-				fg = p.Text
-			} else if b.Hovered() {
-				fg = p.TextSecondary
-			}
-			b.Children(func() {
-				if l.view == i {
-					ind := ui.Box(c).Absolute().Fill().Radius(design.RadiusControl - 1).ZIndex(-1).Background(p.Raised)
-					design.Elevate(c, ind, design.Lifted)
-					kit.Glide(ind, viewGlide{})
-				}
-				kit.Glyph(c, ic, 15, fg)
-			})
-			b.Tooltip(label)
-			if b.Clicked() {
-				l.view = i
-			}
-		}
-	})
+	kit.PillSegmented(c.Key("view"), &l.view, []kit.PillSegment{{Icon: icons.Grid, Label: T("library.view.grid")}, {Icon: icons.List, Label: T("library.view.list")}},
+		T("library.view.label"), viewGlide{}, false)
 	if ov != l.view {
 		a.settings.LibraryView = []string{"grid", "list"}[l.view]
 		st := a.settings
 		go func() { _ = a.svc.SaveSettings(bgctx(), st) }()
 	}
-	kit.SearchField(c.Key("search"), &l.query, T("library.search"), &l.searchH, 200)
+	kit.ToolbarSearch(c.Key("search"), kit.ToolbarSearchOpts{Placeholder: T("library.search"), Hotkey: "mod+k", Query: &l.query, Handle: &l.searchH,
+		OnPalette: a.togglePalette})
 	if l.focusSearch {
 		l.focusSearch = false
 		l.searchH.Focus()
@@ -95,6 +71,11 @@ func (a *App) libraryToolbar(c *ui.Context) {
 
 func (a *App) libraryView(c *ui.Context) {
 	l := &a.lib
+	// Few apps get bigger icons, so the shelves never look empty.
+	l.iconSize = 76
+	if len(a.installs)+a.draftCount() <= 8 {
+		l.iconSize = 88
+	}
 	if !l.viewInit && a.loaded {
 		l.viewInit = true
 		if a.settings.LibraryView == "list" {
@@ -106,7 +87,7 @@ func (a *App) libraryView(c *ui.Context) {
 			ui.Row(c).Gap(tileGap).Margin(36, 0, 0, 0).Children(func() {
 				for i := 0; i < 5; i++ {
 					ui.Column(c.Key(i)).Grow(1).Basis(0).AlignItems(ui.Center).Gap(10).Padding(14, 8).Children(func() {
-						kit.Shimmer(c, tileIcon, tileIcon, design.AppIconRadius(tileIcon))
+						kit.Shimmer(c, 88, 88, design.AppIconRadius(88))
 						kit.Shimmer(c, 80, 12, 6)
 						kit.Shimmer(c, 56, 10, 5)
 					})
@@ -145,10 +126,8 @@ func (a *App) libraryView(c *ui.Context) {
 					a.noApps(c)
 					return
 				}
-				a.collection(c, func(grid bool) {
-					for i := range apps {
-						a.appItem(c.Key(apps[i].ID), apps[i], grid, i)
-					}
+				a.collection(c, len(apps), true, func(i int, grid bool) {
+					a.appItem(c.Key(apps[i].ID), apps[i], grid, i)
 				})
 			})
 			shown += len(apps)
@@ -156,16 +135,17 @@ func (a *App) libraryView(c *ui.Context) {
 		if len(drafts) > 0 {
 			ui.Column(c).Gap(14).Children(func() {
 				kit.SectionHeader(c, T("library.tab.projects"), countLabel(len(drafts)))
-				a.collection(c, func(grid bool) {
-					for i, pr := range drafts {
-						a.projectItem(c.Key(pr.ID), pr, grid, i)
-					}
+				a.collection(c, len(drafts), len(a.installs) == 0, func(i int, grid bool) {
+					a.projectItem(c.Key(drafts[i].ID), drafts[i], grid, i)
 				})
 			})
 			shown += len(drafts)
 		}
 		if shown == 0 {
 			kit.EmptyState(c, icons.Search, T("library.noMatches", "query", a.lib.query), "", nil)
+		}
+		if shown > 0 && shown <= 12 && a.lib.query == "" {
+			a.libraryBand(c)
 		}
 		if len(a.installs) > 0 {
 			a.libraryFooter(c)
@@ -206,28 +186,83 @@ func (a *App) noApps(c *ui.Context) {
 	})
 }
 
-// collection lays items out as a responsive icon grid or a Finder-style
-// list.
-func (a *App) collection(c *ui.Context, items func(grid bool)) {
-	p := design.Of(c)
+// collection lays n items out as rows of icons standing on shelves (or a
+// Finder-style list). With ghost, empty places in the last row invite
+// another website.
+func (a *App) collection(c *ui.Context, n int, ghost bool, item func(i int, grid bool)) {
 	if a.lib.view == 1 {
-		ui.Column(c).Radius(design.RadiusCard).Background(p.Group).Border(0.5, p.GroupBorder).Clip().Children(func() {
+		design.Well(c, ui.Column(c).Radius(design.RadiusCard).Clip()).Children(func() {
 			kit.TableHeader(c, []kit.TableColumn{
 				{Title: T("list.col.name")}, {Title: T("list.col.status"), Width: listColSt},
 				{Title: T("list.col.version"), Width: listColV}, {Title: T("list.col.modified"), Width: listColM}, {Width: listColA},
 			}, listPadX)
-			ui.Column(c).Children(func() { items(false) })
+			ui.Column(c).Children(func() {
+				for i := 0; i < n; i++ {
+					item(i, false)
+				}
+			})
 		})
 		return
 	}
+	size := a.lib.iconSize
 	w, _ := c.Size()
 	avail := min(design.ContentMaxW, w-design.SidebarWidth-64)
-	cols := max(2, int((avail+tileGap)/(tileMinW+tileGap)))
-	tracks := make([]ui.Track, cols)
-	for i := range tracks {
-		tracks[i] = ui.Fr(1)
+	minW := size + 56
+	cols := max(2, int((avail+tileGap)/(minW+tileGap)))
+	rows := (n + cols - 1) / cols
+	if rows == 0 {
+		rows = 1
 	}
-	ui.Grid(c).ColumnTracks(tracks...).GapX(tileGap).GapY(18).Margin(0, -8).Children(func() { items(true) })
+	ui.Column(c).Gap(10).Margin(0, -6).Children(func() {
+		for r := 0; r < rows; r++ {
+			ui.Box(c.Key(r)).Children(func() {
+
+				ui.Row(c).Gap(tileGap).AlignItems(ui.Start).Children(func() {
+					for k := 0; k < cols; k++ {
+						i := r*cols + k
+						cell := ui.Column(c.Key(k)).Grow(1).Basis(0).MinWidth(0)
+						cell.Children(func() {
+							switch {
+							case i < n:
+								item(i, true)
+							case ghost && i == n:
+								a.ghostTile(c, size)
+							}
+						})
+					}
+				})
+			})
+		}
+	})
+}
+
+// ghostTile is a dashed placeholder at the end of the grid that adds a website.
+func (a *App) ghostTile(c *ui.Context, size float32) {
+	p := design.Of(c)
+	b := ui.ButtonBase(c.Key("ghost")).Label(T("library.ghost")).Column().AlignItems(ui.Center).Padding(14, 6, 12, 6).Cursor(ui.CursorPointer)
+	hov := b.Hovered()
+	kit.Arrive(b, 3, design.StaggerGrid)
+	b.Children(func() {
+		box := ui.Box(c).Size(size, size).Center().Radius(design.AppIconRadius(size))
+		if hov {
+			box.Background(p.AccentSoft)
+		}
+		col := design.Fade(p.TextTertiary, 0.55)
+		if hov {
+			col = p.AccentText
+		}
+		r := design.AppIconRadius(size)
+		box.Draw(func(pt *ui.Painter, rr ui.Rect) {
+			pt.StrokeDashed(rr, col, r, 1.5)
+		})
+		box.Children(func() { kit.Glyph(c, icons.Plus, size*0.26, col) })
+		kit.Press(box, hov, b.Pressed(), 3)
+		ui.Text(c, T("library.ghost")).FontSize(design.FontBody).FontWeight(design.WeightMedium).TextColor(col).SingleLine().
+			MaxWidthPercent(100).TextAlign(ui.Center).Margin(12, 0, 0, 0)
+	})
+	if b.Clicked() {
+		a.newApp()
+	}
 }
 
 // tileData is what a library tile or row shows.
@@ -244,29 +279,37 @@ type tileData struct {
 	modified string
 	menu     func(m *ui.Menu)
 	idx      int
+	pid      string // the project, for the icon that flies to its page
+	// The one-click action (Open the app, or Build a draft).
+	action     string
+	actionIcon *ui.SVG
+	run        func()
 }
 
+// tile is an app floating on the canvas: its icon over a soft glow in its
+// own colour, the name and one compact status line. Hover lifts it a
+// little, blooms the glow and fades in its quick actions; keyboard focus
+// rings it in the accent.
 func (a *App) tile(c *ui.Context, d tileData) (open bool) {
 	p := design.Of(c)
-	b := ui.ButtonBase(c).Label(d.name).Column().AlignItems(ui.Center).Justify(ui.Start).Padding(12, 10, 14, 10).Gap(0).
+	size := a.lib.iconSize
+	b := ui.ButtonBase(c).Label(d.name).Column().AlignItems(ui.Center).Justify(ui.Start).Padding(14, 6, 12, 6).Gap(0).
 		Radius(design.RadiusPanel).Cursor(ui.CursorPointer).Description(d.status)
 	kit.Arrive(b, d.idx, design.StaggerGrid)
-	hov := b.Hovered()
-	if b.Focused() {
-		b.Background(p.AccentSoft)
-	}
+	b.FocusRing(false)
+	hov, focused := b.Hovered(), b.FocusVisible()
 	if d.menu != nil {
 		b.ContextMenu(d.menu)
 	}
+	if d.run != nil && (b.DoubleClicked() || b.Shortcut(0, ui.KeyEnter)) {
+		d.run()
+	}
+	var iconAt ui.Rect
 	b.Children(func() {
-		// The shelf the icon stands on: a ledge running through the row.
-		ui.Box(c).Absolute().Left(-tileGap/2-1).Right(-tileGap/2-1).Top(12+8+tileIcon-3).Height(9).PassThrough().AccessHidden(true).
-			LinearGradient(ui.LinearGradient{From: p.ShelfTop, To: p.ShelfBottom, Angle: 180}).
-			Shadow(0, 6, 10, -4, p.ShadowDeep).InsetShadow(0, 1, 0, 0, p.Highlight)
-		holder := ui.Box(c).Size(tileIcon+16, tileIcon+16).Center().Shrink(0)
+		holder := ui.Box(c).Size(size, size).Shrink(0)
 		pose := ui.Pose{}
 		if hov {
-			pose = ui.Pose{Y: -6, Scale: 1.05, Rotate: -1.5}
+			pose = ui.Pose{Y: -3, Scale: 1.04}
 		}
 		if b.Pressed() {
 			pose = ui.Pose{Scale: 0.97}
@@ -274,37 +317,58 @@ func (a *App) tile(c *ui.Context, d tileData) (open bool) {
 		holder.AnimatePose(pose, design.Spring)
 		holder.Children(func() {
 			if d.busy {
-				kit.ProgressRing(c, tileIcon+14, 3, d.progress, p.Accent, p.Fill).Center().Children(func() {
-					kit.AppIconOpts(c, d.icon, d.name, tileIcon-10, kit.IconOpts{Shadow: true})
+				kit.ProgressRing(c, size+12, 3, d.progress, p.Accent, p.Fill).Absolute().Top(-6).Left(-6).Center().Children(func() {
+					kit.AppIconOpts(c, d.icon, d.name, size-12, kit.IconOpts{Shadow: true})
 				})
 				return
 			}
-			ui.Box(c).Size(tileIcon, tileIcon).Children(func() {
-				kit.AppIconOpts(c, d.icon, d.name, tileIcon, kit.IconOpts{Shadow: true})
-				kit.IconBadge(c, d.badge, tileIcon)
-			})
+			ic := kit.AppIconOpts(c, d.icon, d.name, size, kit.IconOpts{Shadow: true})
+			if d.pid != "" {
+				iconAt = ic.Bounds()
+				a.flyTo(c, iconKey(d.pid), ic)
+			}
+			if focused {
+				// Keyboard focus: an underline under the icon, no ring.
+				ui.Box(c.Key("focus")).Absolute().Left(size * 0.3).Right(size * 0.3).Bottom(-6).Height(1.5).Radius(0.75).
+					Background(p.Accent).PassThrough().AccessHidden(true)
+			}
+			kit.IconBadge(c, d.badge, size)
+			if d.run != nil && (hov || focused) {
+				a.launchButton(c, d, size)
+			}
+			if d.menu != nil && (hov || focused) {
+				more := ui.ButtonBase(c.Key("more")).Label(T("common.more")).Absolute().Top(-6).Left(-6).Size(24, 24).Radius(12).Center().
+					Background(p.Overlay).Border(0.5, p.BorderStrong).Cursor(ui.CursorPointer).Menu(d.menu)
+				design.Elevate(c, more, design.Floating)
+				kit.Pop(more)
+				more.Children(func() { kit.Glyph(c, icons.More, 13, p.Text) })
+			}
 		})
-		ui.Text(c, d.name).FontSize(design.FontBody).FontWeight(design.WeightMedium).TextColor(p.Text).SingleLine().MaxWidthPercent(100).
-			TextAlign(ui.Center).Margin(6, 0, 0, 0)
-		ui.Text(c, d.domain).FontSize(design.FontCaption).TextColor(p.TextSecondary).SingleLine().MaxWidthPercent(100).TextAlign(ui.Center).Margin(2, 0, 0, 0)
-		if d.status != "" {
-			fg, _ := kit.ToneColors(p, d.tone)
-			if d.tone == kit.ToneNeutral {
-				fg = p.TextTertiary
+		nm := ui.Text(c, d.name).FontSize(design.FontBody).FontWeight(design.WeightSemibold).TextColor(p.Text).SingleLine().MaxWidthPercent(100).
+			TextAlign(ui.Center).Margin(12, 0, 0, 0)
+		_ = nm
+		// One compact line: a status dot and word when it matters, else
+		// the site.
+		ui.Row(c).Gap(5).AlignItems(ui.Center).Justify(ui.Center).MaxWidthPercent(100).Margin(2, 0, 0, 0).Children(func() {
+			if d.status != "" {
+				fg, _ := kit.ToneColors(p, d.tone)
+				if d.tone == kit.ToneNeutral {
+					fg = p.TextTertiary
+				}
+				ui.Box(c).Size(6, 6).Radius(3).Background(fg).Shrink(0)
+				ui.Text(c, d.status).FontSize(design.FontCaption).TextColor(p.TextSecondary).SingleLine().MinWidth(0)
+				return
 			}
-			ui.Text(c, d.status).FontSize(design.FontCaption).FontWeight(design.WeightMedium).TextColor(fg).SingleLine().
-				MaxWidthPercent(100).TextAlign(ui.Center).Margin(3, 0, 0, 0)
-		}
-		if d.menu != nil {
-			more := ui.ButtonBase(c.Key("more")).Label(T("common.more")).Absolute().Top(8).Right(8).Size(24, 24).Radius(12).Center().
-				Background(p.Raised).Border(0.5, p.BorderStrong).Cursor(ui.CursorPointer).Menu(d.menu)
-			more.Children(func() { kit.Glyph(c, icons.More, 12, p.Text) })
-			if !hov && !more.Focused() {
-				more.Opacity(0)
-			}
-		}
+			ui.Text(c, d.domain).FontSize(design.FontCaption).TextColor(p.TextTertiary).SingleLine().MinWidth(0)
+		})
 	})
-	return b.Clicked()
+	if b.Clicked() {
+		if d.pid != "" {
+			a.flyFrom(iconKey(d.pid), iconAt, d.icon, d.name)
+		}
+		return true
+	}
+	return false
 }
 
 func (a *App) row(c *ui.Context, d tileData, i int) (open bool) {
@@ -336,7 +400,12 @@ func (a *App) row(c *ui.Context, d tileData, i int) (open bool) {
 		})
 		ui.Text(c, d.version).FontSize(design.FontSmall).TextColor(p.TextSecondary).Width(listColV).Shrink(0).SingleLine().FontFeatures("tnum")
 		ui.Text(c, d.modified).FontSize(design.FontSmall).TextColor(p.TextSecondary).Width(listColM).Shrink(0).SingleLine()
-		ui.Row(c).Width(listColA).Shrink(0).Justify(ui.End).Children(func() {
+		ui.Row(c).Width(listColA).Shrink(0).Justify(ui.End).Gap(4).AlignItems(ui.Center).Children(func() {
+			if d.run != nil {
+				if kit.Button(c.Key("open"), d.action, kit.ButtonOpts{Size: design.ControlSM, Icon: d.actionIcon}).Clicked() {
+					d.run()
+				}
+			}
 			if d.menu != nil {
 				kit.IconButton(c.Key("more"), icons.More, T("common.more")).Size(26, 26).Menu(d.menu)
 			}
@@ -352,8 +421,6 @@ func (a *App) emptyLibrary(c *ui.Context) {
 			ui.Column(c).Width(600).MaxWidthPercent(100).Gap(0).AlignItems(ui.Stretch).Children(func() {
 				ui.Column(c).AlignItems(ui.Center).Gap(10).Children(func() {
 					ui.Box(c).Children(func() {
-						ui.Box(c).Absolute().Left(-160).Top(-90).Right(-160).Bottom(-90).PassThrough().AccessHidden(true).
-							Draw(func(pt *ui.Painter, r ui.Rect) { design.PaintDots(pt, r, p, true) })
 						logo := kit.BrandMark(c, 128)
 						entered := ui.Local(logo, "in", func() bool { return false })
 						pose := ui.Pose{}
@@ -439,7 +506,7 @@ func (a *App) projectItem(c *ui.Context, pr *domain.Project, grid bool, i int) {
 	}
 	prc := *pr
 	d := tileData{icon: pr.IconPNG, name: pr.Config.App.Name, domain: domainOf(pr.Config.App.Source), status: st, tone: tone, busy: busy,
-		version: pr.Config.App.Version, modified: meta, menu: func(m *ui.Menu) { a.projectMenu(m, &prc) }, idx: i}
+		version: pr.Config.App.Version, modified: meta, menu: func(m *ui.Menu) { a.projectMenu(m, &prc) }, idx: i, pid: pr.ID}
 	if busy {
 		d.progress = -1
 		if j := a.latestJob(pr.ID); j != nil {
@@ -448,6 +515,9 @@ func (a *App) projectItem(c *ui.Context, pr *domain.Project, grid bool, i int) {
 	}
 	if tone == kit.ToneDanger {
 		d.badge = kit.BadgeFailed
+	}
+	if !busy {
+		d.action, d.actionIcon, d.run = a.projectLaunch(pr)
 	}
 	var open bool
 	if grid {
@@ -458,6 +528,7 @@ func (a *App) projectItem(c *ui.Context, pr *domain.Project, grid bool, i int) {
 	if open {
 		a.openProject(pr.ID, 0)
 	}
+	_ = d
 }
 
 func (a *App) installStatus(in *domain.Installation) (string, kit.Tone) {
@@ -477,7 +548,7 @@ func (a *App) installStatus(in *domain.Installation) (string, kit.Tone) {
 func (a *App) appItem(c *ui.Context, in domain.Installation, grid bool, i int) {
 	st, tone := a.installStatus(&in)
 	d := tileData{icon: in.IconPNG, name: in.Name, domain: a.installDomain(&in), status: st, tone: tone,
-		version: in.Version, modified: ago(in.LastManagedAt), menu: func(m *ui.Menu) { a.appMenu(m, in) }, idx: i}
+		version: in.Version, modified: ago(in.LastManagedAt), menu: func(m *ui.Menu) { a.appMenu(m, in) }, idx: i, pid: in.ProjectID}
 	switch {
 	case in.State == domain.InstallExternal:
 		d.badge = kit.BadgeLocked
@@ -491,6 +562,15 @@ func (a *App) appItem(c *ui.Context, in domain.Installation, grid bool, i int) {
 	if in.ProjectID != "" {
 		if j := a.latestJob(in.ProjectID); j != nil && (j.Status == domain.JobRunning || j.Status == domain.JobQueued) {
 			d.busy, d.progress, d.status, d.tone = true, j.Progress, stageLabel(*j), kit.ToneAccent
+		}
+	}
+	if !d.busy {
+		if in.State == domain.InstallMissing {
+			id := in.ID
+			d.action, d.actionIcon, d.run = T("action.locate"), icons.Folder, func() { a.dlg.details = detailsDialog{open: true, id: id} }
+		} else {
+			id := in.ID
+			d.action, d.actionIcon, d.run = T("action.open"), icons.Play, func() { a.openInstall(id) }
 		}
 	}
 	if grid && tone == kit.ToneSuccess && !d.busy {
@@ -550,5 +630,90 @@ func (a *App) appMenu(m *ui.Menu, in domain.Installation) {
 		if m.Item(T("action.uninstall")).Danger().Chosen() {
 			a.dlg.uninstall = uninstallDialog{open: true, id: in.ID}
 		}
+	}
+}
+
+// libraryBand fills a short library's lower half with what was built
+// lately and a couple of tips, on the workbench.
+func (a *App) libraryBand(c *ui.Context) {
+	p := design.Of(c)
+	type built struct {
+		pr  *domain.Project
+		job domain.BuildJob
+	}
+	var recent []built
+	seen := map[string]bool{}
+	for _, j := range a.jobs {
+		if j.Status != domain.JobSucceeded || seen[j.ProjectID] {
+			continue
+		}
+		if pr := a.project(j.ProjectID); pr != nil {
+			seen[j.ProjectID] = true
+			recent = append(recent, built{pr, j})
+		}
+		if len(recent) == 3 {
+			break
+		}
+	}
+	ui.Column(c).Gap(12).Padding(20, 20, 22, 20).Radius(design.RadiusPanel).Margin(8, 0, 0, 0).Children(func() {
+		if len(recent) > 0 {
+			kit.Eyebrow(c, T("library.recent.title"))
+			ui.Row(c).Gap(12).Children(func() {
+				for i, b := range recent {
+					b := b
+					card := ui.ButtonBase(c.Key(b.pr.ID)).Label(b.pr.Config.App.Name).Row().Justify(ui.Start).Gap(12).Padding(12, 14).
+						Radius(design.RadiusCard).AlignItems(ui.Center).Grow(1).Basis(0).MinWidth(0).Cursor(ui.CursorPointer).Border(0.5, p.GroupBorder)
+					design.Tint(card, p.CanvasTop, p.CanvasBot)
+					design.RaisedControl(c, card)
+					kit.Arrive(card, i, design.StaggerGrid)
+					kit.Lift(card, card.Hovered(), card.Pressed())
+					card.Children(func() {
+						kit.AppIconOpts(c, b.pr.IconPNG, b.pr.Config.App.Name, 36, kit.IconOpts{})
+						ui.Column(c).MinWidth(0).Grow(1).Gap(1).Children(func() {
+							kit.Headline(c, b.pr.Config.App.Name).SingleLine()
+							size := ""
+							if len(b.job.Artifacts) > 0 {
+								size = bytesLabel(b.job.Artifacts[0].Size)
+							}
+							kit.Caption(c, T("library.recent.meta", "when", ago(b.job.CreatedAt), "size", size)).SingleLine()
+						})
+						kit.Glyph(c, icons.ChevronRt, 14, p.TextTertiary)
+					})
+					if card.Clicked() {
+						a.openProject(b.pr.ID, 0)
+					}
+				}
+			})
+		}
+		ui.Row(c).Gap(18).Wrap().AlignItems(ui.Center).Margin(4, 0, 0, 0).Children(func() {
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				kit.Kbd(c, "mod+n")
+				kit.Footnote(c, T("library.tip.new"))
+			})
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				kit.Glyph(c, icons.Folder, 14, p.TextTertiary)
+				kit.Footnote(c, T("create.drop.hint"))
+			})
+		})
+	})
+}
+
+// launchButton is the round one-click action on a hovered or focused tile.
+func (a *App) launchButton(c *ui.Context, d tileData, size float32) {
+	p := design.Of(c)
+	s := max(30, size*0.3)
+	b := ui.ButtonBase(c.Key("launch")).Label(d.action+" "+d.name).Absolute().Right(-s*0.25).Bottom(-s*0.2).Size(s, s).Radius(s / 2).Center().
+		Cursor(ui.CursorPointer)
+	base := p.Accent
+	if b.Hovered() {
+		base = p.AccentHover
+	}
+	b.Background(base).Border(2, p.CanvasTop)
+	kit.Pop(b)
+	kit.Press(b, false, b.Pressed(), 0)
+	b.Children(func() { kit.Glyph(c, d.actionIcon, s*0.44, p.TextOnAccent) })
+	b.Tooltip(d.action)
+	if b.Clicked() {
+		d.run()
 	}
 }

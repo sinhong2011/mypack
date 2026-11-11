@@ -183,6 +183,20 @@ func (s *Impl) OpenInstallation(ctx context.Context, id string) (err error) {
 	return s.inst.Launch(in.Path)
 }
 
+// OpenArtifact implements Service.
+func (s *Impl) OpenArtifact(ctx context.Context, artifactID string) (err error) {
+	defer func() { s.audit(ctx, "gui", "artifact.open", artifactID, err) }()
+	art, err := s.store.GetArtifact(ctx, artifactID)
+	if err != nil {
+		return err
+	}
+	if _, serr := os.Stat(art.Path); serr != nil {
+		return &domain.Error{Code: "ARTIFACT_MISSING", Message: "The built app is no longer at " + art.Path,
+			Remediation: "Build the app again."}
+	}
+	return s.inst.Launch(art.Path)
+}
+
 // UpdateInstallation implements Service.
 func (s *Impl) UpdateInstallation(ctx context.Context, id, actor string) (job domain.BuildJob, err error) {
 	defer func() { s.audit(ctx, actor, "installation.update", id, err) }()

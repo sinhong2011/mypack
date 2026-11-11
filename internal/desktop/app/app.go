@@ -16,6 +16,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"mypack.dev/mypack/internal/appservice"
+	"mypack.dev/mypack/internal/desktop/kit"
 	"mypack.dev/mypack/internal/domain"
 	"mypack.dev/mypack/internal/i18n"
 	"mypack.dev/mypack/pkg/config"
@@ -46,7 +47,12 @@ type App struct {
 
 	section   section
 	projectID string
-	projTab   int // 0 overview, 1 settings
+	projTab   int                // 0 overview, 1 settings
+	navDir    float32            // +1 the last page change went deeper, -1 back
+	flights   map[string]*flight // app icons on their way between screens
+	toolbarW  float32            // the toolbar's width last frame (compact controls when narrow)
+	iconAt    iconRects          // where the project hero's icon showed last
+	reduced   bool               // the user asked for reduced motion
 
 	loaded   bool
 	settings appservice.Settings
@@ -68,6 +74,7 @@ type App struct {
 	scenes    map[string]sceneMark
 	presets   presetIcons
 	gallery   galleryState
+	palette   paletteState
 
 	flyout    *mygo.Window
 	flyoutURL string
@@ -173,6 +180,11 @@ func Run(svc appservice.Service) error {
 				a.win.Hide()
 			}
 		})
+		kit.Invalidate = func() {
+			if a.win != nil {
+				a.win.Invalidate()
+			}
+		}
 		svc.Subscribe(a.onEvent)
 		a.reload("projects", "installs", "jobs", "runtimes", "storage", "license")
 		a.syncTray()
@@ -537,6 +549,7 @@ func (a *App) nav(s section) {
 	if s != a.section {
 		a.stopPresetFetches()
 	}
+	a.travel(s)
 	if s == secCreate && a.section != secCreate {
 		a.create.focus = true
 	}
@@ -553,6 +566,7 @@ func (a *App) nav(s section) {
 }
 
 func (a *App) openProject(id string, tab int) {
+	a.travel(secProject)
 	a.section = secProject
 	a.projectID = id
 	a.projTab = tab

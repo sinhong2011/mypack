@@ -21,29 +21,55 @@ func (a *App) view(c *ui.Context) {
 	design.Apply(c)
 	p := design.Of(c)
 	kit.Strings.Close = T("common.close")
+	a.reduced = c.Preferences().ReduceMotion
+	if a.iconAt == nil {
+		a.iconAt = iconRects{}
+	}
 	c.Root().Background(p.Chrome)
-	ui.Box(c).Fill().Children(func() {
-		// Film grain over the chrome.
-		ui.Box(c).Absolute().Fill().PassThrough().AccessHidden(true).Draw(func(pt *ui.Painter, r ui.Rect) {
-			design.PaintGrain(pt, r, p)
-		})
+	win := ui.Box(c).Fill()
+	dragging := win.FileDragOver()
+	if files := win.DroppedFiles(); len(files) > 0 {
+		a.create.reset(a.host)
+		a.create.setInput(files[0])
+		a.nav(secCreate)
+	}
+	win.Children(func() {
+		// The chrome: one flat surface.
+		ui.Box(c).Absolute().Fill().PassThrough().AccessHidden(true).Background(p.Chrome)
 		ui.Row(c).Absolute().Fill().AlignItems(ui.Stretch).Children(func() {
 			a.sidebar(c)
 			in := design.CanvasInset
 			canvas := ui.Box(c).Grow(1).Basis(0).MinWidth(0).Margin(in, in, in, 0).Radius(design.RadiusCanvas).
-				Background(p.Window).Border(0.5, p.GroupBorder).Clip()
-			design.Elevate(c, canvas, design.Floating)
+				Border(1, p.GroupBorder).Clip()
+			design.Tint(canvas, p.CanvasTop, p.CanvasBot)
+			design.Float(c, canvas)
+			// Behind a sheet or the palette the canvas blurs in, and clears after.
+			blur := float32(0)
+			if kit.ModalOpen() {
+				blur = 6
+			}
+			if b := canvas.AnimateTo("blur", blur, design.SpringSoft); b > 0.05 {
+				canvas.Blur(b)
+			}
 			canvas.Children(func() {
 				a.content(c)
 				// Content scrolls under the toolbar, fading into the canvas.
-				ui.Box(c).Absolute().Top(0).Left(0).Right(0).Height(design.TitleBarH + 14).PassThrough().AccessHidden(true).
+				// Scrolled, it firms into a bar with a hairline under it.
+				k := scrollCollapse()
+				ui.Box(c).Absolute().Top(0).Left(0).Right(0).Height(design.TitleBarH+14*(1-k)).PassThrough().AccessHidden(true).
 					LinearGradient(ui.LinearGradient{Angle: 180, Stops: []ui.GradientStop{
-						{Color: p.Window, At: 0}, {Color: p.Window, At: 0.62}, {Color: p.Window.Alpha(0), At: 1}}})
+						{Color: p.CanvasTop, At: 0}, {Color: p.CanvasTop, At: 0.62 + 0.38*k}, {Color: design.Fade(p.CanvasTop, k*0.96), At: 1}}}).
+					BorderWidth(0, 0, 0.5, 0).BorderColor(design.Fade(p.Divider, k))
 				a.toolbar(c)
 			})
 		})
 	})
+	if dragging {
+		a.dropOverlay(c)
+	}
+	a.flightsView(c)
 	a.dialogs(c)
+	a.paletteView(c)
 	kit.Toasts(c)
 	for _, t := range a.toasts {
 		typ := ""
@@ -124,16 +150,19 @@ func (a *App) sidebar(c *ui.Context) {
 					pr := pr
 					active := a.section == secProject && a.projectID == pr.ID
 					row := ui.ButtonBase(c.Key(pr.ID)).Label(pr.Config.App.Name).Row().Justify(ui.Start).Height(30).PaddingX(8).Gap(9).
-						AlignItems(ui.Center).Radius(design.RadiusControl).Cursor(ui.CursorPointer).Transition(design.Transition(c))
+						AlignItems(ui.Center).Cursor(ui.CursorPointer)
+					kit.NavRow(c, row, active)
+					kbd := row.FocusVisible()
 					kit.Arrive(row, i, design.StaggerList)
-					if row.Hovered() && !active {
-						row.Background(p.Hover)
-					}
 					row.Children(func() {
+						kit.FocusMark(c, kbd, 10)
 						if active {
 							a.navPill(c)
 						}
-						kit.AppIconOpts(c, pr.IconPNG, pr.Config.App.Name, 18, kit.IconOpts{})
+						ic := kit.AppIconOpts(c, pr.IconPNG, pr.Config.App.Name, 18, kit.IconOpts{})
+						if row.Clicked() {
+							a.flyFrom(iconKey(pr.ID), ic.Bounds(), pr.IconPNG, pr.Config.App.Name)
+						}
 						fg := p.TextSecondary
 						if active {
 							fg = p.Text
@@ -157,27 +186,21 @@ func (a *App) sidebar(c *ui.Context) {
 	})
 }
 
-// navPill is the sidebar's selection: a raised pill that glides from the
-// item chosen before to this one.
-func (a *App) navPill(c *ui.Context) {
-	p := design.Of(c)
-	pill := ui.Box(c).Absolute().Fill().Radius(design.RadiusControl).ZIndex(-1).Background(p.Raised).Border(0.5, p.GroupBorder)
-	design.Elevate(c, pill, design.Lifted)
-	kit.Glide(pill, navGlide{})
-}
+// navPill is the sidebar's selection (kit.NavPill), gliding between items.
+func (a *App) navPill(c *ui.Context) { kit.NavPill(c, navGlide{}) }
 
 func (a *App) navItem(c *ui.Context, s section, ic *ui.SVG, label, badge string) {
 	p := design.Of(c)
 	active := a.section == s
 	row := ui.ButtonBase(c.Key(string(s))).Label(label).Row().Justify(ui.Start).Height(30).PaddingX(9).Gap(10).AlignItems(ui.Center).
-		Radius(design.RadiusControl).Cursor(ui.CursorPointer).Transition(design.Transition(c)).Current(ui.CurrentPage)
+		Cursor(ui.CursorPointer).Current(ui.CurrentPage)
+	kit.NavRow(c, row, active)
+	kbd := row.FocusVisible()
 	if !active {
 		row.Current(ui.CurrentNone)
-		if row.Hovered() {
-			row.Background(p.Hover)
-		}
 	}
 	row.Children(func() {
+		kit.FocusMark(c, kbd, 10)
 		if active {
 			a.navPill(c)
 		}
@@ -196,8 +219,7 @@ func (a *App) navItem(c *ui.Context, s section, ic *ui.SVG, label, badge string)
 		case "•":
 			kit.Spinner(c, 12, p.Accent)
 		default:
-			kit.Pop(ui.Text(c.Key("badge"), badge).FontSize(design.FontCaption).FontWeight(design.WeightBold).TextColor(p.TextOnAccent).
-				Padding(1, 6).Radius(8).Background(p.Accent).FontFeatures("tnum"))
+			kit.NavCount(c, badge, s == secLibrary) // Library counts updates
 		}
 	})
 	if row.Clicked() {
@@ -210,8 +232,10 @@ func (a *App) navItem(c *ui.Context, s section, ic *ui.SVG, label, badge string)
 func (a *App) toolbar(c *ui.Context) {
 	bar := c.TitleBar()
 	right := max(bar.Right-design.CanvasInset, 0) + 14
-	ui.Row(c).Absolute().Top(0).Left(0).Right(0).Height(design.TitleBarH).Padding(0, right, 0, 20).Gap(8).AlignItems(ui.Center).
-		DragWindow().Role(ui.RoleToolbar).Label(T("toolbar.label")).Children(func() {
+	row := ui.Row(c).Absolute().Top(0).Left(0).Right(0).Height(design.TitleBarH).Padding(0, right, 0, 20).Gap(8).AlignItems(ui.Center).
+		DragWindow().Role(ui.RoleToolbar).Label(T("toolbar.label"))
+	a.toolbarW = row.Bounds().W
+	row.Children(func() {
 		a.toolbarTitle(c)
 		ui.Spacer(c).MinWidth(8)
 		a.activityIndicator(c)
@@ -221,8 +245,21 @@ func (a *App) toolbar(c *ui.Context) {
 		case secProject:
 			a.projectToolbar(c)
 		}
-		if a.section != secCreate {
-			if kit.GlassIcon(c.Key("tb-build"), icons.Plus, T("toolbar.buildWebsite.tip"), "mod+n", true).Clicked() {
+		switch a.section {
+		case secLibrary, secProject, secCreate, secGallery:
+		default:
+			// Elsewhere the search pill opens the palette.
+			kit.ToolbarSearch(c.Key("search"), kit.ToolbarSearchOpts{Placeholder: T("library.search"), Hotkey: "mod+k", OnPalette: a.togglePalette})
+		}
+		switch a.section {
+		case secCreate:
+		case secProject:
+			// The project's own Build is the primary here.
+			if kit.ToolbarIcon(c.Key("tb-build"), icons.Plus, T("menu.newApp")).Clicked() {
+				a.newApp()
+			}
+		default:
+			if kit.NewPill(c.Key("tb-build"), T("menu.newApp"), "mod+n", a.toolbarW > 0 && a.toolbarW < 700).Clicked() {
 				a.newApp()
 			}
 		}
@@ -257,7 +294,7 @@ func (a *App) toolbarTitle(c *ui.Context) {
 	}
 	ui.Row(c).Gap(10).AlignItems(ui.Center).MinWidth(0).Shrink(1).Children(func() {
 		if a.section == secProject || a.section == secCreate {
-			if kit.GlassIcon(c.Key("back"), icons.ChevronLeft, T("nav.back"), "", false).Clicked() {
+			if kit.ToolbarIcon(c.Key("back"), icons.ChevronLeft, T("nav.back")).Clicked() {
 				a.nav(secLibrary)
 			}
 		}
@@ -265,7 +302,11 @@ func (a *App) toolbarTitle(c *ui.Context) {
 			ui.Text(c, title).FontSize(design.FontTitle3).FontWeight(design.WeightBold).TextColor(p.Text).SingleLine().Role(ui.RoleHeading).
 				LetterSpacing(design.TrackTitle)
 			if sub != "" {
-				ui.Text(c, sub).FontSize(design.FontCaption).TextColor(p.TextSecondary).SingleLine()
+				// The subtitle folds away as the page scrolls under the bar.
+				k := scrollCollapse()
+				ui.Box(c).Height(15 * (1 - k)).Clip().Opacity(1 - k).Children(func() {
+					ui.Text(c, sub).FontSize(design.FontCaption).TextColor(p.TextSecondary).SingleLine()
+				})
 			}
 		})
 	})
@@ -286,9 +327,8 @@ func (a *App) activityIndicator(c *ui.Context) {
 	if len(active) > 1 {
 		label = T("activity.many", "count", len(active))
 	}
-	b := ui.ButtonBase(c.Key("activity")).Label(label).Row().Justify(ui.Start).Height(34).Padding(0, 14, 0, 10).Gap(8).AlignItems(ui.Center).
-		Radius(17).Background(p.Raised).Border(0.5, p.BorderStrong).Cursor(ui.CursorPointer).Role(ui.RoleStatus)
-	design.Elevate(c, b, design.Lifted)
+	b := ui.ButtonBase(c.Key("activity")).Label(label).Row().Justify(ui.Start).Height(design.ToolbarControl).Padding(0, 14, 0, 10).Gap(8).AlignItems(ui.Center).
+		Radius(kit.PillRadius(design.ToolbarControl)).Background(p.Raised).Border(1, p.BorderStrong).Cursor(ui.CursorPointer).Role(ui.RoleStatus)
 	kit.Pop(b)
 	b.Children(func() {
 		if j.Status == domain.JobAwaitingApproval {
@@ -312,7 +352,15 @@ func (a *App) activityIndicator(c *ui.Context) {
 // ---- content --------------------------------------------------------------------
 
 func (a *App) content(c *ui.Context) {
-	kit.PageSwap(ui.Column(c.Key(string(a.section) + a.projectID)).Absolute().Fill()).Children(func() {
+	dir := a.navDir
+	if dir == 0 {
+		dir = 1
+	}
+	ui.Box(c.Key("pages")).Absolute().Fill().Children(func() { a.pageView(c, dir) })
+}
+
+func (a *App) pageView(c *ui.Context, dir float32) {
+	kit.PageSwap(ui.Column(c.Key(string(a.section)+a.projectID)).Absolute().Fill(), dir).Children(func() {
 		switch a.section {
 		case secLibrary:
 			a.libraryView(c)
@@ -337,7 +385,7 @@ func (a *App) content(c *ui.Context) {
 // page is the standard scrolling content column; it starts under the
 // toolbar and scrolls beneath it.
 func page(c *ui.Context, maxW float32, body func()) {
-	ui.Scroll(c).Grow(1).Basis(0).ScrollbarInsets(design.TitleBarH, 0, 0).Children(func() {
+	ui.Scroll(c).Grow(1).Basis(0).ScrollbarInsets(design.TitleBarH, 0, 0).TrackScroll(&pageScroll).Children(func() {
 		ui.Column(c).FillWidth().AlignItems(ui.Center).Padding(design.TitleBarH+16, 32, 48, 32).Children(func() {
 			ui.Column(c).FillWidth().MaxWidth(maxW).Gap(24).Children(body)
 		})
@@ -363,4 +411,22 @@ func stageLabel(j domain.BuildJob) string {
 		s += fmt.Sprintf(" %d%%", int(j.Progress*100))
 	}
 	return s
+}
+
+// dropOverlay is the whole-window drop state while a file is dragged over
+// mypack: drop it anywhere to make an app of it.
+func (a *App) dropOverlay(c *ui.Context) {
+	p := design.Of(c)
+	fade := design.Tween(design.MotionFast, design.EaseStd)
+	ui.Column(c.Key("drop")).Absolute().Fill().Center().Gap(10).PassThrough().Background(design.Fade(p.Window, 0.86)).
+		Transition(ui.ElementTransition{Animation: &fade, Enter: &ui.Motion{}, Exit: &ui.Motion{}}).Children(func() {
+		ui.Box(c).Absolute().Top(14).Left(14).Right(14).Bottom(14).PassThrough().AccessHidden(true).Draw(func(pt *ui.Painter, r ui.Rect) {
+			pt.StrokeDashed(r, p.Accent, design.RadiusCanvas+4, 2)
+		})
+		kit.Pop(ui.Row(c.Key("dropicon")).Size(64, 64).Radius(18).Center().Background(p.AccentSoft)).Children(func() {
+			kit.Glyph(c, icons.Import, 30, p.Accent)
+		})
+		ui.Text(c, T("drop.title")).FontSize(design.FontDisplay).FontWeight(design.WeightBold).TextColor(p.Text).LetterSpacing(design.TrackDisplay)
+		kit.Secondary(c, T("drop.body"))
+	})
 }

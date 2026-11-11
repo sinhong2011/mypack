@@ -36,6 +36,43 @@ type ButtonOpts struct {
 	Danger   bool   // red text on a neutral face (destructive secondary)
 }
 
+// PillRadius is the one radius rule for buttons: every button is a pill
+// (half its height) and every icon-only button a circle.
+func PillRadius(h float32) float32 { return h / 2 }
+
+// btnGeom is a button's box: its height, its radius, its width when it is
+// icon-only (a circle), else its side padding.
+type btnGeom struct{ h, radius, w, padX float32 }
+
+// buttonGeometry gives every variant and size its box by the pill rule.
+func buttonGeometry(v Variant, h float32, iconOnly bool) btnGeom {
+	g := btnGeom{h: h, radius: PillRadius(h), padX: max(12, h*0.5)}
+	switch {
+	case iconOnly:
+		g.w, g.padX = h, 0
+	case v == Plain:
+		g.padX = max(8, h*0.3) // a link with a hover fill: still a pill
+	}
+	return g
+}
+
+// FocusMark shows keyboard focus on a control without a ring: the caller
+// gives it the hover fill, and this adds a short 1.5 pt accent underline
+// centred at its foot. Call it inside the control's children, with its
+// FocusVisible; width is the underline's (0: 18 pt).
+func FocusMark(c *ui.Context, show bool, width float32) {
+	if !show {
+		return
+	}
+	if width <= 0 || width > 18 {
+		width = 18
+	}
+	p := design.Of(c)
+	ui.Row(c.Key("focus")).Absolute().Left(0).Right(0).Bottom(2.5).Justify(ui.Center).PassThrough().AccessHidden(true).Children(func() {
+		ui.Box(c).Width(width).Height(1.5).Radius(0.75).Background(p.Accent)
+	})
+}
+
 // Button is mypack's button. Hover brightens, press sinks on a spring,
 // and Loading morphs the label into a spinner in the same slot (the button
 // keeps its width).
@@ -54,24 +91,13 @@ func Button(c *ui.Context, label string, o ButtonOpts) ui.Element {
 	case h >= design.ControlLG:
 		fs = design.FontBodyLG
 	}
-	radius := design.RadiusControl
-	if h >= design.ControlXL {
-		radius = design.RadiusCard
-	}
-	if o.Variant == Glass || o.Variant == GlassProminent {
-		radius = h / 2
-	}
-	b := ui.ButtonBase(c).Label(label).Row().Height(h).Gap(6).AlignItems(ui.Center).Justify(ui.Center).
-		Radius(radius).FontSize(fs).FontWeight(design.WeightMedium).
-		Cursor(ui.CursorPointer).Transition(design.Transition(c)).Shrink(0)
-	padX := max(12, h*0.45)
-	if label == "" {
-		padX = 0
-		b.Width(h)
-	}
-	if o.Variant == Plain {
-		padX = 2
-		b.Radius(4)
+	g := buttonGeometry(o.Variant, h, label == "")
+	b := ui.ButtonBase(c).Label(label).Row().Height(g.h).Gap(6).AlignItems(ui.Center).Justify(ui.Center).
+		Radius(g.radius).FontSize(fs).FontWeight(design.WeightMedium).
+		Cursor(ui.CursorPointer).Transition(design.Transition(c)).Shrink(0).FocusRing(false)
+	padX := g.padX
+	if g.w > 0 {
+		b.Width(g.w)
 	}
 	b.PaddingX(padX)
 	if o.Grow {
@@ -79,23 +105,24 @@ func Button(c *ui.Context, label string, o ButtonOpts) ui.Element {
 	}
 	disabled := o.Disabled || o.Loading
 	b.Disabled(disabled)
-	hov, pr := b.Hovered() && !disabled, b.Pressed() && !disabled
+	kbd := b.FocusVisible() && !disabled
+	hov, pr := (b.Hovered() || kbd) && !disabled, b.Pressed() && !disabled
 	var fg ui.Color
 	switch o.Variant {
 	case Primary, Danger, GlassProminent:
-		base := p.Accent
+		// Flat: the accent (or red), a step lighter on hover and darker
+		// when pressed. No gradient, no highlight, no glow.
+		bg := p.Accent
 		if o.Variant == Danger {
-			base = design.Red[1]
+			bg = p.Danger
 		}
-		if hov {
-			base = base.Mix(ui.RGB(255, 255, 255), 0.08)
+		switch {
+		case pr:
+			bg = bg.MixOklab(ui.RGB(0, 0, 0), 0.08)
+		case hov:
+			bg = bg.MixOklab(ui.RGB(255, 255, 255), 0.08)
 		}
-		if pr {
-			base = base.Mix(ui.RGB(0, 0, 0), 0.1)
-		}
-		b.LinearGradient(ui.LinearGradient{From: base.Mix(ui.RGB(255, 255, 255), 0.07), To: base, Angle: 180}).
-			InsetShadow(0, 1, 0, 0, ui.RGBA(255, 255, 255, 0.2)).
-			Shadow(0, 1, 2, 0, design.Fade(base, 0.35)).Shadow(0, 3, 8, -2, design.Fade(base, 0.3))
+		b.Background(bg)
 		fg = p.TextOnAccent
 		b.FontWeight(design.WeightSemibold)
 	case Ghost:
@@ -110,18 +137,18 @@ func Button(c *ui.Context, label string, o ButtonOpts) ui.Element {
 	case Plain:
 		fg = p.AccentText
 		if hov {
-			fg = p.AccentHover
+			b.Background(p.Hover)
 		}
 	default:
+		// Secondary: a flat subtle fill with a 1 px hairline.
 		bg := p.ButtonFill
 		if hov {
 			bg = p.ButtonHover
 		}
 		if pr {
-			bg = p.Pressed.Over(p.ButtonFill)
+			bg = bg.MixOklab(ui.RGB(0, 0, 0), 0.06)
 		}
-		b.Background(bg).Border(0.5, p.BorderStrong)
-		design.Elevate(c, b, design.Lifted)
+		b.Background(bg).Border(1, p.ButtonStroke)
 		fg = p.Text
 		if o.Danger {
 			fg = p.Danger
@@ -134,6 +161,7 @@ func Button(c *ui.Context, label string, o ButtonOpts) ui.Element {
 	b.TextColor(fg)
 	isz := fs + 1
 	b.Children(func() {
+		FocusMark(c, kbd, g.h/2)
 		// The content fades out under the spinner while loading, keeping
 		// the button's width.
 		show := float32(1)
@@ -173,10 +201,10 @@ func Button(c *ui.Context, label string, o ButtonOpts) ui.Element {
 // IconButton is a borderless square icon button with a tooltip.
 func IconButton(c *ui.Context, ic *ui.SVG, title string) ui.Element {
 	p := design.Of(c)
-	b := ui.ButtonBase(c).Label(title).Size(28, 28).Center().Radius(design.RadiusControl).
+	b := ui.ButtonBase(c).Label(title).Size(28, 28).Center().Radius(PillRadius(28)).FocusRing(false).
 		Cursor(ui.CursorPointer).Transition(design.Transition(c)).Shrink(0)
 	fg := p.TextSecondary
-	if b.Hovered() {
+	if b.Hovered() || b.FocusVisible() {
 		b.Background(p.Hover)
 		fg = p.Text
 	}
@@ -184,7 +212,7 @@ func IconButton(c *ui.Context, ic *ui.SVG, title string) ui.Element {
 		b.Background(p.Pressed)
 	}
 	Press(b, false, b.Pressed(), 0)
-	b.Children(func() { Glyph(c, ic, 16, fg) })
+	b.Children(func() { Glyph(c, ic, 16, fg); FocusMark(c, b.FocusVisible(), 9) })
 	b.Tooltip(title)
 	return b
 }
@@ -193,18 +221,20 @@ func IconButton(c *ui.Context, ic *ui.SVG, title string) ui.Element {
 // the accent chip when prominent.
 func GlassIcon(c *ui.Context, ic *ui.SVG, title, hotkey string, prominent bool) ui.Element {
 	p := design.Of(c)
-	const s = 32
-	b := ui.ButtonBase(c).Label(title).Size(s, s).Center().Radius(design.RadiusControl + 1).Cursor(ui.CursorPointer).Shrink(0).
+	const s = design.ToolbarControl
+	b := ui.ButtonBase(c).Label(title).Size(s, s).Center().Radius(PillRadius(s)).FocusRing(false).Cursor(ui.CursorPointer).Shrink(0).
 		Transition(design.Transition(c))
 	fg := p.Text
-	hov, pr := b.Hovered(), b.Pressed()
+	hov, pr := b.Hovered() || b.FocusVisible(), b.Pressed()
 	if prominent {
-		base := p.Accent
-		if hov {
-			base = p.AccentHover
+		bg := p.Accent
+		switch {
+		case pr:
+			bg = bg.MixOklab(ui.RGB(0, 0, 0), 0.08)
+		case hov:
+			bg = bg.MixOklab(ui.RGB(255, 255, 255), 0.08)
 		}
-		b.LinearGradient(ui.LinearGradient{From: base.Mix(ui.RGB(255, 255, 255), 0.08), To: base, Angle: 180}).
-			InsetShadow(0, 1, 0, 0, ui.RGBA(255, 255, 255, 0.22)).Shadow(0, 2, 6, -1, design.Fade(base, 0.45))
+		b.Background(bg)
 		fg = p.TextOnAccent
 	} else {
 		fg = p.TextSecondary
@@ -218,6 +248,7 @@ func GlassIcon(c *ui.Context, ic *ui.SVG, title, hotkey string, prominent bool) 
 	}
 	Press(b, false, pr, 0)
 	b.Children(func() {
+		FocusMark(c, b.FocusVisible(), s/2-5)
 		g := Glyph(c, ic, 17, fg)
 		if prominent {
 			// The plus turns a quarter on hover: the same strokes, a hint
@@ -241,13 +272,14 @@ func GlassIcon(c *ui.Context, ic *ui.SVG, title, hotkey string, prominent bool) 
 // becomes a check for a moment.
 func CopyButton(c *ui.Context, content, title string) bool {
 	p := design.Of(c)
-	b := ui.ButtonBase(c).Label(title).Size(28, 28).Center().Radius(design.RadiusControl).Cursor(ui.CursorPointer).Shrink(0)
+	b := ui.ButtonBase(c).Label(title).Size(28, 28).Center().Radius(PillRadius(28)).FocusRing(false).Cursor(ui.CursorPointer).Shrink(0)
 	at := ui.Local(b, "copied", func() time.Time { return time.Time{} })
 	done := time.Since(*at) < 1400*time.Millisecond
-	if b.Hovered() {
+	if b.Hovered() || b.FocusVisible() {
 		b.Background(p.Hover)
 	}
 	b.Children(func() {
+		FocusMark(c, b.FocusVisible(), 9)
 		if done {
 			Pop(Glyph(c.Key("ok"), icons.Check, 15, p.Success))
 			c.After(1400*time.Millisecond - time.Since(*at))

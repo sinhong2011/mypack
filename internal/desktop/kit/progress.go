@@ -74,7 +74,7 @@ func ProgressBar(c *ui.Context, value float64) ui.Element {
 			return
 		}
 		v := float32(max(0, min(1, value)))
-		bar := ui.Box(c).Height(6).Radius(3).LinearGradient(ui.LinearGradient{From: p.Accent.Mix(ui.RGB(255, 255, 255), 0.18), To: p.Accent, Angle: 90})
+		bar := ui.Box(c).Height(6).Radius(3).Background(p.Accent)
 		bar.WidthPercent(bar.AnimateTo("w", v*100, design.SpringSoft))
 	})
 	return track.Role(ui.RoleProgress).Range(0, 1, max(0, value))

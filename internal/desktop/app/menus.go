@@ -54,6 +54,7 @@ func (a *App) installMenu() {
 			{Label: T("nav.builds"), Accelerator: "CmdOrCtrl+3", Click: on(func() { a.nav(secBuilds) })},
 			{Label: T("nav.runtimes"), Accelerator: "CmdOrCtrl+4", Click: on(func() { a.nav(secRuntimes) })},
 			mygo.Separator(),
+			{Label: T("menu.palette"), Accelerator: "CmdOrCtrl+K", Click: on(a.togglePalette)},
 			{Label: T("menu.find"), Accelerator: "CmdOrCtrl+F", Click: on(func() { a.nav(secLibrary); a.lib.focusSearch = true })},
 			mygo.Separator(),
 			{Role: mygo.RoleToggleFullScreen},

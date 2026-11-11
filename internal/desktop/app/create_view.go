@@ -39,7 +39,6 @@ func (a *App) createView(c *ui.Context) {
 
 		// The hero: icon, name, source and the Dock preview.
 		ui.Column(c).AlignItems(ui.Center).Gap(0).Padding(28, 24, 24, 24).Radius(28).Children(func() {
-			ui.Box(c).Absolute().Fill().PassThrough().AccessHidden(true).Draw(func(pt *ui.Painter, r ui.Rect) { design.PaintDots(pt, r, p, true) })
 			loading := s.normalized != "" && s.meta == nil && s.metaFor != s.normalized
 			ui.Box(c).Size(heroIcon, heroIcon).Children(func() {
 				if loading && s.iconPNG == nil {
@@ -208,7 +207,7 @@ func (a *App) renameField(c *ui.Context, loading bool) {
 		TextAlign(ui.Center).Width(320).MaxWidthPercent(100).Height(34).Padding(0, 12).Radius(10).Margin(14, 0, 2, 0).
 		Transition(design.Transition(c)).Tooltip(T("create.name.tip"))
 	if in.Focused() {
-		in.Background(p.FieldFill).Border(1, p.Accent.Alpha(0.7)).Shadow(0, 0, 0, 3, p.Accent.Alpha(0.16))
+		kit.FieldStyle(c, in, true, false)
 	} else if in.Hovered() {
 		in.Background(p.Hover)
 	}
@@ -250,7 +249,7 @@ func (a *App) dockPreview(c *ui.Context, loading bool) {
 							if loading && s.iconPNG == nil {
 								kit.Shimmer(c, big, big, design.AppIconRadius(big))
 							} else {
-								kit.AppIconOpts(c, a.createIcon(), s.displayName(), big, kit.IconOpts{Shadow: true})
+								a.iconAt["create"] = kit.AppIconOpts(c, a.createIcon(), s.displayName(), big, kit.IconOpts{Shadow: true}).Bounds()
 							}
 						})
 						ui.Box(c).Size(4, 4).Radius(2).Background(p.Text.Alpha(0.6))
@@ -293,7 +292,7 @@ func (a *App) iconPicker(c *ui.Context, png []byte, name string, size float32) u
 func editBadge(c *ui.Context, p *design.Palette, size float32, show bool) {
 	s := max(22, size*0.22)
 	e := ui.Row(c).Absolute().Right(-s*0.25).Bottom(-s*0.25).Size(s, s).Radius(s/2).Center().
-		Background(p.Raised).Border(0.5, p.BorderStrong).Shadow(0, 2, 6, 0, p.Shadow).PassThrough().AccessHidden(true)
+		Background(p.Raised).Border(1, p.BorderStrong).PassThrough().AccessHidden(true)
 	e.Children(func() { kit.Glyph(c, icons.Edit, s*0.45, p.Text) })
 	op := float32(0)
 	if show {

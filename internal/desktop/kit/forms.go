@@ -15,16 +15,8 @@ import (
 // focus takes an accent edge and a soft glow that grows in, and which
 // shakes once when it turns invalid.
 func fieldChrome(c *ui.Context, box ui.Element, focused, invalid bool, radius float32) {
-	p := design.Of(c)
-	box.Radius(radius).Background(p.FieldFill).Transition(ui.ElementTransition{Duration: design.Dur(c, design.MotionBase), Ease: design.EaseStd, Colors: true, Shadows: true})
-	switch {
-	case invalid:
-		box.Border(1, p.Danger).Shadow(0, 0, 0, 3, design.Fade(p.Danger, 0.16))
-	case focused:
-		box.Border(1, design.Fade(p.Accent, 0.8)).Shadow(0, 0, 0, 3.5, design.Fade(p.Accent, 0.16))
-	default:
-		box.Border(0.5, p.BorderStrong).InsetShadow(0, 1, 2, 0, design.Fade(p.Shadow, 0.6))
-	}
+	box.Radius(radius).Transition(ui.ElementTransition{Duration: design.Dur(c, 140*time.Millisecond), Ease: design.EaseStd, Colors: true, Shadows: true})
+	FieldStyle(c, box, focused, invalid)
 	// Shake once on turning invalid.
 	since := ui.Local(box, "invalidAt", func() time.Time { return time.Time{} })
 	was := ui.Local(box, "invalid", func() bool { return false })
@@ -36,6 +28,20 @@ func fieldChrome(c *ui.Context, box ui.Element, focused, invalid bool, radius fl
 		box.Translate(float32(Shake(t)), 0)
 		c.Invalidate()
 	}
+}
+
+// FieldStyle is the one look of a text field: a sunken fill with a 1 px
+// hairline at rest; focused, the fill brightens a step and the hairline
+// darkens a little. Nothing outside the field: no ring, no glow.
+func FieldStyle(c *ui.Context, box ui.Element, focused, invalid bool) ui.Element {
+	p := design.Of(c)
+	switch {
+	case invalid:
+		return box.Background(p.FieldFocus).Border(1, design.Fade(p.Danger, 0.75))
+	case focused:
+		return box.Background(p.FieldFocus).Border(1, p.BorderStrong)
+	}
+	return box.Background(p.FieldRest).Border(1, p.FieldStroke)
 }
 
 // ---- Hero URL field ----------------------------------------------------------------
@@ -110,12 +116,12 @@ func URLField(c *ui.Context, value *string, o URLFieldOpts) URLFieldResult {
 	focused := in.Focused()
 	r.DragOver = box.FileDragOver()
 	r.Dropped = box.DroppedFiles()
-	fieldChrome(c, box, focused || r.DragOver, false, design.RadiusCard+2)
+	fieldChrome(c, box, focused || r.DragOver, false, design.RadiusField)
 	if !focused && !r.DragOver {
 		design.Elevate(c, box, design.Lifted)
 	}
 	if r.DragOver {
-		box.Background(p.AccentSoft.Over(p.FieldFill))
+		box.Background(p.AccentSoft.Over(p.FieldFocus))
 	}
 	if box.Clicked() {
 		in.Focus()
@@ -246,7 +252,7 @@ func PopUp(c *ui.Context, selected *string, options []Option, label string) ui.E
 func Switch(c *ui.Context, on *bool, label string) ui.Element {
 	p := design.Of(c)
 	const w, h, pad = 36, 21, 2
-	track := ui.SwitchBase(c, on).Size(w, h).Padding(pad).Radius(h / 2).Cursor(ui.CursorPointer).Label(label)
+	track := ui.SwitchBase(c, on).Size(w, h).Padding(pad).Radius(h / 2).Cursor(ui.CursorPointer).Label(label).FocusRing(false)
 	bg := p.Fill.Over(p.Raised)
 	if p.Dark {
 		bg = p.BorderStrong
@@ -254,8 +260,7 @@ func Switch(c *ui.Context, on *bool, label string) ui.Element {
 	if *on {
 		bg = p.Accent
 	}
-	track.Background(track.AnimateColor("bg", bg, design.Tween(design.MotionBase, design.EaseStd))).
-		InsetShadow(0, 1, 2, 0, design.Fade(p.Shadow, 1.2))
+	track.Background(track.AnimateColor("bg", bg, design.Tween(design.MotionBase, design.EaseStd)))
 	if track.IsDisabled() {
 		track.Opacity(0.45)
 	}
@@ -271,9 +276,9 @@ func Switch(c *ui.Context, on *bool, label string) ui.Element {
 		if *on {
 			x = w - 2*pad - width
 		}
-		th := ui.Box(c).Size(width, knob).Radius(knob/2).Background(ui.RGB(255, 255, 255)).
-			Shadow(0, 1, 3, 0, ui.RGBA(0, 0, 0, 0.22)).Shadow(0, 0, 0, 0.5, ui.RGBA(0, 0, 0, 0.06))
+		th := ui.Box(c).Size(width, knob).Radius(knob/2).Background(ui.RGB(255, 255, 255)).Border(0.5, ui.RGBA(0, 0, 0, 0.1))
 		th.Translate(track.AnimateTo("x", x, design.Spring), 0)
+		FocusMark(c, track.FocusVisible(), 8)
 	})
 	return track
 }
@@ -282,11 +287,12 @@ func Switch(c *ui.Context, on *bool, label string) ui.Element {
 // check draws itself on.
 func Checkbox(c *ui.Context, checked *bool, label string) ui.Element {
 	p := design.Of(c)
-	row := ui.CheckboxBase(c, checked).Row().Gap(8).AlignItems(ui.Center).Cursor(ui.CursorPointer).Label(label)
+	row := ui.CheckboxBase(c, checked).Row().Gap(8).AlignItems(ui.Center).Cursor(ui.CursorPointer).Label(label).FocusRing(false)
 	row.Children(func() {
+		FocusMark(c, row.FocusVisible(), 0)
 		box := ui.Box(c).Size(16, 16).Radius(4.5).Transition(design.Transition(c))
 		if *checked {
-			box.Background(p.Accent).InsetShadow(0, 1, 0, 0, ui.RGBA(255, 255, 255, 0.2))
+			box.Background(p.Accent)
 		} else {
 			box.Background(p.FieldFill).Border(1, p.BorderStrong)
 		}
@@ -324,7 +330,7 @@ func TextField(c *ui.Context, value *string, label string, o FieldOpts) ui.Eleme
 	if o.Mono {
 		in.Font(MonoFont).FontSize(design.FontSmall)
 	}
-	fieldChrome(c, in, in.Focused(), o.Invalid, design.RadiusControl)
+	fieldChrome(c, in, in.Focused(), o.Invalid, design.RadiusField)
 	return in
 }
 
@@ -336,7 +342,7 @@ func TextArea(c *ui.Context, value *string, label, placeholder string, minLines,
 	if mono {
 		in.Font(MonoFont).FontSize(design.FontSmall)
 	}
-	fieldChrome(c, in, in.Focused(), false, design.RadiusControl)
+	fieldChrome(c, in, in.Focused(), false, design.RadiusField)
 	return in
 }
 
@@ -366,7 +372,7 @@ func Segmented(c *ui.Context, selected *int, labels []string, small bool) ui.Ele
 				if i == *selected {
 					ind := ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Radius(design.RadiusControl - 1).ZIndex(-1).
 						Background(p.Raised)
-					design.Elevate(c, ind, design.Lifted)
+					design.RaisedControl(c, ind)
 					Glide(ind, segMatch{selected})
 				}
 				ui.Text(c, l).SingleLine()
@@ -401,9 +407,9 @@ func SearchField(c *ui.Context, query *string, placeholder string, h *ui.Handle,
 		}
 	})
 	focused := in.Focused()
-	fieldChrome(c, box, focused, false, design.RadiusControl)
+	fieldChrome(c, box, focused, false, design.RadiusField)
 	if !focused {
-		box.Background(p.Fill).Border(0.5, ui.Transparent).InsetShadow(0, 0, 0, 0, ui.Transparent)
+		design.Well(c, box)
 	}
 	if box.Clicked() {
 		in.Focus()
@@ -416,11 +422,12 @@ func SearchField(c *ui.Context, query *string, placeholder string, h *ui.Handle,
 func Disclosure(c *ui.Context, open *bool, title, subtitle string) ui.Element {
 	p := design.Of(c)
 	b := ui.ButtonBase(c).Label(title).Row().Justify(ui.Start).Height(36).PaddingX(8).Gap(8).AlignItems(ui.Center).
-		Radius(design.RadiusControl).Cursor(ui.CursorPointer).Role(ui.RoleDisclosure).Expanded(*open).Transition(design.Transition(c))
-	if b.Hovered() {
+		Radius(design.RadiusControl).Cursor(ui.CursorPointer).Role(ui.RoleDisclosure).Expanded(*open).Transition(design.Transition(c)).FocusRing(false)
+	if b.Hovered() || b.FocusVisible() {
 		b.Background(p.Hover)
 	}
 	b.Children(func() {
+		FocusMark(c, b.FocusVisible(), 8)
 		ch := Glyph(c, icons.ChevronRt, 14, p.TextSecondary)
 		turn := float32(0)
 		if *open {
@@ -443,22 +450,15 @@ func TargetChip(c *ui.Context, ic *ui.SVG, label, sub string, selected, disabled
 	p := design.Of(c)
 	b := ui.ButtonBase(c).Label(label).Row().Justify(ui.Start).Height(52).Padding(0, 12).Gap(10).AlignItems(ui.Center).
 		Radius(design.RadiusCard).Cursor(ui.CursorPointer).Transition(design.Transition(c)).Disabled(disabled).
-		Role(ui.RoleCheckBox).Checked(selected)
-	hov := b.Hovered() && !disabled
-	switch {
-	case selected:
-		b.Background(p.AccentSoft.Over(p.Raised)).Border(1.5, p.Accent)
-	case hov:
-		b.Background(p.Raised).Border(0.5, p.BorderStrong)
-		design.Elevate(c, b, design.Lifted)
-	default:
-		b.Background(p.Raised).Border(0.5, p.GroupBorder)
-	}
+		Role(ui.RoleCheckBox).Checked(selected).FocusRing(false)
+	hov := (b.Hovered() || b.FocusVisible()) && !disabled
+	ChoiceStyle(c, b, p.Raised, selected, hov && !selected)
 	Lift(b, hov && !selected, b.Pressed())
 	if disabled {
 		b.Opacity(0.5).Cursor(ui.CursorNotAllowed)
 	}
 	b.Children(func() {
+		FocusMark(c, b.FocusVisible(), 12)
 		col := p.TextSecondary
 		if selected {
 			col = p.AccentText
@@ -517,7 +517,7 @@ func StatusDot(c *ui.Context, label string, tone Tone) ui.Element {
 		dot = p.TextTertiary
 	}
 	return ui.Row(c).Gap(7).AlignItems(ui.Center).Shrink(0).Children(func() {
-		ui.Box(c).Size(7, 7).Radius(3.5).Background(dot).Shadow(0, 0, 0, 2.5, design.Fade(dot, 0.16))
+		ui.Box(c).Size(7, 7).Radius(3.5).Background(dot)
 		ui.Text(c, label).FontSize(design.FontSmall).TextColor(p.TextSecondary).SingleLine()
 	})
 }
@@ -546,7 +546,6 @@ func Note(c *ui.Context, ic *ui.SVG, text string, tone Tone) ui.Element {
 func EmptyState(c *ui.Context, ic *ui.SVG, title, body string, actions func()) {
 	p := design.Of(c)
 	ui.Column(c).AlignItems(ui.Center).Gap(8).Padding(44, 24).Children(func() {
-		ui.Box(c).Absolute().Fill().PassThrough().AccessHidden(true).Draw(func(pt *ui.Painter, r ui.Rect) { design.PaintDots(pt, r, p, true) })
 		tile := ui.Row(c).Size(52, 52).Radius(14).Center().Background(p.Raised).Border(0.5, p.GroupBorder).Margin(0, 0, 8, 0)
 		design.Elevate(c, tile, design.Floating)
 		tile.Children(func() { Glyph(c, ic, 22, p.TextSecondary) })

@@ -56,7 +56,7 @@ func (a *App) projectView(c *ui.Context) {
 		return
 	}
 	p := design.Of(c)
-	page(c, 760, func() {
+	page(c, 880, func() {
 		// Header (the build panel shows the icon itself while it is up).
 		var watched *domain.BuildJob
 		if id, ok := a.watch[pr.ID]; ok {
@@ -66,6 +66,16 @@ func (a *App) projectView(c *ui.Context) {
 			watched = lj
 		}
 		hero := a.projTab == 0 && watched != nil && watched.Status != domain.JobAwaitingApproval
+		// The page carries a faint wash of the site's own colour.
+		tint := kit.IconTint(pr.IconPNG, pr.Config.App.Name)
+		ui.Box(c).Absolute().Top(-120).Left(-200).Right(-200).Height(520).PassThrough().AccessHidden(true).ZIndex(-1).
+			RadialGradient(ui.RadialGradient{Center: ui.Point{X: 0.5, Y: 0.001}, Radius: 520,
+				Stops: []ui.GradientStop{{Color: design.Fade(tint, 0.13), At: 0}, {Color: tint.Alpha(0), At: 1}}})
+		if a.projTab == 0 && !hero {
+			a.projectBento(c, pr)
+			a.projectOverview(c, pr, p)
+			return
+		}
 		ui.Row(c).Gap(20).Hidden(hero).AlignItems(ui.Center).Children(func() {
 			a.projectIcon(c, pr, 80)
 			ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
@@ -122,7 +132,9 @@ func (a *App) projectIcon(c *ui.Context, pr *domain.Project, size float32) {
 	})
 	hov := b.Hovered()
 	b.Children(func() {
-		kit.AppIconOpts(c, pr.IconPNG, pr.Config.App.Name, size, kit.IconOpts{Shadow: true})
+		ic := kit.AppIconOpts(c, pr.IconPNG, pr.Config.App.Name, size, kit.IconOpts{Shadow: true})
+		a.flyTo(c, iconKey(pr.ID), ic)
+		a.iconAt[iconKey(pr.ID)] = ic.Bounds()
 		editBadge(c, p, size, hov)
 	})
 	b.Tooltip(T("create.icon.change"))
@@ -138,46 +150,25 @@ func (a *App) projectToolbar(c *ui.Context) {
 	if pr == nil {
 		return
 	}
-	p := design.Of(c)
-	grp := ui.Row(c).Height(design.Control).Padding(2).Gap(0).Radius(design.RadiusControl + 1).Background(p.Fill).Role(ui.RoleTabList).Label(T("project.tabs"))
-	grp.Children(func() {
-		for i, label := range []string{T("project.tab.overview"), T("project.tab.settings")} {
-			b := ui.ButtonBase(c.Key(i)).Label(label).Height(design.Control - 4).PaddingX(12).Center().Radius(design.RadiusControl - 1).Cursor(ui.CursorPointer).
-				Role(ui.RoleTab).Selected(a.projTab == i)
-			fg := p.TextSecondary
-			if a.projTab == i {
-				fg = p.Text
-			}
-			b.Children(func() {
-				if a.projTab == i {
-					ind := ui.Box(c).Absolute().Fill().Radius(design.RadiusControl - 1).ZIndex(-1).Background(p.Raised)
-					design.Elevate(c, ind, design.Lifted)
-					kit.Glide(ind, tabGlide{})
-				}
-				ui.Text(c, label).FontSize(design.FontBody).FontWeight(design.WeightMedium).TextColor(fg).SingleLine()
-			})
-			if b.Clicked() {
-				a.projTab = i
-			}
-		}
-	})
+	kit.PillSegmented(c.Key("tabs"), &a.projTab, []kit.PillSegment{{Label: T("project.tab.overview")}, {Label: T("project.tab.settings")}},
+		T("project.tabs"), tabGlide{}, true)
 	busy := false
 	if j := a.latestJob(pr.ID); j != nil && (j.Status == domain.JobRunning || j.Status == domain.JobQueued || j.Status == domain.JobAwaitingApproval) {
 		busy = true
 	}
-	if kit.Button(c.Key("build"), T("action.build"), kit.ButtonOpts{Variant: kit.Primary, Icon: icons.Build,
+	if kit.Button(c.Key("build"), T("action.build"), kit.ButtonOpts{Variant: kit.Primary, Size: design.ToolbarControl, Icon: icons.Build,
 		Disabled: busy, Hotkey: "mod+b"}).Clicked() {
 		a.startBuild(pr.ID, nil)
 	}
-	kit.GlassIcon(c.Key("more"), icons.More, T("common.more"), "", false).Menu(func(m *ui.Menu) { a.projectMenu(m, pr) })
+	kit.ToolbarIcon(c.Key("more"), icons.More, T("common.more")).Menu(func(m *ui.Menu) { a.projectMenu(m, pr) })
 }
 
 // projectMenu is shared by cards, rows and the project header.
 func (a *App) projectMenu(m *ui.Menu, pr *domain.Project) {
 	id := pr.ID
-	if in := a.installFor(id); in != nil {
-		if m.Item(T("action.open")).Chosen() {
-			a.openInstall(in.ID)
+	if label, _, run := a.projectLaunch(pr); label == T("action.open") {
+		if m.Item(label).Chosen() {
+			run()
 		}
 	}
 	if m.Item(T("action.build")).Shortcut(ui.Cmd, ui.KeyB).Chosen() {
@@ -313,4 +304,102 @@ func (a *App) exportProject(id, name string) {
 			a.toast(T("export.done"), path, 1)
 		})
 	}()
+}
+
+// projectLaunch is the one-click action for a project: Open its installed
+// app, else launch its latest build in place, else Build it.
+func (a *App) projectLaunch(pr *domain.Project) (label string, ic *ui.SVG, run func()) {
+	id := pr.ID
+	if in := a.installFor(id); in != nil && in.State != domain.InstallMissing {
+		return T("action.open"), icons.Play, func() { a.openInstall(in.ID) }
+	}
+	if j := a.lastSuccess(id); j != nil {
+		for _, art := range j.Artifacts {
+			if art.Target.OS == a.host.OS {
+				artID := art.ID
+				return T("action.open"), icons.Play, func() { a.openArtifact(artID) }
+			}
+		}
+	}
+	return T("action.build"), icons.Build, func() { a.startBuild(id, nil) }
+}
+
+func (a *App) openArtifact(id string) {
+	a.do(func(ctx context.Context) error { return a.svc.OpenArtifact(ctx, id) }, a.toastErr)
+}
+
+// projectBento is the project's overview at a glance: a large hero tile
+// (icon in its own light, the name in display type, the one-click action)
+// beside small tiles for status, size, runtime and last build.
+func (a *App) projectBento(c *ui.Context, pr *domain.Project) {
+	p := design.Of(c)
+	tint := kit.IconTint(pr.IconPNG, pr.Config.App.Name)
+	st, tone, _ := a.projectStatus(pr)
+	var size, runtime, built string = "—", "—", "—"
+	if j := a.lastSuccess(pr.ID); j != nil {
+		if len(j.Artifacts) > 0 {
+			size = bytesLabel(j.Artifacts[0].Size)
+		}
+		runtime = j.RuntimeVersion
+		built = ago(j.CreatedAt)
+	}
+	tile := func(key string) ui.Element {
+		t := ui.Column(c.Key(key)).Padding(16, 18).Gap(6).Radius(design.RadiusPanel).Border(0.5, p.GroupBorder).MinWidth(0)
+		design.Tint(t, p.CanvasTop, p.CanvasBot)
+		return design.Elevate(c, t, design.Lifted)
+	}
+	ui.Grid(c).ColumnTracks(ui.Fr(1), ui.Fr(1), ui.Fr(1), ui.Fr(1)).Gap(12).Children(func() {
+		hero := tile("hero").ColumnSpan(2).RowSpan(2).Padding(22).Gap(14).Clip().Justify(ui.SpaceBetween)
+		kit.Arrive(hero, 0, design.StaggerGrid)
+		hero.Children(func() {
+			ui.Box(c).Absolute().Fill().PassThrough().AccessHidden(true).ZIndex(-1).
+				LinearGradient(ui.LinearGradient{Angle: 160, From: design.Fade(tint, 0.16), To: tint.Alpha(0)})
+			ui.Row(c).Gap(16).AlignItems(ui.Center).Children(func() {
+				ui.Box(c).Size(84, 84).Children(func() {
+					a.projectIcon(c, pr, 84)
+				})
+				ui.Column(c).Grow(1).MinWidth(0).Gap(4).AlignItems(ui.Start).Children(func() {
+					kit.LargeTitle(c, pr.Config.App.Name).SingleLine().MinWidth(0)
+					ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+						kit.Glyph(c, icons.Link, 12, p.TextTertiary)
+						kit.Secondary(c, domainOf(pr.Config.App.Source)).SingleLine().MinWidth(0)
+					})
+				})
+			})
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				label, ic, run := a.projectLaunch(pr)
+				if kit.Button(c.Key("launch"), label, kit.ButtonOpts{Variant: kit.Primary, Size: design.ControlLG, Icon: ic}).Clicked() {
+					run()
+				}
+				if j := a.lastSuccess(pr.ID); j != nil && len(j.Artifacts) > 0 {
+					path := j.Artifacts[0].Path
+					if kit.Button(c.Key("reveal"), T("action.showInFinder"), kit.ButtonOpts{Size: design.ControlLG, Icon: icons.Folder}).Clicked() {
+						a.reveal(path)
+					}
+				}
+			})
+		})
+		stat := func(i int, key, label, value string, numeric bool, extra func()) {
+			t := tile(key)
+			kit.Arrive(t, i, design.StaggerGrid)
+			t.Children(func() {
+				kit.Eyebrow(c, label)
+				v := ui.Text(c, value).FontSize(design.FontTitle1).FontWeight(design.WeightSemibold).TextColor(p.Text).
+					LetterSpacing(design.TrackTitle).SingleLine()
+				if numeric {
+					v.FontFeatures("tnum")
+				}
+				if extra != nil {
+					extra()
+				}
+			})
+		}
+		stat(1, "status", T("list.col.status"), st, false, func() {
+			fg, _ := kit.ToneColors(p, tone)
+			ui.Box(c).Absolute().Top(18).Right(18).Size(8, 8).Radius(4).Background(fg)
+		})
+		stat(2, "size", T("builds.size"), size, true, nil)
+		stat(3, "runtime", T("app.runtime"), runtime, true, nil)
+		stat(4, "built", T("project.bento.built"), built, false, nil)
+	})
 }

@@ -8,6 +8,7 @@ import (
 	_ "image/jpeg"
 	"image/png"
 	"strings"
+	"sync"
 	"unicode"
 
 	"github.com/egoist/mygo/ui"
@@ -15,6 +16,7 @@ import (
 	"mypack.dev/mypack/internal/desktop/assets"
 	"mypack.dev/mypack/internal/desktop/design"
 	"mypack.dev/mypack/internal/desktop/kit/icons"
+	appicons "mypack.dev/mypack/internal/icons"
 )
 
 // Template outline cube for the macOS menu bar (monochrome, tinted by the OS).
@@ -63,24 +65,102 @@ type iconArt struct {
 	bmp            *ui.Bitmap
 	x0, y0, x1, y1 float32
 	tint           ui.Color // the icon's average opaque color
+	normalized     bool     // the art is the normalized full-bleed icon
 }
 
-var artCache = map[*byte]*iconArt{}
+// Icons arrive in every shape: circles, bare logos on transparency, tiny
+// favicons, squares on their own plates. Every icon is normalized to the
+// same full-bleed art (icons.MacAppIcon) and then masked to one squircle,
+// so all tiles share a silhouette. Normalizing runs off the main thread;
+// until it lands the raw art shows, cropped to its body.
+
+var (
+	artCache  = map[*byte]*iconArt{}  // by slice identity (fast path)
+	artByHash = map[uint64]*iconArt{} // by content
+	normMu    sync.Mutex
+	normDone  = map[uint64][]byte{} // normalized PNGs waiting to be decoded
+	normBusy  = map[uint64]bool{}
+)
+
+// Invalidate redraws the window once a normalized icon is ready (set by
+// the app).
+var Invalidate = func() {}
+
+func contentHash(data []byte) uint64 {
+	h := fnv.New64a()
+	h.Write(data)
+	return h.Sum64()
+}
 
 func artFor(data []byte) *iconArt {
 	if len(data) == 0 {
 		return nil
 	}
 	k := &data[0]
-	if a, ok := artCache[k]; ok {
+	if a, ok := artCache[k]; ok && (a == nil || a.normalized) {
 		return a
 	}
 	if len(artCache) > 400 {
 		artCache = map[*byte]*iconArt{}
 	}
+	hash := contentHash(data)
+	if a, ok := artByHash[hash]; ok && a.normalized {
+		artCache[k] = a
+		return a
+	}
+	normMu.Lock()
+	norm, ready := normDone[hash]
+	if ready {
+		delete(normDone, hash)
+	} else if !normBusy[hash] {
+		normBusy[hash] = true
+		src := append([]byte(nil), data...)
+		go func() {
+			out, err := appicons.MacAppIcon(src)
+			normMu.Lock()
+			if err != nil {
+				out = nil
+			}
+			normDone[hash] = out
+			normMu.Unlock()
+			Invalidate()
+		}()
+	}
+	normMu.Unlock()
+	if ready {
+		if len(norm) > 0 {
+			if a := decodeArt(norm); a != nil {
+				a.normalized = true
+				if raw := decodeArt(data); raw != nil {
+					a.tint = raw.tint
+				}
+				artByHash[hash] = a
+				artCache[k] = a
+				return a
+			}
+		}
+		// It couldn't be normalized: keep the raw art for good.
+		a := decodeArt(data)
+		if a != nil {
+			a.normalized = true
+		}
+		artByHash[hash] = a
+		artCache[k] = a
+		return a
+	}
+	if a, ok := artByHash[hash]; ok {
+		return a
+	}
+	a := decodeArt(data)
+	artByHash[hash] = a
+	artCache[k] = a
+	return a
+}
+
+// decodeArt decodes an icon and measures its opaque body and tint.
+func decodeArt(data []byte) *iconArt {
 	bmp, err := ui.DecodeBitmap(data)
 	if err != nil {
-		artCache[k] = nil
 		return nil
 	}
 	a := &iconArt{bmp: bmp, x1: 1, y1: 1}
@@ -118,7 +198,6 @@ func artFor(data []byte) *iconArt {
 			}
 		}
 	}
-	artCache[k] = a
 	return a
 }
 
@@ -133,11 +212,11 @@ func AppIcon(c *ui.Context, png []byte, name string, size float32) ui.Element {
 	return AppIconOpts(c, png, name, size, IconOpts{Shadow: size >= 48})
 }
 
-// IconShadow gives an element the layered shadow of a macOS app icon.
+// IconShadow gives an app icon its very soft shadow.
 func IconShadow(c *ui.Context, e ui.Element, size float32) ui.Element {
 	p := design.Of(c)
-	return e.Shadow(0, size*0.045, size*0.11, 0, design.Fade(p.IconShadow, 0.8)).
-		Shadow(0, size*0.012, size*0.025, 0, design.Fade(p.IconShadow, 0.6))
+	// One very soft shadow: the icon just lifts off the canvas.
+	return e.Shadow(0, size*0.04, size*0.12, -size*0.02, design.Fade(p.IconShadow, 0.4))
 }
 
 // AppIconOpts is AppIcon with options.
@@ -159,7 +238,7 @@ func AppIconOpts(c *ui.Context, png []byte, name string, size float32, o IconOpt
 	iw, ih := size/bw, size/bh
 	box.Children(func() {
 		ui.Image(c, art.bmp).Absolute().Left(-art.x0*iw).Top(-art.y0*ih).Size(iw, ih).Fit(ui.Cover)
-		// A hairline rim, as macOS draws around icons on light backgrounds.
+		// A hairline rim.
 		ui.Box(c).Absolute().Fill().Radius(r).Border(0.5, ui.RGBA(0, 0, 0, 0.08)).PassThrough()
 	})
 	return box.AccessHidden(true)
@@ -197,14 +276,8 @@ func Placeholder(c *ui.Context, name string, size float32) ui.Element {
 	}
 	r := design.AppIconRadius(size)
 	return ui.Box(c).Size(size, size).Radius(r).Shrink(0).Clip().
-		LinearGradient(ui.LinearGradient{Angle: 180, Oklab: true, Stops: []ui.GradientStop{{Color: top, At: 0}, {Color: bottom, At: 1}}}).
-		InsetShadow(0, max(1, size*0.012), 0, 0, ui.RGBA(255, 255, 255, 0.35)).
-		InsetShadow(0, -max(1, size*0.012), 0, 0, ui.RGBA(0, 0, 0, 0.12)).
+		Background(top.MixOklab(bottom, 0.5)).
 		Children(func() {
-			ui.Box(c).Absolute().Fill().PassThrough().RadialGradient(ui.RadialGradient{
-				Center: ui.Point{X: 0.5, Y: 0.001}, Radius: size * 0.9,
-				Stops: []ui.GradientStop{{Color: ui.RGBA(255, 255, 255, 0.28), At: 0}, {Color: ui.RGBA(255, 255, 255, 0), At: 1}},
-			})
 			ui.Row(c).Absolute().Fill().Center().Children(func() {
 				if letter == "" {
 					Glyph(c, icons.Globe, size*0.5, ui.RGB(255, 255, 255))
@@ -252,8 +325,7 @@ func IconBadge(c *ui.Context, kind BadgeKind, iconSize float32) {
 	}
 	off := -s * 0.3
 	ui.Row(c).Absolute().Top(off).Right(off).Size(s, s).Radius(s/2).Center().
-		LinearGradient(ui.LinearGradient{From: bg.Mix(ui.RGB(255, 255, 255), 0.15), To: bg, Angle: 180}).
-		Border(2, p.Window).Shadow(0, 1, 3, 0, ui.RGBA(0, 0, 0, 0.2)).Children(func() {
+		Background(bg).Border(2, p.Window).Children(func() {
 		Glyph(c, ic, s*0.48, ui.RGB(255, 255, 255))
 	}).AccessHidden(true)
 }

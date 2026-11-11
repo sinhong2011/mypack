@@ -29,6 +29,7 @@ import (
 	"mypack.dev/mypack/internal/domain"
 	"mypack.dev/mypack/internal/icons"
 	"mypack.dev/mypack/internal/licensing"
+	"mypack.dev/mypack/internal/metadata"
 	"mypack.dev/mypack/pkg/config"
 )
 
@@ -99,8 +100,107 @@ func New() *Service {
 	}
 	if os.Getenv("MYPACK_FAKE_SEED") != "empty" {
 		s.seed()
+		go s.resolveIcons()
 	}
 	return s
+}
+
+// ---- real site icons --------------------------------------------------------
+
+// The demo library shows each site's real icon: fetched once through the
+// real metadata fetcher (three at a time), cached on disk with the presets'
+// icons so they appear at once next time. Offline, the generated glyphs
+// stay.
+
+func iconCachePath(host string) string {
+	d, err := os.UserCacheDir()
+	if err != nil || host == "" {
+		return ""
+	}
+	return filepath.Join(d, "mypack", "preset-icons", host+".png")
+}
+
+func cachedIcon(host string) []byte {
+	path := iconCachePath(host)
+	if path == "" {
+		return nil
+	}
+	if st, err := os.Stat(path); err == nil && time.Since(st.ModTime()) < 7*24*time.Hour {
+		if b, err := os.ReadFile(path); err == nil && len(b) > 0 {
+			return b
+		}
+	}
+	return nil
+}
+
+// realIcon returns the site's own icon: cached, or fetched now.
+func realIcon(ctx context.Context, rawURL string) []byte {
+	u, err := config.NormalizeURL(rawURL)
+	if err != nil {
+		return nil
+	}
+	host := config.RegistrableHost(u)
+	if b := cachedIcon(host); b != nil {
+		return b
+	}
+	m, err := metadata.Fetch(ctx, u)
+	if err != nil || m.Fallback || len(m.IconPNG) == 0 {
+		return nil
+	}
+	if path := iconCachePath(host); path != "" && os.MkdirAll(filepath.Dir(path), 0o755) == nil {
+		_ = os.WriteFile(path, m.IconPNG, 0o644)
+	}
+	return m.IconPNG
+}
+
+func (s *Service) resolveIcons() {
+	s.mu.Lock()
+	type job struct{ id, url string }
+	var jobs []job
+	for id, p := range s.projects {
+		if p.Config.App.Source.Type == config.SourceURL {
+			jobs = append(jobs, job{id, p.Config.App.Source.Value})
+		}
+	}
+	for _, in := range s.installs {
+		if in.ProjectID == "" && in.SourceURL != "" {
+			jobs = append(jobs, job{"inst:" + in.ID, in.SourceURL})
+		}
+	}
+	s.mu.Unlock()
+	sem := make(chan struct{}, 3)
+	var wg sync.WaitGroup
+	for _, j := range jobs {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(j job) {
+			defer func() { <-sem; wg.Done() }()
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			icon := realIcon(ctx, j.url)
+			if icon == nil {
+				return
+			}
+			s.mu.Lock()
+			if p, ok := s.projects[j.id]; ok {
+				p.IconPNG = icon
+				for _, in := range s.installs {
+					if in.ProjectID == j.id {
+						in.IconPNG = icon
+					}
+				}
+			}
+			for _, in := range s.installs {
+				if "inst:"+in.ID == j.id {
+					in.IconPNG = icon
+				}
+			}
+			s.mu.Unlock()
+			s.publish(appservice.Event{Kind: appservice.EventProjectChanged, ProjectID: j.id})
+			s.publish(appservice.Event{Kind: appservice.EventInstallChanged})
+		}(j)
+	}
+	wg.Wait()
 }
 
 func (s *Service) delay(d time.Duration) time.Duration { return time.Duration(float64(d) * s.speed) }
@@ -428,8 +528,12 @@ func (s *Service) FetchMetadata(ctx context.Context, rawURL string) (appservice.
 		return appservice.Metadata{URL: u, Title: title, Fallback: true, Warning: "network unreachable"}, nil
 	}
 	st := knownSites[host]
+	icon := realIcon(ctx, u)
+	if icon == nil {
+		icon = demoIcon(title)
+	}
 	return appservice.Metadata{URL: u, Title: title, Description: st.desc, ThemeColor: st.color,
-		IconURL: "https://" + host + "/favicon.ico", IconPNG: demoIcon(title)}, nil
+		IconURL: "https://" + host + "/favicon.ico", IconPNG: icon}, nil
 }
 
 // ---- builds -----------------------------------------------------------------
@@ -878,6 +982,16 @@ func (s *Service) OpenInstallation(ctx context.Context, id string) error {
 	if in.State == domain.InstallMissing {
 		return &domain.Error{Code: appservice.CodeNotFound, Message: "We couldn't find the app where it was last installed.", Remediation: "Locate the app or rebuild it."}
 	}
+	return nil
+}
+
+func (s *Service) OpenArtifact(ctx context.Context, artifactID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if art, _ := s.artifact(artifactID); art.ID == "" {
+		return notFound("artifact")
+	}
+	s.logActivity("gui", "artifact.open", artifactID, "ok")
 	return nil
 }
 

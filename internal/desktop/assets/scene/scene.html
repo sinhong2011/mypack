@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mypack build scene</title>
+<style>
+/* mypack build scene: a website window morphs into a real app icon and lands
+   in the Dock. Flat, modern, no skeuomorphism. Self-contained, no network.
+   Driven by window.scene.set({...}); runs a demo loop when opened on its own. */
+:root { color-scheme: light dark; --ink: #0e1726; --ink-2: rgba(14,23,38,.55); }
+@media (prefers-color-scheme: dark) { :root { --ink: #eef3fb; --ink-2: rgba(238,243,251,.55); } }
+* { margin: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: transparent;
+  font: 500 13px/1.3 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased; user-select: none; }
+svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.caption { position: absolute; left: 0; right: 0; bottom: 18px; text-align: center; color: var(--ink); font-weight: 600; font-size: 14px; }
+.caption small { display: block; color: var(--ink-2); font-weight: 500; font-size: 12px; margin-top: 3px; }
+.embedded .caption { display: none; }
+</style>
+</head>
+<body>
+<svg id="svg" viewBox="0 0 400 320" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+  <defs>
+    <radialGradient id="halo" cx="50%" cy="46%" r="55%">
+      <stop id="h0" offset="0" stop-color="#1578FA" stop-opacity=".16"/>
+      <stop id="h1" offset="1" stop-color="#1578FA" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="lift" x="-40%" y="-40%" width="180%" height="190%">
+      <feDropShadow dx="0" dy="12" stdDeviation="12" flood-color="#0b2a6b" flood-opacity=".18"/>
+    </filter>
+    <filter id="dockShadow" x="-20%" y="-60%" width="140%" height="260%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#0b2a6b" flood-opacity=".14"/>
+    </filter>
+    <clipPath id="winClip"><rect id="winClipRect"/></clipPath>
+  </defs>
+  <rect width="400" height="320" fill="url(#halo)"/>
+  <g id="all"></g>
+</svg>
+<div class="caption" id="caption"></div>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const $ = (id) => document.getElementById(id);
+  const all = $("all");
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const dark = () => matchMedia("(prefers-color-scheme: dark)").matches;
+
+  // ---- springs ---------------------------------------------------------------
+  const REST = { morph: 0, load: 0, chrome: 1, badge: 0, dock: 0, drop: 0, run: 0, shine: 0, shake: 0, fade: 1 };
+  const sp = Object.fromEntries(Object.entries(REST).map(([k, v]) => [k, { v, x: v, vel: 0, k: 170, d: 16 }]));
+  function to(n, v, k, d) { const s = sp[n]; s.v = v; s.k = k || 170; s.d = d || 16; kick(); }
+  function step(dt) {
+    let moving = false;
+    for (const s of Object.values(sp)) {
+      if (reduce) { s.x = s.v; s.vel = 0; continue; }
+      s.vel += (-s.k * (s.x - s.v) - s.d * s.vel) * dt; s.x += s.vel * dt;
+      if (Math.abs(s.vel) > .002 || Math.abs(s.x - s.v) > .002) moving = true; else { s.x = s.v; s.vel = 0; }
+    }
+    return moving;
+  }
+
+  // ---- state + helpers ---------------------------------------------------------
+  const st = { stage: "validating", state: "running", progress: 0, color: "#1578FA", name: "", host: "", icon: "" };
+  const t0 = performance.now();
+  let ring = 0;
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const clamp = (x) => Math.max(0, Math.min(1, x));
+  function el(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    (parent || all).appendChild(e); return e;
+  }
+  function mix(a, b, t) {
+    const p = (h) => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+    const A = p(a), B = p(b);
+    return "#" + A.map((v, i) => Math.round(lerp(v, B[i], t)).toString(16).padStart(2, "0")).join("");
+  }
+  const letter = () => (st.name || st.host || "M").trim().charAt(0).toUpperCase();
+
+  // ---- draw ------------------------------------------------------------------
+  function draw(now) {
+    all.replaceChildren();
+    const t = (now - t0) / 1000, dk = dark();
+    const m = clamp(sp.morph.x);                  // 0 = browser window, 1 = app icon
+    const chrome = clamp(sp.chrome.x);            // browser chrome visibility
+    const dockY = 236, slotY = dockY - 4;
+
+    // Dock (slides up at the end)
+    const d1 = clamp(sp.dock.x);
+    if (d1 > .01) {
+      const dg = el("g", { transform: `translate(0 ${lerp(70, 0, d1).toFixed(2)})`, opacity: d1.toFixed(3) });
+      el("rect", { x: 92, y: dockY - 34, width: 216, height: 60, rx: 22, fill: dk ? "#1f2633" : "#ffffff",
+        stroke: dk ? "rgba(255,255,255,.08)" : "rgba(14,40,90,.08)", filter: "url(#dockShadow)" }, dg);
+      [118, 162, 282].forEach((x) => el("rect", { x: x - 18, y: dockY - 22, width: 36, height: 36, rx: 10, fill: dk ? "#2b3444" : "#dde5f1" }, dg));
+      const run = clamp(sp.run.x);
+      el("circle", { cx: 222, cy: dockY + 20, r: 2.4 * run, fill: dk ? "#eef3fb" : "#0e1726", opacity: (.7 * run).toFixed(2) }, dg);
+    }
+
+    // Geometry of the morphing shape: window (224x150) → icon (92x92) → Dock slot (36x36)
+    const bob = reduce ? 0 : Math.sin(t * 2) * 2.5 * (1 - m);
+    let w = lerp(224, 92, m), h = lerp(150, 92, m), r = lerp(16, 22, m), cx = 200, cy = lerp(132, 128, m) + bob;
+    const drop = clamp(sp.drop.x);
+    if (drop > 0) { w = lerp(92, 36, drop); h = w; r = lerp(22, 10, drop); cx = lerp(200, 222, drop); cy = lerp(128, slotY - 4, drop); }
+    cy += sp.shake.x;
+    const x = cx - w / 2, y = cy - h / 2;
+
+    const g = el("g", { opacity: clamp(sp.fade.x).toFixed(3), filter: "url(#lift)" });
+    const paper = dk ? "#1e2635" : "#ffffff";
+    el("rect", { x, y, width: w, height: h, rx: r, fill: m > 0 ? mix(paper, st.color, Math.pow(m, .8)) : paper }, g);
+    if (m < .2) el("rect", { x: x + .5, y: y + .5, width: w - 1, height: h - 1, rx: r - .5, fill: "none",
+      stroke: dk ? "rgba(255,255,255,.08)" : "rgba(14,40,90,.08)", opacity: (1 - m * 5).toFixed(2) }, g);
+
+    // everything inside is clipped to the morphing shape
+    const clip = $("winClipRect");
+    clip.setAttribute("x", x); clip.setAttribute("y", y); clip.setAttribute("width", w); clip.setAttribute("height", h); clip.setAttribute("rx", r);
+    const inner = el("g", { "clip-path": "url(#winClip)" }, g);
+
+    // browser chrome: traffic lights, address bar with load progress, content
+    if (chrome > .01) {
+      const cg = el("g", { opacity: chrome.toFixed(3) }, inner);
+      ["#ff5f57", "#febc2e", "#28c840"].forEach((c, i) => el("circle", { cx: x + 15 + i * 11, cy: y + 14, r: 3.6, fill: c }, cg));
+      const bx = x + 52, bw = w - 64, by = y + 6, bh = 16;
+      el("rect", { x: bx, y: by, width: bw, height: bh, rx: 8, fill: dk ? "#283142" : "#eef2f8" }, cg);
+      const load = clamp(sp.load.x);
+      if (load > .005) {
+        el("rect", { x: bx, y: by, width: bw * load, height: bh, rx: 8, fill: st.color, opacity: .2 }, cg);
+        el("rect", { x: bx + 6, y: by + bh - 2.5, width: Math.max(0, (bw - 12) * load), height: 2, rx: 1, fill: st.color }, cg);
+      }
+      const tx = el("text", { x: bx + 24, y: by + 11.5, fill: dk ? "rgba(238,243,251,.6)" : "rgba(14,23,38,.55)",
+        "font-size": 9, "font-family": "-apple-system, system-ui, sans-serif" }, cg);
+      tx.textContent = st.host || "website";
+      el("line", { x1: x, y1: y + 28, x2: x + w, y2: y + 28, stroke: dk ? "rgba(255,255,255,.06)" : "rgba(14,40,90,.06)" }, cg);
+      const line = dk ? "rgba(255,255,255,.08)" : "rgba(14,40,90,.07)";
+      el("rect", { x: x + 14, y: y + 40, width: w - 28, height: 34, rx: 10, fill: st.color, opacity: .9 }, cg);
+      [[.82, 86], [.6, 99], [.7, 112]].forEach(([f, yy]) => el("rect", { x: x + 14, y: y + yy, width: (w - 28) * f, height: 7, rx: 3.5, fill: line }, cg));
+      if (st.stage === "validating" && st.state === "running" && !reduce) {
+        const p = (t * .75) % 1, sy = y + 30 + p * (h - 36);
+        el("rect", { x, y: sy - 18, width: w, height: 18, fill: st.color, opacity: .08 }, cg);
+        el("rect", { x: x + 8, y: sy, width: w - 16, height: 2, rx: 1, fill: st.color }, cg);
+      }
+    }
+
+    // favicon: small in the address bar → large in the centre of the icon
+    const fs = lerp(12, 54, m) * (drop > 0 ? lerp(1, 36 / 92, drop) : 1);
+    const fx = lerp(x + 58, cx - fs / 2, m), fy = lerp(y + 8, cy - fs / 2, m);
+    if (st.icon) {
+      el("image", { href: st.icon, x: fx, y: fy, width: fs, height: fs, preserveAspectRatio: "xMidYMid meet" }, inner);
+    } else {
+      el("rect", { x: fx, y: fy, width: fs, height: fs, rx: fs * .26, fill: m > .5 ? "#ffffff" : st.color, opacity: m > .5 ? .22 : 1 }, inner);
+      const tt = el("text", { x: fx + fs / 2, y: fy + fs * .72, "text-anchor": "middle", fill: "#fff",
+        "font-size": (fs * .66).toFixed(1), "font-weight": 700, "font-family": "-apple-system, system-ui, sans-serif" }, inner);
+      tt.textContent = letter();
+    }
+
+    // light sweep across the finished icon
+    const sh = sp.shine.x;
+    if (sh > 0 && sh < 1) {
+      const sx0 = lerp(x - 40, x + w + 40, sh);
+      el("polygon", { points: `${sx0},${y} ${sx0 + 22},${y} ${sx0 - 8},${y + h} ${sx0 - 30},${y + h}`, fill: "#fff", opacity: .35 }, inner);
+    }
+
+    // verified badge
+    const b = sp.badge.x;
+    if (b > .01 && drop < .5) {
+      const bg = el("g", { transform: `translate(${(x + w - 6).toFixed(2)} ${(y + 6).toFixed(2)}) scale(${b.toFixed(3)})` });
+      el("circle", { r: 15, fill: "#1578FA", stroke: dk ? "#1e2635" : "#ffffff", "stroke-width": 3 }, bg);
+      el("path", { d: "M-6 .5 L-1.8 4.6 L6.5 -4", fill: "none", stroke: "#fff", "stroke-width": 3, "stroke-linecap": "round", "stroke-linejoin": "round" }, bg);
+      if (ring > 0) el("circle", { r: 15 + ring * 22, fill: "none", stroke: "#1578FA", "stroke-width": 2, opacity: ((1 - ring) * .6).toFixed(2) }, bg);
+    }
+  }
+
+  // ---- loop (paused when hidden; idle when nothing moves) ---------------------
+  let raf = 0, last = 0;
+  function frame(now) {
+    const dt = Math.min(.05, (now - (last || now)) / 1000); last = now;
+    const moving = step(dt);
+    if (ring > 0) { ring += dt * 1.6; if (ring >= 1) ring = 0; }
+    draw(now);
+    const idle = !reduce && (st.stage === "validating" || sp.morph.x < .5);
+    raf = (moving || ring > 0 || idle) ? requestAnimationFrame(frame) : 0;
+    if (!raf) last = 0;
+  }
+  function kick() { if (!raf && !document.hidden) raf = requestAnimationFrame(frame); }
+  document.addEventListener("visibilitychange", () => { if (document.hidden) { cancelAnimationFrame(raf); raf = 0; last = 0; } else kick(); });
+
+  // ---- stages → motion -------------------------------------------------------
+  const labels = {
+    validating: ["Checking the website", "Reading its name, icon and colours"],
+    downloading: ["Getting the app engine", "Reused next time"],
+    assembling: ["Making it an app", "Its own window, icon and identity"],
+    signing: ["Signing", "So your Mac trusts it"],
+    verifying: ["Checking everything", "Making sure it opens"],
+    done: ["Your app is ready.", ""],
+  };
+  const order = ["validating", "downloading", "assembling", "signing", "verifying", "done"];
+  let reached = -1, timers = [];
+  const later = (ms, fn) => timers.push(setTimeout(fn, reduce ? 0 : ms));
+
+  function apply(restart) {
+    $("h0").setAttribute("stop-color", st.color); $("h1").setAttribute("stop-color", st.color);
+    if (restart) { timers.forEach(clearTimeout); timers = []; reached = -1; ring = 0;
+      for (const [k, s] of Object.entries(sp)) { s.x = s.v = REST[k]; s.vel = 0; } }
+    const done = st.stage === "done" || st.state === "done";
+    const i = done ? 5 : order.indexOf(st.stage);
+    if (st.state === "failed") {
+      to("morph", 0); to("chrome", 1); to("badge", 0); shake();
+    } else if (st.state === "cancelled") {
+      to("morph", 0); to("chrome", 1); to("load", 0); to("badge", 0); to("fade", .6);
+    } else {
+      if (i === 1) to("load", st.progress, 220, 24);
+      if (i >= 2 && reached < 2) { to("load", 1, 220, 24); to("chrome", 0, 200, 22); later(120, () => to("morph", 1, 120, 13)); }
+      if (i >= 3 && reached < 3) later(200, () => { to("badge", 1, 320, 13); ring = .001; kick(); });
+      if (i >= 4 && reached < 4) later(150, () => { sp.shine.x = 0; sp.shine.v = 0; to("shine", 1, 30, 9); });
+      if (i === 5 && reached < 5) {
+        to("dock", 1, 160, 18);
+        later(520, () => { to("badge", 0, 240, 20); to("drop", 1, 110, 12); });
+        later(1050, () => { bounce(); to("run", 1, 160, 14); });
+      }
+      reached = Math.max(reached, i);
+    }
+    const [title, sub] = st.state === "failed" ? ["Something went wrong", "The previous build is untouched"] : (labels[done ? "done" : st.stage] || ["", ""]);
+    $("caption").innerHTML = `${title}<small>${sub}${st.stage === "downloading" && !done ? " · " + Math.round(st.progress * 100) + "%" : ""}</small>`;
+    kick();
+  }
+  // macOS-style launch bounce in the Dock
+  function bounce() { if (reduce) return; let n = 0; const hop = () => { if (n++ >= 2) return; to("shake", 0, 140, 9); sp.shake.vel = -170; later(520, hop); }; hop(); }
+  function shake() { if (reduce) return; [7, -7, 5, -4, 0].forEach((v, j) => later(j * 70, () => { sp.shake.x = 0; sp.shake.v = 0; sp.shake.vel = v * 40; kick(); })); }
+
+  // Public API for the Builder.
+  window.scene = {
+    set(o) {
+      const restart = o.stage === "validating" && (st.stage !== "validating" || st.state !== "running" || reached > 0);
+      if (o.stage) st.stage = o.stage;
+      if (o.state) st.state = o.state;
+      if (typeof o.progress === "number") st.progress = clamp(o.progress);
+      if (o.color && /^#[0-9a-f]{6}$/i.test(o.color)) st.color = o.color;
+      if (typeof o.name === "string") st.name = o.name;
+      if (typeof o.host === "string") st.host = o.host;
+      if (typeof o.iconDataURL === "string" && /^data:image\//.test(o.iconDataURL)) st.icon = o.iconDataURL;
+      apply(restart);
+    },
+  };
+
+  const q = new URLSearchParams(location.search);
+  if (q.has("embedded")) { document.body.classList.add("embedded"); apply(true); return; }
+  // Standalone demo loop.
+  const sites = [["#1578FA", "Linear", "linear.app"], ["#E5484D", "YouTube Music", "music.youtube.com"], ["#7C5CFF", "Figma", "figma.com"], ["#25D366", "WhatsApp", "web.whatsapp.com"]];
+  const beats = [["validating", 1700], ["downloading", 2000], ["assembling", 1400], ["signing", 900], ["verifying", 1000], ["done", 3200]];
+  let n = 0;
+  (async function loop() {
+    const [color, name, host] = sites[n++ % sites.length];
+    window.scene.set({ stage: "validating", state: "running", color, name, host, progress: 0 });
+    for (const [stage, ms] of beats) {
+      window.scene.set({ stage, state: stage === "done" ? "done" : "running" });
+      if (stage === "downloading") { const s = performance.now(); while (performance.now() - s < ms) { window.scene.set({ progress: (performance.now() - s) / ms }); await new Promise(r => setTimeout(r, 80)); } }
+      else await new Promise(r => setTimeout(r, ms));
+    }
+    loop();
+  })();
+})();
+</script>
+</body>
+</html>

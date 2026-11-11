@@ -25,7 +25,7 @@ internal/runtimemanager/ Signed registry manifest (Ed25519), download, verify, c
 internal/builder/        Pipeline + platform assemblers (darwin/windows/linux)
 internal/installer/      Install & Open, update (atomic swap), repair, uninstall
 internal/i18n/           7 locales: en, zh-Hant, zh-Hans, yue-Hant-HK, es, fr, ja
-internal/desktop/        GUI: design tokens, components, screens, menubar
+internal/desktop/        GUI: design tokens (design), motion-first kit (kit), screens (app), menubar
 internal/cli/            CLI commands, --json output contract, exit codes
 internal/mcp/            MCP stdio server (JSON-RPC 2.0)
 internal/companion/      Native-messaging protocol for the browser extension

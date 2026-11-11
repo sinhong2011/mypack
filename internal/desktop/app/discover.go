@@ -33,12 +33,10 @@ func templateIcon(name string) []byte { return sampleicons.Icon(name) }
 func (a *App) discoverView(c *ui.Context) {
 	p := design.Of(c)
 	page(c, design.ContentMaxW, func() {
-		// Hero: an editorial headline beside a shelf of apps on the
-		// workbench.
+		// Hero: an editorial headline beside a few floating apps.
 		hero := ui.Row(c).Gap(28).Padding(28, 32).Radius(design.RadiusPanel).AlignItems(ui.Center).Clip().
 			Background(p.Group).Border(0.5, p.GroupBorder)
 		hero.Children(func() {
-			ui.Box(c).Absolute().Fill().PassThrough().AccessHidden(true).Draw(func(pt *ui.Painter, r ui.Rect) { design.PaintDots(pt, r, p, false) })
 			ui.Column(c).Grow(1).MinWidth(0).Gap(8).Children(func() {
 				kit.Eyebrow(c, T("discover.hero.eyebrow")).TextColor(p.AccentText)
 				ui.Text(c, T("discover.hero.title")).FontSize(design.FontDisplay).FontWeight(design.WeightBold).TextColor(p.Text).
@@ -57,41 +55,84 @@ func (a *App) discoverView(c *ui.Context) {
 						icon.Children(func() { a.presetIconView(c, presetNamed(n), sz, true) })
 					}
 				})
-				ui.Box(c).Height(9).FillWidth().Radius(2).Margin(-3, 0, 0, 0).
-					LinearGradient(ui.LinearGradient{From: p.ShelfTop, To: p.ShelfBottom, Angle: 180}).
-					Shadow(0, 6, 10, -4, p.ShadowDeep).InsetShadow(0, 1, 0, 0, p.Highlight)
 			})
 		})
 		ui.Column(c).Gap(4).Children(func() {
 			kit.SectionHeader(c, T("discover.popular"), "")
 			kit.Caption(c, T("discover.footnote"))
 		})
-		ui.Grid(c).ColumnTracks(ui.Fr(1), ui.Fr(1)).GapX(24).Children(func() {
-			for i, t := range templates {
-				t := t
-				ui.Column(c.Key(t.url)).Children(func() {
-					row := ui.Row(c).Height(72).Gap(14).AlignItems(ui.Center).Padding(0, 4)
-					row.Children(func() {
-						a.presetIconView(c, t, 52, true)
-						ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {
-							ui.Text(c, t.name).FontSize(design.FontBody).FontWeight(design.WeightSemibold).TextColor(p.Text).SingleLine()
-							ui.Text(c, catLabel(t.category)).FontSize(design.FontSmall).TextColor(p.TextSecondary).SingleLine()
-							ui.Text(c, hostOf(t.url)).FontSize(design.FontCaption).TextColor(p.TextTertiary).SingleLine()
-						})
-						if kit.Button(c.Key("get"), T("discover.get"), kit.ButtonOpts{Size: 26}).
-							Label(T("discover.get.label", "name", t.name)).Clicked() {
-							a.create.reset(a.host)
-							a.create.setInput(t.url)
-							a.nav(secCreate)
-						}
-					})
-					if i < len(templates)-2 {
-						ui.Box(c).Height(0.5).Background(p.Divider).Margin(0, 0, 0, 70)
+		// Shelves by kind of site.
+		shelves := []struct {
+			title string
+			cats  []string
+		}{
+			{T("discover.shelf.work"), []string{"work", "dev"}},
+			{T("discover.shelf.chat"), []string{"chat"}},
+			{T("discover.shelf.create"), []string{"design", "ai", "media"}},
+		}
+		for si, sh := range shelves {
+			var items []template
+			for _, t := range templates {
+				for _, cat := range sh.cats {
+					if t.category == cat {
+						items = append(items, t)
+					}
+				}
+			}
+			ui.Column(c.Key(si)).Gap(10).Children(func() {
+				kit.Eyebrow(c, sh.title).Padding(0, 2)
+				ui.Row(c).Gap(4).Wrap().Margin(0, -6).Children(func() {
+					for i, t := range items {
+						a.presetTile(c.Key(t.url), t, si*4+i)
 					}
 				})
+			})
+		}
+	})
+}
+
+// presetTile is a floating preset: hover lifts it and turns its caption
+// into "Make App".
+func (a *App) presetTile(c *ui.Context, t template, i int) {
+	p := design.Of(c)
+	const size = 76
+	b := ui.ButtonBase(c).Label(T("discover.get.label", "name", t.name)).Column().Width(132).AlignItems(ui.Center).Padding(12, 6, 10, 6).
+		Cursor(ui.CursorPointer)
+	kit.Arrive(b, i, design.StaggerGrid)
+	hov := b.Hovered()
+	b.Children(func() {
+		holder := ui.Box(c).Size(size, size).Center()
+		pose := ui.Pose{}
+		if hov {
+			pose = ui.Pose{Y: -3, Scale: 1.04}
+		}
+		if b.Pressed() {
+			pose = ui.Pose{Scale: 0.97}
+		}
+		holder.AnimatePose(pose, design.Spring)
+		holder.Children(func() {
+			a.presetIconView(c, t, size, true)
+		})
+		plate := ui.Column(c).AlignItems(ui.Center).Gap(1).Margin(20, 0, 0, 0).Padding(4, 10).Radius(design.RadiusControl).
+			Transition(design.Transition(c))
+		if hov {
+			plate.Background(p.Raised)
+			design.RaisedControl(c, plate)
+		}
+		plate.Children(func() {
+			ui.Text(c, t.name).FontSize(design.FontBody).FontWeight(design.WeightSemibold).TextColor(p.Text).SingleLine()
+			sub, col := hostOf(t.url), p.TextTertiary
+			if hov {
+				sub, col = T("discover.get"), p.AccentText
 			}
+			ui.Text(c, sub).FontSize(design.FontCaption).TextColor(col).SingleLine()
 		})
 	})
+	if b.Clicked() {
+		a.create.reset(a.host)
+		a.create.setInput(t.url)
+		a.nav(secCreate)
+	}
 }
 
 func hostOf(u string) string {

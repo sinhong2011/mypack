@@ -77,6 +77,19 @@ func (s *Service) seed() {
 			s.installs = append(s.installs, inst)
 		}
 	}
+	// More real sites, as drafts and older projects.
+	for i, more := range []struct{ name, url string }{
+		{"Excalidraw", "https://excalidraw.com/"},
+		{"Spotify", "https://open.spotify.com/"},
+		{"Discord", "https://discord.com/app"},
+		{"Todoist", "https://app.todoist.com/"},
+	} {
+		cfg := config.New(more.name, config.Source{Type: config.SourceURL, Value: more.url}, s.host)
+		p := &domain.Project{ID: s.id("prj"), Revision: 1, Config: cfg, IconPNG: demoIcon(more.name), Draft: i%2 == 0,
+			CreatedAt: ago(time.Duration(30+i) * 24 * time.Hour), UpdatedAt: ago(time.Duration(30+i) * 24 * time.Hour), Origin: "gui"}
+		s.projects[p.ID] = p
+	}
+
 	// A failed build in history.
 	if pid := ids["Figma"]; pid != "" {
 		start := ago(50 * time.Hour)

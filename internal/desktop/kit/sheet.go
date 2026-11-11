@@ -17,9 +17,10 @@ func Sheet(c *ui.Context, open *bool, width float32, body func()) ui.Element {
 		fade := design.Tween(design.MotionBase, design.EaseStd)
 		backdrop.Background(p.Scrim).Justify(ui.Start).Padding(design.TitleBarH+4, 24, 24, 24).
 			Transition(ui.ElementTransition{Animation: &fade, Enter: &ui.Motion{}, Exit: &ui.Motion{}})
+		MarkModal()
 		panel.Width(width).MaxWidthPercent(100).Padding(22, 22, 18, 22).Gap(14).Radius(design.RadiusPanel).
 			Background(p.Overlay).Border(0.5, p.BorderStrong).
-			Transition(ui.ElementTransition{Animation: &design.SpringSoft, Enter: &ui.Motion{Y: -14, Scale: 0.985}, Exit: &ui.Motion{Y: -8, Scale: 0.985}})
+			Transition(ui.ElementTransition{Animation: &design.Spring, Enter: &ui.Motion{Y: -8, Scale: 0.96}, Exit: &ui.Motion{Y: -4, Scale: 0.96}})
 		design.Elevate(c, panel, design.Modal)
 		body()
 	})

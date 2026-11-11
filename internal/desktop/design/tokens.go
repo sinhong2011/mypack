@@ -30,12 +30,22 @@ var Ink = [13]ui.Color{
 	ui.Hex("#f3f3f4"),
 }
 
-// Blue is the brand ramp, built around the app icon's blue (step 6).
+// Blue is the brand ramp, extracted from the logo (see LogoMid).
 var Blue = [10]ui.Color{
-	ui.Hex("#f2f7ff"), ui.Hex("#e3eeff"), ui.Hex("#c8dcff"), ui.Hex("#9dc0ff"),
-	ui.Hex("#6aa1ff"), ui.Hex("#3d86fb"), ui.Hex("#1474f6"), ui.Hex("#0f60d4"),
-	ui.Hex("#114ea8"), ui.Hex("#143f80"),
+	ui.Hex("#f1f8ff"), ui.Hex("#e0efff"), ui.Hex("#bfdcfe"), ui.Hex("#8cc6fc"),
+	ui.Hex("#27a7fa"), ui.Hex("#1f90fa"), ui.Hex("#1578fa"), ui.Hex("#0e67f8"),
+	ui.Hex("#0657f7"), ui.Hex("#0a45c4"),
 }
+
+// The logo's own gradient, measured from assets/AppIcon-1024.png: its blue
+// runs LogoLight (top) → LogoMid (the dominant, the primary) → LogoDeep
+// (bottom). Blue is built around these three anchors (steps 4, 6, 8); a
+// new logo re-derives them (scripts/logocolor) and the ramp follows.
+var (
+	LogoLight = ui.Hex("#27a7fa")
+	LogoMid   = ui.Hex("#1578fa")
+	LogoDeep  = ui.Hex("#0657f7")
+)
 
 // Status hues: soft, base and strong for light; base for dark.
 var (
@@ -77,7 +87,6 @@ type Palette struct {
 	Border       ui.Color // stroke: hairlines
 	BorderStrong ui.Color // stroke/strong: control outlines
 	Divider      ui.Color
-	Highlight    ui.Color // the 1 px inner top highlight of raised things
 
 	Text          ui.Color // text/primary
 	TextSecondary ui.Color // text/secondary
@@ -101,17 +110,25 @@ type Palette struct {
 
 	ButtonFill  ui.Color
 	ButtonHover ui.Color
-	FieldFill   ui.Color
+	FieldFill   ui.Color // alias of FieldRest
+	FieldRest   ui.Color // text fields at rest: one step sunken
+	FieldFocus  ui.Color // … focused: one step brighter
+	FieldStroke ui.Color // the 1 px hairline of a resting field or choice
 
-	Shadow      ui.Color // ambient shadow
-	ShadowDeep  ui.Color // overlays
-	IconShadow  ui.Color
-	Focus       ui.Color
-	Scrim       ui.Color
-	Grain       float32  // film-grain strength on the chrome
-	ShelfTop    ui.Color // the shelf app icons stand on
-	ShelfBottom ui.Color
-	Dots        ui.Color
+	NavSelected  ui.Color // the sidebar's selection pill: text/primary at 7–9 %
+	NavHover     ui.Color // … and its hover: text/primary at 4 %
+	ChoiceFill   ui.Color // a selected choice tile: accent at 8–10 %
+	ButtonStroke ui.Color // the hairline of a secondary button
+
+	Shadow     ui.Color // ambient shadow
+	ShadowDeep ui.Color // overlays
+	IconShadow ui.Color
+	Focus      ui.Color
+	Scrim      ui.Color
+	ChromeTop  ui.Color // warm → cool vertical tint of the chrome
+	ChromeBot  ui.Color
+	CanvasTop  ui.Color // … and of the canvas
+	CanvasBot  ui.Color
 }
 
 // Light is the light appearance.
@@ -123,14 +140,15 @@ var Light = func() Palette {
 		Fill: ui.RGBA(27, 27, 25, 0.05), Alt: ui.RGBA(27, 27, 25, 0.022),
 		Hover: ui.RGBA(27, 27, 25, 0.045), Pressed: ui.RGBA(27, 27, 25, 0.08), Selected: ui.RGBA(27, 27, 25, 0.07),
 		Border: ui.RGBA(27, 27, 25, 0.08), BorderStrong: ui.RGBA(27, 27, 25, 0.15), Divider: ui.RGBA(27, 27, 25, 0.07),
-		Highlight: ui.RGBA(255, 255, 255, 0.9),
-		Text:      g[12], TextSecondary: g[9], TextTertiary: ui.Hex("#82827b"), TextDisabled: g[7], TextOnAccent: g[0],
-		Accent: b[6], AccentHover: b[7], AccentPressed: b[8], AccentSoft: b[6].Alpha(0.1), AccentText: b[7],
+		Text: g[12], TextSecondary: g[9], TextTertiary: ui.Hex("#82827b"), TextDisabled: g[7], TextOnAccent: g[0],
+		Accent: b[6], AccentHover: b[7], AccentPressed: b[8], AccentSoft: b[6].Alpha(0.1), AccentText: b[8],
 		Success: Green[1], SuccessSoft: Green[0], Warning: Amber[1], WarningSoft: Amber[0],
 		Danger: Red[1], DangerSoft: Red[0], DangerHover: Red[2],
-		ButtonFill: g[0], ButtonHover: g[1], FieldFill: g[0],
+		ButtonFill: g[0], ButtonHover: g[1], FieldFill: g[1], FieldRest: g[1], FieldFocus: g[0], FieldStroke: ui.RGBA(27, 27, 25, 0.13),
+		NavSelected: g[12].Alpha(0.07), NavHover: g[12].Alpha(0.04), ChoiceFill: b[6].Alpha(0.08), ButtonStroke: ui.RGBA(27, 27, 25, 0.13),
 		Shadow: ui.RGBA(40, 36, 28, 0.08), ShadowDeep: ui.RGBA(40, 36, 28, 0.2), IconShadow: ui.RGBA(30, 26, 20, 0.26),
-		Focus: b[6].Alpha(0.45), Scrim: ui.RGBA(30, 28, 24, 0.22), Grain: 0.035, Dots: ui.RGBA(27, 27, 25, 0.13), ShelfTop: g[2], ShelfBottom: g[5],
+		Focus: b[6].Alpha(0.9), Scrim: ui.RGBA(30, 28, 24, 0.22),
+		ChromeTop: g[3], ChromeBot: g[3], CanvasTop: g[0], CanvasBot: g[0],
 	}
 }()
 
@@ -144,14 +162,15 @@ var Dark = func() Palette {
 		Fill: ui.RGBA(255, 255, 255, 0.06), Alt: ui.RGBA(255, 255, 255, 0.022),
 		Hover: ui.RGBA(255, 255, 255, 0.05), Pressed: ui.RGBA(255, 255, 255, 0.09), Selected: ui.RGBA(255, 255, 255, 0.075),
 		Border: ui.RGBA(255, 255, 255, 0.075), BorderStrong: ui.RGBA(255, 255, 255, 0.14), Divider: ui.RGBA(255, 255, 255, 0.065),
-		Highlight: ui.RGBA(255, 255, 255, 0.07),
-		Text:      g[12], TextSecondary: g[10], TextTertiary: g[9], TextDisabled: g[7], TextOnAccent: ui.RGB(255, 255, 255),
+		Text: g[12], TextSecondary: g[10], TextTertiary: g[9], TextDisabled: g[7], TextOnAccent: ui.RGB(255, 255, 255),
 		Accent: b[5], AccentHover: b[4], AccentPressed: b[6], AccentSoft: b[5].Alpha(0.16), AccentText: b[4],
 		Success: GreenDark, SuccessSoft: GreenDark.Alpha(0.14), Warning: AmberDark, WarningSoft: AmberDark.Alpha(0.14),
 		Danger: RedDark, DangerSoft: RedDark.Alpha(0.14), DangerHover: ui.Hex("#ff857b"),
-		ButtonFill: g[5], ButtonHover: g[6], FieldFill: g[1],
+		ButtonFill: g[5], ButtonHover: g[6], FieldFill: g[1], FieldRest: g[1], FieldFocus: g[3], FieldStroke: ui.RGBA(255, 255, 255, 0.09),
+		NavSelected: g[12].Alpha(0.09), NavHover: g[12].Alpha(0.04), ChoiceFill: b[5].Alpha(0.1), ButtonStroke: ui.RGBA(255, 255, 255, 0.08),
 		Shadow: ui.RGBA(0, 0, 0, 0.35), ShadowDeep: ui.RGBA(0, 0, 0, 0.6), IconShadow: ui.RGBA(0, 0, 0, 0.55),
-		Focus: b[4].Alpha(0.55), Scrim: ui.RGBA(0, 0, 0, 0.4), Grain: 0.05, Dots: ui.RGBA(255, 255, 255, 0.075), ShelfTop: g[6], ShelfBottom: g[3],
+		Focus: b[5].Alpha(0.95), Scrim: ui.RGBA(0, 0, 0, 0.4),
+		ChromeTop: g[1], ChromeBot: g[1], CanvasTop: g[2], CanvasBot: g[2],
 	}
 }()
 
@@ -175,10 +194,11 @@ const (
 
 // Metrics.
 const (
-	ControlSM float32 = 24
-	Control   float32 = 30
-	ControlLG float32 = 36
-	ControlXL float32 = 44
+	ControlSM      float32 = 24
+	Control        float32 = 30
+	ControlLG      float32 = 36
+	ControlXL      float32 = 44
+	ToolbarControl float32 = 30 // every toolbar control, one height
 
 	RowCompact float32 = 36
 	Row        float32 = 44
@@ -187,6 +207,7 @@ const (
 	RadiusXS      float32 = 4
 	RadiusSM      float32 = 6
 	RadiusControl float32 = 8
+	RadiusField   float32 = 10 // text fields of every size
 	RadiusCard    float32 = 12
 	RadiusPanel   float32 = 16
 	RadiusCanvas  float32 = 14
@@ -237,8 +258,9 @@ const (
 	MotionSlow    = 320 * time.Millisecond
 	MotionScene   = 640 * time.Millisecond
 
-	StaggerList = 35 * time.Millisecond // rows in reading order
-	StaggerGrid = 55 * time.Millisecond // tiles of a grid
+	StaggerList  = 30 * time.Millisecond // rows in reading order
+	StaggerGrid  = 30 * time.Millisecond // tiles of a grid
+	StaggerBlock = 45 * time.Millisecond // a page's blocks: header, then content
 )
 
 // Easings: travel (departure, clear travel, soft arrival) and arrival
