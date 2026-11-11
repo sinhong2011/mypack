@@ -55,7 +55,8 @@ type Service interface {
 	JobLog(ctx context.Context, jobID string) ([]domain.LogLine, error)
 	// ListJobs returns recent jobs (projectID "" = all), newest first.
 	ListJobs(ctx context.Context, projectID string, limit int) ([]domain.BuildJob, error)
-	// Approve resumes a job that is awaiting approval (e.g. runtime download).
+	// Approve resumes a job that is awaiting approval (runtime download or
+	// project build; see BuildJob.Approval). MCP actors get APPROVAL_REQUIRED.
 	ApproveJob(ctx context.Context, jobID, actor string) error
 
 	// ---- Installations (Library › My Apps) ------------------------------
@@ -147,8 +148,12 @@ type BuildRequest struct {
 	ProjectID     string
 	Targets       []config.Target // empty = project's targets
 	AllowDownload bool
-	OutputDir     string // empty = default output dir
-	Actor         string
+	// AllowProjectBuild approves running the project's own build (install +
+	// build script) for this and future builds of the same command/folder.
+	// Ignored for MCP actors, which can never approve.
+	AllowProjectBuild bool
+	OutputDir         string // empty = default output dir
+	Actor             string
 }
 
 type InstallRequest struct {
@@ -174,18 +179,18 @@ type Metadata struct {
 type Preflight struct {
 	Targets []TargetPreflight `json:"targets"`
 	// DownloadBytes is the total to fetch before building (0 = all cached).
-	DownloadBytes int64  `json:"downloadBytes"`
-	OutputDir     string `json:"outputDir"`
+	DownloadBytes  int64  `json:"downloadBytes"`
+	OutputDir      string `json:"outputDir"`
 	RuntimeVersion string `json:"runtimeVersion"`
 }
 
 type TargetPreflight struct {
-	Target   config.Target       `json:"target"`
-	Runtime  domain.RuntimeInfo  `json:"runtime"`
+	Target    config.Target      `json:"target"`
+	Runtime   domain.RuntimeInfo `json:"runtime"`
 	Supported bool               `json:"supported"`
 	// Level: "portable" | "installer" | "distribution" (spec §6).
 	Level   string `json:"level"`
-	Signing string `json:"signing"` // "adhoc" | "unsigned" | "unavailable"
+	Signing string `json:"signing"`          // "adhoc" | "unsigned" | "unavailable"
 	Reason  string `json:"reason,omitempty"` // why unsupported / limitations
 }
 

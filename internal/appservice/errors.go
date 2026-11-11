@@ -23,6 +23,13 @@ const (
 	CodeCancelled        = "BUILD_CANCELLED"
 	CodeBuildFailed      = "BUILD_FAILED"
 	CodeInternal         = "INTERNAL"
+
+	// Project build (running the user's JS build before packaging).
+	CodeProjectBuildRequired = "PROJECT_BUILD_REQUIRED"
+	CodeNodeNotFound         = "NODE_NOT_FOUND"
+	CodeProjectBuildFailed   = "PROJECT_BUILD_FAILED"
+	CodeProjectOutputMissing = "PROJECT_OUTPUT_MISSING"
+	CodeApprovalRequired     = "APPROVAL_REQUIRED"
 )
 
 func newErr(code, msg, remediation string) *domain.Error {

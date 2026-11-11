@@ -128,7 +128,10 @@ func buildTools(s *Server) []tool {
 		{
 			Name: "build_start", Title: "Start build",
 			Description: "Queue a build of the project's current configuration. Returns a job ID; poll build_status. " +
-				"If a runtime must be downloaded, the job waits for the user's approval in the mypack app and the result status is approval_required.",
+				"If a runtime must be downloaded, the job waits for the user's approval in the mypack app and the result status is approval_required. " +
+				"For a JavaScript project app (source.build set), mypack must first run the project's own install/build script; " +
+				"this is NEVER run on an agent's request: the result is approval_required with job.approval.command (the exact command) " +
+				"and the user must approve it in the mypack app or with `mypack build <project> --run-build`. Then poll build_status.",
 			InputSchema: schema([]string{"projectId"}, obj{"projectId": str("Project ID"), "targets": targetsSchema}),
 			Annotations: annotations(false, false, false), Handler: s.buildStart,
 		},
@@ -230,7 +233,7 @@ func (s *Server) projectCreate(ctx context.Context, raw json.RawMessage) (any, e
 // identity, local file access, script injection or transport security.
 var protectedPrefixes = []string{
 	"app.identifier", "app.profileId",
-	"app.source.type", "app.source.entry",
+	"app.source.type", "app.source.entry", "app.source.project", "app.source.build",
 	"app.icon.path", "app.icon.source",
 	"webview.injections", "webview.ignoreCertificateErrors", "webview.devTools",
 	"network", "native.trayIcon",
@@ -550,6 +553,11 @@ func (s *Server) buildStart(ctx context.Context, raw json.RawMessage) (any, erro
 		msg := "approval_required: open mypack to approve the runtime download, then poll build_status."
 		if job.Error != nil {
 			msg = "approval_required: " + job.Error.Message + " Open mypack to approve it, then poll build_status."
+		}
+		if job.Approval != nil && job.Approval.Kind == domain.ApprovalProjectBuild {
+			msg = "approval_required: the project must be built first by running `" + job.Approval.Command + "` in " +
+				job.Approval.Path + ". This cannot be approved by an agent: ask the user to approve it in the mypack app " +
+				"(or run `mypack build " + job.ProjectID + " --run-build`), then poll build_status."
 		}
 		return obj{"status": "approval_required", "message": msg, "jobId": job.ID, "job": jobView(job)}, nil
 	}

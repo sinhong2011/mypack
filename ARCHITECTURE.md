@@ -74,16 +74,27 @@ GUI/CLI/MCP are separate processes sharing it; every project write bumps
 
 ## Build pipeline
 
-validating → resolving → downloading → assembling → customizing → signing →
+preparing (only for JS projects) → validating → resolving → downloading → assembling → customizing → signing →
 packaging → verifying → publishing. Work happens in a temp dir; publish is an
 atomic rename into `<outputDir>/<Name>/<os-arch>/`. A failed/cancelled build never
 touches the previous artifact. macOS: ad-hoc `codesign --force --deep -s -` after
 all resources are final (ADR-019); non-macOS hosts cannot produce macOS targets (capability matrix).
+
+### JS project builds (preparing stage)
+
+A folder with `package.json` becomes a `dir` source with `source.project` + `source.build`
+(`packageManager`, `script`, `outDir`). Before the engine runs, the service builds it:
+the build needs a human approval keyed by the fingerprint (package manager, script, project
+path), stored per project in `settings` (`projectbuild.<projectId>`); MCP can never approve.
+It runs `<pm> run <script>` (after `install`/`ci` when `node_modules` is missing) with explicit
+args, no shell, in the project root, 15 min timeout, killing the process group on cancel. The
+engine never sees `source.project`/`source.build`. See `docs/gui-handoff-project-build.md`.
 
 ## Error contract
 
 `domain.Error{Code, Message, Cause, Remediation, Field}`. Stable codes, e.g.
 `INVALID_CONFIG`, `REVISION_CONFLICT`, `RUNTIME_DOWNLOAD_REQUIRED`, `RUNTIME_VERIFY_FAILED`,
 `RUNTIME_NOT_FOUND`, `TARGET_UNSUPPORTED`, `BUILD_CANCELLED`, `SIGNING_FAILED`,
-`INSTALL_CONFLICT`, `NOT_FOUND`, `NOT_MANAGED`. CLI exit codes: 0 ok, 1 generic,
+`INSTALL_CONFLICT`, `NOT_FOUND`, `NOT_MANAGED`, `PROJECT_BUILD_REQUIRED`, `PROJECT_BUILD_FAILED`,
+`PROJECT_OUTPUT_MISSING`, `NODE_NOT_FOUND`, `APPROVAL_REQUIRED`. CLI exit codes: 0 ok, 1 generic,
 2 usage, 3 validation, 4 runtime/network, 5 build failed, 6 approval required, 130 cancelled.

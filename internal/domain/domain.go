@@ -50,6 +50,7 @@ type Stage string
 
 const (
 	StageQueued      Stage = "queued"
+	StagePreparing   Stage = "preparing" // building the user's JS project (install + build script)
 	StageValidating  Stage = "validating"
 	StageResolving   Stage = "resolving"
 	StageDownloading Stage = "downloading"
@@ -63,20 +64,20 @@ const (
 )
 
 // Stages is the ordered pipeline for progress display.
-var Stages = []Stage{StageValidating, StageResolving, StageDownloading, StageAssembling,
+var Stages = []Stage{StagePreparing, StageValidating, StageResolving, StageDownloading, StageAssembling,
 	StageCustomizing, StageSigning, StagePackaging, StageVerifying, StagePublishing}
 
 // BuildJob records one build of an immutable config snapshot.
 type BuildJob struct {
-	ID             string         `json:"id"`
-	ProjectID      string         `json:"projectId"`
-	ProjectRev     int64          `json:"projectRevision"`
-	Snapshot       *config.Config `json:"snapshot"`
-	ConfigHash     string         `json:"configHash"`
+	ID             string          `json:"id"`
+	ProjectID      string          `json:"projectId"`
+	ProjectRev     int64           `json:"projectRevision"`
+	Snapshot       *config.Config  `json:"snapshot"`
+	ConfigHash     string          `json:"configHash"`
 	Targets        []config.Target `json:"targets"`
-	RuntimeVersion string         `json:"runtimeVersion"`
-	Status         JobStatus      `json:"status"`
-	Stage          Stage          `json:"stage"`
+	RuntimeVersion string          `json:"runtimeVersion"`
+	Status         JobStatus       `json:"status"`
+	Stage          Stage           `json:"stage"`
 	// Progress is 0..1 when the current stage has a trustworthy denominator, else -1.
 	Progress   float64    `json:"progress"`
 	Actor      string     `json:"actor"` // "gui" | "cli" | "mcp:<client>"
@@ -86,7 +87,24 @@ type BuildJob struct {
 	Error      *Error     `json:"error,omitempty"`
 	Warnings   []string   `json:"warnings,omitempty"`
 	Artifacts  []Artifact `json:"artifacts,omitempty"`
-	Log        []LogLine  `json:"-"`
+	// Approval describes what the user is asked to approve while Status is
+	// awaiting_approval. It is derived on read, not stored.
+	Approval *ApprovalRequest `json:"approval,omitempty"`
+	Log      []LogLine        `json:"-"`
+}
+
+// Approval kinds.
+const (
+	ApprovalRuntimeDownload = "runtime_download"
+	ApprovalProjectBuild    = "project_build"
+)
+
+// ApprovalRequest is what a GUI shows for a job awaiting approval.
+type ApprovalRequest struct {
+	Kind    string `json:"kind"`             // "runtime_download" | "project_build"
+	Command string `json:"command"`          // exact command to display, e.g. "npm ci && npm run build"
+	Detail  string `json:"detail,omitempty"` // human explanation
+	Path    string `json:"path,omitempty"`   // project folder the command runs in (project_build)
 }
 
 // Artifact is one output of a build.
@@ -141,9 +159,9 @@ type LogLine struct {
 
 // Error is a structured, stable error: what happened → why → how to fix (§9.5).
 type Error struct {
-	Code        string `json:"code"`              // stable, e.g. RUNTIME_VERIFY_FAILED
-	Message     string `json:"message"`           // English summary
-	Cause       string `json:"cause,omitempty"`   // technical detail
+	Code        string `json:"code"`            // stable, e.g. RUNTIME_VERIFY_FAILED
+	Message     string `json:"message"`         // English summary
+	Cause       string `json:"cause,omitempty"` // technical detail
 	Remediation string `json:"remediation,omitempty"`
 	Field       string `json:"field,omitempty"`
 }
@@ -161,8 +179,8 @@ type RuntimeInfo struct {
 	Key       string    `json:"key"` // e.g. darwin-arm64
 	Cached    bool      `json:"cached"`
 	Verified  bool      `json:"verified"`
-	Size      int64     `json:"size"`       // download size
-	CacheSize int64     `json:"cacheSize"`  // on-disk size when cached
+	Size      int64     `json:"size"`      // download size
+	CacheSize int64     `json:"cacheSize"` // on-disk size when cached
 	Path      string    `json:"path,omitempty"`
 	LastUsed  time.Time `json:"lastUsed,omitempty"`
 	Source    string    `json:"source"` // registry URL

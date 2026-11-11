@@ -36,15 +36,56 @@ func TestResolveWebProject(t *testing.T) {
 			t.Fatalf("proj=%+v", proj)
 		}
 	})
-	t.Run("unbuilt vite project explains how to build", func(t *testing.T) {
+	t.Run("unbuilt vite project gets a build recipe", func(t *testing.T) {
 		d := t.TempDir()
 		writeFiles(t, d, map[string]string{
-			"package.json": `{"name":"app","devDependencies":{"vite":"^6"}}`,
-			"index.html":   `<script type="module" src="/src/main.tsx"></script>`,
+			"package.json":   `{"name":"app","scripts":{"build":"vite build"},"devDependencies":{"vite":"^6"}}`,
+			"pnpm-lock.yaml": "",
+			"index.html":     `<script type="module" src="/src/main.tsx"></script>`,
 		})
+		site, proj, ok, err := resolveWebProject(d)
+		if err != nil || !ok || site != filepath.Join(d, "dist") {
+			t.Fatalf("site=%q ok=%v err=%v", site, ok, err)
+		}
+		if proj.Script != "build" || proj.PackageManager != "pnpm" || proj.OutDir != "dist" {
+			t.Fatalf("proj=%+v", proj)
+		}
+	})
+	t.Run("no build script and nothing built is an error", func(t *testing.T) {
+		d := t.TempDir()
+		writeFiles(t, d, map[string]string{"package.json": `{"name":"app","devDependencies":{"vite":"^6"}}`})
 		_, _, ok, err := resolveWebProject(d)
-		if !ok || err == nil || !strings.Contains(err.Error(), "hasn't been built") {
+		if !ok || err == nil || !strings.Contains(err.Error(), "no \"build\" script") {
 			t.Fatalf("ok=%v err=%v", ok, err)
+		}
+	})
+	t.Run("nuxt prefers generate", func(t *testing.T) {
+		d := t.TempDir()
+		writeFiles(t, d, map[string]string{
+			"package.json": `{"scripts":{"build":"nuxt build","generate":"nuxt generate"},"dependencies":{"nuxt":"3"}}`,
+			"yarn.lock":    "",
+		})
+		site, proj, _, err := resolveWebProject(d)
+		if err != nil || proj.Script != "generate" || proj.PackageManager != "yarn" || site != filepath.Join(d, ".output", "public") {
+			t.Fatalf("site=%q proj=%+v err=%v", site, proj, err)
+		}
+	})
+	t.Run("angular reads angular.json outputPath", func(t *testing.T) {
+		d := t.TempDir()
+		writeFiles(t, d, map[string]string{
+			"package.json": `{"scripts":{"build":"ng build"},"dependencies":{"@angular/core":"19"}}`,
+			"bun.lock":     "",
+			"angular.json": `{"projects":{"web":{"architect":{"build":{"builder":"@angular/build:application","options":{"outputPath":"dist/web"}}}}}}`,
+		})
+		_, proj, _, err := resolveWebProject(d)
+		if err != nil || proj.OutDir != "dist/web/browser" || proj.PackageManager != "bun" {
+			t.Fatalf("proj=%+v err=%v", proj, err)
+		}
+		writeFiles(t, d, map[string]string{
+			"angular.json": `{"projects":{"web":{"architect":{"build":{"builder":"@angular-devkit/build-angular:browser","options":{"outputPath":"out/site"}}}}}}`,
+		})
+		if _, proj, _, _ = resolveWebProject(d); proj.OutDir != "out/site" {
+			t.Fatalf("legacy outDir=%q", proj.OutDir)
 		}
 	})
 	t.Run("next.js SSR is refused with guidance", func(t *testing.T) {

@@ -114,7 +114,8 @@ func (s *Impl) StartBuild(ctx context.Context, req BuildRequest) (job domain.Bui
 	out := firstNonEmpty(req.OutputDir, set.OutputDir)
 	return s.submit(ctx, submission{
 		projectID: p.ID, projectRev: p.Revision, snapshot: snap, outputDir: out,
-		allowDownload: req.AllowDownload, actor: actor, kind: "build",
+		allowDownload: req.AllowDownload, allowProjectBuild: req.AllowProjectBuild && !isMCPActor(actor),
+		actor: actor, kind: "build",
 	})
 }
 
@@ -124,9 +125,12 @@ type submission struct {
 	snapshot      *config.Config
 	outputDir     string
 	allowDownload bool
-	actor         string
-	kind          string // build | update | repair
-	installID     string
+	// allowProjectBuild records approval of the project build up front
+	// (CLI --run-build). Never honoured for MCP actors.
+	allowProjectBuild bool
+	actor             string
+	kind              string // build | update | repair
+	installID         string
 }
 
 // submit runs preflight, persists the job and either queues it or parks it
@@ -157,15 +161,18 @@ func (s *Impl) submit(ctx context.Context, sub submission) (domain.BuildJob, err
 	meta := storage.JobMeta{Kind: sub.kind, OutputDir: sub.outputDir, AllowDownload: sub.allowDownload,
 		InstallationID: sub.installID}
 
-	needsApproval := pf.DownloadBytes > 0 && !sub.allowDownload
+	if sub.allowProjectBuild {
+		if p := s.planProjectBuild(ctx, sub.projectID, snap); p != nil {
+			if err := s.recordProjectApproval(ctx, sub.projectID, p.Fingerprint); err != nil {
+				return domain.BuildJob{}, err
+			}
+		}
+	}
+	pending, pendingBytes := s.pendingApproval(ctx, sub.projectID, snap, pf, sub.allowDownload)
+	needsApproval := pending != nil
 	if needsApproval {
 		job.Status = domain.JobAwaitingApproval
-		job.Error = &domain.Error{
-			Code: CodeDownloadRequired,
-			Message: fmt.Sprintf("Building needs the %s runtime for %s (%s download).",
-				snap.Runtime.Version, targetKeys(snap.Build.Targets), humanBytes(pf.DownloadBytes)),
-			Remediation: "Approve the download in mypack, or re-run with permission to download runtimes (--yes).",
-		}
+		job.Error = pending
 	}
 	job, err = s.store.InsertJob(ctx, job, meta)
 	if err != nil {
@@ -173,8 +180,8 @@ func (s *Impl) submit(ctx context.Context, sub submission) (domain.BuildJob, err
 	}
 	s.emit(Event{Kind: EventJobChanged, ProjectID: job.ProjectID, JobID: job.ID, Job: &job})
 	if needsApproval {
-		s.emit(Event{Kind: EventApprovalNeeded, ProjectID: job.ProjectID, JobID: job.ID, Job: &job, Total: pf.DownloadBytes})
-		return job, nil
+		s.emit(Event{Kind: EventApprovalNeeded, ProjectID: job.ProjectID, JobID: job.ID, Job: &job, Total: pendingBytes})
+		return s.withApproval(job), nil
 	}
 	s.launch(job)
 	return job, nil
@@ -204,6 +211,10 @@ func humanBytes(n int64) string {
 // ApproveJob implements Service.
 func (s *Impl) ApproveJob(ctx context.Context, jobID, actor string) (err error) {
 	defer func() { s.audit(ctx, actor, "job.approve", jobID, err) }()
+	if isMCPActor(actor) {
+		return newErr(CodeApprovalRequired, "An agent cannot approve this build.",
+			"Approve it in the mypack app or with the mypack CLI.")
+	}
 	job, err := s.store.GetJob(ctx, jobID)
 	if err != nil {
 		return err
@@ -215,9 +226,31 @@ func (s *Impl) ApproveJob(ctx context.Context, jobID, actor string) (err error) 
 	if err != nil {
 		return err
 	}
-	meta.AllowDownload = true
-	if err := s.store.SetJobMeta(ctx, jobID, meta); err != nil {
-		return err
+	if job.Error != nil && job.Error.Code == CodeProjectBuildRequired {
+		p := s.planProjectBuild(ctx, job.ProjectID, job.Snapshot)
+		if p == nil {
+			return newErr("INVALID_STATE", "This build no longer needs approval.", "Start a new build instead.")
+		}
+		if err := s.recordProjectApproval(ctx, job.ProjectID, p.Fingerprint); err != nil {
+			return err
+		}
+	} else {
+		meta.AllowDownload = true
+		if err := s.store.SetJobMeta(ctx, jobID, meta); err != nil {
+			return err
+		}
+	}
+	// Another approval (runtime download) may still be outstanding.
+	if pf, perr := s.preflight(ctx, job.Snapshot.Runtime.Version, job.Snapshot.Build.Targets, meta.OutputDir); perr == nil {
+		if pending, total := s.pendingApproval(ctx, job.ProjectID, job.Snapshot, pf, meta.AllowDownload); pending != nil {
+			job.Error = pending
+			if err := s.store.SaveJobState(ctx, job); err != nil {
+				return err
+			}
+			s.emit(Event{Kind: EventJobChanged, ProjectID: job.ProjectID, JobID: job.ID, Job: &job})
+			s.emit(Event{Kind: EventApprovalNeeded, ProjectID: job.ProjectID, JobID: job.ID, Job: &job, Total: total})
+			return nil
+		}
 	}
 	job.Status, job.Stage, job.Progress, job.Error = domain.JobQueued, domain.StageQueued, -1, nil
 	if err := s.store.SaveJobState(ctx, job); err != nil {
@@ -267,9 +300,13 @@ func (s *Impl) GetJob(ctx context.Context, jobID string) (domain.BuildJob, error
 	r := s.running[jobID]
 	s.mu.Unlock()
 	if r != nil {
-		return r.st.snapshot(), nil
+		return s.withApproval(r.st.snapshot()), nil
 	}
-	return s.store.GetJob(ctx, jobID)
+	j, err := s.store.GetJob(ctx, jobID)
+	if err != nil {
+		return j, err
+	}
+	return s.withApproval(j), nil
 }
 
 // JobLog implements Service.
@@ -285,7 +322,11 @@ func (s *Impl) JobLog(ctx context.Context, jobID string) ([]domain.LogLine, erro
 
 // ListJobs implements Service.
 func (s *Impl) ListJobs(ctx context.Context, projectID string, limit int) ([]domain.BuildJob, error) {
-	return s.store.ListJobs(ctx, projectID, limit)
+	jobs, err := s.store.ListJobs(ctx, projectID, limit)
+	for i := range jobs {
+		jobs[i] = s.withApproval(jobs[i])
+	}
+	return jobs, err
 }
 
 // ---- execution ---------------------------------------------------------------
@@ -355,6 +396,9 @@ func (s *Impl) runJob(ctx context.Context, st *jobState) {
 	now := time.Now().UTC()
 	s.setState(st, func(j *domain.BuildJob) {
 		j.Status, j.Stage, j.Progress, j.StartedAt, j.Error = domain.JobRunning, domain.StageValidating, -1, &now, nil
+		if j.Snapshot != nil && j.Snapshot.App.Source.Build != nil {
+			j.Stage = domain.StagePreparing
+		}
 	})
 
 	// Periodic log flusher.
@@ -376,8 +420,28 @@ func (s *Impl) runJob(ctx context.Context, st *jobState) {
 
 	s.logLine(st, "info", fmt.Sprintf("Building %s for %s", cur.Snapshot.App.Name, targetKeys(cur.Targets)))
 
+	if cur.Snapshot.App.Source.Build != nil {
+		parked, perr := s.prepareProject(ctx, st, cur)
+		if ctx.Err() != nil || errors.Is(perr, context.Canceled) {
+			s.finishCancelled(st, nil)
+			return
+		}
+		if perr != nil {
+			s.finishFailed(st, nil, perr)
+			return
+		}
+		if parked {
+			return
+		}
+	}
+
+	// The project's location and build recipe are local-only: they must not
+	// be baked into the generated app's mypack.json.
+	engineCfg := cur.Snapshot.Clone()
+	engineCfg.App.Source.Project, engineCfg.App.Source.Build = "", nil
+
 	arts, berr := s.engine.Build(ctx, builder.Request{
-		Config: cur.Snapshot, IconPNG: icon, Targets: cur.Targets, OutputDir: meta.OutputDir,
+		Config: engineCfg, IconPNG: icon, Targets: cur.Targets, OutputDir: meta.OutputDir,
 		AllowDownload: meta.AllowDownload,
 		Stage: func(stage domain.Stage, progress float64) {
 			s.onStage(st, stage, progress)

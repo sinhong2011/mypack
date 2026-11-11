@@ -26,6 +26,8 @@ type fakeSvc struct {
 	updates  []appservice.UpdateRequest
 	created  []appservice.CreateRequest
 	status   domain.JobStatus
+	// projectBuild makes awaiting-approval jobs a project-build approval.
+	projectBuild bool
 }
 
 func newFake() *fakeSvc {
@@ -72,6 +74,10 @@ func (f *fakeSvc) StartBuild(_ context.Context, r appservice.BuildRequest) (doma
 	j := domain.BuildJob{ID: "job_bbbbbbbb", ProjectID: r.ProjectID, Status: f.status, Snapshot: f.proj.Config}
 	if f.status == domain.JobAwaitingApproval {
 		j.Error = &domain.Error{Code: "RUNTIME_DOWNLOAD_REQUIRED", Message: "Needs runtime 1.0.0 (12 MB)."}
+		if f.projectBuild {
+			j.Error = &domain.Error{Code: "PROJECT_BUILD_REQUIRED", Message: "needs build"}
+			j.Approval = &domain.ApprovalRequest{Kind: domain.ApprovalProjectBuild, Command: "npm run build", Path: "/p/app"}
+		}
 	}
 	return j, nil
 }
@@ -463,5 +469,27 @@ func TestConcurrentRequestsAndCancellation(t *testing.T) {
 	}
 	if len(seen) != 20 {
 		t.Errorf("got %d distinct responses", len(seen))
+	}
+}
+
+func TestBuildStartProjectBuildNeedsHumanApproval(t *testing.T) {
+	f := newFake()
+	f.status, f.projectBuild = domain.JobAwaitingApproval, true
+	c := startServer(t, f)
+	c.init("2025-06-18", "agent")
+	r := c.tool("build_start", map[string]any{"projectId": f.proj.ID})
+	s := structured(r)
+	msg, _ := s["message"].(string)
+	if r["isError"] == true || s["status"] != "approval_required" || !strings.Contains(msg, "npm run build") || !strings.Contains(msg, "/p/app") {
+		t.Fatalf("start = %v", r)
+	}
+	if f.started[0].AllowProjectBuild {
+		t.Error("MCP asked for project build approval")
+	}
+	// An agent cannot rewrite the build recipe through project_update either.
+	r = c.tool("project_update", map[string]any{"id": f.proj.ID, "revision": 3,
+		"patch": map[string]any{"app": map[string]any{"source": map[string]any{"build": map[string]any{"script": "evil"}}}}})
+	if r["isError"] != true {
+		t.Errorf("project_update accepted a build change: %v", r)
 	}
 }

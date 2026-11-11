@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"unicode"
@@ -58,6 +59,26 @@ type Source struct {
 	Value string     `json:"value"`
 	// Entry is the HTML file inside a dir source (default index.html).
 	Entry string `json:"entry,omitempty"`
+	// Project is the absolute root of the JavaScript project that produces
+	// the dir source (Value is then <Project>/<Build.OutDir>). Optional.
+	Project string `json:"project,omitempty"`
+	// Build, when set, lets the Builder run the project's build script
+	// (after explicit user approval) before packaging Value. Optional.
+	Build *ProjectBuild `json:"build,omitempty"`
+}
+
+// ProjectBuild describes how to build a JavaScript project. It is never a
+// free-form shell string: the Builder executes `<packageManager> run <script>`
+// with explicit arguments.
+type ProjectBuild struct {
+	// PackageManager is "npm", "pnpm", "yarn" or "bun".
+	PackageManager string `json:"packageManager"`
+	// Script is a package.json script name ("build", "generate", …).
+	Script string `json:"script"`
+	// OutDir is the build output folder, relative to Source.Project.
+	OutDir string `json:"outDir"`
+	// Framework is informational ("Vite", "Next.js", …).
+	Framework string `json:"framework,omitempty"`
 }
 
 type Icon struct {
@@ -129,13 +150,13 @@ type NetworkConfig struct {
 
 // NativeConfig covers NAT-01..07.
 type NativeConfig struct {
-	Tray            bool   `json:"tray,omitempty"`
-	TrayIcon        string `json:"trayIcon,omitempty"`
-	StartToTray     bool   `json:"startToTray,omitempty"`
-	GlobalShortcut  string `json:"globalShortcut,omitempty"` // e.g. "CmdOrCtrl+Shift+G"
-	Camera          bool   `json:"camera,omitempty"`
-	Microphone      bool   `json:"microphone,omitempty"`
-	DragDrop        bool   `json:"dragDrop,omitempty"`
+	Tray           bool   `json:"tray,omitempty"`
+	TrayIcon       string `json:"trayIcon,omitempty"`
+	StartToTray    bool   `json:"startToTray,omitempty"`
+	GlobalShortcut string `json:"globalShortcut,omitempty"` // e.g. "CmdOrCtrl+Shift+G"
+	Camera         bool   `json:"camera,omitempty"`
+	Microphone     bool   `json:"microphone,omitempty"`
+	DragDrop       bool   `json:"dragDrop,omitempty"`
 }
 
 type BuildConfig struct {
@@ -321,6 +342,8 @@ var (
 	versionRe = regexp.MustCompile(`^\d+(\.\d+){0,3}$`)
 	validOS   = map[string]bool{"darwin": true, "windows": true, "linux": true}
 	validArch = map[string]bool{"amd64": true, "arm64": true, "universal": true}
+	scriptRe  = regexp.MustCompile(`^[A-Za-z0-9:_][A-Za-z0-9:_-]*$`) // no leading "-": never a flag
+	validPM   = map[string]bool{"npm": true, "pnpm": true, "yarn": true, "bun": true}
 	validFmt  = map[string]bool{"app": true, "portable": true, "dmg": true, "zip": true, "deb": true, "appimage": true, "exe": true}
 )
 
@@ -359,6 +382,7 @@ func (c *Config) Validate() error {
 	default:
 		add("app.source.type", "INVALID_SOURCE", "source type must be url, file or dir")
 	}
+	c.validateProjectBuild(add)
 	switch c.App.Icon.Source {
 	case "auto", "default":
 	case "file":
@@ -444,6 +468,49 @@ func (c *Config) Validate() error {
 		return &ValidationError{Issues: is}
 	}
 	return nil
+}
+
+// validateProjectBuild checks Source.Project / Source.Build. Whether the
+// project folder exists is only checked when a build runs.
+func (c *Config) validateProjectBuild(add func(f, code, msg string)) {
+	src := c.App.Source
+	if src.Project != "" && !filepath.IsAbs(src.Project) {
+		add("app.source.project", "INVALID_PATH", "project must be an absolute path")
+	}
+	b := src.Build
+	if b == nil {
+		return
+	}
+	if src.Type != SourceDir {
+		add("app.source.build", "INVALID_SOURCE", "a project build requires a dir source")
+	}
+	if src.Project == "" {
+		add("app.source.project", "REQUIRED", "project is required when a build is configured")
+	}
+	if !validPM[b.PackageManager] {
+		add("app.source.build.packageManager", "INVALID_ENUM", "must be npm, pnpm, yarn or bun")
+	}
+	if !scriptRe.MatchString(b.Script) || len(b.Script) > 100 {
+		add("app.source.build.script", "INVALID_SCRIPT", "must be a package.json script name (letters, digits, : _ -)")
+	}
+	if !SafeRelPath(b.OutDir) {
+		add("app.source.build.outDir", "INVALID_PATH", "must be a relative folder inside the project, without ..")
+	}
+}
+
+// SafeRelPath reports whether p is a non-empty relative path that stays
+// inside its base (no absolute path, no ".." segment).
+func SafeRelPath(p string) bool {
+	if p == "" || filepath.IsAbs(p) || strings.HasPrefix(p, "/") || strings.HasPrefix(p, `\`) ||
+		(len(p) > 1 && p[1] == ':') {
+		return false
+	}
+	for _, seg := range strings.FieldsFunc(p, func(r rune) bool { return r == '/' || r == '\\' }) {
+		if seg == ".." {
+			return false
+		}
+	}
+	return true
 }
 
 // NormalizeURL turns user input ("github.com", " https://x.y/ ") into an

@@ -3,6 +3,8 @@ package cli
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -19,9 +21,10 @@ func (a *app) cmdBuild(args []string) int {
 	output := fs.String("output", "", "output directory")
 	yes := fs.Bool("yes", false, "allow downloading a missing runtime")
 	fs.BoolVar(yes, "y", false, "alias for --yes")
+	runBuild := fs.Bool("run-build", false, "approve running the project's own build (install + build script) for this app")
 	pos, err := parse(fs, args)
 	if err != nil || len(pos) != 1 {
-		return a.usageErr(asJSON, "usage: mypack build <project-id|mypack.json> [--target T] [--format F] [--output DIR] [--yes] [--json]")
+		return a.usageErr(asJSON, "usage: mypack build <project-id|mypack.json|project-folder> [--target T] [--format F] [--output DIR] [--yes] [--run-build] [--json]")
 	}
 	targets, err := parseTargets(*target, *format)
 	if err != nil {
@@ -44,8 +47,17 @@ func (a *app) cmdBuild(args []string) int {
 		projectID = p.ID
 	}
 
+	if st, serr := os.Stat(pos[0]); serr == nil && st.IsDir() && !strings.HasPrefix(pos[0], "prj_") {
+		p, perr := a.ensureProjectForDir(ctx, svc, pos[0])
+		if perr != nil {
+			return a.fail(perr, asJSON, nil)
+		}
+		projectID = p.ID
+	}
+
 	job, err := svc.StartBuild(ctx, appservice.BuildRequest{
-		ProjectID: projectID, Targets: targets, AllowDownload: *yes, OutputDir: *output, Actor: "cli"})
+		ProjectID: projectID, Targets: targets, AllowDownload: *yes, AllowProjectBuild: *runBuild,
+		OutputDir: *output, Actor: "cli"})
 	if err != nil {
 		return a.fail(err, asJSON, nil)
 	}
@@ -56,9 +68,18 @@ func (a *app) cmdBuild(args []string) int {
 			e = &domain.Error{Code: "RUNTIME_DOWNLOAD_REQUIRED", Message: "A runtime download needs approval."}
 		}
 		if !asJSON {
-			fmt.Fprintf(a.errw, "Job %s is waiting for approval. Re-run with --yes or approve it in mypack.\n", job.ID)
+			if job.Approval != nil && job.Approval.Kind == domain.ApprovalProjectBuild {
+				fmt.Fprintf(a.errw, "Building this app first runs your project's build:\n    %s\n  in %s\nRe-run with --run-build to approve it, or approve job %s in mypack.\n",
+					job.Approval.Command, job.Approval.Path, job.ID)
+			} else {
+				fmt.Fprintf(a.errw, "Job %s is waiting for approval. Re-run with --yes or approve it in mypack.\n", job.ID)
+			}
 		}
-		return a.fail(e, asJSON, map[string]any{"jobId": job.ID, "projectId": projectID, "status": "approval_required"})
+		extra := map[string]any{"jobId": job.ID, "projectId": projectID, "status": "approval_required"}
+		if job.Approval != nil {
+			extra["approval"] = job.Approval
+		}
+		return a.fail(e, asJSON, extra)
 	}
 
 	unsub := func() {}
@@ -201,4 +222,24 @@ func (a *app) reportBuild(j domain.BuildJob, asJSON bool) int {
 		}
 		return code
 	}
+}
+
+// ensureProjectForDir returns the project for a project/site folder given to
+// `build`: the existing one for that folder, else a new draft.
+func (a *app) ensureProjectForDir(ctx context.Context, svc appservice.Service, dir string) (domain.Project, error) {
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		abs = dir
+	}
+	projects, err := svc.ListProjects(ctx)
+	if err != nil {
+		return domain.Project{}, err
+	}
+	for _, p := range projects {
+		src := p.Config.App.Source
+		if src.Type == config.SourceDir && (src.Project == abs || src.Value == abs) {
+			return p, nil
+		}
+	}
+	return svc.CreateProject(ctx, appservice.CreateRequest{Input: abs, Actor: "cli"})
 }

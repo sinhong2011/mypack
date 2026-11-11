@@ -56,6 +56,7 @@ type Impl struct {
 
 	mu      sync.Mutex
 	running map[string]*runningJob
+	projMu  sync.Mutex // serialises per-project build-state read-modify-write
 
 	regMu   sync.Mutex
 	lastReg string
@@ -188,7 +189,13 @@ func (s *Impl) WatchExternal(ctx context.Context, interval time.Duration) {
 // Subscribe implements Service.
 func (s *Impl) Subscribe(fn func(Event)) func() { return s.bus.subscribe(fn) }
 
-func (s *Impl) emit(e Event) { s.bus.publish(e) }
+func (s *Impl) emit(e Event) {
+	if e.Job != nil {
+		j := s.withApproval(*e.Job)
+		e.Job = &j
+	}
+	s.bus.publish(e)
+}
 
 // RecordActivity implements Auditor.
 func (s *Impl) RecordActivity(ctx context.Context, a domain.Activity) error {
@@ -403,16 +410,26 @@ func (s *Impl) CreateProject(ctx context.Context, req CreateRequest) (p domain.P
 			return p, perr
 		}
 		name := filepath.Base(path)
+		src := config.Source{Type: config.SourceDir, Value: path}
 		if isProject {
-			path = site
+			if proj.Script != "" {
+				// mypack runs the build itself (after user approval).
+				src.Project = path
+				src.Build = &config.ProjectBuild{PackageManager: proj.PackageManager, Script: proj.Script,
+					OutDir: proj.OutDir, Framework: proj.Framework}
+				src.Entry = "index.html"
+			}
+			src.Value = site
 			name = firstNonEmpty(proj.Name, name)
 		}
-		entry, eerr := findEntry(path)
-		if eerr != nil {
-			return p, eerr
+		if src.Entry == "" {
+			entry, eerr := findEntry(src.Value)
+			if eerr != nil {
+				return p, eerr
+			}
+			src.Entry = entry
 		}
-		cfg = config.New(cleanName(firstNonEmpty(req.Name, name)),
-			config.Source{Type: config.SourceDir, Value: path, Entry: entry}, s.host)
+		cfg = config.New(cleanName(firstNonEmpty(req.Name, name)), src, s.host)
 		cfg.App.Icon.Source = "default"
 	case inputConfig:
 		c, _, lerr := LoadConfigFile(path)

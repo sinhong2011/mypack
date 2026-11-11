@@ -559,3 +559,27 @@ func TestLicenseAndLocate(t *testing.T) {
 		t.Errorf("locate usage: %d", code)
 	}
 }
+
+func TestBuildProjectBuildApprovalExit6AndRunBuild(t *testing.T) {
+	f := newFake()
+	j := okJob(domain.JobAwaitingApproval)
+	j.Error = &domain.Error{Code: "PROJECT_BUILD_REQUIRED", Message: "needs build"}
+	j.Approval = &domain.ApprovalRequest{Kind: domain.ApprovalProjectBuild, Command: "npm run build", Path: "/p/app"}
+	f.nextJob = j
+	code, _, errs := run(t, f, "build", "prj_11111111")
+	if code != ExitApproval || !strings.Contains(errs, "npm run build") || !strings.Contains(errs, "--run-build") {
+		t.Fatalf("exit=%d stderr=%q", code, errs)
+	}
+	if f.builds[0].AllowProjectBuild {
+		t.Error("project build allowed without --run-build")
+	}
+	f.nextJob = okJob(domain.JobSucceeded)
+	if code, _, _ := run(t, f, "build", "prj_11111111", "--run-build"); code != 0 || !f.builds[1].AllowProjectBuild {
+		t.Errorf("--run-build: exit=%d req=%+v", code, f.builds[1])
+	}
+	for code, want := range map[string]int{"PROJECT_BUILD_FAILED": ExitBuildFailed, "PROJECT_OUTPUT_MISSING": ExitBuildFailed, "NODE_NOT_FOUND": ExitBuildFailed} {
+		if got := exitCodeFor(&domain.Error{Code: code}); got != want {
+			t.Errorf("%s -> %d", code, got)
+		}
+	}
+}
