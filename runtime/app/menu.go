@@ -65,7 +65,7 @@ func (a *App) buildMenu() *mygo.Menu {
 				p.GoForward()
 			}
 		})},
-		{Label: "Home", Accelerator: a.acc("CmdOrCtrl+Shift+H"), Click: click(func(_ *mygo.Window, p *mygo.Page) { _ = p.LoadURL(a.home) })},
+		{Label: "Home", Accelerator: a.acc("CmdOrCtrl+Shift+H"), Click: click(func(_ *mygo.Window, p *mygo.Page) { _ = p.LoadURL(a.homeOf(p)) })},
 		mygo.Separator(),
 		{Label: "Zoom In", Accelerator: a.acc("CmdOrCtrl+="), Click: zoomIn},
 		{Label: "Zoom In", Accelerator: a.acc("CmdOrCtrl+Plus"), Hidden: true, Click: zoomIn},
@@ -74,6 +74,7 @@ func (a *App) buildMenu() *mygo.Menu {
 		mygo.Separator(),
 		{Role: mygo.RoleToggleFullScreen},
 	}
+	view = append(view, a.groupMenuItems()...)
 	view = append(view, a.layoutMenuItems()...)
 	if a.cfg.WebView.DevTools {
 		// Not RoleToggleDevTools: in a window of native UI (strip layout) that

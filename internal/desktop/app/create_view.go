@@ -99,10 +99,7 @@ func (a *App) createView(c *ui.Context) {
 				a.createTargets(c)
 			}
 		})
-	}, nil, func() {
-		a.ensureCfg()
-		a.settingsSearch(c, s.adv)
-	})
+	}, nil, a.createInspectorHead(c)...)
 	if s.buildRequested {
 		s.buildRequested = false
 		a.createAndBuild()
@@ -130,6 +127,9 @@ func (a *App) createPreview(c *ui.Context) {
 		ui.Row(c).Gap(5).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
 			ic := icons.Link
 			src := config.RegistrableHost(s.normalized)
+			if s.isGroup() {
+				ic, src = icons.Layers, T("group.sites", "n", len(s.more)+1)
+			}
 			if s.local != "" {
 				ic, src = icons.Folder, shortPath(s.local)
 			}
@@ -152,6 +152,9 @@ func (a *App) createPreview(c *ui.Context) {
 			})
 		}
 	})
+	a.e2eCreateHook()
+	a.syncCreateGroup()
+	a.createSites(c)
 	a.createMockupStage(c)
 	// The footer: Build, centred.
 	ui.Row(c.Key("footer")).Justify(ui.Center).Margin(16, 0, 0, 0).Children(func() {
@@ -167,19 +170,44 @@ func (a *App) createMockupStage(c *ui.Context) {
 	s := &a.create
 	cfg := a.ensureCfg()
 	a.stage(c, 0, func(h float32) {
-		mockup(c, c.Key("mockup"), cfg, a.createIcon(), s.displayName(), h, false)
+		a.mockup(c, c.Key("mockup"), cfg, a.createIcon(), s.displayName(), h, false)
 	})
 }
 
 // mockup is the live window mockup for a config; launched springs it
 // open (a finished build's result).
-func mockup(c *ui.Context, key *ui.Context, cfg *config.Config, icon []byte, name string, h float32, launched bool) {
+func (a *App) mockup(c *ui.Context, key *ui.Context, cfg *config.Config, icon []byte, name string, h float32, launched bool) {
 	p := design.Of(c)
 	w := cfg.Window
 	dark := w.DarkMode == "dark" || ((w.DarkMode == "" || w.DarkMode == "system") && p.Dark)
+	tint := kit.IconTint(icon, name)
+	rail := a.railOf(cfg)
+	if len(rail) > 1 { // a group's page shows its first site
+		tint = kit.IconTint(rail[0].Icon, rail[0].Name)
+	}
 	kit.AppMockup(key, kit.MockupOpts{Icon: icon, Name: name,
-		Tint: kit.IconTint(icon, name), Seamless: w.TitleBarStyle == "overlay" || w.TitleBarStyle == "hidden",
-		Dark: dark, W: w.Width, H: w.Height, Fill: w.Maximized, Tray: cfg.Native.Tray, Height: h, Launched: launched})
+		Tint: tint, Seamless: w.TitleBarStyle == "overlay" || w.TitleBarStyle == "hidden",
+		Dark: dark, W: w.Width, H: w.Height, Fill: w.Maximized, Tray: cfg.Native.Tray, Height: h, Launched: launched,
+		Mode: w.EffectiveMode(), Edge: w.EffectiveSidebarEdge(), Rail: rail})
+}
+
+// railOf is the rail of a group config: its sites with their Library
+// icons (pasted sites draw their initial).
+func (a *App) railOf(cfg *config.Config) []kit.MockupSite {
+	if !cfg.IsGroup() {
+		return nil
+	}
+	var out []kit.MockupSite
+	for _, m := range cfg.App.Group.Members {
+		site := kit.MockupSite{Name: m.Name}
+		if pr := a.project(m.ProjectID); pr != nil {
+			site.Icon = pr.IconPNG
+		} else if png, ok := a.siteIcons[m.URL]; ok {
+			site.Icon = png
+		}
+		out = append(out, site)
+	}
+	return out
 }
 
 // autoInstallSetting is the inspector's first row: Install & Open when
@@ -268,10 +296,10 @@ func (a *App) createBuilding(c *ui.Context, pr *domain.Project, j *domain.BuildJ
 			ui.Column(c).Padding(4, 20, 20, 20).Children(func() { a.approvalCard(c, j) })
 		case domain.JobSucceeded:
 			// The result is the app, launched: its window springs open.
-			mockup(c, c.Key("launched"), pr.Config, pr.IconPNG, pr.Config.App.Name, h, true)
+			a.mockup(c, c.Key("launched"), pr.Config, pr.IconPNG, pr.Config.App.Name, h, true)
 		case domain.JobFailed:
 			// The app as it would be; the step list below says why not.
-			mockup(c, c.Key("mockup"), pr.Config, pr.IconPNG, pr.Config.App.Name, h, false)
+			a.mockup(c, c.Key("mockup"), pr.Config, pr.IconPNG, pr.Config.App.Name, h, false)
 		default:
 			a.sceneFor(c, pr, j, h)
 		}
@@ -574,6 +602,32 @@ func (a *App) createTargets(c *ui.Context) {
 		})
 		if s.otherOpen {
 			ui.Text(c, T("create.otherPlatforms.note")).FontSize(design.FontCaption).TextColor(p.TextSecondary).LineHeight(1.4).Padding(0, 2)
+		}
+	})
+}
+
+// createInspectorHead is the inspector's pinned search, only when the
+// window is too narrow for the toolbar to hold it (createToolbar).
+func (a *App) createInspectorHead(c *ui.Context) []func() {
+	if !a.inspectorNarrow() {
+		return nil
+	}
+	return []func(){func() {
+		a.ensureCfg()
+		a.settingsSearch(c, a.create.adv)
+	}}
+}
+
+// createToolbar is the toolbar's part over the inspector in Create: the
+// settings search, the width of the inspector's content, and Build.
+func (a *App) createToolbar(c *ui.Context) {
+	s := &a.create
+	a.ensureCfg()
+	ui.Row(c.Key("create-tools")).Width(a.inspectorWidth() - 26).Shrink(0).Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.Box(c).Grow(1).Basis(0).MinWidth(0).Children(func() { a.settingsSearch(c, s.adv) })
+		if kit.Button(c.Key("tb-create-build"), a.buildCTA(), kit.ButtonOpts{Variant: kit.Primary, Size: design.ControlSM,
+			Loading: s.busy, Disabled: len(s.targets) == 0, Icon: icons.Build}).Clicked() {
+			s.buildRequested = true
 		}
 	})
 }

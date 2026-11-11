@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"mypack.dev/mypack/internal/appservice"
+	"mypack.dev/mypack/internal/domain"
 	"mypack.dev/mypack/pkg/config"
 )
 
@@ -49,7 +51,26 @@ type createState struct {
 	autoSet        bool   // autoInstall was seeded
 	focus          bool
 	urlHandle      ui.Handle
+
+	// more are the sites added after the first: with any, the app is a
+	// group of all of them (app.group), in this order.
+	more       []createSite
+	addingAddr bool   // the "paste an address" field is open
+	moreAddr   string // its text
+	groupIcon  []byte // the grid icon of the group, for groupIconKey
+	groupKey   string
 }
+
+// createSite is a site added to the app being created: a Library project
+// or a pasted address.
+type createSite struct {
+	url       string
+	projectID string
+	name      string
+}
+
+// isGroup reports whether the app being created is a group of sites.
+func (s *createState) isGroup() bool { return len(s.more) > 0 && s.local == "" }
 
 func (s *createState) reset(host config.Target) {
 	*s = createState{}
@@ -104,6 +125,9 @@ func (s *createState) displayName() string {
 	if strings.TrimSpace(s.name) != "" {
 		return s.name
 	}
+	if s.isGroup() {
+		return T("group.defaultName")
+	}
 	if s.meta != nil && s.meta.Title != "" {
 		return s.meta.Title
 	}
@@ -117,6 +141,9 @@ func (a *App) createIcon() []byte {
 	s := &a.create
 	if s.iconPNG != nil {
 		return s.iconPNG
+	}
+	if s.isGroup() {
+		return a.createGroupIcon()
 	}
 	if s.meta != nil && s.metaFor == s.normalized {
 		return s.meta.IconPNG
@@ -283,8 +310,22 @@ func (a *App) createAndBuild() {
 		adv = s.cfg.Clone()
 	}
 	var projectID string
+	group := s.isGroup()
+	var sites []appservice.GroupSite
+	if group {
+		sites = s.groupSites()
+		if !s.nameEdited {
+			name = T("group.defaultName")
+		}
+	}
 	a.do(func(ctx context.Context) error {
-		pr, err := a.svc.CreateProject(ctx, appservice.CreateRequest{Input: input, Name: name, Metadata: meta, Actor: "gui"})
+		var pr domain.Project
+		var err error
+		if group {
+			pr, err = a.svc.CreateGroup(ctx, appservice.GroupRequest{Name: name, Sites: sites, Actor: "gui"})
+		} else {
+			pr, err = a.svc.CreateProject(ctx, appservice.CreateRequest{Input: input, Name: name, Metadata: meta, Actor: "gui"})
+		}
 		if err != nil {
 			return err
 		}
@@ -301,6 +342,7 @@ func (a *App) createAndBuild() {
 			keep := cfg.App
 			cfg = adv
 			cfg.App.Name, cfg.App.Identifier, cfg.App.ProfileID, cfg.App.Source, cfg.App.Icon = keep.Name, keep.Identifier, keep.ProfileID, keep.Source, keep.Icon
+			cfg.App.Group = keep.Group // the service made the members (icons, ids)
 			if adv.App.Title == "" {
 				cfg.App.Title = keep.Title
 			}
@@ -321,6 +363,11 @@ func (a *App) createAndBuild() {
 		return nil
 	}, func(err error) {
 		s.busy = false
+		var de *domain.Error
+		if errors.As(err, &de) && de.Code == appservice.CodeLicenseLimit && group {
+			a.dlg.groupLimit = true
+			return
+		}
 		if err != nil {
 			a.toastErr(err)
 			if projectID == "" {

@@ -5,6 +5,7 @@ import (
 	"runtime"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/ui"
 	"mypack.dev/mypack/pkg/config"
 )
 
@@ -29,8 +30,7 @@ func (a *App) startMenuBar(startURL string) bool {
 		return false
 	}
 	pw, ph := a.cfg.Window.PanelSize()
-	po := a.pageOptions()
-	panel := mygo.NewFlyout(mygo.FlyoutOptions{
+	fo := mygo.FlyoutOptions{
 		Tray:      a.tray,
 		Placement: mygo.PlacementBottom,
 		Gap:       4,
@@ -40,11 +40,23 @@ func (a *App) startMenuBar(startURL string) bool {
 		Shadow:    true,
 		Popover:   true,
 		Hidden:    true,
-		URL:       startURL,
-		Page:      po,
-	})
-	p := panel.Page()
-	if p != nil {
+	}
+	if a.group != nil {
+		fo.Content = ui.View(a.group.viewFn)
+	} else {
+		fo.URL, fo.Page = startURL, a.pageOptions()
+	}
+	panel := mygo.NewFlyout(fo)
+	var p *mygo.Page
+	if a.group != nil {
+		a.mu.Lock()
+		a.windows[panel] = nil
+		a.mu.Unlock()
+		p = a.group.attach(panel)
+		a.mu.Lock()
+		a.windows[panel] = p
+		a.mu.Unlock()
+	} else if p = panel.Page(); p != nil {
 		a.registerPage(panel, p)
 	}
 	a.mu.Lock()
@@ -114,7 +126,7 @@ func (a *App) menuBarMenu() *mygo.Menu {
 		{Label: "Open in a Window", Click: func(*mygo.MenuItem, *mygo.Window) { a.openPanelInWindow() }},
 		mygo.Separator(),
 		{Label: "Reload", Click: page(func(p *mygo.Page) { p.Reload() })},
-		{Label: "Home", Click: page(func(p *mygo.Page) { _ = p.LoadURL(a.home) })},
+		{Label: "Home", Click: page(func(p *mygo.Page) { _ = p.LoadURL(a.homeOf(p)) })},
 		mygo.Separator(),
 		{Label: "Quit " + a.title(), Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Quit() }},
 	})

@@ -94,6 +94,14 @@ func (a *App) incomingAction(raw string) navigation.Action {
 
 // handleIncomingURL receives a URL from OnOpenURL / a second instance.
 func (a *App) handleIncomingURL(raw string) {
+	if a.group != nil {
+		a.mu.Lock()
+		started := a.started
+		a.mu.Unlock()
+		if started && a.group.handleIncoming(raw) {
+			return
+		}
+	}
 	act := a.incomingAction(raw)
 	log.Printf("mypack-runtime: incoming url host=%s -> %s", hostOf(raw), act)
 	switch act {

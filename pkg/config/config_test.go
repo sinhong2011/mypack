@@ -189,3 +189,56 @@ func TestRuntimeAtLeast(t *testing.T) {
 		}
 	}
 }
+
+func TestGroupConfig(t *testing.T) {
+	c := New("Work", Source{Type: SourceURL, Value: "https://app.slack.com"}, Target{OS: "darwin", Arch: "arm64"})
+	if c.IsGroup() {
+		t.Fatal("a plain app is not a group")
+	}
+	b, _ := c.Marshal()
+	if strings.Contains(string(b), `"group"`) {
+		t.Fatal("no group must not be written")
+	}
+	c.App.Group = &GroupConfig{Members: []GroupMember{
+		{ID: "slack", Name: "Slack", URL: "https://app.slack.com"},
+		{ID: "gmail", Name: "Gmail", URL: "https://mail.google.com", Icon: "/tmp/g.png"},
+	}}
+	if err := c.Validate(); err != nil || !c.IsGroup() {
+		t.Fatalf("valid group: %v", err)
+	}
+	b, _ = c.Marshal()
+	c2, err := Parse(b)
+	if err != nil || len(c2.App.Group.Members) != 2 || c2.App.Group.Members[1].Icon != "/tmp/g.png" {
+		t.Fatalf("round trip: %v", err)
+	}
+	bad := c.Clone()
+	bad.App.Group.Members[1].ID = "slack"
+	bad.App.Group.Members[0].URL = "not a url"
+	err = bad.Validate()
+	if err == nil || !strings.Contains(err.Error(), "members[1].id") || !strings.Contains(err.Error(), "members[0].url") {
+		t.Fatalf("bad members accepted: %v", err)
+	}
+	one := c.Clone()
+	one.App.Group.Members = one.App.Group.Members[:1]
+	if err := one.Validate(); err == nil || !strings.Contains(err.Error(), "app.group.members") {
+		t.Fatalf("one member accepted: %v", err)
+	}
+	dir := c.Clone()
+	dir.App.Source = Source{Type: SourceDir, Value: "/tmp/site"}
+	if err := dir.Validate(); err == nil || !strings.Contains(err.Error(), "group app has a url source") {
+		t.Fatalf("dir group accepted: %v", err)
+	}
+}
+
+func TestMemberID(t *testing.T) {
+	taken := map[string]bool{}
+	for _, tc := range []struct{ in, want string }{
+		{"Slack", "slack"}, {"Google Calendar", "google-calendar"}, {"Slack", "slack-2"}, {"  ", "site"}, {"日本", "site-2"},
+	} {
+		got := MemberID(tc.in, taken)
+		if got != tc.want {
+			t.Errorf("MemberID(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+		taken[got] = true
+	}
+}

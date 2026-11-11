@@ -1213,7 +1213,13 @@ func (s *Service) managedCountLocked() int {
 func (s *Service) License(ctx context.Context) (appservice.LicenseStatus, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	st := appservice.LicenseStatus{Edition: licensing.EditionFree, FreeLimit: appservice.FreeManagedApps, ManagedApps: s.managedCountLocked()}
+	st := appservice.LicenseStatus{Edition: licensing.EditionFree, FreeLimit: appservice.FreeManagedApps, ManagedApps: s.managedCountLocked(),
+		FreeGroups: appservice.FreeGroups}
+	for _, p := range s.projects {
+		if p.TrashedAt == nil && p.Config.IsGroup() {
+			st.Groups++
+		}
+	}
 	if s.licenseToken == "" {
 		return st, nil
 	}
@@ -1222,7 +1228,7 @@ func (s *Service) License(ctx context.Context) (appservice.LicenseStatus, error)
 		st.Error = err.Error()
 		return st, nil
 	}
-	st.Edition, st.Valid, st.FreeLimit, st.Email, st.LicenseID = p.Edition, true, 0, p.Email, p.LicenseID
+	st.Edition, st.Valid, st.FreeLimit, st.FreeGroups, st.Email, st.LicenseID = p.Edition, true, 0, 0, p.Email, p.LicenseID
 	return st, nil
 }
 
@@ -1414,4 +1420,67 @@ func demoIcon(name string) []byte {
 		return sampleicons.Icon(name)
 	}
 	return icons.Default(name)
+}
+
+// CreateGroup makes a group project from website projects (icons stay in
+// memory: the fake service never builds a real app).
+func (s *Service) CreateGroup(ctx context.Context, req appservice.GroupRequest) (domain.Project, error) {
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		return domain.Project{}, &domain.Error{Code: appservice.CodeInvalidInput, Message: "Give the group a name.", Field: "name"}
+	}
+	if st, _ := s.License(ctx); !st.Valid && st.Groups >= appservice.FreeGroups {
+		return domain.Project{}, &domain.Error{Code: appservice.CodeLicenseLimit,
+			Message:     "The free edition includes 1 group app, and you have one.",
+			Remediation: "Add sites to your existing group, or enter a license key for unlimited groups."}
+	}
+	var (
+		members []config.GroupMember
+		pngs    [][]byte
+		taken   = map[string]bool{}
+	)
+	for _, site := range req.Sites {
+		var m config.GroupMember
+		var png []byte
+		if site.ProjectID != "" {
+			mp, err := s.GetProject(ctx, site.ProjectID)
+			if err != nil {
+				return domain.Project{}, err
+			}
+			if mp.Config.App.Source.Type != config.SourceURL || mp.Config.IsGroup() {
+				return domain.Project{}, &domain.Error{Code: appservice.CodeInvalidInput, Field: "sites",
+					Message: mp.Config.App.Name + " can't join a group: only website apps can."}
+			}
+			m = config.GroupMember{Name: mp.Config.App.Name, URL: mp.Config.App.Source.Value, ProjectID: mp.ID}
+			png = mp.IconPNG
+		} else {
+			u, err := config.NormalizeURL(site.URL)
+			if err != nil {
+				return domain.Project{}, &domain.Error{Code: appservice.CodeInvalidInput, Field: "sites", Message: site.URL + " is not a website address."}
+			}
+			name := titleForHost(config.RegistrableHost(u))
+			m = config.GroupMember{Name: name, URL: u}
+			png = demoIcon(name)
+		}
+		m.ID = config.MemberID(m.Name, taken)
+		taken[m.ID] = true
+		members = append(members, m)
+		pngs = append(pngs, png)
+	}
+	if len(members) < config.MinGroupMembers || len(members) > config.MaxGroupMembers {
+		return domain.Project{}, &domain.Error{Code: appservice.CodeInvalidInput, Field: "projectIds", Message: "Pick 2 to 12 websites for a group."}
+	}
+	p, err := s.CreateProject(ctx, appservice.CreateRequest{Input: members[0].URL, Name: name,
+		Metadata: &appservice.Metadata{Title: name, IconPNG: icons.Group(pngs)}, Actor: req.Actor})
+	if err != nil {
+		return p, err
+	}
+	s.mu.Lock()
+	cur := s.projects[p.ID]
+	cur.Config.App.Group = &config.GroupConfig{Members: members}
+	cur.Revision++
+	out := clone(cur)
+	s.mu.Unlock()
+	s.publish(appservice.Event{Kind: appservice.EventProjectChanged, ProjectID: p.ID})
+	return out, nil
 }

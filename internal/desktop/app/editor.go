@@ -328,9 +328,6 @@ func (a *App) settingsEditor(c *ui.Context, ed *editorState, pr *domain.Project)
 								for k, r := range rows {
 									r := r
 									row := ui.Column(c.Key(k))
-									if q != "" {
-										row.Background(p.ChoiceFill) // a match
-									}
 									row.Children(func() {
 										if r.wide {
 											kit.SettingBlock(c, r.label, r.desc, r.control)

@@ -283,7 +283,7 @@ func (a *App) successPanel(c *ui.Context, pr *domain.Project, j *domain.BuildJob
 	ui.Column(c).FillWidth().Padding(8, 0, 8, 0).Gap(16).Children(func() {
 		// The result is the app, launched (its window springs open); under
 		// it the steps, then the result bar.
-		mockup(c, c.Key("launched"), pr.Config, pr.IconPNG, pr.Config.App.Name, 260, true)
+		a.mockup(c, c.Key("launched"), pr.Config, pr.IconPNG, pr.Config.App.Name, 260, true)
 		ui.Column(c).FillWidth().AlignItems(ui.Center).Children(func() { a.buildFooter(c, pr, j) })
 		a.successExtras(c, j, si)
 	}).Role(ui.RoleRegion).Label(T("build.success.title"))
@@ -309,7 +309,7 @@ func agoShort(t time.Time) string {
 // the result bar in its failed state, then why and what to do.
 func (a *App) failurePanel(c *ui.Context, pr *domain.Project, j *domain.BuildJob) {
 	ui.Column(c).FillWidth().Padding(8, 0, 8, 0).Gap(16).Children(func() {
-		mockup(c, c.Key("mockup"), pr.Config, pr.IconPNG, pr.Config.App.Name, 220, false)
+		a.mockup(c, c.Key("mockup"), pr.Config, pr.IconPNG, pr.Config.App.Name, 220, false)
 		ui.Column(c).FillWidth().AlignItems(ui.Center).Children(func() { a.buildFooter(c, pr, j) })
 	}).Role(ui.RoleRegion).Label(T("build.failed.generic"))
 }

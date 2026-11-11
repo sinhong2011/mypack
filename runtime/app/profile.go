@@ -64,6 +64,8 @@ type State struct {
 	NormalBounds  *Bounds `json:"normalBounds,omitempty"`
 	SidebarWidth  int     `json:"sidebarWidth,omitempty"`
 	SidebarEdge   string  `json:"sidebarEdge,omitempty"`
+	// GroupActive is the group member shown last (its id).
+	GroupActive string `json:"groupActive,omitempty"`
 }
 
 // Bounds is a window rectangle in screen coordinates.

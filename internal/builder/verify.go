@@ -43,6 +43,13 @@ func (j *job) checkConfigFile() error {
 	if c.App.Identifier != j.cfg.App.Identifier || c.App.Name != j.cfg.App.Name {
 		return errors.New("mypack.json does not match the requested app")
 	}
+	if c.App.Group != nil {
+		for i, m := range c.App.Group.Members {
+			if m.Icon != "" && !strings.HasPrefix(m.Icon, "members/") {
+				return fmt.Errorf("group member %d icon still references a path", i)
+			}
+		}
+	}
 	for i, inj := range c.WebView.Injections {
 		if inj.Path != "" {
 			return fmt.Errorf("injection %d still references a path", i)

@@ -66,15 +66,19 @@ type App struct {
 	loaded   bool
 	settings appservice.Settings
 	projects []domain.Project
-	installs []domain.Installation
-	jobs     []domain.BuildJob
-	runtimes []domain.RuntimeInfo
-	storage  appservice.Storage
-	license  appservice.LicenseStatus
-	logs     map[string][]domain.LogLine
-	logOpen  map[string]bool
-	rtBusy   map[string]string // runtime key -> "download"/"verify"/"delete"
-	rtProg   map[string]float64
+	// siteIcons are the icons of sites pasted into a group (by address),
+	// fetched with their metadata.
+	siteIcons map[string][]byte
+	e2eSeeded bool // test builds: Create's extra sites were added
+	installs  []domain.Installation
+	jobs      []domain.BuildJob
+	runtimes  []domain.RuntimeInfo
+	storage   appservice.Storage
+	license   appservice.LicenseStatus
+	logs      map[string][]domain.LogLine
+	logOpen   map[string]bool
+	rtBusy    map[string]string // runtime key -> "download"/"verify"/"delete"
+	rtProg    map[string]float64
 
 	// watched jobs started from this session, per project
 	watch map[string]string

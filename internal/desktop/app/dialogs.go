@@ -28,8 +28,10 @@ type dialogs struct {
 	update    installDialog
 	repair    installDialog
 	details   detailsDialog
+	group     groupDialog
 
 	licenseLimit      bool // free-edition limit explainer (spec §9E.6)
+	groupLimit        bool // free edition: one group app
 	deactivateLicense licenseConfirm
 }
 
@@ -94,6 +96,7 @@ func (a *App) install(id string) *domain.Installation {
 func (a *App) dialogs(c *ui.Context) {
 	p := design.Of(c)
 	d := &a.dlg
+	a.groupSheet(c)
 
 	// Identity change (spec §9C.2: explain and confirm).
 	if d.identity.open {
@@ -329,6 +332,25 @@ func (a *App) dialogs(c *ui.Context) {
 					}
 					if kit.Button(c.Key("enter"), T("license.limit.enter"), kit.ButtonOpts{Variant: kit.Primary}).Clicked() {
 						d.licenseLimit = false
+						a.nav(secSettings)
+					}
+				})
+			})
+		})
+	}
+
+	// Free edition: one group app; Pro makes as many as you like.
+	if d.groupLimit {
+		kit.Sheet(c.Key("dlg-glimit"), &d.groupLimit, 460, func() {
+			kit.SheetHeader(c, T("group.limit.title"), nil)
+			ui.Column(c).Gap(12).Children(func() {
+				ui.Text(c, T("group.limit.body")).FontSize(design.FontBody).TextColor(p.TextSecondary).LineHeight(1.45)
+				ui.Row(c).Gap(8).Justify(ui.End).Margin(8, 0, 0, 0).Children(func() {
+					if kit.Button(c.Key("later"), T("license.limit.later"), kit.ButtonOpts{Variant: kit.Ghost}).Clicked() {
+						d.groupLimit = false
+					}
+					if kit.Button(c.Key("enter"), T("license.limit.enter"), kit.ButtonOpts{Variant: kit.Primary}).Clicked() {
+						d.groupLimit = false
 						a.nav(secSettings)
 					}
 				})

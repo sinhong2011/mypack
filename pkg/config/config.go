@@ -44,6 +44,71 @@ type AppConfig struct {
 	Version    string `json:"version"`
 	Source     Source `json:"source"`
 	Icon       Icon   `json:"icon"`
+	// Group makes the app a group of websites (runtime 1.0.6+): one window
+	// with a rail of the members' icons, each member in its own session.
+	// Source stays a url source (the first member's), so identifiers,
+	// installs and icons work as for any app.
+	Group *GroupConfig `json:"group,omitempty"`
+}
+
+// GroupConfig lists the websites of a group app.
+type GroupConfig struct {
+	Members []GroupMember `json:"members"`
+}
+
+// GroupMember is one website of a group app.
+type GroupMember struct {
+	// ID is stable ([a-z0-9-], at most 32): the member's session (its
+	// logins) is keyed by it, so renaming a member keeps them.
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	URL  string `json:"url"`
+	// Icon is a PNG: a path in a project (the Builder bundles it as
+	// members/<id>.png) or relative to the resources dir in a built app.
+	// Empty draws the member's initial.
+	Icon string `json:"icon,omitempty"`
+	// ProjectID is the Library project the member was made from, if any.
+	ProjectID string `json:"projectId,omitempty"`
+}
+
+// Group limits.
+const (
+	MinGroupMembers = 2
+	MaxGroupMembers = 12
+)
+
+var memberIDRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
+
+// IsGroup reports whether the app is a group of websites.
+func (c *Config) IsGroup() bool { return c.App.Group != nil && len(c.App.Group.Members) > 0 }
+
+// MemberID derives a member ID from a name or URL host: lowercase letters,
+// digits and dashes, unique among taken.
+func MemberID(name string, taken map[string]bool) string {
+	var b strings.Builder
+	dash := false
+	for _, r := range strings.ToLower(name) {
+		switch {
+		case r >= 'a' && r <= 'z' || r >= '0' && r <= '9':
+			b.WriteRune(r)
+			dash = false
+		case b.Len() > 0 && !dash:
+			b.WriteByte('-')
+			dash = true
+		}
+	}
+	id := strings.Trim(b.String(), "-")
+	if len(id) > 28 {
+		id = strings.Trim(id[:28], "-")
+	}
+	if id == "" {
+		id = "site"
+	}
+	base := id
+	for i := 2; taken[id]; i++ {
+		id = fmt.Sprintf("%s-%d", base, i)
+	}
+	return id
 }
 
 // SourceType is url, file or dir.
@@ -537,6 +602,7 @@ func (c *Config) Validate() error {
 	default:
 		add("window.darkMode", "INVALID_ENUM", "must be system, light or dark")
 	}
+	c.validateGroup(add)
 	switch w.Mode {
 	case "", ModeWindow, ModeCompact, ModeMenuBar, ModeSidebar:
 	default:
@@ -809,4 +875,36 @@ func parseVersion(v string) ([4]int, bool) {
 		out[i] = n
 	}
 	return out, true
+}
+
+func (c *Config) validateGroup(add func(f, code, msg string)) {
+	g := c.App.Group
+	if g == nil {
+		return
+	}
+	if c.App.Source.Type != SourceURL {
+		add("app.source.type", "INVALID_SOURCE", "a group app has a url source (its first website)")
+	}
+	if n := len(g.Members); n < MinGroupMembers || n > MaxGroupMembers {
+		add("app.group.members", "INVALID_GROUP", fmt.Sprintf("a group has %d to %d websites", MinGroupMembers, MaxGroupMembers))
+	}
+	seen := map[string]bool{}
+	for i, m := range g.Members {
+		f := fmt.Sprintf("app.group.members[%d]", i)
+		switch {
+		case !memberIDRe.MatchString(m.ID):
+			add(f+".id", "INVALID_ID", "member id must be lowercase letters, digits and dashes (at most 32)")
+		case seen[m.ID]:
+			add(f+".id", "DUPLICATE", "member ids must be unique")
+		}
+		seen[m.ID] = true
+		if strings.TrimSpace(m.Name) == "" {
+			add(f+".name", "REQUIRED", "member name is required")
+		} else if len(m.Name) > 64 {
+			add(f+".name", "TOO_LONG", "member name must be at most 64 characters")
+		}
+		if _, err := NormalizeURL(m.URL); err != nil {
+			add(f+".url", "INVALID_URL", err.Error())
+		}
+	}
 }

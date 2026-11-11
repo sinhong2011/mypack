@@ -24,6 +24,10 @@ const (
 // a commercial proposal that may change).
 const FreeManagedApps = 2
 
+// FreeGroups is how many group apps the Free edition may have in its
+// Library; Pro has no limit.
+const FreeGroups = 1
+
 // LicenseStatus describes the local entitlement. Secrets (the token) are
 // never included.
 type LicenseStatus struct {
@@ -34,6 +38,10 @@ type LicenseStatus struct {
 	// FreeLimit is the managed-app cap of the Free edition; 0 means unlimited
 	// (Pro).
 	FreeLimit int `json:"freeLimit"`
+	// Groups is the number of group apps in the Library; FreeGroups their
+	// cap in the Free edition (0 = unlimited, Pro).
+	Groups     int `json:"groups"`
+	FreeGroups int `json:"freeGroups"`
 	// Valid is true when a stored token verified. Free users have Valid=false
 	// and an empty Error; a stored-but-invalid token leaves Error set and the
 	// edition at "free".
@@ -62,7 +70,8 @@ func (s *Impl) countManagedApps(ctx context.Context) int {
 
 // License implements Service.
 func (s *Impl) License(ctx context.Context) (LicenseStatus, error) {
-	st := LicenseStatus{Edition: licensing.EditionFree, FreeLimit: FreeManagedApps, ManagedApps: s.countManagedApps(ctx)}
+	st := LicenseStatus{Edition: licensing.EditionFree, FreeLimit: FreeManagedApps, ManagedApps: s.countManagedApps(ctx),
+		FreeGroups: FreeGroups, Groups: s.countGroups(ctx)}
 	tok, err := s.lic.Load()
 	if err != nil {
 		st.Error = "The saved license could not be read."
@@ -82,7 +91,7 @@ func (s *Impl) License(ctx context.Context) (LicenseStatus, error) {
 		st.Error = verr.Error()
 		return st, nil
 	}
-	st.Edition, st.Valid, st.FreeLimit = p.Edition, true, 0
+	st.Edition, st.Valid, st.FreeLimit, st.FreeGroups = p.Edition, true, 0, 0
 	st.Email, st.LicenseID = p.Email, p.LicenseID
 	return st, nil
 }
@@ -137,6 +146,34 @@ func (s *Impl) checkManagedQuota(ctx context.Context) error {
 	return newErr(CodeLicenseLimit,
 		"The free edition includes up to 2 managed apps, and you have 2.",
 		"Manage or uninstall an existing app, export its config, or enter a license key to add more.")
+}
+
+// countGroups counts the group apps in the Library (not in the Trash).
+func (s *Impl) countGroups(ctx context.Context) int {
+	ps, err := s.store.ListProjects(ctx, false)
+	if err != nil {
+		return 0
+	}
+	n := 0
+	for _, p := range ps {
+		if p.Config != nil && p.Config.IsGroup() {
+			n++
+		}
+	}
+	return n
+}
+
+// checkGroupQuota gates making a new group app: the Free edition has
+// FreeGroups of them, Pro is unlimited. Editing, building and installing a
+// group are never gated.
+func (s *Impl) checkGroupQuota(ctx context.Context) error {
+	st, _ := s.License(ctx)
+	if st.Valid || st.Groups < FreeGroups {
+		return nil
+	}
+	return newErr(CodeLicenseLimit,
+		"The free edition includes 1 group app, and you have one.",
+		"Add sites to your existing group, or enter a license key for unlimited groups.")
 }
 
 // ---- Locate / Reconnect ---------------------------------------------------------

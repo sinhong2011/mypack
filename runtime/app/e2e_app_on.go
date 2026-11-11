@@ -76,6 +76,32 @@ func (a *App) e2eAppHook() {
 				mygo.RunOnMain(func() { b := a.main.Bounds(); a.main.SetPosition(b.X-300, b.Y+100) })
 				time.Sleep(900 * time.Millisecond)
 				out = a.e2eInfo()
+			case "member": // a click on a rail icon: "member <index>"
+				var i int
+				fmt.Sscan(arg, &i)
+				mygo.RunOnMain(func() { a.group.show(i, true) })
+				time.Sleep(600 * time.Millisecond)
+				out = a.e2eGroupInfo()
+			case "split": // View > Toggle Split View
+				mygo.RunOnMain(a.group.toggleSplit)
+				time.Sleep(600 * time.Millisecond)
+				out = a.e2eGroupInfo()
+			case "geval": // "geval <index> <js>" in a member's page
+				var i int
+				idx, js, _ := strings.Cut(arg, " ")
+				fmt.Sscan(idx, &i)
+				v, err := a.group.members[i].page.Eval(js)
+				out = fmt.Sprintf("%v %v", v, err)
+			case "gnav": // "gnav <index> <url>": a user clicks a link in member <index>
+				var i int
+				idx, u, _ := strings.Cut(arg, " ")
+				fmt.Sscan(idx, &i)
+				e := &mygo.NavigateEvent{URL: u, UserInitiated: true}
+				a.group.onNavigate(a.group.members[i], e)
+				time.Sleep(900 * time.Millisecond)
+				out = a.e2eGroupInfo()
+			case "ginfo":
+				out = a.e2eGroupInfo()
 			case "info":
 				out = a.e2eInfo()
 			case "shot":
@@ -106,4 +132,27 @@ func (a *App) e2eInfo() string {
 	b := w.Bounds()
 	return fmt.Sprintf("visible=%v flyout=%v layout=%v tray=%v onTop=%v bounds=%d,%d,%dx%d policy=%s",
 		w.IsVisible(), w.IsFlyout(), compact, tray, w.IsAlwaysOnTop(), b.X, b.Y, b.Width, b.Height, mygo.App.ActivationPolicy())
+}
+
+func (a *App) e2eGroupInfo() string {
+	g := a.group
+	g.mu.Lock()
+	active, split := g.active, g.split
+	g.mu.Unlock()
+	out := fmt.Sprintf("active=%d split=%d dock=%q", active, split, a.badges.compute2())
+	for _, m := range g.members {
+		u := ""
+		if m.page != nil {
+			u = m.page.URL()
+		}
+		out += fmt.Sprintf(" | %s badge=%q url=%s", m.cfg.ID, a.badges.pageLabel(m.page), u)
+	}
+	return out
+}
+
+// compute2 is the merged badge.
+func (c *badgeController) compute2() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.compute()
 }

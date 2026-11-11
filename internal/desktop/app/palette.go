@@ -110,6 +110,7 @@ func (a *App) paletteItems() []cmdItem {
 		run   func()
 	}{
 		{icons.Plus, T("menu.newApp"), a.newApp},
+		{icons.Layers, T("menu.newGroup"), a.newGroup},
 		{icons.Library, T("nav.library"), func() { a.nav(secLibrary) }},
 		{icons.Discover, T("nav.discover"), func() { a.nav(secDiscover) }},
 		{icons.Builds, T("nav.builds"), func() { a.nav(secBuilds) }},

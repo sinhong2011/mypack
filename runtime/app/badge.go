@@ -71,11 +71,14 @@ type badgeVal struct {
 // first, then the title heuristic), and applies the result to the native
 // badge no more often than minGap.
 type badgeController struct {
-	auto   bool // title heuristic enabled (native.badge "auto")
-	set    func(label string)
-	minGap time.Duration
-	now    func() time.Time
-	after  func(d time.Duration, f func()) (stop func())
+	auto bool // title heuristic enabled (native.badge "auto")
+	sum  bool // add the pages' counts (a group's sites) instead of taking the largest
+	set  func(label string)
+	// changed, when set, hears that a page's value changed (a group's rail).
+	changed func()
+	minGap  time.Duration
+	now     func() time.Time
+	after   func(d time.Duration, f func()) (stop func())
 
 	mu    sync.Mutex
 	api   map[*mygo.Page]badgeVal
@@ -136,8 +139,19 @@ func (c *badgeController) drop(p *mygo.Page) {
 	c.refresh()
 }
 
-// compute merges the pages (caller holds mu): the largest count wins; a
-// flag shows only when no page has a count.
+// pageLabel is the badge of one page: "3", "•" or "".
+func (c *badgeController) pageLabel(p *mygo.Page) string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	v, ok := c.api[p]
+	if !ok {
+		v = c.title[p]
+	}
+	return badgeLabel(v.n, v.dot)
+}
+
+// compute merges the pages (caller holds mu): the largest count wins (the
+// sum in a group); a flag shows only when no page has a count.
 func (c *badgeController) compute() string {
 	pages := map[*mygo.Page]badgeVal{}
 	for p, v := range c.title {
@@ -148,7 +162,9 @@ func (c *badgeController) compute() string {
 	}
 	count, dot := 0, false
 	for _, v := range pages {
-		if v.n > count {
+		if c.sum {
+			count += v.n
+		} else if v.n > count {
 			count = v.n
 		}
 		dot = dot || v.dot
@@ -158,6 +174,9 @@ func (c *badgeController) compute() string {
 
 // refresh applies the merged badge now, or after the throttle gap.
 func (c *badgeController) refresh() {
+	if c.changed != nil {
+		c.changed()
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	label := c.compute()

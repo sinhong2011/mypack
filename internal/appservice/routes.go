@@ -84,6 +84,13 @@ func (s *Impl) RoutingEntries(ctx context.Context) ([]routing.Entry, error) {
 		}
 		doms = append(doms, e.SourceHost)
 		doms = append(doms, cfg.WebView.Navigation.SafeDomains...)
+		if cfg.IsGroup() { // a group owns every member's site
+			for _, m := range cfg.App.Group.Members {
+				if h := config.RegistrableHost(m.URL); h != "" {
+					doms = append(doms, h)
+				}
+			}
+		}
 		e.Hosts = routing.ExpandHosts(doms...)
 		if runtime.GOOS != "darwin" {
 			e.Executable = installer.Executable(in.Path)

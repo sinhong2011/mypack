@@ -78,6 +78,14 @@ runtime ≥ 1.0.6 (`internal/builder/darwin.go`). Window/compact/sidebar are lay
 switches at runtime (View menu); the sidebar docks full-height to a screen edge. Choice and bounds live in `state.json`. Panel size: `window.panelWidth/panelHeight` (default 400×640).
 See `docs/gui-handoff-window-modes.md`.
 
+## Group apps (1.0.6)
+
+`app.group.members` makes one app of several websites (`runtime/app/group.go`): a native window with a rail and one
+embedded web view per member, each in session `<profileId>.<memberId>`. Links route between members by host; split
+view shows two. The service's `CreateGroup` (`internal/appservice/group.go`) makes groups from Library projects or
+addresses, keeps member icons beside the DB and enforces the Free edition's one-group limit. See
+`docs/gui-handoff-window-modes.md`.
+
 ## Runtime registry
 
 `registry.json` (schemaVersion 1) + `registry.json.sig` (Ed25519 over the exact bytes).

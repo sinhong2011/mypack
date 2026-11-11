@@ -259,6 +259,11 @@ func (a *App) toolbar(c *ui.Context) {
 		}
 		switch {
 		case a.section == secCreate && a.create.building == "":
+			// Over the inspector: its settings search and Build, so both
+			// stay in reach however far the settings scroll.
+			if a.create.ready() && !a.inspectorNarrow() {
+				a.createToolbar(c)
+			}
 		case a.section == secProject || a.section == secCreate:
 			// The project's own Build is the primary here.
 			if kit.ToolbarIcon(c.Key("tb-build"), icons.Plus, T("menu.newApp")).Clicked() {

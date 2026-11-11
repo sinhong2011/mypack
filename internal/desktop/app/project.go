@@ -457,6 +457,9 @@ func (a *App) projectSettingsView(c *ui.Context, pr *domain.Project) {
 					})
 				})
 			}
+			if ed.cfg.IsGroup() {
+				a.sitesCard(c, ed.cfg, ed.changed)
+			}
 			a.lookAndBehaviourOpts(c, ed.cfg, ed.changed, nil, true)
 		})
 		ui.Column(c).Gap(14).Children(func() {

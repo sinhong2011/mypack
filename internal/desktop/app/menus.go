@@ -42,6 +42,7 @@ func (a *App) installMenu() {
 		}},
 		{Label: T("menu.file"), Submenu: []*mygo.MenuItem{
 			{Label: T("menu.newApp"), Accelerator: "CmdOrCtrl+N", Click: on(a.newApp)},
+			{Label: T("menu.newGroup"), Accelerator: "CmdOrCtrl+Shift+N", Click: on(a.newGroup)},
 			{Label: T("menu.build"), Accelerator: "CmdOrCtrl+B", Click: on(a.buildShortcut)},
 			mygo.Separator(),
 			{Label: T("menu.importApp"), Click: on(a.importExistingApp)},

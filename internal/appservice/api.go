@@ -30,6 +30,8 @@ type Service interface {
 	// Identifier/ProfileID changes require req.ConfirmIdentityChange.
 	UpdateProject(ctx context.Context, req UpdateRequest) (domain.Project, error)
 	SetProjectIcon(ctx context.Context, id string, png []byte, actor string) (domain.Project, error)
+	// CreateGroup creates a group app from website projects (never builds).
+	CreateGroup(ctx context.Context, req GroupRequest) (domain.Project, error)
 	// TrashProject soft-deletes (undoable via RestoreProject).
 	TrashProject(ctx context.Context, id, actor string) error
 	RestoreProject(ctx context.Context, id, actor string) error

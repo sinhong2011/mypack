@@ -43,3 +43,35 @@ Helpers: `WindowConfig.EffectiveMode()`, `WindowConfig.PanelSize()`, `config.Run
 ## Not done / ideas
 - Group apps (workspaces, as in Zen): one generated app that wraps several sites, with a switcher rail, a separate session per site, a combined badge and split view. Needs a runtime that hosts several sites. Not started.
 - Menu bar stays a build-time choice, because macOS sets the Dock icon at launch (LSUIElement).
+
+# Group apps (runtime 1.0.6)
+
+One app made of several websites, like a workspace in Zen: a rail of the sites' icons, each site in its own session, with separate logins.
+
+## Config
+- `app.group.members[]`: `{id, name, url, icon?, projectId?}`, from 2 to 12 members. `id` is stable (`[a-z0-9-]`, at most 32 characters) and keys the member's session (`<profileId>.<id>`), so renaming a member keeps its logins. Helpers: `Config.IsGroup()`, `config.MemberID(name, taken)`.
+- `app.source` stays a `url` source pointing at the first member, so identifiers, installs, routes and metadata work as for any app.
+- `icon` is a PNG path in a project. The Builder bundles it as `members/<id>.png`. With no icon, the rail draws the member's initial. Before a build, the service fills in missing icons from the member's Library project (`fillGroupIcons`).
+
+## Service
+- `CreateGroup(GroupRequest{Name, Sites: []GroupSite{ProjectID | URL}})` keeps the site order. Addresses get their name and icon fetched, and a repeated address is dropped. The group icon is a 2×2 grid of the first four member icons (`icons.Group`). Member icons are stored beside the database in `groups/<project>/`.
+- Pro limit: the Free edition can have **one** group app in the Library (`FreeGroups`), and Pro is unlimited. Creating another returns `LICENSE_LIMIT`. Editing, building and installing a group are never gated. `LicenseStatus` reports `groups` and `freeGroups`.
+- Routes: an installed group claims every member's site, so links from other Mypack apps open in it.
+
+## Runtime
+- Every member loads at start (so each can notify and badge) and is kept alive while hidden. The rail shows each member's unread count, and the Dock (or the menu-bar title) shows the **sum**.
+- Rail position: down the left in a window, compact or right-docked sidebar; down the right in a left-docked sidebar; as a row along the top in the menu-bar panel.
+- A user's click on a link to another member's site opens it in that member. An exact host wins. A domain shared by two members (Gmail and Calendar on google.com) goes to the member whose exact host matches, otherwise the link stays put. Sign-in pages on a member's own domain stay in that member.
+- **Split view**: ⌘\ toggles it, or use the rail's context menu (Open in Split View). The divider can be dragged, and a double-click resets it to 50/50. Clicking the split member swaps the sides.
+- Shortcuts: ⌘1…⌘9 pick a member; Ctrl+Tab and Ctrl+Shift+Tab move to the next or previous member. Reload, Home and zoom act on the visible member (zoom applies to all members). The last member shown is remembered (`state.json` `groupActive`).
+- Notification clicks show the member that sent them. Links handed to the app open in the member they belong to.
+
+## GUI
+- **Create (New App)**: after the first address, "Add another site" (paste an address, or pick a Library app) turns the app into a group. The name defaults to "Workspace", the icon becomes the grid, a chip per site can be removed, and the preview draws the rail in the chosen Show as mode. The toolbar above the inspector holds the settings search and Build.
+- **New Group…** (⌘⇧N, the Library header, the command palette) opens a sheet for grouping existing Library apps or pasted addresses.
+- **Group settings**: a Sites card at the top (icons; move up or down and remove on hover; "Add a site" from the Library).
+- The Free-edition limit shows its own sheet ("Unlimited groups with Pro") and a hint under the site chips when the one free group is already used.
+
+## Not done
+- Local folders and files as group members.
+- Choosing which members load at start (all load today).

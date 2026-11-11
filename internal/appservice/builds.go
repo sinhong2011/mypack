@@ -103,6 +103,7 @@ func (s *Impl) StartBuild(ctx context.Context, req BuildRequest) (job domain.Bui
 		targets = p.Config.Build.Targets
 	}
 	snap := p.Config.Clone()
+	s.fillGroupIcons(ctx, p.ID, snap)
 	snap.Build.Targets = targets
 	if verr := snap.Validate(); verr != nil {
 		return job, asDomainErr(verr, CodeInvalidConfig)

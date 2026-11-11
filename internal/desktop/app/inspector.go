@@ -20,11 +20,17 @@ func (a *App) inspectorWidth() float32 {
 }
 
 // head, when given, is pinned above the inspector's scroll (its search).
+// inspectorNarrow reports whether preview and inspector stack in one
+// column (no room for both side by side).
+func (a *App) inspectorNarrow() bool {
+	return a.toolbarW > 0 && (a.toolbarW < inspectorNarrow-design.SidebarWidth-design.CanvasInset || a.toolbarW-a.inspectorWidth() < 460)
+}
+
 func (a *App) previewInspector(c *ui.Context, preview, inspector, footer func(), head ...func()) {
 	p := design.Of(c)
 	// One column when the preview would get less than ~460 pt beside the
 	// inspector (or the window is under ~960 pt): never clip the inspector.
-	narrow := a.toolbarW > 0 && (a.toolbarW < inspectorNarrow-design.SidebarWidth-design.CanvasInset || a.toolbarW-a.inspectorWidth() < 460)
+	narrow := a.inspectorNarrow()
 	if narrow {
 		ui.Scroll(c).Grow(1).Basis(0).ScrollbarInsets(design.TitleBarH, 0, 0).TrackScroll(&pageScroll).Children(func() {
 			ui.Column(c).FillWidth().AlignItems(ui.Center).Padding(design.TitleBarH+12, 24, 32, 24).Children(func() {

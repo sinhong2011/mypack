@@ -63,6 +63,25 @@ func (j *job) writeResources() error {
 		}
 		snap.App.Source.Value = "site/" + base
 	}
+	// Group members' icons ship as members/<id>.png next to the config.
+	if snap.App.Group != nil {
+		for i := range snap.App.Group.Members {
+			m := &snap.App.Group.Members[i]
+			if m.Icon == "" || strings.HasPrefix(m.Icon, "members/") {
+				continue
+			}
+			rel := "members/" + m.ID + ".png"
+			if err := os.MkdirAll(filepath.Join(j.resDir, "members"), 0o755); err != nil {
+				return err
+			}
+			if err := copyFile(j.ctx, m.Icon, filepath.Join(j.resDir, filepath.FromSlash(rel)), 0o644); err != nil {
+				j.warn("The icon of %q could not be read; its initial will be shown", m.Name)
+				m.Icon = ""
+				continue
+			}
+			m.Icon = rel
+		}
+	}
 	if p := snap.Native.TrayIcon; p != "" && !strings.HasPrefix(p, "resources/") {
 		if err := copyFile(j.ctx, p, filepath.Join(j.resDir, "tray.png"), 0o644); err != nil {
 			j.warn("The tray icon %q could not be read; the app icon will be used", p)

@@ -52,8 +52,9 @@ type App struct {
 	prompts  map[string]bool
 	finds    map[*mygo.Window]*mygo.Window
 	tray     *mygo.Tray
-	menu     *mygo.Menu // the application menu
+	menu     *mygo.Menu  // the application menu
 	lay      layoutState // the main window's layout (layout.go)
+	group    *group      // app.group: the member websites (group.go), or nil
 }
 
 type credEntry struct {
@@ -182,6 +183,7 @@ func (a *App) Run() error {
 			t.SetTitle(label)
 		}
 	})
+	a.badges.sum = cfg.IsGroup() // a group's Dock badge is its sites' total
 	a.bridge = a.newBridge()
 	mygo.BindAs("mypack", a.bridge)
 	a.preload = a.buildPreload()
@@ -224,6 +226,10 @@ func (a *App) prepareSource() error {
 	var localSchemes, localOrigins []string
 	safe := append([]string(nil), nav.SafeDomains...)
 
+	if cfg.IsGroup() {
+		a.group = a.newGroup()
+		safe = append(safe, a.group.safeDomains()...)
+	}
 	switch cfg.App.Source.Type {
 	case config.SourceURL:
 		u, err := config.NormalizeURL(cfg.App.Source.Value)
@@ -302,9 +308,12 @@ func (a *App) framelessBar() bool {
 }
 
 // pageOptions are the web page options of every app page.
-func (a *App) pageOptions() mygo.PageOptions {
+func (a *App) pageOptions() mygo.PageOptions { return a.pageOptionsIn(a.session) }
+
+// pageOptionsIn are the page options with session s (a group member's).
+func (a *App) pageOptionsIn(s *mygo.Session) mygo.PageOptions {
 	p := mygo.PageOptions{
-		Session:          a.session,
+		Session:          s,
 		UserAgent:        resolveUserAgent(a.cfg.WebView, runtime.GOOS, runtime.GOARCH),
 		ZoomFactor:       float64(a.zoom) / 100,
 		PreloadScript:    a.preload,
@@ -367,6 +376,9 @@ func (a *App) windowOptions(main, strip bool) mygo.WindowOptions {
 // openWindow creates an app window loading url and returns it with its web
 // page. Main thread.
 func (a *App) openWindow(main bool, url, stateKey string, hidden bool) (*mygo.Window, *mygo.Page) {
+	if main && a.group != nil {
+		return a.openGroupWindow(stateKey, hidden)
+	}
 	strip := a.useStrip()
 	o := a.windowOptions(main, strip)
 	o.Hidden, o.StateKey = hidden, stateKey
@@ -506,7 +518,12 @@ func (a *App) registerPage(w *mygo.Window, p *mygo.Page) {
 	}
 	a.windows[w] = p
 	a.mu.Unlock()
-	p.OnPageTitleUpdated(func(e *mygo.TitleEvent) { a.badges.setTitle(p, e.Title) })
+	a.trackClose(w, p)
+	a.wirePage(w, p, a.onWillNavigate, a.onWindowOpen)
+}
+
+// trackClose forgets window w (showing page p) as it closes.
+func (a *App) trackClose(w *mygo.Window, p *mygo.Page) {
 	w.OnClosed(func() {
 		a.badges.drop(p)
 		a.mu.Lock()
@@ -522,9 +539,14 @@ func (a *App) registerPage(w *mygo.Window, p *mygo.Page) {
 			f.Destroy()
 		}
 	})
+}
 
-	p.OnWillNavigate(a.onWillNavigate)
-	p.SetWindowOpenHandler(a.onWindowOpen)
+// wirePage wires every per-page feature of page p in window w; nav and
+// open decide its navigations and popups.
+func (a *App) wirePage(w *mygo.Window, p *mygo.Page, nav func(*mygo.NavigateEvent), open func(mygo.WindowOpenRequest) *mygo.WindowOptions) {
+	p.OnPageTitleUpdated(func(e *mygo.TitleEvent) { a.badges.setTitle(p, e.Title) })
+	p.OnWillNavigate(nav)
+	p.SetWindowOpenHandler(open)
 	p.SetPermissionHandler(a.onPermission)
 	p.SetAuthHandler(func(req mygo.AuthRequest) mygo.AuthResponse { return a.onAuth(w, req) })
 	p.OnWillDownload(a.onWillDownload)
@@ -698,9 +720,18 @@ func (a *App) setZoom(delta int, reset bool) {
 	z := a.zoom
 	ps := make([]*mygo.Page, 0, len(a.windows))
 	for _, p := range a.windows {
-		ps = append(ps, p)
+		if p != nil {
+			ps = append(ps, p)
+		}
 	}
 	a.mu.Unlock()
+	if a.group != nil { // every site of a group, not only the one shown
+		for _, m := range a.group.members {
+			if m.page != nil {
+				ps = append(ps, m.page)
+			}
+		}
+	}
 	a.state.Update(func(s *State) { s.Zoom, s.ZoomBase = z, base })
 	for _, p := range ps {
 		p.SetZoomFactor(float64(z) / 100)

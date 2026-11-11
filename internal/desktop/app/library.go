@@ -109,6 +109,9 @@ func (a *App) libraryView(c *ui.Context) {
 			ui.Row(c).AlignItems(ui.Center).Gap(8).MinHeight(32).Children(func() {
 				kit.SectionHeader(c, title, count).Grow(1)
 				if first {
+					if len(a.groupCandidates()) >= 2 && kit.Button(c.Key("grp2"), T("menu.newGroup"), kit.ButtonOpts{Variant: kit.Ghost, Size: design.ControlSM, Icon: icons.Layers}).Clicked() {
+						a.newGroup()
+					}
 					if kit.Button(c.Key("imp2"), T("menu.importApp"), kit.ButtonOpts{Variant: kit.Ghost, Size: design.ControlSM, Icon: icons.Import}).Clicked() {
 						a.importExistingApp()
 					}

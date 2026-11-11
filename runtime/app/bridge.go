@@ -393,6 +393,9 @@ func (a *App) windowOfPage(p *mygo.Page) (*mygo.Window, *mygo.Page) {
 // focusPage brings the window showing p to the front (the main window when
 // the page is gone, e.g. a click after a restart).
 func (a *App) focusPage(p *mygo.Page) {
+	if a.group != nil && a.group.focusMember(p) {
+		return
+	}
 	w, _ := a.windowOfPage(p)
 	if w == nil || w.IsDestroyed() {
 		a.showMain()
