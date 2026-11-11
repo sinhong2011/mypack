@@ -210,25 +210,34 @@ func (a *app) projectExport(args []string) int {
 	return ExitOK
 }
 
-func (a *app) cmdImportPake(args []string) int {
+// cmdImportConfig imports an app config as a new project: a mypack.json, or
+// another tool's config it can translate (currently Pake's pake.json).
+// `import-pake` remains as an alias for compatibility.
+func (a *app) cmdImportConfig(name string, args []string) int {
 	var asJSON bool
-	fs := a.flagSet("import-pake", &asJSON)
+	fs := a.flagSet(name, &asJSON)
 	outPath := fs.String("out", "", "also write the converted mypack.json here")
 	pos, err := parse(fs, args)
 	if err != nil || len(pos) != 1 {
-		return a.usageErr(asJSON, "usage: mypack import-pake <pake.json> [--out mypack.json] [--json]")
+		return a.usageErr(asJSON, "usage: mypack %s <config.json> [--out mypack.json] [--json]", name)
 	}
 	b, err := os.ReadFile(pos[0])
 	if err != nil {
 		return a.fail(&domain.Error{Code: "INVALID_INPUT", Message: "Cannot read " + pos[0], Cause: err.Error()}, asJSON, nil)
 	}
-	if !config.IsPakeJSON(b) {
-		return a.fail(&domain.Error{Code: "INVALID_INPUT", Message: pos[0] + " does not look like a Pake config.",
-			Remediation: "Use `mypack create` for mypack.json files."}, asJSON, nil)
-	}
-	_, warnings, err := config.ImportPake(b)
-	if err != nil {
-		return a.fail(err, asJSON, nil)
+	from := "mypack.json"
+	var warnings []string
+	if config.IsPakeJSON(b) {
+		from = "Pake config"
+		if _, warnings, err = config.ImportPake(b); err != nil {
+			return a.fail(err, asJSON, nil)
+		}
+	} else if c, perr := config.Parse(b); perr != nil || c.Validate() != nil {
+		if perr == nil {
+			perr = c.Validate()
+		}
+		return a.fail(&domain.Error{Code: "INVALID_INPUT", Message: pos[0] + " is not a config Mypack can import.",
+			Cause: perr.Error(), Remediation: "Use a mypack.json, or a pake.json from Pake."}, asJSON, nil)
 	}
 	svc, err := a.service()
 	if err != nil {
@@ -247,10 +256,10 @@ func (a *app) cmdImportPake(args []string) int {
 		warnings = []string{}
 	}
 	if asJSON {
-		a.okJSON(map[string]any{"project": projectView(p), "warnings": warnings})
+		a.okJSON(map[string]any{"project": projectView(p), "importedFrom": from, "warnings": warnings})
 		return ExitOK
 	}
-	fmt.Fprintf(a.out, "%s  %s  (imported from Pake)\n", p.ID, p.Config.App.Name)
+	fmt.Fprintf(a.out, "%s  %s  (imported from %s)\n", p.ID, p.Config.App.Name, from)
 	for _, w := range warnings {
 		fmt.Fprintf(a.errw, "warning: %s\n", w)
 	}

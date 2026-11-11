@@ -362,8 +362,16 @@ func TestImportPake(t *testing.T) {
 	}
 	notPake := filepath.Join(d, "x.json")
 	_ = os.WriteFile(notPake, []byte(`{"schemaVersion":1,"app":{}}`), 0o644)
-	if code, _, _ := run(t, f, "import-pake", notPake, "--json"); code != ExitValidation {
-		t.Errorf("non-pake: %d", code)
+	if code, _, _ := run(t, f, "import-config", notPake, "--json"); code != ExitValidation {
+		t.Errorf("invalid config: %d", code)
+	}
+	// import-config also takes a valid mypack.json.
+	good := filepath.Join(d, "mypack.json")
+	cfg := config.New("Site", config.Source{Type: config.SourceURL, Value: "https://site.com/"}, config.Target{OS: "darwin", Arch: "arm64"})
+	_ = cfg.Save(good)
+	code, out, _ = run(t, f, "import-config", good, "--json")
+	if m := oneJSON(t, out); code != 0 || m["importedFrom"] != "mypack.json" {
+		t.Errorf("mypack.json import: %d %v", code, m)
 	}
 }
 
