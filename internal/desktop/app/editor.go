@@ -12,9 +12,9 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"mypack.dev/mypack/internal/appservice"
-	"mypack.dev/mypack/internal/desktop/components"
 	"mypack.dev/mypack/internal/desktop/design"
-	"mypack.dev/mypack/internal/desktop/lobeui"
+	"mypack.dev/mypack/internal/desktop/kit"
+	"mypack.dev/mypack/internal/desktop/kit/icons"
 	"mypack.dev/mypack/internal/domain"
 	"mypack.dev/mypack/pkg/config"
 )
@@ -131,16 +131,16 @@ func (a *App) saveIndicator(c *ui.Context, ed *editorState) {
 	ui.Row(c).Gap(6).AlignItems(ui.Center).Role(ui.RoleStatus).Children(func() {
 		switch {
 		case ed.saveErr != "":
-			ui.Icon(c, lobeui.IconWarning()).FontSize(13).TextColor(p.Warning)
+			kit.Glyph(c, icons.Warning, 13, p.Warning)
 			ui.Text(c, ed.saveErr).FontSize(design.FontSmall).TextColor(p.Warning).SingleLine().MaxWidth(360)
 		case ed.saving || ed.dirty:
-			components.Spinner(c, 12, p.TextTertiary)
-			components.Caption(c, T("editor.saving"))
+			kit.Spinner(c, 12, p.TextTertiary)
+			kit.Caption(c, T("editor.saving"))
 		case !ed.savedAt.IsZero():
-			ui.Icon(c, lobeui.IconCheck()).FontSize(13).TextColor(p.Success)
-			components.Caption(c, T("editor.saved"))
+			kit.Glyph(c, icons.Check, 13, p.Success)
+			kit.Caption(c, T("editor.saved"))
 		default:
-			components.Caption(c, T("editor.autosave"))
+			kit.Caption(c, T("editor.autosave"))
 		}
 	})
 }
@@ -151,17 +151,17 @@ func (a *App) conflictBanner(c *ui.Context, pr *domain.Project, ed *editorState)
 	}
 	p := design.Of(c)
 	ui.Row(c).Gap(10).Padding(10, 14).Radius(design.RadiusCard - 2).Background(p.WarningSoft).AlignItems(ui.Center).Children(func() {
-		ui.Icon(c, lobeui.IconWarning()).FontSize(15).TextColor(p.Warning)
+		kit.Glyph(c, icons.Warning, 15, p.Warning)
 		ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
 			ui.Text(c, T("editor.conflict.title")).FontSize(design.FontBody).FontWeight(design.WeightSemibold).TextColor(p.Text)
 			ui.Text(c, T("editor.conflict.body")).FontSize(design.FontSmall).TextColor(p.TextSecondary)
 		})
-		if components.Button(c.Key("reload"), T("editor.conflict.reload"), components.ButtonOpts{Size: design.ControlSM}).Clicked() {
+		if kit.Button(c.Key("reload"), T("editor.conflict.reload"), kit.ButtonOpts{Size: design.ControlSM}).Clicked() {
 			ed.conflict, ed.dirty = false, false
 			ed.cfg, ed.rev, ed.inited = pr.Config.Clone(), pr.Revision, false
 			a.reload("projects")
 		}
-		if components.Button(c.Key("keep"), T("editor.conflict.keep"), components.ButtonOpts{Variant: components.Primary, Size: design.ControlSM}).Clicked() {
+		if kit.Button(c.Key("keep"), T("editor.conflict.keep"), kit.ButtonOpts{Variant: kit.Primary, Size: design.ControlSM}).Clicked() {
 			ed.conflict = false
 			id := ed.projectID
 			a.do(func(ctx context.Context) error {
@@ -205,30 +205,31 @@ func (a *App) settingsEditor(c *ui.Context, ed *editorState, pr *domain.Project)
 	groups := a.settingGroups(c, ed, pr)
 	ui.Column(c).Gap(14).Children(func() {
 		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-			lobeui.SearchBar(c.Key("search"), &ed.query, T("editor.search"), "").Grow(1)
-			if components.Button(c.Key("reset"), T("editor.reset"), components.ButtonOpts{Variant: components.Ghost, Icon: lobeui.IconUndo(), Size: design.ControlSM}).Clicked() {
+			kit.SearchField(c.Key("search"), &ed.query, T("editor.search"), nil, 0).Grow(1)
+			if kit.Button(c.Key("reset"), T("editor.reset"), kit.ButtonOpts{Variant: kit.Ghost, Icon: icons.Undo}).Clicked() {
 				a.dlg.reset = resetDialog{open: true, ed: ed}
 			}
 		})
 		if ed.query == "" {
 			// Category chips.
-			ui.Row(c).Gap(6).Wrap().Children(func() {
+			ui.Row(c).Gap(6).Wrap().Role(ui.RoleTabList).Label(T("editor.groups")).Children(func() {
 				for i, g := range groups {
 					i := i
 					sel := ed.group == i
-					chip := ui.ButtonBase(c.Key(g.id)).Label(g.title).Row().Justify(ui.Start).Height(28).PaddingX(10).Gap(6).AlignItems(ui.Center).
-						Radius(14).Cursor(ui.CursorPointer).Transition(design.Transition(c)).Selected(sel)
-					fg := p.TextSecondary
+					chip := ui.ButtonBase(c.Key(g.id)).Label(g.title).Row().Justify(ui.Start).Height(28).PaddingX(12).Gap(6).AlignItems(ui.Center).
+						Radius(14).Cursor(ui.CursorPointer).Transition(design.Transition(c)).Selected(sel).Role(ui.RoleTab)
+					fg := p.Text
 					switch {
 					case sel:
-						chip.Background(p.AccentSoft)
-						fg = p.AccentText
+						chip.Background(p.Accent).Shadow(0, 1, 3, 0, design.Fade(p.Accent, 0.3))
+						fg = p.TextOnAccent
 					case chip.Hovered():
-						chip.Background(p.Hover)
-						fg = p.Text
+						chip.Background(p.Pressed)
+					default:
+						chip.Background(p.Fill)
 					}
 					chip.Children(func() {
-						ui.Icon(c, g.icon).FontSize(13).TextColor(fg)
+						kit.Glyph(c, g.icon, 13, fg)
 						ui.Text(c, g.title).FontSize(design.FontSmall).FontWeight(design.WeightMedium).TextColor(fg)
 					})
 					if chip.Clicked() {
@@ -257,14 +258,14 @@ func (a *App) settingsEditor(c *ui.Context, ed *editorState, pr *domain.Project)
 				title = g.title
 			}
 			ui.Column(c.Key(g.id)).Children(func() {
-				components.Group(c, title, func() {
+				kit.Group(c, title, func() {
 					for k, r := range rows {
 						r := r
 						ui.Column(c.Key(k)).Children(func() {
 							if r.wide {
-								components.SettingBlock(c, r.label, r.desc, r.control)
+								kit.SettingBlock(c, r.label, r.desc, r.control)
 							} else {
-								components.SettingRow(c, r.label, r.desc, r.control)
+								kit.SettingRow(c, r.label, r.desc, r.control)
 							}
 						})
 					}
@@ -272,7 +273,7 @@ func (a *App) settingsEditor(c *ui.Context, ed *editorState, pr *domain.Project)
 			})
 		}
 		if !any {
-			components.EmptyState(c, lobeui.IconSearch(), T("editor.noResults"), "", nil)
+			kit.EmptyState(c, icons.Search, T("editor.noResults"), "", nil)
 		}
 	})
 	a.autosave(c, ed)
@@ -304,7 +305,7 @@ func setInjection(cfg *config.Config, typ, content string) {
 var sizePresets = []struct {
 	id   string
 	w, h int
-}{{"compact", 1024, 700}, {"standard", 1200, 780}, {"large", 1440, 900}}
+}{{"compact", 1000, 700}, {"standard", 1200, 780}, {"large", 1440, 900}}
 
 func (a *App) settingGroups(c *ui.Context, ed *editorState, pr *domain.Project) []settingGroup {
 	p := design.Of(c)
@@ -312,22 +313,22 @@ func (a *App) settingGroups(c *ui.Context, ed *editorState, pr *domain.Project) 
 	k := func(s string) *ui.Context { return c.Key(s) }
 	sw := func(key string, v *bool, label string) {
 		old := *v
-		lobeui.Switch(k(key), v, label)
+		kit.Switch(k(key), v, label)
 		if *v != old {
 			ed.changed()
 		}
 	}
-	text := func(key string, v *string, placeholder string, width float32) {
-		in := lobeui.Input(k(key), v, lobeui.InputOpts{Placeholder: placeholder, Size: lobeui.Small}).Label(placeholder)
+	text := func(key string, v *string, label, placeholder string, width float32) {
+		in := kit.TextField(k(key), v, label, kit.FieldOpts{Placeholder: placeholder})
 		_ = in
 		if in.Changed() {
 			ed.changed()
 		}
 		in.Width(width)
 	}
-	sel := func(key string, v *string, opts []lobeui.Option, width float32) {
+	sel := func(key string, v *string, opts []kit.Option, label string, width float32) {
 		old := *v
-		lobeui.Select(k(key), v, opts, "", false).Width(width)
+		kit.PopUp(k(key), v, opts, label).Width(width)
 		if *v != old {
 			ed.changed()
 		}
@@ -342,123 +343,77 @@ func (a *App) settingGroups(c *ui.Context, ed *editorState, pr *domain.Project) 
 	}
 
 	// Identity & Version.
-	identity := settingGroup{id: "identity", title: T("group.identity"), icon: lobeui.IconPackage(), rows: []setting{
-		{label: T("set.name"), desc: T("set.name.desc"), control: func() { text("name", &cfg.App.Name, T("set.name"), 240) }},
-		{label: T("set.title"), desc: T("set.title.desc"), control: func() { text("title", &cfg.App.Title, cfg.App.Name, 240) }},
-		{label: T("set.version"), control: func() { text("version", &cfg.App.Version, "1.0.0", 120) }},
+	identity := settingGroup{id: "identity", title: T("group.identity"), icon: icons.Package, rows: []setting{
+		{label: T("set.name"), desc: T("set.name.desc"), control: func() { text("name", &cfg.App.Name, T("set.name"), T("set.name"), 240) }},
+		{label: T("set.title"), desc: T("set.title.desc"), control: func() { text("title", &cfg.App.Title, T("set.title"), cfg.App.Name, 240) }},
+		{label: T("set.version"), control: func() { text("version", &cfg.App.Version, T("set.version"), "1.0.0", 120) }},
 		{label: T("set.identifier"), desc: T("set.identifier.desc"), control: func() {
-			components.Mono(c, cfg.App.Identifier).SingleLine().MaxWidth(260)
+			kit.Mono(c, cfg.App.Identifier).SingleLine().MaxWidth(260)
 			if !ed.local {
-				if components.Button(k("chid"), T("set.identifier.change"), components.ButtonOpts{Size: design.ControlSM}).Clicked() {
+				if kit.Button(k("chid"), T("set.identifier.change"), kit.ButtonOpts{Size: design.ControlSM}).Clicked() {
 					a.dlg.identity = identityDialog{open: true, ed: ed, newID: cfg.App.Identifier}
 				}
 			}
 		}},
 		{label: T("set.executable"), desc: T("set.executable.desc"), control: func() {
-			components.Mono(c, config.ExecutableName(cfg.App.Name))
+			kit.Mono(c, config.ExecutableName(cfg.App.Name))
 		}},
 	}}
 
 	// Runtime & Compatibility.
-	rtVersions := []lobeui.Option{{Value: config.DefaultRuntimeVersion, Label: config.DefaultRuntimeVersion + " · " + T("set.runtime.recommended")}}
+	rtVersions := []kit.Option{{Value: config.DefaultRuntimeVersion, Label: config.DefaultRuntimeVersion + " · " + T("set.runtime.recommended")}}
 	if cfg.Runtime.Version != config.DefaultRuntimeVersion {
-		rtVersions = append(rtVersions, lobeui.Option{Value: cfg.Runtime.Version, Label: cfg.Runtime.Version})
+		rtVersions = append(rtVersions, kit.Option{Value: cfg.Runtime.Version, Label: cfg.Runtime.Version})
 	}
 	webview := map[string]string{"darwin": "WKWebView (WebKit)", "windows": "WebView2 (Edge)", "linux": "WebKitGTK"}[a.host.OS]
-	runtimeG := settingGroup{id: "runtime", title: T("group.runtime"), icon: lobeui.IconRuntimes(), rows: []setting{
-		{label: T("set.runtime"), desc: T("set.runtime.desc"), control: func() { sel("rt", &cfg.Runtime.Version, rtVersions, 220) }},
-		{label: T("set.webview"), desc: T("set.webview.desc"), control: func() { components.Secondary(c, webview) }},
-		{label: T("set.minOS"), control: func() { components.Secondary(c, map[string]string{"darwin": "macOS 12", "windows": "Windows 10", "linux": "glibc 2.31"}[a.host.OS]) }},
+	runtimeG := settingGroup{id: "runtime", title: T("group.runtime"), icon: icons.Runtimes, rows: []setting{
+		{label: T("set.runtime"), desc: T("set.runtime.desc"), control: func() { sel("rt", &cfg.Runtime.Version, rtVersions, T("set.runtime"), 220) }},
+		{label: T("set.webview"), desc: T("set.webview.desc"), control: func() { kit.Secondary(c, webview) }},
+		{label: T("set.minOS"), control: func() {
+			kit.Secondary(c, map[string]string{"darwin": "macOS 12", "windows": "Windows 10", "linux": "glibc 2.31"}[a.host.OS])
+		}},
 	}}
 
 	// Window & Appearance.
-	preset := "custom"
-	for _, sp := range sizePresets {
-		if cfg.Window.Width == sp.w && cfg.Window.Height == sp.h {
-			preset = sp.id
-		}
-	}
-	var presetOpts []lobeui.Option
-	for _, sp := range sizePresets {
-		presetOpts = append(presetOpts, lobeui.Option{Value: sp.id, Label: T("set.size."+sp.id) + fmt.Sprintf("  %d × %d", sp.w, sp.h)})
-	}
-	presetOpts = append(presetOpts, lobeui.Option{Value: "custom", Label: T("set.size.custom")})
-	zoomOpts := []lobeui.Option{}
+	zoomOpts := []kit.Option{}
 	for _, z := range []int{80, 90, 100, 110, 125, 150} {
-		zoomOpts = append(zoomOpts, lobeui.Option{Value: strconv.Itoa(z), Label: fmt.Sprintf("%d%%", z)})
+		zoomOpts = append(zoomOpts, kit.Option{Value: strconv.Itoa(z), Label: fmt.Sprintf("%d%%", z)})
 	}
-	darkIdx := map[string]int{"system": 0, "light": 1, "dark": 2}[cfg.Window.DarkMode]
-	windowG := settingGroup{id: "window", title: T("group.window"), icon: lobeui.IconWindow(), rows: []setting{
-		{label: T("set.size"), desc: T("set.size.desc"), control: func() {
-			v := preset
-			lobeui.Select(k("preset"), &v, presetOpts, "", false).Width(220)
-			if v != preset {
-				for _, sp := range sizePresets {
-					if sp.id == v {
-						cfg.Window.Width, cfg.Window.Height = sp.w, sp.h
-						ed.changed()
-					}
-				}
-			}
-		}},
+	windowG := settingGroup{id: "window", title: T("group.window"), icon: icons.Window, rows: []setting{
 		{label: T("set.dimensions"), control: func() {
 			num("w", &cfg.Window.Width, 320, 7680)
-			components.Caption(c, "×")
+			kit.Caption(c, "×")
 			num("h", &cfg.Window.Height, 240, 4320)
 		}},
 		{label: T("set.minSize"), control: func() {
 			num("mw", &cfg.Window.MinWidth, 0, 7680)
-			components.Caption(c, "×")
+			kit.Caption(c, "×")
 			num("mh", &cfg.Window.MinHeight, 0, 4320)
-		}},
-		{label: T("set.titleBar"), control: func() {
-			sel("tb", &cfg.Window.TitleBarStyle, []lobeui.Option{{Value: "default", Label: T("set.titleBar.default")},
-				{Value: "hidden", Label: T("set.titleBar.hidden")}, {Value: "overlay", Label: T("set.titleBar.overlay")}}, 200)
-		}},
-		{label: T("set.appearance"), control: func() {
-			i := darkIdx
-			lobeui.Segmented(k("dm"), &i, []string{T("appearance.system"), T("appearance.light"), T("appearance.dark")}, lobeui.Small)
-			if i != darkIdx {
-				cfg.Window.DarkMode = []string{"system", "light", "dark"}[i]
-				ed.changed()
-			}
 		}},
 		{label: T("set.zoom"), control: func() {
 			z := strconv.Itoa(cfg.Window.Zoom)
 			old := z
-			lobeui.Select(k("zoom"), &z, zoomOpts, "", false).Width(100)
+			kit.PopUp(k("zoom"), &z, zoomOpts, T("set.zoom")).Width(100)
 			if z != old {
 				cfg.Window.Zoom, _ = strconv.Atoi(z)
 				ed.changed()
 			}
 		}},
 		{label: T("set.alwaysOnTop"), control: func() { sw("aot", &cfg.Window.AlwaysOnTop, T("set.alwaysOnTop")) }},
-		{label: T("set.maximized"), control: func() { sw("max", &cfg.Window.Maximized, T("set.maximized")) }},
 		{label: T("set.fullscreen"), control: func() { sw("fs", &cfg.Window.Fullscreen, T("set.fullscreen")) }},
-		{label: T("set.hideOnClose"), desc: T("set.hideOnClose.desc"), control: func() { sw("hoc", &cfg.Window.HideOnClose, T("set.hideOnClose")) }},
 	}}
 
 	// WebView & Navigation.
-	ext := cfg.WebView.Navigation.ExternalByDefault == nil || *cfg.WebView.Navigation.ExternalByDefault
 	regexErr := ""
 	if r := cfg.WebView.Navigation.InternalURLRegex; r != "" {
 		if _, err := regexp.Compile(r); err != nil {
 			regexErr = T("set.regex.invalid")
 		}
 	}
-	webG := settingGroup{id: "webview", title: T("group.webview"), icon: lobeui.IconGlobe(), rows: []setting{
+	webG := settingGroup{id: "webview", title: T("group.webview"), icon: icons.Globe, rows: []setting{
 		{label: T("set.safeDomains"), desc: T("set.safeDomains.desc"), wide: true, control: func() { a.domainList(c, ed) }},
-		{label: T("set.external"), desc: T("set.external.desc"), control: func() {
-			v := ext
-			lobeui.Switch(k("ext"), &v, T("set.external"))
-			if v != ext {
-				cfg.WebView.Navigation.ExternalByDefault = &v
-				ed.changed()
-			}
-		}},
 		{label: T("set.regex"), desc: T("set.regex.desc"), wide: true, control: func() {
-			in := lobeui.Input(k("regex"), &cfg.WebView.Navigation.InternalURLRegex, lobeui.InputOpts{Placeholder: `^https://(www\.)?example\.com/`, Size: lobeui.Small, Invalid: regexErr != ""})
-			in.Font("Menlo")
+			in := kit.TextField(k("regex"), &cfg.WebView.Navigation.InternalURLRegex, T("set.regex"), kit.FieldOpts{Placeholder: `^https://(www\.)?example\.com/`, Invalid: regexErr != "", Mono: true})
 			if in.Changed() {
 				ed.changed()
 			}
@@ -467,27 +422,28 @@ func (a *App) settingGroups(c *ui.Context, ed *editorState, pr *domain.Project) 
 			}
 		}},
 		{label: T("set.popups"), control: func() {
-			sel("popups", &cfg.WebView.Navigation.Popups, []lobeui.Option{{Value: "internal", Label: T("set.popups.internal")},
-				{Value: "external", Label: T("set.popups.external")}, {Value: "block", Label: T("set.popups.block")}}, 220)
+			sel("popups", &cfg.WebView.Navigation.Popups, []kit.Option{{Value: "internal", Label: T("set.popups.internal")},
+				{Value: "external", Label: T("set.popups.external")}, {Value: "block", Label: T("set.popups.block")}}, T("set.popups"), 220)
 		}},
 		{label: T("set.userAgent"), desc: T("set.userAgent.desc"), wide: true, control: func() {
-			in := lobeui.Input(k("ua"), &cfg.WebView.UserAgent, lobeui.InputOpts{Placeholder: T("set.userAgent.placeholder"), Size: lobeui.Small})
+			in := kit.TextField(k("ua"), &cfg.WebView.UserAgent, T("set.userAgent"), kit.FieldOpts{Placeholder: T("set.userAgent.placeholder")})
 			if in.Changed() {
 				ed.changed()
 			}
 		}},
-		{label: T("set.incognito"), desc: T("set.incognito.desc"), control: func() { sw("inc", &cfg.WebView.Incognito, T("set.incognito")) }},
 		{label: T("set.restore"), desc: T("set.restore.desc"), control: func() { sw("restore", &cfg.WebView.RestoreLastURL, T("set.restore")) }},
 		{label: T("set.find"), control: func() { sw("find", &cfg.WebView.FindInPage, T("set.find")) }},
 	}}
 
 	// Network & Privacy.
-	netG := settingGroup{id: "network", title: T("group.network"), icon: lobeui.IconNetwork(), rows: []setting{
-		{label: T("set.proxy"), desc: T("set.proxy.desc"), control: func() { text("proxy", &cfg.Network.Proxy, "http://127.0.0.1:7890", 240) }},
-		{label: T("set.basicAuth"), desc: T("set.basicAuth.desc"), control: func() { text("bau", &cfg.Network.BasicAuthUser, T("set.basicAuth.placeholder"), 200) }},
+	netG := settingGroup{id: "network", title: T("group.network"), icon: icons.Network, rows: []setting{
+		{label: T("set.proxy"), desc: T("set.proxy.desc"), control: func() { text("proxy", &cfg.Network.Proxy, T("set.proxy"), "http://127.0.0.1:7890", 240) }},
+		{label: T("set.basicAuth"), desc: T("set.basicAuth.desc"), control: func() {
+			text("bau", &cfg.Network.BasicAuthUser, T("set.basicAuth"), T("set.basicAuth.placeholder"), 200)
+		}},
 		{label: T("set.downloads"), desc: T("set.downloads.desc"), control: func() {
-			text("dl", &cfg.Network.DownloadDirectory, "~/Downloads", 200)
-			if components.Button(k("dlc"), T("common.choose"), components.ButtonOpts{Size: design.ControlSM}).Clicked() {
+			text("dl", &cfg.Network.DownloadDirectory, T("set.downloads"), "~/Downloads", 200)
+			if kit.Button(k("dlc"), T("common.choose"), kit.ButtonOpts{Size: design.ControlSM}).Clicked() {
 				go func() {
 					paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.win, Directory: true, CreateDirectories: true})
 					if err == nil && len(paths) > 0 {
@@ -499,17 +455,17 @@ func (a *App) settingGroups(c *ui.Context, ed *editorState, pr *domain.Project) 
 	}}
 
 	// Customization.
-	custG := settingGroup{id: "custom", title: T("group.custom"), icon: lobeui.IconCode(), rows: []setting{
+	custG := settingGroup{id: "custom", title: T("group.custom"), icon: icons.Code, rows: []setting{
 		{label: T("set.css"), desc: T("set.css.desc"), wide: true, control: func() {
-			in := lobeui.TextArea(k("css"), &ed.cssBuf, "/* body { font-size: 15px } */", 3, 10).Font("Menlo").FontSize(12)
+			in := ui.TextArea(k("css"), &ed.cssBuf).Placeholder("/* body { font-size: 15px } */").Lines(3, 10).Font(kit.MonoFont).FontSize(12).Label(T("set.css")).Radius(design.RadiusControl)
 			if in.Changed() {
 				setInjection(cfg, "css", ed.cssBuf)
 				ed.changed()
 			}
 		}},
 		{label: T("set.js"), desc: T("set.js.desc"), wide: true, control: func() {
-			components.Note(c, lobeui.IconWarning(), T("set.js.risk"), components.ToneWarning)
-			in := lobeui.TextArea(k("js"), &ed.jsBuf, "// document.title = 'Hello'", 3, 10).Font("Menlo").FontSize(12)
+			kit.Note(c, icons.Warning, T("set.js.risk"), kit.ToneWarning)
+			in := ui.TextArea(k("js"), &ed.jsBuf).Placeholder("// document.title = 'Hello'").Lines(3, 10).Font(kit.MonoFont).FontSize(12).Label(T("set.js")).Radius(design.RadiusControl)
 			if in.Changed() {
 				setInjection(cfg, "js", ed.jsBuf)
 				ed.changed()
@@ -518,57 +474,56 @@ func (a *App) settingGroups(c *ui.Context, ed *editorState, pr *domain.Project) 
 	}}
 
 	// Native.
-	nativeG := settingGroup{id: "native", title: T("group.native"), icon: lobeui.IconLayers(), rows: []setting{
-		{label: T("set.tray"), desc: T("set.tray.desc"), control: func() { sw("tray", &cfg.Native.Tray, T("set.tray")) }},
+	nativeG := settingGroup{id: "native", title: T("group.native"), icon: icons.Layers, rows: []setting{
 		{label: T("set.startTray"), desc: T("set.startTray.desc"), control: func() {
 			if !cfg.Native.Tray {
 				cfg.Native.StartToTray = false
 			}
 			old := cfg.Native.StartToTray
-			lobeui.Switch(k("st"), &cfg.Native.StartToTray, T("set.startTray")).Disabled(!cfg.Native.Tray)
+			kit.Switch(k("st"), &cfg.Native.StartToTray, T("set.startTray")).Disabled(!cfg.Native.Tray)
 			if old != cfg.Native.StartToTray {
 				ed.changed()
 			}
 		}},
-		{label: T("set.shortcut"), desc: T("set.shortcut.desc"), control: func() { text("gs", &cfg.Native.GlobalShortcut, "CmdOrCtrl+Shift+Space", 200) }},
+		{label: T("set.shortcut"), desc: T("set.shortcut.desc"), control: func() { text("gs", &cfg.Native.GlobalShortcut, T("set.shortcut"), "CmdOrCtrl+Shift+Space", 200) }},
 		{label: T("set.camera"), desc: T("set.camera.desc"), control: func() { sw("cam", &cfg.Native.Camera, T("set.camera")) }},
 		{label: T("set.mic"), desc: T("set.mic.desc"), control: func() { sw("mic", &cfg.Native.Microphone, T("set.mic")) }},
 		{label: T("set.dragDrop"), control: func() { sw("dd", &cfg.Native.DragDrop, T("set.dragDrop")) }},
 	}}
 
 	// Packaging.
-	packG := settingGroup{id: "packaging", title: T("group.packaging"), icon: lobeui.IconPackage(), rows: []setting{
+	packG := settingGroup{id: "packaging", title: T("group.packaging"), icon: icons.Package, rows: []setting{
 		{label: T("set.targets"), desc: T("set.targets.desc"), wide: true, control: func() { a.targetEditor(c, ed) }},
-		{label: T("set.output"), desc: T("set.output.desc"), control: func() { components.Mono(c, shortPath(a.settings.OutputDir)) }},
+		{label: T("set.output"), desc: T("set.output.desc"), control: func() { kit.Mono(c, shortPath(a.settings.OutputDir)) }},
 	}}
 
 	groups := []settingGroup{identity, runtimeG, windowG, webG, netG, custG, nativeG, packG}
 
 	// Diagnostics (projects only).
 	if pr != nil {
-		diag := settingGroup{id: "diagnostics", title: T("group.diagnostics"), icon: lobeui.IconStethoscope(), rows: []setting{
+		diag := settingGroup{id: "diagnostics", title: T("group.diagnostics"), icon: icons.Stethoscope, rows: []setting{
 			{label: T("set.diag.config"), desc: T("set.diag.config.desc"), control: func() {
-				if components.Button(k("cc"), T("common.copy"), components.ButtonOpts{Size: design.ControlSM, Icon: lobeui.IconCopy()}).Clicked() {
+				if kit.Button(k("cc"), T("common.copy"), kit.ButtonOpts{Size: design.ControlSM, Icon: icons.Copy}).Clicked() {
 					b, _ := cfg.Marshal()
 					c.WriteClipboard(string(b))
 					a.toast(T("set.diag.copied"), "", 1)
 				}
-				if components.Button(k("ex"), T("action.export"), components.ButtonOpts{Size: design.ControlSM}).Clicked() {
+				if kit.Button(k("ex"), T("action.export"), kit.ButtonOpts{Size: design.ControlSM}).Clicked() {
 					a.exportProject(pr.ID, pr.Config.App.Name)
 				}
 			}},
-			{label: T("set.diag.revision"), control: func() { components.Mono(c, fmt.Sprintf("rev %d · %s", ed.rev, pr.ID)) }},
-			{label: T("set.diag.profile"), desc: T("set.diag.profile.desc"), control: func() { components.Mono(c, cfg.App.ProfileID).SingleLine().MaxWidth(280) }},
+			{label: T("set.diag.revision"), control: func() { kit.Mono(c, fmt.Sprintf("rev %d · %s", ed.rev, pr.ID)) }},
+			{label: T("set.diag.profile"), desc: T("set.diag.profile.desc"), control: func() { kit.Mono(c, cfg.App.ProfileID).SingleLine().MaxWidth(280) }},
 			{label: T("set.diag.lastBuild"), control: func() {
 				if j := a.latestJob(pr.ID); j != nil {
-					components.Secondary(c, stageLabel(*j)+" · "+ago(j.CreatedAt))
-					if components.Button(k("vl"), T("build.viewLog"), components.ButtonOpts{Size: design.ControlSM}).Clicked() {
+					kit.Secondary(c, stageLabel(*j)+" · "+ago(j.CreatedAt))
+					if kit.Button(k("vl"), T("build.viewLog"), kit.ButtonOpts{Size: design.ControlSM}).Clicked() {
 						a.projTab = 0
 						a.watch[pr.ID] = j.ID
 						a.logOpen[j.ID] = true
 					}
 				} else {
-					components.Caption(c, T("set.diag.never"))
+					kit.Caption(c, T("set.diag.never"))
 				}
 			}},
 		}}
@@ -587,11 +542,11 @@ func (a *App) domainList(c *ui.Context, ed *editorState) {
 				i := i
 				ui.Row(c.Key(d)).Height(26).Padding(0, 4, 0, 10).Gap(4).AlignItems(ui.Center).Radius(13).Background(p.Hover).Children(func() {
 					ui.Text(c, d).FontSize(design.FontSmall).TextColor(p.Text)
-					x := ui.ButtonBase(c).Label(T("common.remove") + " " + d).Size(18, 18).Radius(9).Center().Cursor(ui.CursorPointer)
+					x := ui.ButtonBase(c).Label(T("common.remove")+" "+d).Size(18, 18).Radius(9).Center().Cursor(ui.CursorPointer)
 					if x.Hovered() {
 						x.Background(p.Pressed)
 					}
-					x.Children(func() { ui.Icon(c, lobeui.IconClose()).FontSize(11).TextColor(p.TextSecondary) })
+					x.Children(func() { kit.Glyph(c, icons.Close, 11, p.TextSecondary) })
 					if x.Clicked() {
 						remove = i
 					}
@@ -620,11 +575,11 @@ func (a *App) domainList(c *ui.Context, ed *editorState) {
 			ed.changed()
 		}
 		ui.Row(c).Gap(8).Children(func() {
-			in := lobeui.Input(c.Key("newdom"), &ed.newDom, lobeui.InputOpts{Placeholder: T("set.safeDomains.add"), Size: lobeui.Small}).Label(T("set.safeDomains.add"))
+			in := kit.TextField(c.Key("newdom"), &ed.newDom, T("set.safeDomains.add"), kit.FieldOpts{Placeholder: T("set.safeDomains.add")}).Grow(1)
 			if in.Submitted() {
 				add()
 			}
-			if components.Button(c.Key("adddom"), T("common.add"), components.ButtonOpts{Size: design.ControlSM, Disabled: strings.TrimSpace(ed.newDom) == ""}).Clicked() {
+			if kit.Button(c.Key("adddom"), T("common.add"), kit.ButtonOpts{Size: design.ControlSM, Disabled: strings.TrimSpace(ed.newDom) == ""}).Clicked() {
 				add()
 			}
 		})
@@ -654,7 +609,7 @@ func (a *App) targetEditor(c *ui.Context, ed *editorState) {
 			ui.Row(c.Key(t.Key())).Gap(10).AlignItems(ui.Center).Children(func() {
 				on := i >= 0
 				old := on
-				lobeui.Checkbox(c, &on, label).Disabled(unsupported)
+				kit.Checkbox(c, &on, label).Disabled(unsupported)
 				if on != old {
 					if on {
 						ed.cfg.Build.Targets = append(ed.cfg.Build.Targets, t)

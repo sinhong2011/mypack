@@ -11,9 +11,6 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"mypack.dev/mypack/internal/appservice"
-	"mypack.dev/mypack/internal/desktop/components"
-	"mypack.dev/mypack/internal/desktop/design"
-	"mypack.dev/mypack/internal/desktop/lobeui"
 	"mypack.dev/mypack/pkg/config"
 )
 
@@ -28,20 +25,21 @@ type createState struct {
 
 	name       string
 	nameEdited bool
+	account    string // optional account label: "Gmail — Work"
 
-	meta       *appservice.Metadata
-	metaFor    string
+	meta        *appservice.Metadata
+	metaFor     string
 	fetchingFor string
-	fetchSeq   int
+	fetchSeq    int
 
 	iconPNG    []byte
 	iconCustom bool
 
-	targets    map[string]config.Target
-	otherOpen  bool
-	advOpen    bool
-	cfg        *config.Config // pending advanced settings
-	adv        *editorState
+	targets   map[string]config.Target
+	otherOpen bool
+	advOpen   bool
+	cfg       *config.Config // pending advanced settings
+	adv       *editorState
 
 	busy           bool
 	buildRequested bool
@@ -104,171 +102,6 @@ func (s *createState) displayName() string {
 		return strings.TrimSuffix(filepath.Base(s.local), filepath.Ext(s.local))
 	}
 	return ""
-}
-
-func (a *App) createView(c *ui.Context) {
-	p := design.Of(c)
-	s := &a.create
-	if s.input != s.lastInput {
-		s.lastEdit = time.Now()
-		s.analyze()
-	}
-	a.maybeFetchMetadata(c)
-
-	page(c, 600, func() {
-		ui.Column(c).Gap(6).Margin(28, 0, 6, 0).Children(func() {
-			components.PageTitle(c, T("create.title"))
-			components.Secondary(c, T("create.subtitle"))
-		})
-
-		// 1. Website URL / local files.
-		ui.Column(c).Gap(8).Children(func() {
-			r := components.URLHero(c.Key("url"), &s.input, components.URLHeroOpts{
-				Placeholder: T("create.url.placeholder"), Label: T("create.url.label"),
-				Loading: s.fetchingFor != "" && s.fetchingFor == s.normalized, Invalid: s.invalidMsg != "" && s.input != "",
-				AutoFocus: true, Handle: &s.urlHandle,
-				OnPaste: func(text string) bool {
-					t := strings.TrimSpace(text)
-					if t == "" {
-						return false
-					}
-					// Paste replaces the field and fetches at once (auto-detect).
-					s.setInput(t)
-					return true
-				},
-			})
-			if s.focus {
-				s.focus = false
-				s.urlHandle.Focus()
-			}
-			if len(r.Dropped) > 0 {
-				s.setInput(r.Dropped[0])
-			}
-			if r.Submitted && s.ready() {
-				s.buildRequested = true
-			}
-			ui.Row(c).Gap(6).AlignItems(ui.Center).Padding(0, 4).Children(func() {
-				switch {
-				case s.invalidMsg != "" && s.input != "" && time.Since(s.lastEdit) > 700*time.Millisecond:
-					ui.Text(c, s.invalidMsg).FontSize(design.FontSmall).TextColor(p.Warning)
-				case r.DragOver:
-					ui.Text(c, T("create.drop.release")).FontSize(design.FontSmall).TextColor(p.AccentText)
-				default:
-					components.Caption(c, T("create.drop.hint"))
-					if components.Button(c.Key("choose"), T("create.chooseFile"), components.ButtonOpts{Variant: components.Plain, Size: 18}).
-						FontSize(design.FontSmall).Clicked() {
-						a.chooseLocalSource()
-					}
-				}
-			})
-		})
-
-		if !s.ready() {
-			a.createSuggestions(c)
-			return
-		}
-
-		// 2–3. Preview: icon + name + source.
-		components.Card(c).Padding(16).Gap(0).Children(func() {
-			ui.Row(c).Gap(16).AlignItems(ui.Center).Children(func() {
-				loading := s.normalized != "" && s.meta == nil && s.metaFor != s.normalized
-				if loading && s.iconPNG == nil {
-					lobeui.Skeleton(c, 64, 64).Radius(design.AppIconRadius(64))
-				} else {
-					components.IconPicker(c.Key("icon"), a.createIcon(), s.displayName(), 64, T("create.icon.change"), func(m *ui.Menu) {
-						if m.Item(T("create.icon.choose")).Chosen() {
-							a.chooseIcon(func(b []byte) { s.iconPNG, s.iconCustom = b, true })
-						}
-						if m.Item(T("create.icon.reset")).Disabled(!s.iconCustom).Chosen() {
-							s.iconPNG, s.iconCustom = nil, false
-						}
-					})
-				}
-				ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
-					components.Overline(c, T("create.name.label"))
-					placeholder := s.displayName()
-					if placeholder == "" {
-						placeholder = T("create.name.placeholder")
-					}
-					shown := s.name
-					if !s.nameEdited {
-						shown = s.displayName()
-					}
-					in := ui.TextInputBase(c.Key("name"), &shown).FontSize(design.FontTitle2).FontWeight(design.WeightSemibold).
-						Placeholder(placeholder).PlaceholderColor(p.TextTertiary).TextColor(p.Text).FocusRing(false).Label(T("create.name.label")).
-						Padding(4, 8).Margin(0, -8).Radius(design.RadiusSM)
-					if in.Focused() {
-						in.Background(p.Well).Border(1, p.Accent).Shadow(0, 0, 0, 3, p.Accent.Alpha(0.14))
-					} else if in.Hovered() {
-						in.Background(p.Hover)
-					}
-					if in.Changed() {
-						s.name = shown
-						s.nameEdited = strings.TrimSpace(shown) != ""
-					}
-					ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-						icon := lobeui.IconLink()
-						src := s.normalized
-						if s.local != "" {
-							icon = lobeui.IconFolder()
-							src = s.local
-						} else {
-							src = config.RegistrableHost(s.normalized)
-						}
-						ui.Icon(c, icon).FontSize(12).TextColor(p.TextTertiary)
-						components.Caption(c, src).SingleLine().MinWidth(0)
-						if loading {
-							components.Caption(c, "· "+T("create.fetching"))
-						}
-					})
-				})
-			})
-			if s.meta != nil && s.meta.Fallback && s.metaFor == s.normalized {
-				components.Note(c, lobeui.IconInfo(), T("create.offline"), components.ToneWarning).Margin(14, 0, 0, 0)
-			}
-		})
-
-		// 4. Target.
-		a.createTargets(c)
-
-		// Advanced Settings (collapsed).
-		ui.Column(c).Gap(8).Children(func() {
-			components.Disclosure(c.Key("adv"), &s.advOpen, T("create.advanced"), T("create.advanced.sub"))
-			if s.advOpen {
-				if s.cfg == nil {
-					src := config.Source{Type: config.SourceURL, Value: s.normalized}
-					if s.local != "" {
-						src = localSource(s.local)
-					}
-					s.cfg = config.New(nonEmpty(s.displayName(), "App"), src, a.host)
-					s.adv = &editorState{cfg: s.cfg, local: true}
-				}
-				a.settingsEditor(c, s.adv, nil)
-			}
-		})
-
-		// 5. Primary CTA.
-		components.Hairline(c)
-		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-			if pf := a.createDownloadHint(); pf != "" {
-				ui.Icon(c, lobeui.IconDownload()).FontSize(13).TextColor(p.TextTertiary)
-				components.Caption(c, pf).MinWidth(0).Shrink(1)
-			}
-			ui.Spacer(c)
-			if components.Button(c.Key("cancel"), T("common.cancel"), components.ButtonOpts{Variant: components.Ghost}).Clicked() {
-				a.nav(secLibrary)
-			}
-			label := a.buildCTA()
-			if components.Button(c.Key("build"), label, components.ButtonOpts{Variant: components.Primary, Size: design.ControlXL,
-				Loading: s.busy, Disabled: len(s.targets) == 0, Hotkey: "mod+b"}).Clicked() {
-				s.buildRequested = true
-			}
-		})
-	})
-	if s.buildRequested {
-		s.buildRequested = false
-		a.createAndBuild()
-	}
 }
 
 func (a *App) createIcon() []byte {
@@ -361,70 +194,18 @@ func (a *App) maybeFetchMetadata(c *ui.Context) {
 	}()
 }
 
-func (a *App) createSuggestions(c *ui.Context) {
-	p := design.Of(c)
-	ui.Column(c).Gap(10).Margin(18, 0, 0, 0).Children(func() {
-		components.Overline(c, T("create.try"))
-		ui.Row(c).Gap(8).Wrap().Children(func() {
-			for i, t := range templates {
-				if i >= 6 {
-					break
-				}
-				t := t
-				chip := ui.ButtonBase(c.Key(t.url)).Label(t.name).Row().Justify(ui.Start).Height(30).PaddingX(10).Gap(8).AlignItems(ui.Center).
-					Radius(15).Border(1, p.Border).Background(p.Surface).Cursor(ui.CursorPointer).Transition(design.Transition(c))
-				if chip.Hovered() {
-					chip.Border(1, p.BorderStrong).Background(p.Surface.Mix(p.Text, 0.03))
-				}
-				chip.Children(func() {
-					components.Placeholder(c, t.name, 16)
-					ui.Text(c, t.name).FontSize(design.FontSmall).FontWeight(design.WeightMedium).TextColor(p.Text)
-				})
-				if chip.Clicked() {
-					a.create.setInput(t.url)
-				}
-			}
-		})
-	})
-}
-
-func (a *App) createTargets(c *ui.Context) {
-	p := design.Of(c)
+// ensureCfg returns the pending settings for the new app, made on first use.
+func (a *App) ensureCfg() *config.Config {
 	s := &a.create
-	ui.Column(c).Gap(10).Children(func() {
-		components.Overline(c, T("create.target.label"))
-		host := config.DefaultTarget(a.host)
-		hostIcon := lobeui.IconLaptop()
-		ui.Row(c).Gap(8).Wrap().Children(func() {
-			_, on := s.targets[host.Key()]
-			if components.TargetChip(c.Key("host"), hostIcon, thisDevice(a.host), T("target.recommended"), on, false).Clicked() {
-				s.toggleTarget(host)
-			}
-		})
-		if components.Button(c.Key("other"), T("create.otherPlatforms"), components.ButtonOpts{Variant: components.Plain, Size: 22,
-			Trailing: map[bool]*ui.SVG{true: lobeui.IconChevronDown(), false: lobeui.IconChevronRt()}[s.otherOpen]}).FontSize(design.FontSmall).AlignSelf(ui.Start).Clicked() {
-			s.otherOpen = !s.otherOpen
+	if s.cfg == nil {
+		src := config.Source{Type: config.SourceURL, Value: s.normalized}
+		if s.local != "" {
+			src = localSource(s.local)
 		}
-		if s.otherOpen {
-			ui.Column(c).Gap(8).Children(func() {
-				ui.Row(c).Gap(8).Wrap().Children(func() {
-					for _, t := range otherTargets(a.host) {
-						t := t
-						_, on := s.targets[t.Key()]
-						unsupported := t.OS == "darwin" && a.host.OS != "darwin"
-						sub := archLabel(t.OS, t.Arch)
-						if unsupported {
-							sub = T("target.needsMac")
-						}
-						if components.TargetChip(c.Key(t.Key()), lobeui.IconMonitor(), osLabel(t.OS), sub, on, unsupported).Clicked() {
-							s.toggleTarget(t)
-						}
-					}
-				})
-				ui.Text(c, T("create.otherPlatforms.note")).FontSize(design.FontSmall).TextColor(p.TextTertiary).LineHeight(1.4)
-			})
-		}
-	})
+		s.cfg = config.New(nonEmpty(s.displayName(), "App"), src, a.host)
+		s.adv = &editorState{cfg: s.cfg, local: true}
+	}
+	return s.cfg
 }
 
 func (s *createState) toggleTarget(t config.Target) {
@@ -468,6 +249,9 @@ func (a *App) createAndBuild() {
 	name := ""
 	if s.nameEdited {
 		name = strings.TrimSpace(s.name)
+	}
+	if acct := strings.TrimSpace(s.account); acct != "" {
+		name = nonEmpty(strings.TrimSpace(s.displayName()), "App") + " — " + acct
 	}
 	var meta *appservice.Metadata
 	if s.meta != nil && s.metaFor == s.normalized {

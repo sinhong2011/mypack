@@ -2,11 +2,16 @@ package app
 
 import (
 	"context"
+	"os"
+	"runtime"
 	"strings"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/ui"
 
-	"mypack.dev/mypack/internal/desktop/components"
+	"mypack.dev/mypack/internal/desktop/design"
+	"mypack.dev/mypack/internal/desktop/kit"
+	"mypack.dev/mypack/internal/desktop/kit/icons"
 	"mypack.dev/mypack/internal/domain"
 )
 
@@ -81,9 +86,14 @@ func (a *App) buildShortcut() {
 
 // ---- menu bar (spec §09B) -------------------------------------------------------
 
-// syncTray creates, updates or removes the status item.
+// syncTray creates, updates or removes the status item. A click opens the
+// glass flyout; a right click shows the classic menu (Linux trays tell no
+// clicks, so they keep the menu).
 func (a *App) syncTray() {
 	if !a.settings.ShowMenuBarIcon {
+		if a.flyout != nil {
+			a.flyout.Close()
+		}
 		if a.tray != nil {
 			a.tray.Destroy()
 			a.tray = nil
@@ -91,17 +101,193 @@ func (a *App) syncTray() {
 		return
 	}
 	active := a.activeJobs()
-	icon := components.TrayIconPNG(len(active) > 0)
+	icon := kit.TrayIconPNG(len(active) > 0)
 	if a.tray == nil {
 		t, err := mygo.NewTray(mygo.TrayOptions{ID: "mypack", Icon: icon, IconIsTemplate: true, ToolTip: "mypack"})
 		if err != nil {
 			return
 		}
 		a.tray = t
+		if runtime.GOOS != "linux" {
+			t.OnClick(a.toggleFlyout)
+			t.OnRightClick(func() {
+				if a.flyout != nil {
+					a.flyout.Close()
+				}
+				t.SetMenu(a.trayMenu(a.activeJobs()))
+				defer t.SetMenu(nil)
+				t.PopUpMenu()
+			})
+		}
 	} else {
 		_ = a.tray.SetIcon(icon, true)
 	}
-	a.tray.SetMenu(a.trayMenu(active))
+	if runtime.GOOS == "linux" {
+		a.tray.SetMenu(a.trayMenu(active))
+	}
+	if a.flyout != nil {
+		a.flyout.Invalidate()
+	}
+}
+
+// toggleFlyout opens the menu bar flyout under the status item, or closes it.
+func (a *App) toggleFlyout() {
+	if a.flyout != nil {
+		a.flyout.Close()
+		return
+	}
+	opts := mygo.FlyoutOptions{Tray: a.tray, Placement: mygo.PlacementBottom}
+	if a.tray == nil || (isFake() && os.Getenv("MYPACK_FAKE_FLYOUT") == "1") {
+		// No status item (or the demo's screenshots): open it under the
+		// window's top-right corner instead.
+		if a.win == nil {
+			return
+		}
+		w, _ := a.win.Size()
+		opts = mygo.FlyoutOptions{Parent: a.win, Anchor: mygo.Rectangle{X: w - 60, Y: 40, Width: 20, Height: 10}, Placement: mygo.PlacementBottomEnd}
+	}
+	a.flyout = mygo.NewFlyout(mygo.FlyoutOptions{
+		Tray: opts.Tray, Parent: opts.Parent, Anchor: opts.Anchor, Placement: opts.Placement, Gap: 4,
+		Width: 340, Height: 360, FitContent: true, MinWidth: 340, MaxWidth: 340,
+		Focusable: true, Shadow: true, Popover: true,
+		Content: ui.View(a.flyoutView),
+	})
+	a.flyout.OnClosed(func() { a.flyout = nil })
+}
+
+// closeFlyoutAnd closes the flyout, brings the main window up and runs fn.
+func (a *App) closeFlyoutAnd(fn func()) {
+	if a.flyout != nil {
+		a.flyout.Close()
+	}
+	a.showWindow()
+	fn()
+	if a.win != nil {
+		a.win.Invalidate()
+	}
+}
+
+// flyoutView is the menu bar popover: paste a URL, jump to a recent app,
+// watch builds.
+func (a *App) flyoutView(c *ui.Context) {
+	design.Apply(c)
+	p := design.Of(c)
+	c.Root().Background(ui.Transparent)
+	box := ui.Column(c).Width(340).Padding(16).Gap(14).Background(p.Overlay)
+	if !c.Vibrancy() {
+		box.Radius(14).Border(0.5, p.BorderStrong)
+	}
+	active := a.activeJobs()
+	box.Children(func() {
+		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+			kit.BrandMark(c, 30)
+			ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+				kit.Headline(c, "mypack")
+				status := T("tray.ready")
+				if len(active) > 0 {
+					status = T("tray.building", "count", len(active))
+				}
+				kit.Caption(c, status)
+			})
+			if kit.IconButton(c.Key("settings"), icons.Settings, T("menu.settings")).Clicked() {
+				a.closeFlyoutAnd(func() { a.nav(secSettings) })
+			}
+		})
+		r := kit.URLField(c.Key("url"), &a.flyoutURL, kit.URLFieldOpts{
+			Placeholder: T("flyout.placeholder"), Label: T("create.url.label"), Height: 40, AutoFocus: true,
+			Paste: T("create.paste"), Action: T("flyout.make"), ActionOff: strings.TrimSpace(a.flyoutURL) == "",
+		})
+		if r.Paste {
+			a.flyoutURL = strings.TrimSpace(c.ReadClipboard())
+		}
+		if (r.Action || r.Submitted) && strings.TrimSpace(a.flyoutURL) != "" {
+			u := a.flyoutURL
+			a.flyoutURL = ""
+			a.closeFlyoutAnd(func() {
+				a.create.reset(a.host)
+				a.create.setInput(u)
+				a.nav(secCreate)
+			})
+		}
+		if len(active) > 0 {
+			ui.Column(c).Gap(8).Children(func() {
+				flyoutHeader(c, T("tray.activity"))
+				if pr := a.project(active[0].ProjectID); pr != nil {
+					j := active[0]
+					ui.Box(c).Radius(design.RadiusCard).Clip().Children(func() { a.sceneFor(c, pr, &j, 132) })
+				}
+				for _, j := range active {
+					j := j
+					var png []byte
+					if pr := a.project(j.ProjectID); pr != nil {
+						png = pr.IconPNG
+					}
+					row := ui.ButtonBase(c.Key(j.ID)).Label(j.Snapshot.App.Name).Row().Justify(ui.Start).Gap(10).Padding(6, 8).Radius(10).AlignItems(ui.Center).Cursor(ui.CursorPointer)
+					if row.Hovered() {
+						row.Background(p.Hover)
+					}
+					row.Children(func() {
+						kit.AppIconOpts(c, png, j.Snapshot.App.Name, 30, kit.IconOpts{})
+						ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
+							ui.Row(c).Children(func() {
+								ui.Text(c, j.Snapshot.App.Name).FontSize(design.FontBody).FontWeight(design.WeightMedium).TextColor(p.Text).SingleLine().Grow(1).MinWidth(0)
+								ui.Text(c, stageLabel(j)).FontSize(design.FontCaption).TextColor(p.TextSecondary).SingleLine()
+							})
+							prog := -1.0
+							if j.Progress >= 0 {
+								prog = (float64(stepIndex(j.Stage)) + j.Progress) / float64(len(visibleSteps))
+							}
+							kit.ProgressBar(c, prog)
+						})
+					})
+					if row.Clicked() {
+						a.closeFlyoutAnd(func() { a.openProject(j.ProjectID, 0) })
+					}
+				}
+			})
+		}
+		if len(a.projects) > 0 {
+			ui.Column(c).Gap(8).Children(func() {
+				flyoutHeader(c, T("tray.recent"))
+				ui.Row(c).Gap(4).Children(func() {
+					for i, pr := range a.projects {
+						if i >= 5 {
+							break
+						}
+						id, name := pr.ID, pr.Config.App.Name
+						b := ui.ButtonBase(c.Key(id)).Label(name).Column().Width(58).AlignItems(ui.Center).Gap(5).Padding(6, 0).Radius(10).Cursor(ui.CursorPointer)
+						if b.Hovered() {
+							b.Background(p.Hover)
+						}
+						b.Children(func() {
+							kit.AppIconOpts(c, pr.IconPNG, name, 40, kit.IconOpts{Shadow: true})
+							ui.Text(c, name).FontSize(10).TextColor(p.TextSecondary).SingleLine().MaxWidth(56).TextAlign(ui.Center)
+						})
+						if b.Clicked() {
+							a.closeFlyoutAnd(func() { a.openProject(id, 0) })
+						}
+					}
+				})
+			})
+		}
+		kit.Hairline(c)
+		ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
+			if kit.Button(c.Key("open"), T("tray.open"), kit.ButtonOpts{Variant: kit.Ghost, Size: design.ControlSM, Icon: icons.Library}).Clicked() {
+				a.closeFlyoutAnd(func() { a.nav(secLibrary) })
+			}
+			if kit.Button(c.Key("builds"), T("tray.viewBuilds"), kit.ButtonOpts{Variant: kit.Ghost, Size: design.ControlSM, Icon: icons.Builds}).Clicked() {
+				a.closeFlyoutAnd(func() { a.nav(secBuilds) })
+			}
+			ui.Spacer(c)
+			if kit.IconButton(c.Key("quit"), icons.Power, T("menu.quit")).Clicked() {
+				mygo.App.Quit()
+			}
+		})
+	})
+}
+
+func flyoutHeader(c *ui.Context, s string) {
+	kit.Eyebrow(c, s).Padding(0, 2)
 }
 
 func (a *App) trayMenu(active []domain.BuildJob) *mygo.Menu {
@@ -182,7 +368,6 @@ func (a *App) importExistingApp() {
 				a.toastErr(err)
 				return
 			}
-			a.lib.tab = 0
 			a.nav(secLibrary)
 			a.toast(T("import.done"), "", 1)
 		})

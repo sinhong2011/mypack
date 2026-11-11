@@ -34,6 +34,7 @@ const (
 	secSettings section = "settings"
 	secCreate   section = "create"
 	secProject  section = "project"
+	secGallery  section = "gallery" // MYPACK_KIT_GALLERY=1
 )
 
 // App is the GUI state.
@@ -62,6 +63,14 @@ type App struct {
 
 	// watched jobs started from this session, per project
 	watch map[string]string
+	// successAt is when a watched job finished, for the success burst.
+	successAt map[string]time.Time
+	scenes    map[string]sceneMark
+	presets   presetIcons
+	gallery   galleryState
+
+	flyout    *mygo.Window
+	flyoutURL string
 
 	lib     libState
 	create  createState
@@ -93,7 +102,7 @@ func Run(svc appservice.Service) error {
 		svc: svc, host: svc.HostTarget(), ui: loadUIState(),
 		logs: map[string][]domain.LogLine{}, logOpen: map[string]bool{},
 		rtBusy: map[string]string{}, rtProg: map[string]float64{},
-		watch: map[string]string{}, editors: map[string]*editorState{},
+		watch: map[string]string{}, successAt: map[string]time.Time{}, scenes: map[string]sceneMark{}, editors: map[string]*editorState{},
 		reloadWant: map[string]bool{},
 	}
 	a.section = section(a.ui.Section)
@@ -108,6 +117,9 @@ func Run(svc appservice.Service) error {
 		a.section = secLibrary
 	}
 	a.create.reset(a.host)
+	if galleryEnabled() {
+		a.section = secGallery
+	}
 	if id := showProjectArg(os.Args[1:]); id != "" {
 		a.section, a.projectID = secProject, id
 	}
@@ -150,9 +162,8 @@ func Run(svc appservice.Service) error {
 			MinWidth:             880,
 			MinHeight:            600,
 			TitleBarStyle:        mygo.TitleBarHidden,
-			TrafficLightPosition: &mygo.Point{X: 18, Y: 20},
-			Vibrancy:             mygo.VibrancySidebar,
-			BackgroundColor:      "light-dark(#f2f2f4, #1e1e21)",
+			TrafficLightPosition: &mygo.Point{X: 20, Y: 20},
+			BackgroundColor:      "light-dark(#efefeb, #141415)",
 			StateKey:             "main",
 			Content:              ui.View(a.view),
 		})
@@ -165,6 +176,10 @@ func Run(svc appservice.Service) error {
 		svc.Subscribe(a.onEvent)
 		a.reload("projects", "installs", "jobs", "runtimes", "storage", "license")
 		a.syncTray()
+		if isFake() && os.Getenv("MYPACK_FAKE_FLYOUT") == "1" {
+			// Demo/screenshots: open the menu bar flyout once loaded.
+			time.AfterFunc(7*time.Second, func() { mygo.RunOnMain(a.toggleFlyout) })
+		}
 	})
 	return mygo.App.Run()
 }
@@ -442,6 +457,7 @@ func (a *App) upsertJob(j domain.BuildJob) {
 	if old != j.Status && a.watch[j.ProjectID] == j.ID {
 		switch j.Status {
 		case domain.JobSucceeded:
+			a.successAt[j.ID] = time.Now()
 			c := a.win
 			if c != nil {
 				// announce for screen readers via a toast when not on the page
@@ -518,6 +534,9 @@ func (a *App) runtimeInfo(t config.Target) *domain.RuntimeInfo {
 // ---- navigation -----------------------------------------------------------------
 
 func (a *App) nav(s section) {
+	if s != a.section {
+		a.stopPresetFetches()
+	}
 	if s == secCreate && a.section != secCreate {
 		a.create.focus = true
 	}

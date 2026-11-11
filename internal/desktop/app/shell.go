@@ -5,34 +5,58 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"mypack.dev/mypack/internal/desktop/components"
 	"mypack.dev/mypack/internal/desktop/design"
-	"mypack.dev/mypack/internal/desktop/lobeui"
+	"mypack.dev/mypack/internal/desktop/kit"
+	"mypack.dev/mypack/internal/desktop/kit/icons"
 	"mypack.dev/mypack/internal/domain"
 )
+
+// Window chrome: the sidebar sits on the window's textured chrome
+// surface; the content lives on a raised canvas inset from the window
+// edges, with the toolbar (title and actions) along its top. The same on
+// every platform; only the window controls differ (traffic lights at the
+// left on macOS, caption buttons on the right elsewhere).
 
 func (a *App) view(c *ui.Context) {
 	design.Apply(c)
 	p := design.Of(c)
-	root := ui.Row(c).Fill().AlignItems(ui.Stretch)
-	if !c.Vibrancy() {
-		root.Background(p.Sidebar)
-	}
-	root.Children(func() {
-		a.sidebar(c)
-		main := ui.Column(c).Grow(1).Basis(0).MinWidth(0).Background(p.Bg).BorderWidth(0, 0, 0, 1).BorderColor(p.Border)
-		main.Children(func() {
-			a.toolbar(c)
-			a.content(c)
+	kit.Strings.Close = T("common.close")
+	c.Root().Background(p.Chrome)
+	ui.Box(c).Fill().Children(func() {
+		// Film grain over the chrome.
+		ui.Box(c).Absolute().Fill().PassThrough().AccessHidden(true).Draw(func(pt *ui.Painter, r ui.Rect) {
+			design.PaintGrain(pt, r, p)
+		})
+		ui.Row(c).Absolute().Fill().AlignItems(ui.Stretch).Children(func() {
+			a.sidebar(c)
+			in := design.CanvasInset
+			canvas := ui.Box(c).Grow(1).Basis(0).MinWidth(0).Margin(in, in, in, 0).Radius(design.RadiusCanvas).
+				Background(p.Window).Border(0.5, p.GroupBorder).Clip()
+			design.Elevate(c, canvas, design.Floating)
+			canvas.Children(func() {
+				a.content(c)
+				// Content scrolls under the toolbar, fading into the canvas.
+				ui.Box(c).Absolute().Top(0).Left(0).Right(0).Height(design.TitleBarH + 14).PassThrough().AccessHidden(true).
+					LinearGradient(ui.LinearGradient{Angle: 180, Stops: []ui.GradientStop{
+						{Color: p.Window, At: 0}, {Color: p.Window, At: 0.62}, {Color: p.Window.Alpha(0), At: 1}}})
+				a.toolbar(c)
+			})
 		})
 	})
-	lobeui.ToastHost(c)
 	a.dialogs(c)
+	kit.Toasts(c)
 	for _, t := range a.toasts {
+		typ := ""
+		switch t.kind {
+		case 1:
+			typ = "success"
+		case 2:
+			typ = "error"
+		}
 		if t.action != "" {
-			lobeui.ToastAction(c, t.title, t.action, t.fn)
+			c.ToastAction(t.title, t.action, t.fn)
 		} else {
-			lobeui.Toast(c, t.title, t.desc, lobeui.ToastKind(t.kind))
+			c.AddToast(ui.Toast{Title: t.title, Description: t.desc, Type: typ})
 		}
 	}
 	a.toasts = nil
@@ -55,14 +79,20 @@ func (a *App) escape() {
 
 // ---- sidebar --------------------------------------------------------------------
 
+// navGlide pairs the sidebar's selection pill across items, so it glides.
+type navGlide struct{}
+
 func (a *App) sidebar(c *ui.Context) {
 	p := design.Of(c)
+	bar := c.TitleBar()
 	ui.Column(c).Width(design.SidebarWidth).Shrink(0).Padding(0, 10, 12, 10).Children(func() {
-		// Title-bar strip (traffic lights) + brand.
-		ui.Row(c).Height(design.TitleBarH).Shrink(0).DragWindow()
-		ui.Row(c).Gap(9).AlignItems(ui.Center).Padding(0, 8, 14, 8).Children(func() {
-			components.BrandMark(c, 22)
-			ui.Text(c, "mypack").FontSize(design.FontTitle3).FontWeight(design.WeightSemibold).TextColor(p.Text).LetterSpacing(-0.2)
+		// The window controls' strip (traffic lights on macOS), with the
+		// brand where there are none.
+		ui.Row(c).Height(design.TitleBarH).Shrink(0).DragWindow().AlignItems(ui.Center).Padding(0, 0, 0, max(6, bar.Left)).Gap(8).Children(func() {
+			if bar.Left == 0 {
+				kit.BrandMark(c, 22)
+				ui.Text(c, "mypack").FontSize(design.FontTitle3).FontWeight(design.WeightBold).TextColor(p.Text).LetterSpacing(design.TrackTitle)
+			}
 		})
 		ui.Column(c).Gap(1).Role(ui.RoleNavigation).Label(T("nav.label")).Children(func() {
 			updates := 0
@@ -75,42 +105,42 @@ func (a *App) sidebar(c *ui.Context) {
 			if updates > 0 {
 				badge = fmt.Sprint(updates)
 			}
-			a.navItem(c, secLibrary, lobeui.IconLibrary(), T("nav.library"), badge, "mod+1")
-			a.navItem(c, secDiscover, lobeui.IconDiscover(), T("nav.discover"), "", "mod+2")
+			a.navItem(c, secLibrary, icons.Library, T("nav.library"), badge)
+			a.navItem(c, secDiscover, icons.Discover, T("nav.discover"), "")
 			running := ""
 			if n := len(a.activeJobs()); n > 0 {
 				running = "•"
 			}
-			a.navItem(c, secBuilds, lobeui.IconBuilds(), T("nav.builds"), running, "mod+3")
+			a.navItem(c, secBuilds, icons.Builds, T("nav.builds"), running)
 		})
 		// Recent projects.
 		if len(a.projects) > 0 {
-			ui.Text(c, T("nav.recent")).FontSize(design.FontCaption).FontWeight(design.WeightSemibold).
-				TextColor(p.TextTertiary).Padding(18, 10, 6, 10)
+			kit.Eyebrow(c, T("nav.recent")).Padding(20, 10, 8, 10)
 			ui.Column(c).Gap(1).Children(func() {
 				for i, pr := range a.projects {
-					if i >= 5 {
+					if i >= 6 {
 						break
 					}
 					pr := pr
 					active := a.section == secProject && a.projectID == pr.ID
-					row := ui.ButtonBase(c.Key(pr.ID)).Label(pr.Config.App.Name).Row().Justify(ui.Start).Height(28).PaddingX(10).Gap(9).
+					row := ui.ButtonBase(c.Key(pr.ID)).Label(pr.Config.App.Name).Row().Justify(ui.Start).Height(30).PaddingX(8).Gap(9).
 						AlignItems(ui.Center).Radius(design.RadiusControl).Cursor(ui.CursorPointer).Transition(design.Transition(c))
-					if active {
-						row.Background(p.Selected)
-					} else if row.Hovered() {
+					kit.Arrive(row, i, design.StaggerList)
+					if row.Hovered() && !active {
 						row.Background(p.Hover)
 					}
 					row.Children(func() {
-						components.AppIcon(c, pr.IconPNG, pr.Config.App.Name, 16)
+						if active {
+							a.navPill(c)
+						}
+						kit.AppIconOpts(c, pr.IconPNG, pr.Config.App.Name, 18, kit.IconOpts{})
 						fg := p.TextSecondary
 						if active {
 							fg = p.Text
 						}
-						ui.Text(c, pr.Config.App.Name).FontSize(design.FontBody).TextColor(fg).SingleLine().MinWidth(0)
+						ui.Text(c, pr.Config.App.Name).FontSize(design.FontBody).TextColor(fg).SingleLine().MinWidth(0).Grow(1)
 						if j := a.latestJob(pr.ID); j != nil && (j.Status == domain.JobRunning || j.Status == domain.JobQueued) {
-							ui.Spacer(c)
-							components.Spinner(c, 11, p.TextTertiary)
+							kit.Spinner(c, 12, p.Accent)
 						}
 					})
 					if row.Clicked() {
@@ -121,40 +151,53 @@ func (a *App) sidebar(c *ui.Context) {
 		}
 		ui.Spacer(c)
 		ui.Column(c).Gap(1).Children(func() {
-			a.navItem(c, secRuntimes, lobeui.IconRuntimes(), T("nav.runtimes"), "", "mod+4")
-			a.navItem(c, secSettings, lobeui.IconSettings(), T("nav.settings"), "", "mod+,")
+			a.navItem(c, secRuntimes, icons.Runtimes, T("nav.runtimes"), "")
+			a.navItem(c, secSettings, icons.Settings, T("nav.settings"), "")
 		})
 	})
 }
 
-func (a *App) navItem(c *ui.Context, s section, icon *ui.SVG, label, badge, hotkey string) {
+// navPill is the sidebar's selection: a raised pill that glides from the
+// item chosen before to this one.
+func (a *App) navPill(c *ui.Context) {
+	p := design.Of(c)
+	pill := ui.Box(c).Absolute().Fill().Radius(design.RadiusControl).ZIndex(-1).Background(p.Raised).Border(0.5, p.GroupBorder)
+	design.Elevate(c, pill, design.Lifted)
+	kit.Glide(pill, navGlide{})
+}
+
+func (a *App) navItem(c *ui.Context, s section, ic *ui.SVG, label, badge string) {
 	p := design.Of(c)
 	active := a.section == s
-	row := ui.ButtonBase(c.Key(string(s))).Label(label).Row().Justify(ui.Start).Height(30).PaddingX(10).Gap(10).AlignItems(ui.Center).
+	row := ui.ButtonBase(c.Key(string(s))).Label(label).Row().Justify(ui.Start).Height(30).PaddingX(9).Gap(10).AlignItems(ui.Center).
 		Radius(design.RadiusControl).Cursor(ui.CursorPointer).Transition(design.Transition(c)).Current(ui.CurrentPage)
 	if !active {
 		row.Current(ui.CurrentNone)
-	}
-	if active {
-		row.Background(p.Selected)
-	} else if row.Hovered() {
-		row.Background(p.Hover)
+		if row.Hovered() {
+			row.Background(p.Hover)
+		}
 	}
 	row.Children(func() {
+		if active {
+			a.navPill(c)
+		}
 		col, tc := p.TextSecondary, p.TextSecondary
 		if active {
-			col, tc = p.AccentText, p.Text
+			col, tc = p.Accent, p.Text
 		}
-		ui.Icon(c, icon).FontSize(16).TextColor(col)
-		ui.Text(c, label).FontSize(design.FontBody).FontWeight(design.WeightMedium).TextColor(tc).SingleLine()
-		ui.Spacer(c)
+		kit.Glyph(c, ic, 16, col)
+		w := design.WeightMedium
+		if active {
+			w = design.WeightSemibold
+		}
+		ui.Text(c, label).FontSize(design.FontBody).FontWeight(w).TextColor(tc).SingleLine().Grow(1).MinWidth(0)
 		switch badge {
 		case "":
 		case "•":
-			components.Spinner(c, 12, p.AccentText)
+			kit.Spinner(c, 12, p.Accent)
 		default:
-			ui.Text(c, badge).FontSize(design.FontCaption).FontWeight(design.WeightSemibold).TextColor(p.AccentText).
-				Padding(1, 6).Radius(8).Background(p.AccentSoft)
+			kit.Pop(ui.Text(c.Key("badge"), badge).FontSize(design.FontCaption).FontWeight(design.WeightBold).TextColor(p.TextOnAccent).
+				Padding(1, 6).Radius(8).Background(p.Accent).FontFeatures("tnum"))
 		}
 	})
 	if row.Clicked() {
@@ -165,62 +208,67 @@ func (a *App) navItem(c *ui.Context, s section, icon *ui.SVG, label, badge, hotk
 // ---- toolbar --------------------------------------------------------------------
 
 func (a *App) toolbar(c *ui.Context) {
-	p := design.Of(c)
 	bar := c.TitleBar()
-	ui.Row(c).Height(design.TitleBarH).Shrink(0).Padding(0, bar.Right+20, 0, 24).Gap(10).AlignItems(ui.Center).DragWindow().Children(func() {
-		a.toolbarTitle(c, p)
-		ui.Spacer(c)
+	right := max(bar.Right-design.CanvasInset, 0) + 14
+	ui.Row(c).Absolute().Top(0).Left(0).Right(0).Height(design.TitleBarH).Padding(0, right, 0, 20).Gap(8).AlignItems(ui.Center).
+		DragWindow().Role(ui.RoleToolbar).Label(T("toolbar.label")).Children(func() {
+		a.toolbarTitle(c)
+		ui.Spacer(c).MinWidth(8)
 		a.activityIndicator(c)
+		switch a.section {
+		case secLibrary:
+			a.libraryToolbar(c)
+		case secProject:
+			a.projectToolbar(c)
+		}
 		if a.section != secCreate {
-			if components.Button(c.Key("tb-build"), T("toolbar.buildWebsite"), components.ButtonOpts{
-				Variant: components.Primary, Icon: lobeui.IconPlus(), Hotkey: "mod+n", Tooltip: T("toolbar.buildWebsite.tip"),
-			}).Clicked() {
+			if kit.GlassIcon(c.Key("tb-build"), icons.Plus, T("toolbar.buildWebsite.tip"), "mod+n", true).Clicked() {
 				a.newApp()
 			}
 		}
 	})
 }
 
-func (a *App) toolbarTitle(c *ui.Context, p *design.Palette) {
-	title := ""
+func (a *App) toolbarTitle(c *ui.Context) {
+	p := design.Of(c)
+	title, sub := "", ""
 	switch a.section {
 	case secLibrary:
 		title = T("nav.library")
+		if n := len(a.installs) + a.draftCount(); a.loaded && n > 0 {
+			sub = T("library.subtitle", "count", n)
+		}
 	case secDiscover:
 		title = T("nav.discover")
 	case secBuilds:
 		title = T("nav.builds")
+		sub = T("builds.count", "count", len(a.jobs))
 	case secRuntimes:
 		title = T("nav.runtimes")
 	case secSettings:
 		title = T("nav.settings")
 	case secCreate:
 		title = T("create.toolbar")
+	case secProject:
+		if pr := a.project(a.projectID); pr != nil {
+			title = pr.Config.App.Name
+			sub = domainOf(pr.Config.App.Source)
+		}
 	}
-	if a.section == secProject || a.section == secCreate {
-		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-			back := ui.ButtonBase(c.Key("crumb")).Label(T("nav.library")).Padding(3, 6).Radius(design.RadiusSM).Cursor(ui.CursorPointer)
-			if back.Hovered() {
-				back.Background(p.Hover)
-			}
-			back.Children(func() {
-				ui.Text(c, T("nav.library")).FontSize(design.FontTitle3).FontWeight(design.WeightMedium).TextColor(p.TextSecondary)
-			})
-			if back.Clicked() {
+	ui.Row(c).Gap(10).AlignItems(ui.Center).MinWidth(0).Shrink(1).Children(func() {
+		if a.section == secProject || a.section == secCreate {
+			if kit.GlassIcon(c.Key("back"), icons.ChevronLeft, T("nav.back"), "", false).Clicked() {
 				a.nav(secLibrary)
 			}
-			ui.Icon(c, lobeui.IconChevronRt()).FontSize(13).TextColor(p.TextTertiary)
-			name := title
-			if a.section == secProject {
-				if pr := a.project(a.projectID); pr != nil {
-					name = pr.Config.App.Name
-				}
+		}
+		ui.Column(c).Gap(0).MinWidth(0).Padding(0, 4).Children(func() {
+			ui.Text(c, title).FontSize(design.FontTitle3).FontWeight(design.WeightBold).TextColor(p.Text).SingleLine().Role(ui.RoleHeading).
+				LetterSpacing(design.TrackTitle)
+			if sub != "" {
+				ui.Text(c, sub).FontSize(design.FontCaption).TextColor(p.TextSecondary).SingleLine()
 			}
-			ui.Text(c, name).FontSize(design.FontTitle3).FontWeight(design.WeightSemibold).TextColor(p.Text).SingleLine()
 		})
-		return
-	}
-	ui.Text(c, title).FontSize(design.FontTitle3).FontWeight(design.WeightSemibold).TextColor(p.Text).Role(ui.RoleHeading)
+	})
 }
 
 // activityIndicator shows only while work is running (spec §9, §12.2).
@@ -238,16 +286,17 @@ func (a *App) activityIndicator(c *ui.Context) {
 	if len(active) > 1 {
 		label = T("activity.many", "count", len(active))
 	}
-	b := ui.ButtonBase(c.Key("activity")).Label(label).Row().Justify(ui.Start).Height(28).PaddingX(10).Gap(7).AlignItems(ui.Center).
-		Radius(14).Background(p.Hover).Cursor(ui.CursorPointer).Transition(design.Transition(c)).Role(ui.RoleStatus)
-	if b.Hovered() {
-		b.Background(p.Pressed)
-	}
+	b := ui.ButtonBase(c.Key("activity")).Label(label).Row().Justify(ui.Start).Height(34).Padding(0, 14, 0, 10).Gap(8).AlignItems(ui.Center).
+		Radius(17).Background(p.Raised).Border(0.5, p.BorderStrong).Cursor(ui.CursorPointer).Role(ui.RoleStatus)
+	design.Elevate(c, b, design.Lifted)
+	kit.Pop(b)
 	b.Children(func() {
 		if j.Status == domain.JobAwaitingApproval {
-			ui.Icon(c, lobeui.IconDownload()).FontSize(13).TextColor(p.Warning)
+			kit.Glyph(c, icons.Download, 15, p.Warning)
+		} else if j.Progress >= 0 {
+			kit.ProgressRing(c, 16, 2.5, j.Progress, p.Accent, p.Fill)
 		} else {
-			components.Spinner(c, 13, p.AccentText)
+			kit.Spinner(c, 15, p.Accent)
 		}
 		ui.Text(c, label).FontSize(design.FontSmall).FontWeight(design.WeightMedium).TextColor(p.Text).SingleLine().MaxWidth(240)
 	})
@@ -263,7 +312,7 @@ func (a *App) activityIndicator(c *ui.Context) {
 // ---- content --------------------------------------------------------------------
 
 func (a *App) content(c *ui.Context) {
-	ui.Column(c.Key(string(a.section)+a.projectID)).Grow(1).Basis(0).MinHeight(0).Children(func() {
+	kit.PageSwap(ui.Column(c.Key(string(a.section) + a.projectID)).Absolute().Fill()).Children(func() {
 		switch a.section {
 		case secLibrary:
 			a.libraryView(c)
@@ -279,15 +328,18 @@ func (a *App) content(c *ui.Context) {
 			a.createView(c)
 		case secProject:
 			a.projectView(c)
+		case secGallery:
+			a.galleryView(c)
 		}
 	})
 }
 
-// page is the standard scrolling content column.
+// page is the standard scrolling content column; it starts under the
+// toolbar and scrolls beneath it.
 func page(c *ui.Context, maxW float32, body func()) {
-	ui.Scroll(c).Grow(1).Basis(0).Children(func() {
-		ui.Column(c).FillWidth().AlignItems(ui.Center).Padding(8, 32, 40, 32).Children(func() {
-			ui.Column(c).FillWidth().MaxWidth(maxW).Gap(20).Children(body)
+	ui.Scroll(c).Grow(1).Basis(0).ScrollbarInsets(design.TitleBarH, 0, 0).Children(func() {
+		ui.Column(c).FillWidth().AlignItems(ui.Center).Padding(design.TitleBarH+16, 32, 48, 32).Children(func() {
+			ui.Column(c).FillWidth().MaxWidth(maxW).Gap(24).Children(body)
 		})
 	})
 }

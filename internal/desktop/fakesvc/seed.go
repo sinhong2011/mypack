@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"mypack.dev/mypack/internal/domain"
-	"mypack.dev/mypack/internal/icons"
 	"mypack.dev/mypack/pkg/config"
 )
 
@@ -28,7 +27,7 @@ func (s *Service) seed() {
 	ids := map[string]string{}
 	for _, sp := range list {
 		cfg := config.New(sp.name, config.Source{Type: config.SourceURL, Value: sp.url}, s.host)
-		p := &domain.Project{ID: s.id("prj"), Revision: 3, Config: cfg, IconPNG: icons.Default(sp.name),
+		p := &domain.Project{ID: s.id("prj"), Revision: 3, Config: cfg, IconPNG: demoIcon(sp.name),
 			Draft: !sp.built, CreatedAt: ago(sp.updated + 48*time.Hour), UpdatedAt: ago(sp.updated), Origin: "gui"}
 		if sp.built {
 			t := ago(sp.updated - time.Minute)
@@ -65,8 +64,8 @@ func (s *Service) seed() {
 			inst = &domain.Installation{ID: s.id("inst"), ProjectID: p.ID, ArtifactID: art.ID, Name: sp.name,
 				Identifier: cfg.App.Identifier, SourceURL: sp.url, Path: filepath.Join(s.settings.InstallDir, name+".app"),
 				Version: cfg.App.Version, RuntimeVersion: runtimeVersion,
-				ProfileDir:  "~/Library/Application Support/mypack-apps/" + cfg.App.ProfileID,
-				State:       domain.InstallManaged, InstalledAt: end, LastManagedAt: end, IconPNG: p.IconPNG}
+				ProfileDir: "~/Library/Application Support/mypack-apps/" + cfg.App.ProfileID,
+				State:      domain.InstallManaged, InstalledAt: end, LastManagedAt: end, IconPNG: p.IconPNG}
 		}
 		if inst != nil {
 			if sp.name == "YouTube Music" {
@@ -100,7 +99,7 @@ func (s *Service) seed() {
 	// An external, read-only app.
 	s.installs = append(s.installs, &domain.Installation{ID: s.id("inst"), Name: "ChatGPT", Identifier: "com.pake.chatgpt",
 		SourceURL: "https://chatgpt.com/", Path: "/Applications/ChatGPT.app", Version: "2.9.0", State: domain.InstallExternal,
-		InstalledAt: ago(40 * 24 * time.Hour), LastManagedAt: ago(40 * 24 * time.Hour), IconPNG: icons.Default("ChatGPT")})
+		InstalledAt: ago(40 * 24 * time.Hour), LastManagedAt: ago(40 * 24 * time.Hour), IconPNG: demoIcon("ChatGPT")})
 
 	// One cached runtime for another platform.
 	if rt := s.runtimes[runtimeVersion+"/windows-amd64"]; rt != nil {

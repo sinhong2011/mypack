@@ -6,9 +6,9 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"mypack.dev/mypack/internal/desktop/components"
 	"mypack.dev/mypack/internal/desktop/design"
-	"mypack.dev/mypack/internal/desktop/lobeui"
+	"mypack.dev/mypack/internal/desktop/kit"
+	"mypack.dev/mypack/internal/desktop/kit/icons"
 	"mypack.dev/mypack/internal/domain"
 )
 
@@ -25,9 +25,7 @@ func (a *App) buildsView(c *ui.Context) {
 	}
 	page(c, design.ContentMaxW, func() {
 		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-			lobeui.Segmented(c.Key("filter"), &b.filter, []string{T("builds.filter.all"), T("builds.filter.active"), T("builds.filter.failed")}, lobeui.Middle)
-			ui.Spacer(c)
-			components.Caption(c, T("builds.count", "count", len(a.jobs)))
+			kit.Segmented(c.Key("filter"), &b.filter, []string{T("builds.filter.all"), T("builds.filter.active"), T("builds.filter.failed")}, false).Label(T("builds.filter.label"))
 		})
 		var list []domain.BuildJob
 		for _, j := range a.jobs {
@@ -44,33 +42,52 @@ func (a *App) buildsView(c *ui.Context) {
 			list = append(list, j)
 		}
 		if len(list) == 0 {
-			components.EmptyState(c, lobeui.IconBuilds(), T("builds.empty.title"), T("builds.empty.body"), nil)
+			kit.EmptyState(c, icons.Builds, T("builds.empty.title"), T("builds.empty.body"), nil)
 			return
 		}
-		ui.Column(c).Background(p.Surface).Border(1, p.Border).Radius(design.RadiusCard-2).Dividers(1, p.Divider).Clip().Children(func() {
-			for _, j := range list {
-				a.jobRow(c.Key(j.ID), j, true)
+		ui.Column(c).Radius(design.RadiusCard).Background(p.Group).Border(0.5, p.GroupBorder).Clip().Role(ui.RoleTable).Label(T("nav.builds")).Children(func() {
+			kit.TableHeader(c, buildCols(true), 14)
+			for i, j := range list {
+				a.jobRow(c.Key(j.ID), j, true, i)
 			}
 		})
 	})
 }
 
-func jobTone(j domain.BuildJob) (*ui.SVG, components.Tone, string) {
-	switch j.Status {
-	case domain.JobSucceeded:
-		return lobeui.IconSuccess(), components.ToneSuccess, T("status.built")
-	case domain.JobFailed:
-		return lobeui.IconFailed(), components.ToneDanger, T("status.failed")
-	case domain.JobCancelled:
-		return lobeui.IconStop(), components.ToneNeutral, T("status.cancelled")
-	case domain.JobAwaitingApproval:
-		return lobeui.IconDownload(), components.ToneWarning, T("stage.awaitingApproval")
+func buildCols(showProject bool) []kit.TableColumn {
+	name := T("list.col.name")
+	if !showProject {
+		name = T("list.col.status")
 	}
-	return lobeui.IconLoader(), components.ToneAccent, stageLabel(j)
+	cols := []kit.TableColumn{{Width: 18}, {Title: name}}
+	if showProject {
+		cols = append(cols, kit.TableColumn{Title: T("list.col.status"), Width: 150})
+	}
+	return append(cols,
+		kit.TableColumn{Title: T("builds.col.targets"), Width: 150},
+		kit.TableColumn{Title: T("builds.col.duration"), Width: 64, End: true},
+		kit.TableColumn{Title: T("builds.col.started"), Width: 104, End: true},
+		kit.TableColumn{Title: T("builds.col.by"), Width: 48, End: true},
+		kit.TableColumn{Width: 14})
 }
 
-// jobRow is one build history row; expandable with details and actions.
-func (a *App) jobRow(c *ui.Context, j domain.BuildJob, showProject bool) {
+func jobTone(j domain.BuildJob) (*ui.SVG, kit.Tone, string) {
+	switch j.Status {
+	case domain.JobSucceeded:
+		return icons.Success, kit.ToneSuccess, T("status.built")
+	case domain.JobFailed:
+		return icons.Failed, kit.ToneDanger, T("status.failed")
+	case domain.JobCancelled:
+		return icons.Cancelled, kit.ToneNeutral, T("status.cancelled")
+	case domain.JobAwaitingApproval:
+		return icons.Download, kit.ToneWarning, T("stage.awaitingApproval")
+	}
+	return nil, kit.ToneAccent, stageLabel(j)
+}
+
+// jobRow is one build history row (Activity Monitor style); it expands
+// into details and actions.
+func (a *App) jobRow(c *ui.Context, j domain.BuildJob, showProject bool, i int) {
 	p := design.Of(c)
 	b := &a.builds
 	if b.expanded == nil {
@@ -78,51 +95,52 @@ func (a *App) jobRow(c *ui.Context, j domain.BuildJob, showProject bool) {
 	}
 	open := b.expanded[j.ID]
 	ui.Column(c).Children(func() {
-		row := ui.ButtonBase(c).Label(j.Snapshot.App.Name).Row().Justify(ui.Start).Height(design.Row).PaddingX(14).Gap(12).AlignItems(ui.Center).
-			Cursor(ui.CursorPointer).Expanded(open)
-		if row.Hovered() || open {
-			row.Background(p.Hover)
-		}
+		row := ui.ButtonBase(c).Label(j.Snapshot.App.Name).Row().Justify(ui.Start).Height(38).PaddingX(14).Gap(12).AlignItems(ui.Center).
+			Cursor(ui.CursorPointer).Expanded(open).Role(ui.RoleRow)
+		kit.TableRowBG(c, row, i, row.Hovered(), open)
 		row.Children(func() {
 			icon, tone, label := jobTone(j)
-			fg, _ := toneColor(p, tone)
-			if j.Status == domain.JobRunning || j.Status == domain.JobQueued {
-				components.Spinner(c, 16, fg)
-			} else {
-				ui.Icon(c, icon).FontSize(16).TextColor(fg)
-			}
-			if showProject {
-				var png []byte
-				if pr := a.project(j.ProjectID); pr != nil {
-					png = pr.IconPNG
+			fg, _ := kit.ToneColors(p, tone)
+			ui.Row(c).Width(18).Shrink(0).Center().Children(func() {
+				if j.Status == domain.JobRunning || j.Status == domain.JobQueued {
+					kit.Spinner(c, 14, p.Accent)
+				} else {
+					kit.Glyph(c, icon, 16, fg)
 				}
-				components.AppIcon(c, png, j.Snapshot.App.Name, 22)
-			}
-			ui.Column(c).Grow(1).Basis(0).MinWidth(0).Gap(1).Children(func() {
-				name := j.Snapshot.App.Name
-				if !showProject {
-					name = label
-				}
-				ui.Text(c, name).FontSize(design.FontBody).FontWeight(design.WeightMedium).TextColor(p.Text).SingleLine()
-				var ts []string
-				for _, t := range j.Targets {
-					ts = append(ts, targetLabel(t))
-				}
-				sub := strings.Join(ts, ", ")
-				if showProject {
-					sub = label + " · " + sub
-				}
-				ui.Text(c, sub).FontSize(design.FontSmall).TextColor(p.TextTertiary).SingleLine()
 			})
+			ui.Row(c).Grow(1).Basis(0).MinWidth(0).Gap(8).AlignItems(ui.Center).Children(func() {
+				if showProject {
+					var png []byte
+					if pr := a.project(j.ProjectID); pr != nil {
+						png = pr.IconPNG
+					}
+					kit.AppIconOpts(c, png, j.Snapshot.App.Name, 20, kit.IconOpts{})
+					ui.Text(c, j.Snapshot.App.Name).FontSize(design.FontBody).FontWeight(design.WeightMedium).TextColor(p.Text).SingleLine()
+				} else {
+					ui.Text(c, label).FontSize(design.FontBody).TextColor(p.Text).SingleLine()
+				}
+			})
+			if showProject {
+				ui.Text(c, label).FontSize(design.FontSmall).TextColor(fg).SingleLine().Width(150).Shrink(0)
+			}
+			var ts []string
+			for _, t := range j.Targets {
+				ts = append(ts, targetLabel(t))
+			}
+			ui.Text(c, strings.Join(ts, ", ")).FontSize(design.FontSmall).TextColor(p.TextSecondary).SingleLine().Width(150).Shrink(0)
+			dur := "—"
 			if j.StartedAt != nil && j.FinishedAt != nil {
-				components.Caption(c, duration(j.FinishedAt.Sub(*j.StartedAt))).Width(64).TextAlign(ui.End).FontFeatures("tnum")
+				dur = duration(j.FinishedAt.Sub(*j.StartedAt))
 			}
-			components.Caption(c, ago(j.CreatedAt)).Width(110).TextAlign(ui.End)
-			components.Caption(c, actorLabel(j.Actor)).Width(48).TextAlign(ui.End)
-			ch := ui.Icon(c, lobeui.IconChevronRt()).FontSize(13).TextColor(p.TextTertiary)
+			ui.Text(c, dur).FontSize(design.FontSmall).TextColor(p.TextSecondary).Width(64).Shrink(0).TextAlign(ui.End).FontFeatures("tnum")
+			ui.Text(c, ago(j.CreatedAt)).FontSize(design.FontSmall).TextColor(p.TextSecondary).Width(104).Shrink(0).TextAlign(ui.End).SingleLine()
+			ui.Text(c, actorLabel(j.Actor)).FontSize(design.FontSmall).TextColor(p.TextTertiary).Width(48).Shrink(0).TextAlign(ui.End).SingleLine()
+			ch := kit.Glyph(c, icons.ChevronRt, 10, p.TextTertiary).Width(14)
+			turn := float32(0)
 			if open {
-				ch.Rotate(90)
+				turn = 90
 			}
+			ch.Rotate(ch.AnimateTo("turn", turn, design.Spring))
 		})
 		if row.Clicked() {
 			b.expanded[j.ID] = !open
@@ -157,13 +175,11 @@ func actorLabel(actor string) string {
 	return actor
 }
 
-func toneColor(p *design.Palette, t components.Tone) (fg, bg ui.Color) { return components.ToneColors(p, t) }
-
 func (a *App) jobDetails(c *ui.Context, j domain.BuildJob) {
 	p := design.Of(c)
-	ui.Column(c).Padding(4, 14, 16, 42).Gap(12).Children(func() {
+	ui.Column(c).Padding(10, 14, 16, 44).Gap(12).Background(p.Alt).Children(func() {
 		if j.Error != nil {
-			ui.Column(c).Gap(4).Padding(10, 12).Radius(design.RadiusControl).Background(p.DangerSoft).Children(func() {
+			ui.Column(c).Gap(4).Padding(10, 12).Radius(design.RadiusCard).Background(p.DangerSoft).Children(func() {
 				ui.Text(c, j.Error.Message).FontSize(design.FontBody).FontWeight(design.WeightMedium).TextColor(p.Text)
 				if j.Error.Remediation != "" {
 					ui.Text(c, j.Error.Remediation).FontSize(design.FontSmall).TextColor(p.TextSecondary)
@@ -173,13 +189,17 @@ func (a *App) jobDetails(c *ui.Context, j domain.BuildJob) {
 		for _, art := range j.Artifacts {
 			art := art
 			ui.Grid(c.Key(art.ID)).ColumnTracks(ui.FitContent(), ui.Fr(1), ui.FitContent()).GapX(14).GapY(6).AlignItems(ui.Center).Children(func() {
-				components.Caption(c, T("builds.artifact"))
-				components.Mono(c, art.Path).SingleLine().MinWidth(0).Selectable()
-				lobeui.CopyButton(c, art.Path)
-				components.Caption(c, T("builds.checksum"))
-				components.Mono(c, "sha256:"+art.SHA256[:min(16, len(art.SHA256))]+"…").Selectable()
-				lobeui.CopyButton(c, art.SHA256)
-				components.Caption(c, T("builds.size"))
+				kit.Caption(c, T("builds.artifact"))
+				kit.Mono(c, art.Path).SingleLine().MinWidth(0).Selectable()
+				if kit.CopyButton(c.Key("cp1"), art.Path, T("action.copyPath")) {
+					a.toast(T("common.copied"), "", 1)
+				}
+				kit.Caption(c, T("builds.checksum"))
+				kit.Mono(c, "sha256:"+art.SHA256[:min(16, len(art.SHA256))]+"…").Selectable()
+				if kit.CopyButton(c.Key("cp2"), art.SHA256, T("common.copy")) {
+					a.toast(T("common.copied"), "", 1)
+				}
+				kit.Caption(c, T("builds.size"))
 				ui.Text(c, bytesLabel(art.Size)+" · "+signatureLabel(art.Signature)).FontSize(design.FontSmall).TextColor(p.Text)
 				ui.Box(c)
 			})
@@ -187,37 +207,37 @@ func (a *App) jobDetails(c *ui.Context, j domain.BuildJob) {
 		ui.Row(c).Gap(8).Children(func() {
 			if len(j.Artifacts) > 0 {
 				path := j.Artifacts[0].Path
-				if components.Button(c.Key("of"), T("action.openFolder"), components.ButtonOpts{Size: design.ControlSM, Icon: lobeui.IconFolderOpen()}).Clicked() {
+				if kit.Button(c.Key("of"), T("action.openFolder"), kit.ButtonOpts{Size: design.ControlSM, Icon: icons.Folder}).Clicked() {
 					a.reveal(path)
 				}
-				if components.Button(c.Key("cp"), T("action.copyPath"), components.ButtonOpts{Size: design.ControlSM, Icon: lobeui.IconCopy()}).Clicked() {
+				if kit.Button(c.Key("cp"), T("action.copyPath"), kit.ButtonOpts{Size: design.ControlSM, Icon: icons.Copy}).Clicked() {
 					c.WriteClipboard(path)
 					a.toast(T("common.copied"), "", 1)
 				}
 			}
 			if j.Status == domain.JobFailed || j.Status == domain.JobCancelled {
-				if components.Button(c.Key("rt"), T("action.retry"), components.ButtonOpts{Size: design.ControlSM, Icon: lobeui.IconRetry()}).Clicked() {
+				if kit.Button(c.Key("rt"), T("action.retry"), kit.ButtonOpts{Size: design.ControlSM, Icon: icons.Retry}).Clicked() {
 					a.startBuild(j.ProjectID, j.Targets)
 				}
 			}
 			if j.Status == domain.JobFailed {
 				jj := j
-				if components.Button(c.Key("diag"), T("error.copyDiagnostic"), components.ButtonOpts{Size: design.ControlSM, Variant: components.Ghost}).Clicked() {
+				if kit.Button(c.Key("diag"), T("error.copyDiagnostic"), kit.ButtonOpts{Size: design.ControlSM, Variant: kit.Ghost}).Clicked() {
 					c.WriteClipboard(a.diagnostic(&jj))
 					a.toast(T("error.copied"), "", 1)
 				}
 			}
 			ui.Spacer(c)
-			if components.Button(c.Key("pr"), T("builds.openProject"), components.ButtonOpts{Size: design.ControlSM, Variant: components.Ghost}).Clicked() {
+			if kit.Button(c.Key("pr"), T("builds.openProject"), kit.ButtonOpts{Size: design.ControlSM, Variant: kit.Ghost}).Clicked() {
 				a.watch[j.ProjectID] = j.ID
 				a.openProject(j.ProjectID, 0)
 			}
 		})
-		var lines []components.LogLine
+		var lines []kit.LogLine
 		for _, l := range a.logs[j.ID] {
-			lines = append(lines, components.LogLine{Time: l.Time.Format("15:04:05"), Level: l.Level, Text: l.Message})
+			lines = append(lines, kit.LogLine{Time: l.Time.Format("15:04:05"), Level: l.Level, Text: l.Message})
 		}
-		components.LogViewer(c, lines, 180)
+		kit.LogViewer(c, lines, 180)
 	})
 }
 

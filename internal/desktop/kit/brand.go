@@ -1,0 +1,275 @@
+package kit
+
+import (
+	"bytes"
+	"hash/fnv"
+	"image"
+	"image/color"
+	_ "image/jpeg"
+	"image/png"
+	"strings"
+	"unicode"
+
+	"github.com/egoist/mygo/ui"
+
+	"mypack.dev/mypack/internal/desktop/assets"
+	"mypack.dev/mypack/internal/desktop/design"
+	"mypack.dev/mypack/internal/desktop/kit/icons"
+)
+
+// Template outline cube for the macOS menu bar (monochrome, tinted by the OS).
+var cubeTemplateSVG = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><path d="M3.29 7 12 12l8.71-5"/><path d="m7.5 4.27 9 5.15"/>
+</svg>`))
+
+// BrandMark draws the official app icon (embedded, pre-masked squircle).
+func BrandMark(c *ui.Context, size float32) ui.Element {
+	src := assets.Brand64
+	if size > 32 {
+		src = assets.Brand256
+	}
+	return AppIconOpts(c, src, "mypack", size, IconOpts{Shadow: size >= 40})
+}
+
+// TrayIconPNG renders the monochrome template cube for the status item at
+// 2x (36 px for an 18 pt icon).
+func TrayIconPNG(active bool) []byte {
+	img := cubeTemplateSVG.Image(36, 36, color.Black)
+	if active {
+		// A small dot at the lower right signals a build in progress.
+		for y := 26; y < 36; y++ {
+			for x := 26; x < 36; x++ {
+				dx, dy := float64(x)-31, float64(y)-31
+				if dx*dx+dy*dy <= 20 {
+					img.Set(x, y, color.Black)
+				} else if dx*dx+dy*dy <= 32 {
+					img.Set(x, y, color.Transparent)
+				}
+			}
+		}
+	}
+	var b bytes.Buffer
+	_ = png.Encode(&b, img)
+	return b.Bytes()
+}
+
+// ---- App icons ----------------------------------------------------------------
+
+// iconArt is a decoded icon with the box its opaque body takes, as
+// fractions of the image: macOS icons carry a 10% transparent margin
+// around the squircle, which the GUI crops so the body fills the tile and
+// the drop shadow hugs it.
+type iconArt struct {
+	bmp            *ui.Bitmap
+	x0, y0, x1, y1 float32
+	tint           ui.Color // the icon's average opaque color
+}
+
+var artCache = map[*byte]*iconArt{}
+
+func artFor(data []byte) *iconArt {
+	if len(data) == 0 {
+		return nil
+	}
+	k := &data[0]
+	if a, ok := artCache[k]; ok {
+		return a
+	}
+	if len(artCache) > 400 {
+		artCache = map[*byte]*iconArt{}
+	}
+	bmp, err := ui.DecodeBitmap(data)
+	if err != nil {
+		artCache[k] = nil
+		return nil
+	}
+	a := &iconArt{bmp: bmp, x1: 1, y1: 1}
+	if img, _, err := image.Decode(bytes.NewReader(data)); err == nil {
+		b := img.Bounds()
+		w, h := b.Dx(), b.Dy()
+		minX, minY, maxX, maxY := w, h, -1, -1
+		step := max(1, w/256)
+		var sr, sg, sb, n uint64
+		for y := 0; y < h; y += step {
+			for x := 0; x < w; x += step {
+				if r, g, bl, al := img.At(b.Min.X+x, b.Min.Y+y).RGBA(); al > 0x2000 {
+					minX, minY = min(minX, x), min(minY, y)
+					maxX, maxY = max(maxX, x), max(maxY, y)
+					if al > 0xf000 {
+						sr, sg, sb, n = sr+uint64(r>>8), sg+uint64(g>>8), sb+uint64(bl>>8), n+1
+					}
+				}
+			}
+		}
+		if n > 0 {
+			a.tint = ui.RGB(uint8(sr/n), uint8(sg/n), uint8(sb/n))
+		}
+		if maxX > minX && maxY > minY {
+			a.x0, a.y0 = float32(minX)/float32(w), float32(minY)/float32(h)
+			a.x1, a.y1 = float32(maxX+step)/float32(w), float32(maxY+step)/float32(h)
+			// Square the body (keep its center).
+			bw, bh := a.x1-a.x0, a.y1-a.y0
+			if bw > bh {
+				cy := (a.y0 + a.y1) / 2
+				a.y0, a.y1 = cy-bw/2, cy+bw/2
+			} else {
+				cx := (a.x0 + a.x1) / 2
+				a.x0, a.x1 = cx-bh/2, cx+bh/2
+			}
+		}
+	}
+	artCache[k] = a
+	return a
+}
+
+// IconOpts configures AppIconOpts.
+type IconOpts struct {
+	Shadow bool // a soft, realistic drop shadow under the icon
+}
+
+// AppIcon shows an app icon (PNG bytes), or a generated macOS-style tile
+// with the name's initial when there is none.
+func AppIcon(c *ui.Context, png []byte, name string, size float32) ui.Element {
+	return AppIconOpts(c, png, name, size, IconOpts{Shadow: size >= 48})
+}
+
+// IconShadow gives an element the layered shadow of a macOS app icon.
+func IconShadow(c *ui.Context, e ui.Element, size float32) ui.Element {
+	p := design.Of(c)
+	return e.Shadow(0, size*0.045, size*0.11, 0, design.Fade(p.IconShadow, 0.8)).
+		Shadow(0, size*0.012, size*0.025, 0, design.Fade(p.IconShadow, 0.6))
+}
+
+// AppIconOpts is AppIcon with options.
+func AppIconOpts(c *ui.Context, png []byte, name string, size float32, o IconOpts) ui.Element {
+	r := design.AppIconRadius(size)
+	art := artFor(png)
+	if art == nil {
+		e := Placeholder(c, name, size)
+		if o.Shadow {
+			IconShadow(c, e, size)
+		}
+		return e
+	}
+	box := ui.Box(c).Size(size, size).Shrink(0).Radius(r).Clip()
+	if o.Shadow {
+		IconShadow(c, box, size)
+	}
+	bw, bh := art.x1-art.x0, art.y1-art.y0
+	iw, ih := size/bw, size/bh
+	box.Children(func() {
+		ui.Image(c, art.bmp).Absolute().Left(-art.x0*iw).Top(-art.y0*ih).Size(iw, ih).Fit(ui.Cover)
+		// A hairline rim, as macOS draws around icons on light backgrounds.
+		ui.Box(c).Absolute().Fill().Radius(r).Border(0.5, ui.RGBA(0, 0, 0, 0.08)).PassThrough()
+	})
+	return box.AccessHidden(true)
+}
+
+var placeholderGradients = [][2]ui.Color{
+	{ui.RGB(102, 157, 255), ui.RGB(40, 92, 232)},
+	{ui.RGB(156, 128, 255), ui.RGB(98, 60, 222)},
+	{ui.RGB(72, 214, 186), ui.RGB(18, 146, 132)},
+	{ui.RGB(255, 178, 92), ui.RGB(240, 106, 42)},
+	{ui.RGB(255, 120, 150), ui.RGB(218, 52, 98)},
+	{ui.RGB(150, 160, 178), ui.RGB(86, 96, 116)},
+	{ui.RGB(98, 206, 255), ui.RGB(20, 132, 214)},
+	{ui.RGB(160, 220, 110), ui.RGB(62, 158, 54)},
+}
+
+// PlaceholderColors returns the gradient a name's generated icon uses.
+func PlaceholderColors(name string) (top, bottom ui.Color) {
+	h := fnv.New32a()
+	h.Write([]byte(strings.ToLower(strings.TrimSpace(name))))
+	g := placeholderGradients[int(h.Sum32()%uint32(len(placeholderGradients)))]
+	return g[0], g[1]
+}
+
+// Placeholder is the generated icon tile: a gradient squircle with an inner
+// highlight and a soft top gloss, as a real macOS icon.
+func Placeholder(c *ui.Context, name string, size float32) ui.Element {
+	top, bottom := PlaceholderColors(name)
+	letter := ""
+	for _, r := range strings.TrimSpace(name) {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			letter = strings.ToUpper(string(r))
+			break
+		}
+	}
+	r := design.AppIconRadius(size)
+	return ui.Box(c).Size(size, size).Radius(r).Shrink(0).Clip().
+		LinearGradient(ui.LinearGradient{Angle: 180, Oklab: true, Stops: []ui.GradientStop{{Color: top, At: 0}, {Color: bottom, At: 1}}}).
+		InsetShadow(0, max(1, size*0.012), 0, 0, ui.RGBA(255, 255, 255, 0.35)).
+		InsetShadow(0, -max(1, size*0.012), 0, 0, ui.RGBA(0, 0, 0, 0.12)).
+		Children(func() {
+			ui.Box(c).Absolute().Fill().PassThrough().RadialGradient(ui.RadialGradient{
+				Center: ui.Point{X: 0.5, Y: 0.001}, Radius: size * 0.9,
+				Stops: []ui.GradientStop{{Color: ui.RGBA(255, 255, 255, 0.28), At: 0}, {Color: ui.RGBA(255, 255, 255, 0), At: 1}},
+			})
+			ui.Row(c).Absolute().Fill().Center().Children(func() {
+				if letter == "" {
+					Glyph(c, icons.Globe, size*0.5, ui.RGB(255, 255, 255))
+					return
+				}
+				ui.Text(c, letter).FontSize(size * 0.5).FontWeight(design.WeightBold).TextColor(ui.RGB(255, 255, 255)).
+					LetterSpacing(-size * 0.01)
+			})
+		}).AccessHidden(true)
+}
+
+// BadgeKind is the small status badge on an icon's corner.
+type BadgeKind int
+
+const (
+	BadgeNone BadgeKind = iota
+	BadgeUpdate
+	BadgeWarning
+	BadgeFailed
+	BadgeLocked
+	BadgeDone
+)
+
+// IconBadge draws a status badge, sized for an icon of iconSize, at the
+// icon's top-right corner (call inside the icon's parent box).
+func IconBadge(c *ui.Context, kind BadgeKind, iconSize float32) {
+	if kind == BadgeNone {
+		return
+	}
+	p := design.Of(c)
+	s := max(18, iconSize*0.3)
+	var bg ui.Color
+	var ic *ui.SVG
+	switch kind {
+	case BadgeUpdate:
+		bg, ic = p.Accent, icons.ArrowUp
+	case BadgeWarning:
+		bg, ic = p.Warning, icons.Alert
+	case BadgeFailed:
+		bg, ic = p.Danger, icons.Alert
+	case BadgeLocked:
+		bg, ic = p.TextTertiary, icons.Lock
+	case BadgeDone:
+		bg, ic = p.Success, icons.Check
+	}
+	off := -s * 0.3
+	ui.Row(c).Absolute().Top(off).Right(off).Size(s, s).Radius(s/2).Center().
+		LinearGradient(ui.LinearGradient{From: bg.Mix(ui.RGB(255, 255, 255), 0.15), To: bg, Angle: 180}).
+		Border(2, p.Window).Shadow(0, 1, 3, 0, ui.RGBA(0, 0, 0, 0.2)).Children(func() {
+		Glyph(c, ic, s*0.48, ui.RGB(255, 255, 255))
+	}).AccessHidden(true)
+}
+
+// Glyph draws a Lucide icon size DIPs square in col. Decorative: hidden
+// from assistive technology (label the control that holds it).
+func Glyph(c *ui.Context, svg *ui.SVG, size float32, col ui.Color) ui.Element {
+	return ui.Icon(c, svg).FontSize(size).TextColor(col).Shrink(0).AccessHidden(true)
+}
+
+// IconTint returns an icon's average color (its tint for scenes), or
+// the generated icon's color for name when there is no icon.
+func IconTint(png []byte, name string) ui.Color {
+	if a := artFor(png); a != nil && a.tint.A > 0 {
+		return a.tint
+	}
+	top, _ := PlaceholderColors(name)
+	return top
+}

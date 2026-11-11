@@ -7,25 +7,25 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"mypack.dev/mypack/internal/desktop/components"
 	"mypack.dev/mypack/internal/desktop/design"
-	"mypack.dev/mypack/internal/desktop/lobeui"
+	"mypack.dev/mypack/internal/desktop/kit"
+	"mypack.dev/mypack/internal/desktop/kit/icons"
 	"mypack.dev/mypack/internal/domain"
 )
 
 func (a *App) runtimesView(c *ui.Context) {
 	p := design.Of(c)
 	page(c, design.ContentMaxW, func() {
-		components.Secondary(c, T("runtimes.intro")).LineHeight(1.45)
+		kit.Secondary(c, T("runtimes.intro")).LineHeight(1.45)
 
-		// Storage breakdown.
+		// Storage, as macOS's Storage settings: a total over a segmented bar.
 		st := a.storage
 		total := st.RuntimeCache + st.Artifacts + st.Profiles
-		components.Card(c).Padding(18).Gap(14).Children(func() {
-			ui.Row(c).AlignItems(ui.Center).Children(func() {
-				components.Heading(c, T("runtimes.storage"))
+		kit.Card(c).Padding(18, 20).Gap(14).Children(func() {
+			ui.Row(c).AlignItems(ui.Baseline).Gap(8).Children(func() {
+				kit.Heading(c, T("runtimes.storage"))
 				ui.Spacer(c)
-				ui.Text(c, bytesLabel(total)).FontSize(design.FontBody).FontWeight(design.WeightSemibold).TextColor(p.Text).FontFeatures("tnum")
+				ui.Text(c, bytesLabel(total)).FontSize(design.FontTitle1).FontWeight(design.WeightBold).TextColor(p.Text).FontFeatures("tnum")
 			})
 			cols := []struct {
 				label string
@@ -33,13 +33,14 @@ func (a *App) runtimesView(c *ui.Context) {
 				color ui.Color
 			}{
 				{T("runtimes.storage.runtimes"), st.RuntimeCache, p.Accent},
-				{T("runtimes.storage.builds"), st.Artifacts, ui.RGB(124, 110, 245)},
-				{T("runtimes.storage.data"), st.Profiles, ui.RGB(54, 178, 160)},
+				{T("runtimes.storage.builds"), st.Artifacts, design.Blue[3]},
+				{T("runtimes.storage.data"), st.Profiles, p.TextTertiary},
 			}
-			ui.Row(c).Height(8).Radius(4).Clip().Background(p.Hover).Gap(2).AlignItems(ui.Stretch).Children(func() {
+			ui.Row(c).Height(16).Radius(8).Clip().Background(p.Fill).Gap(2).AlignItems(ui.Stretch).Children(func() {
 				for i, s := range cols {
 					if total > 0 && s.n > 0 {
-						ui.Box(c.Key(i)).Grow(float32(s.n) / float32(total) * 100).Basis(0).Background(s.color)
+						ui.Box(c.Key(i)).Grow(float32(s.n) / float32(total) * 100).Basis(0).
+							LinearGradient(ui.LinearGradient{From: s.color.Mix(ui.RGB(255, 255, 255), 0.15), To: s.color, Angle: 180})
 					}
 				}
 				if total == 0 {
@@ -48,53 +49,40 @@ func (a *App) runtimesView(c *ui.Context) {
 			})
 			ui.Row(c).Gap(24).Wrap().Children(func() {
 				for i, s := range cols {
-					ui.Row(c.Key(i)).Gap(8).AlignItems(ui.Center).Children(func() {
-						ui.Box(c).Size(8, 8).Radius(2).Background(s.color)
-						components.Secondary(c, s.label).FontSize(design.FontSmall)
-						ui.Text(c, bytesLabel(s.n)).FontSize(design.FontSmall).FontWeight(design.WeightMedium).TextColor(p.Text).FontFeatures("tnum")
+					ui.Row(c.Key(i)).Gap(7).AlignItems(ui.Center).Children(func() {
+						ui.Box(c).Size(9, 9).Radius(4.5).Background(s.color)
+						ui.Text(c, s.label).FontSize(design.FontSmall).TextColor(p.TextSecondary)
+						ui.Text(c, bytesLabel(s.n)).FontSize(design.FontSmall).FontWeight(design.WeightSemibold).TextColor(p.Text).FontFeatures("tnum")
 					})
 				}
 			})
-			components.Caption(c, T("runtimes.storage.note"))
+			kit.Caption(c, T("runtimes.storage.note"))
 		})
 
 		// Runtime table.
-		ui.Column(c).Gap(8).Children(func() {
-			ui.Row(c).AlignItems(ui.Center).Children(func() {
-				components.Heading(c, T("runtimes.table"))
+		ui.Column(c).Gap(10).Children(func() {
+			ui.Row(c).AlignItems(ui.Center).Gap(8).Padding(0, 4).Children(func() {
+				ui.Text(c, T("runtimes.table")).FontSize(design.FontBody).FontWeight(design.WeightSemibold).TextColor(p.Text).Role(ui.RoleHeading)
 				ui.Spacer(c)
-				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-					ui.Icon(c, lobeui.IconFolder()).FontSize(13).TextColor(p.TextTertiary)
-					components.Mono(c, a.runtimeCacheDir())
-				})
+				kit.Glyph(c, icons.Folder, 12, p.TextTertiary)
+				kit.Mono(c, a.runtimeCacheDir()).FontSize(design.FontCaption).SingleLine()
 			})
-			ui.Column(c).Background(p.Surface).Border(1, p.Border).Radius(design.RadiusCard-2).Dividers(1, p.Divider).Children(func() {
-				ui.Row(c).Height(34).PaddingX(14).Gap(12).AlignItems(ui.Center).Children(func() {
-					head := func(s string, w float32) {
-						e := ui.Text(c, s).FontSize(design.FontCaption).FontWeight(design.WeightSemibold).TextColor(p.TextTertiary)
-						if w > 0 {
-							e.Width(w).Shrink(0)
-						} else {
-							e.Grow(1).Basis(0)
-						}
-					}
-					head(T("runtimes.col.platform"), 0)
-					head(T("runtimes.col.version"), 70)
-					head(T("runtimes.col.size"), 80)
-					head(T("runtimes.col.status"), 120)
-					head(T("runtimes.col.lastUsed"), 110)
-					head("", 150)
-				})
-				for _, rt := range a.runtimes {
-					a.runtimeRow(c.Key(rt.Key+rt.Version), rt)
+			ui.Column(c).Radius(design.RadiusCard).Background(p.Group).Border(0.5, p.GroupBorder).Clip().Role(ui.RoleTable).Label(T("runtimes.table")).Children(func() {
+				kit.TableHeader(c, []kit.TableColumn{
+					{Title: T("runtimes.col.platform")}, {Title: T("runtimes.col.version"), Width: 64},
+					{Title: T("runtimes.col.size"), Width: 76, End: true}, {Title: T("runtimes.col.status"), Width: 130},
+					{Title: T("runtimes.col.lastUsed"), Width: 104}, {Width: 150},
+				}, 14)
+				for i, rt := range a.runtimes {
+					a.runtimeRow(c.Key(rt.Key+rt.Version), rt, i)
 				}
 			})
-			components.Caption(c, T("runtimes.source", "url", a.settings.RegistryURL))
+			kit.Footnote(c, T("runtimes.source", "url", a.settings.RegistryURL)).Padding(0, 4)
 		})
 	})
 }
 
-func (a *App) runtimeRow(c *ui.Context, rt domain.RuntimeInfo) {
+func (a *App) runtimeRow(c *ui.Context, rt domain.RuntimeInfo, i int) {
 	p := design.Of(c)
 	key := rt.Version + "/" + rt.Key
 	busy := a.rtBusy[key]
@@ -103,57 +91,59 @@ func (a *App) runtimeRow(c *ui.Context, rt domain.RuntimeInfo) {
 	if len(parts) > 1 {
 		arch = parts[1]
 	}
-	ui.Row(c).MinHeight(design.Row).PaddingX(14).Gap(12).AlignItems(ui.Center).Children(func() {
+	row := ui.Row(c).MinHeight(design.Row).PaddingX(14).Gap(12).AlignItems(ui.Center).Role(ui.RoleRow)
+	kit.TableRowBG(c, row, i, false, false)
+	row.Children(func() {
 		ui.Row(c).Grow(1).Basis(0).MinWidth(0).Gap(10).AlignItems(ui.Center).Children(func() {
-			icon := lobeui.IconMonitor()
-			if osName == a.host.OS && arch == a.host.Arch {
-				icon = lobeui.IconLaptop()
+			icon := icons.Monitor
+			if osName == "darwin" {
+				icon = icons.Laptop
 			}
-			ui.Icon(c, icon).FontSize(16).TextColor(p.TextSecondary)
-			ui.Column(c).Gap(1).MinWidth(0).Children(func() {
+			kit.Glyph(c, icon, 17, p.TextSecondary)
+			ui.Column(c).Gap(0).MinWidth(0).Children(func() {
 				ui.Text(c, osLabel(osName)+" · "+archLabel(osName, arch)).FontSize(design.FontBody).TextColor(p.Text).SingleLine()
 				if osName == a.host.OS && arch == a.host.Arch {
-					components.Caption(c, T("runtimes.thisDevice"))
+					ui.Text(c, T("runtimes.thisDevice")).FontSize(design.FontCaption).TextColor(p.AccentText)
 				}
 			})
 		})
-		ui.Text(c, rt.Version).FontSize(design.FontSmall).TextColor(p.TextSecondary).Width(70).Shrink(0).FontFeatures("tnum")
+		ui.Text(c, rt.Version).FontSize(design.FontSmall).TextColor(p.TextSecondary).Width(64).Shrink(0).FontFeatures("tnum")
 		size := bytesLabel(rt.Size)
 		if rt.Cached && rt.CacheSize > 0 {
 			size = bytesLabel(rt.CacheSize)
 		}
-		ui.Text(c, size).FontSize(design.FontSmall).TextColor(p.TextSecondary).Width(80).Shrink(0).FontFeatures("tnum")
-		ui.Row(c).Width(120).Shrink(0).Children(func() {
+		ui.Text(c, size).FontSize(design.FontSmall).TextColor(p.TextSecondary).Width(76).Shrink(0).TextAlign(ui.End).FontFeatures("tnum")
+		ui.Row(c).Width(130).Shrink(0).Children(func() {
 			switch {
 			case busy == "download":
 				ui.Column(c).Grow(1).Gap(4).Children(func() {
-					components.Caption(c, fmt.Sprintf("%s %d%%", T("runtimes.downloading"), int(a.rtProg[key]*100)))
-					lobeui.Progress(c, a.rtProg[key])
+					kit.Caption(c, fmt.Sprintf("%s %d%%", T("runtimes.downloading"), int(a.rtProg[key]*100)))
+					kit.ProgressBar(c, a.rtProg[key])
 				})
 			case rt.Cached && rt.Verified:
-				components.StatusPill(c, T("runtimes.verified"), components.ToneSuccess)
+				kit.StatusDot(c, T("runtimes.verified"), kit.ToneSuccess)
 			case rt.Cached:
-				components.StatusPill(c, T("runtimes.cached"), components.ToneWarning)
+				kit.StatusDot(c, T("runtimes.cached"), kit.ToneWarning)
 			default:
-				components.StatusPill(c, T("runtimes.notDownloaded"), components.ToneNeutral)
+				kit.StatusDot(c, T("runtimes.notDownloaded"), kit.ToneNeutral)
 			}
 		})
 		last := "—"
 		if !rt.LastUsed.IsZero() {
 			last = ago(rt.LastUsed)
 		}
-		ui.Text(c, last).FontSize(design.FontSmall).TextColor(p.TextTertiary).Width(110).Shrink(0)
-		ui.Row(c).Width(150).Shrink(0).Gap(6).Justify(ui.End).Children(func() {
+		ui.Text(c, last).FontSize(design.FontSmall).TextColor(p.TextSecondary).Width(104).Shrink(0).SingleLine()
+		ui.Row(c).Width(150).Shrink(0).Gap(6).Justify(ui.End).AlignItems(ui.Center).Children(func() {
 			if !rt.Cached {
-				if components.Button(c.Key("dl"), T("action.download"), components.ButtonOpts{Size: design.ControlSM, Icon: lobeui.IconDownload(), Loading: busy != ""}).Clicked() {
+				if kit.Button(c.Key("dl"), T("action.download"), kit.ButtonOpts{Size: design.ControlSM, Icon: icons.Download, Loading: busy != ""}).Clicked() {
 					a.runtimeAction(rt, "download")
 				}
 				return
 			}
-			if components.Button(c.Key("v"), T("action.verify"), components.ButtonOpts{Size: design.ControlSM, Loading: busy == "verify", Disabled: busy != ""}).Clicked() {
+			if kit.Button(c.Key("v"), T("action.verify"), kit.ButtonOpts{Size: design.ControlSM, Loading: busy == "verify", Disabled: busy != ""}).Clicked() {
 				a.runtimeAction(rt, "verify")
 			}
-			if components.Button(c.Key("d"), "", components.ButtonOpts{Size: design.ControlSM, Variant: components.Ghost, Icon: lobeui.IconTrash(),
+			if kit.Button(c.Key("d"), "", kit.ButtonOpts{Size: design.ControlSM, Variant: kit.Ghost, Icon: icons.Trash,
 				Tooltip: T("action.delete"), Disabled: busy != ""}).Label(T("action.delete")).Clicked() {
 				a.runtimeAction(rt, "delete")
 			}

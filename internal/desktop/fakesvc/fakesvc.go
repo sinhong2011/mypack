@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"mypack.dev/mypack/internal/appservice"
+	"mypack.dev/mypack/internal/desktop/sampleicons"
 	"mypack.dev/mypack/internal/domain"
 	"mypack.dev/mypack/internal/icons"
 	"mypack.dev/mypack/internal/licensing"
@@ -243,7 +244,7 @@ func (s *Service) CreateProject(ctx context.Context, req appservice.CreateReques
 	}
 	cfg := config.New(name, src, s.host)
 	if iconPNG == nil {
-		iconPNG = icons.Default(name)
+		iconPNG = demoIcon(name)
 	}
 	s.mu.Lock()
 	now := time.Now()
@@ -385,18 +386,18 @@ func (s *Service) ExportProject(ctx context.Context, id, path string) error {
 type site struct{ title, desc, color string }
 
 var knownSites = map[string]site{
-	"github.com":         {"GitHub", "Where the world builds software", "#24292f"},
-	"notion.so":          {"Notion", "Your connected workspace", "#191919"},
-	"chatgpt.com":        {"ChatGPT", "", "#10a37f"},
-	"figma.com":          {"Figma", "The collaborative interface design tool", "#a259ff"},
-	"linear.app":         {"Linear", "Plan and build products", "#5e6ad2"},
-	"music.youtube.com":  {"YouTube Music", "", "#ff0000"},
-	"web.whatsapp.com":   {"WhatsApp", "", "#25d366"},
-	"mail.google.com":    {"Gmail", "", "#ea4335"},
-	"app.slack.com":      {"Slack", "", "#4a154b"},
-	"discord.com":        {"Discord", "", "#5865f2"},
+	"github.com":          {"GitHub", "Where the world builds software", "#24292f"},
+	"notion.so":           {"Notion", "Your connected workspace", "#191919"},
+	"chatgpt.com":         {"ChatGPT", "", "#10a37f"},
+	"figma.com":           {"Figma", "The collaborative interface design tool", "#a259ff"},
+	"linear.app":          {"Linear", "Plan and build products", "#5e6ad2"},
+	"music.youtube.com":   {"YouTube Music", "", "#ff0000"},
+	"web.whatsapp.com":    {"WhatsApp", "", "#25d366"},
+	"mail.google.com":     {"Gmail", "", "#ea4335"},
+	"app.slack.com":       {"Slack", "", "#4a154b"},
+	"discord.com":         {"Discord", "", "#5865f2"},
 	"calendar.google.com": {"Google Calendar", "", "#1a73e8"},
-	"x.com":              {"X", "", "#000000"},
+	"x.com":               {"X", "", "#000000"},
 }
 
 func titleForHost(host string) string {
@@ -428,7 +429,7 @@ func (s *Service) FetchMetadata(ctx context.Context, rawURL string) (appservice.
 	}
 	st := knownSites[host]
 	return appservice.Metadata{URL: u, Title: title, Description: st.desc, ThemeColor: st.color,
-		IconURL: "https://" + host + "/favicon.ico", IconPNG: icons.Default(title)}, nil
+		IconURL: "https://" + host + "/favicon.ico", IconPNG: demoIcon(title)}, nil
 }
 
 // ---- builds -----------------------------------------------------------------
@@ -1113,9 +1114,9 @@ func (s *Service) DeleteRuntime(ctx context.Context, version, key string) error 
 
 // ---- platform, settings -------------------------------------------------------
 
-func (s *Service) HostTarget() config.Target                       { return s.host }
-func (s *Service) Reveal(ctx context.Context, path string) error    { return nil }
-func (s *Service) OpenURL(ctx context.Context, url string) error    { return nil }
+func (s *Service) HostTarget() config.Target                     { return s.host }
+func (s *Service) Reveal(ctx context.Context, path string) error { return nil }
+func (s *Service) OpenURL(ctx context.Context, url string) error { return nil }
 func (s *Service) Activity(ctx context.Context, limit int) ([]domain.Activity, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -1195,4 +1196,13 @@ func humanBytes(n int64) string {
 		return fmt.Sprintf("%.0f KB", float64(n)/1e3)
 	}
 	return fmt.Sprintf("%d B", n)
+}
+
+// demoIcon is a generated, neutral icon for the demo library: a glyph
+// icon for well-known demo sites, the letter tile otherwise.
+func demoIcon(name string) []byte {
+	if sampleicons.Known(name) {
+		return sampleicons.Icon(name)
+	}
+	return icons.Default(name)
 }

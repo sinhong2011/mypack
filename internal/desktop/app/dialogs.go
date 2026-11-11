@@ -9,9 +9,9 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"mypack.dev/mypack/internal/appservice"
-	"mypack.dev/mypack/internal/desktop/components"
 	"mypack.dev/mypack/internal/desktop/design"
-	"mypack.dev/mypack/internal/desktop/lobeui"
+	"mypack.dev/mypack/internal/desktop/kit"
+	"mypack.dev/mypack/internal/desktop/kit/icons"
 	"mypack.dev/mypack/internal/domain"
 	"mypack.dev/mypack/pkg/config"
 )
@@ -68,7 +68,9 @@ type detailsDialog struct {
 	id   string
 }
 
-func (d *dialogs) openUpdate(in *domain.Installation) { d.update = installDialog{open: true, id: in.ID} }
+func (d *dialogs) openUpdate(in *domain.Installation) {
+	d.update = installDialog{open: true, id: in.ID}
+}
 
 func bgctx() context.Context { return context.Background() }
 
@@ -87,15 +89,6 @@ func (a *App) install(id string) *domain.Installation {
 	return nil
 }
 
-// footer draws a dialog footer with Cancel + a primary/danger action.
-func footer(c *ui.Context, cancel, action string, v components.Variant, busy, disabled bool) (ok, dismissed bool) {
-	ui.Row(c).Gap(8).Justify(ui.End).Margin(8, 0, 0, 0).Children(func() {
-		dismissed = components.Button(c.Key("cancel"), cancel, components.ButtonOpts{}).Clicked()
-		ok = components.Button(c.Key("ok"), action, components.ButtonOpts{Variant: v, Loading: busy, Disabled: disabled}).Clicked()
-	})
-	return
-}
-
 func (a *App) dialogs(c *ui.Context) {
 	p := design.Of(c)
 	d := &a.dlg
@@ -103,14 +96,15 @@ func (a *App) dialogs(c *ui.Context) {
 	// Identity change (spec §9C.2: explain and confirm).
 	if d.identity.open {
 		id := &d.identity
-		lobeui.Modal(c.Key("dlg-identity"), &id.open, T("identity.title"), 480, func() {
+		kit.Sheet(c.Key("dlg-identity"), &id.open, 480, func() {
+			kit.SheetHeader(c, T("identity.title"), nil)
 			ui.Column(c).Gap(12).Children(func() {
 				ui.Text(c, T("identity.body")).FontSize(design.FontBody).TextColor(p.TextSecondary).LineHeight(1.45)
-				components.Note(c, lobeui.IconWarning(), T("identity.warning"), components.ToneWarning)
-				in := lobeui.Input(c.Key("newid"), &id.newID, lobeui.InputOpts{Placeholder: "app.mypack.example"}).Font("Menlo")
+				kit.Note(c, icons.Warning, T("identity.warning"), kit.ToneWarning)
+				in := kit.TextField(c.Key("newid"), &id.newID, T("set.identifier"), kit.FieldOpts{Placeholder: "app.mypack.example", Mono: true})
 				_ = in
-				lobeui.Checkbox(c.Key("np"), &id.newProfile, T("identity.newProfile"))
-				ok, cancel := footer(c, T("common.cancel"), T("identity.confirm"), components.Danger, false, id.newID == "" || id.newID == id.ed.cfg.App.Identifier && !id.fromSave)
+				kit.Checkbox(c.Key("np"), &id.newProfile, T("identity.newProfile"))
+				ok, cancel := kit.SheetFooter(c, T("common.cancel"), T("identity.confirm"), kit.Danger, false, id.newID == "" || id.newID == id.ed.cfg.App.Identifier && !id.fromSave)
 				if cancel {
 					id.open = false
 					if id.fromSave {
@@ -133,10 +127,11 @@ func (a *App) dialogs(c *ui.Context) {
 	// Reset to recommended defaults.
 	if d.reset.open {
 		r := &d.reset
-		lobeui.Modal(c.Key("dlg-reset"), &r.open, T("reset.title"), 440, func() {
+		kit.Sheet(c.Key("dlg-reset"), &r.open, 440, func() {
+			kit.SheetHeader(c, T("reset.title"), nil)
 			ui.Column(c).Gap(12).Children(func() {
 				ui.Text(c, T("reset.body")).FontSize(design.FontBody).TextColor(p.TextSecondary).LineHeight(1.45)
-				ok, cancel := footer(c, T("common.cancel"), T("reset.confirm"), components.Primary, false, false)
+				ok, cancel := kit.SheetFooter(c, T("common.cancel"), T("reset.confirm"), kit.Primary, false, false)
 				if cancel {
 					r.open = false
 				}
@@ -162,18 +157,19 @@ func (a *App) dialogs(c *ui.Context) {
 		if in == nil {
 			u.open = false
 		} else {
-			lobeui.Modal(c.Key("dlg-uninstall"), &u.open, T("uninstall.title", "name", in.Name), 460, func() {
+			kit.Sheet(c.Key("dlg-uninstall"), &u.open, 460, func() {
+				kit.SheetHeader(c, T("uninstall.title", "name", in.Name), nil)
 				ui.Column(c).Gap(12).Children(func() {
 					ui.Text(c, T("uninstall.body")).FontSize(design.FontBody).TextColor(p.TextSecondary).LineHeight(1.45)
-					ui.Column(c).Gap(6).Padding(12).Radius(design.RadiusControl + 1).Background(p.Well).Children(func() {
-						lobeui.Checkbox(c.Key("cd"), &u.clearData, T("uninstall.clearData"))
+					ui.Column(c).Gap(6).Padding(12, 14).Radius(design.RadiusCard).Background(p.Group).Border(0.5, p.GroupBorder).Children(func() {
+						kit.Checkbox(c.Key("cd"), &u.clearData, T("uninstall.clearData"))
 						if u.clearData {
 							ui.Text(c, T("uninstall.clearData.warning")).FontSize(design.FontSmall).TextColor(p.Danger).LineHeight(1.4)
 						} else {
-							components.Caption(c, T("uninstall.keepData"))
+							kit.Caption(c, T("uninstall.keepData"))
 						}
 					})
-					ok, cancel := footer(c, T("common.cancel"), T("action.uninstall"), components.Danger, u.busy, false)
+					ok, cancel := kit.SheetFooter(c, T("common.cancel"), T("action.uninstall"), kit.Danger, u.busy, false)
 					if cancel {
 						u.open = false
 					}
@@ -201,22 +197,23 @@ func (a *App) dialogs(c *ui.Context) {
 		if in == nil {
 			u.open = false
 		} else {
-			lobeui.Modal(c.Key("dlg-update"), &u.open, T("update.title", "name", in.Name), 480, func() {
+			kit.Sheet(c.Key("dlg-update"), &u.open, 480, func() {
+				kit.SheetHeader(c, T("update.title", "name", in.Name), nil)
 				ui.Column(c).Gap(12).Children(func() {
 					ui.Text(c, T("update.body")).FontSize(design.FontBody).TextColor(p.TextSecondary).LineHeight(1.45)
-					components.Overline(c, T("update.changing"))
-					ui.Column(c).Gap(8).Padding(12).Radius(design.RadiusControl + 1).Background(p.Well).Children(func() {
+					kit.Overline(c, T("update.changing"))
+					ui.Column(c).Gap(8).Padding(12, 14).Radius(design.RadiusCard).Background(p.Group).Border(0.5, p.GroupBorder).Children(func() {
 						row := func(icon *ui.SVG, text string) {
 							ui.Row(c).Gap(8).AlignItems(ui.Start).Children(func() {
-								ui.Icon(c, icon).FontSize(14).TextColor(p.TextSecondary).Margin(1, 0, 0, 0)
+								kit.Glyph(c, icon, 14, p.TextSecondary).Margin(1, 0, 0, 0)
 								ui.Text(c, text).FontSize(design.FontBody).TextColor(p.Text).Grow(1).MinWidth(0).LineHeight(1.4)
 							})
 						}
-						row(lobeui.IconUpdate(), in.UpdateReason)
-						row(lobeui.IconShield(), T("update.profileKept"))
-						row(lobeui.IconRetry(), T("update.rollback"))
+						row(icons.Update, in.UpdateReason)
+						row(icons.Shield, T("update.profileKept"))
+						row(icons.Retry, T("update.rollback"))
 					})
-					ok, cancel := footer(c, T("action.later"), T("action.update"), components.Primary, u.busy, false)
+					ok, cancel := kit.SheetFooter(c, T("action.later"), T("action.update"), kit.Primary, u.busy, false)
 					if cancel {
 						u.open = false
 					}
@@ -252,10 +249,11 @@ func (a *App) dialogs(c *ui.Context) {
 		if in == nil {
 			u.open = false
 		} else {
-			lobeui.Modal(c.Key("dlg-repair"), &u.open, T("repair.title", "name", in.Name), 460, func() {
+			kit.Sheet(c.Key("dlg-repair"), &u.open, 460, func() {
+				kit.SheetHeader(c, T("repair.title", "name", in.Name), nil)
 				ui.Column(c).Gap(12).Children(func() {
 					ui.Text(c, T("repair.body")).FontSize(design.FontBody).TextColor(p.TextSecondary).LineHeight(1.45)
-					ok, cancel := footer(c, T("common.cancel"), T("action.repair"), components.Primary, u.busy, false)
+					ok, cancel := kit.SheetFooter(c, T("common.cancel"), T("action.repair"), kit.Primary, u.busy, false)
 					if cancel {
 						u.open = false
 					}
@@ -299,20 +297,20 @@ func (a *App) dialogs(c *ui.Context) {
 		if limit == 0 {
 			limit = appservice.FreeManagedApps
 		}
-		lobeui.Modal(c.Key("dlg-limit"), &d.licenseLimit, T("license.limit.title"), 460, func() {
+		kit.Sheet(c.Key("dlg-limit"), &d.licenseLimit, 460, func() {
+			kit.SheetHeader(c, T("license.limit.title"), nil)
 			ui.Column(c).Gap(12).Children(func() {
 				ui.Text(c, T("license.limit.body", "limit", limit)).FontSize(design.FontBody).TextColor(p.TextSecondary).LineHeight(1.45)
 				ui.Text(c, T("license.limit.options")).FontSize(design.FontBody).TextColor(p.TextSecondary).LineHeight(1.45)
 				ui.Row(c).Gap(8).Justify(ui.End).Margin(8, 0, 0, 0).Children(func() {
-					if components.Button(c.Key("later"), T("license.limit.later"), components.ButtonOpts{Variant: components.Ghost}).Clicked() {
+					if kit.Button(c.Key("later"), T("license.limit.later"), kit.ButtonOpts{Variant: kit.Ghost}).Clicked() {
 						d.licenseLimit = false
 					}
-					if components.Button(c.Key("manage"), T("license.limit.manage"), components.ButtonOpts{}).Clicked() {
+					if kit.Button(c.Key("manage"), T("license.limit.manage"), kit.ButtonOpts{}).Clicked() {
 						d.licenseLimit = false
-						a.lib.tab, a.ui.LibraryTab = 0, 0
 						a.nav(secLibrary)
 					}
-					if components.Button(c.Key("enter"), T("license.limit.enter"), components.ButtonOpts{Variant: components.Primary}).Clicked() {
+					if kit.Button(c.Key("enter"), T("license.limit.enter"), kit.ButtonOpts{Variant: kit.Primary}).Clicked() {
 						d.licenseLimit = false
 						a.nav(secSettings)
 					}
@@ -324,10 +322,11 @@ func (a *App) dialogs(c *ui.Context) {
 	// Deactivate license.
 	if d.deactivateLicense.open {
 		u := &d.deactivateLicense
-		lobeui.Modal(c.Key("dlg-deact"), &u.open, T("license.deactivate.title"), 440, func() {
+		kit.Sheet(c.Key("dlg-deact"), &u.open, 440, func() {
+			kit.SheetHeader(c, T("license.deactivate.title"), nil)
 			ui.Column(c).Gap(12).Children(func() {
 				ui.Text(c, T("license.deactivate.body")).FontSize(design.FontBody).TextColor(p.TextSecondary).LineHeight(1.45)
-				ok, cancel := footer(c, T("common.cancel"), T("license.deactivate"), components.Primary, u.busy, false)
+				ok, cancel := kit.SheetFooter(c, T("common.cancel"), T("license.deactivate"), kit.Primary, u.busy, false)
 				if cancel {
 					u.open = false
 				}
@@ -349,10 +348,11 @@ func (a *App) dialogs(c *ui.Context) {
 
 	// Install conflict.
 	if d.installConflict {
-		lobeui.Modal(c.Key("dlg-conflict"), &d.installConflict, T("installConflict.title"), 440, func() {
+		kit.Sheet(c.Key("dlg-conflict"), &d.installConflict, 440, func() {
+			kit.SheetHeader(c, T("installConflict.title"), nil)
 			ui.Column(c).Gap(12).Children(func() {
 				ui.Text(c, T("installConflict.body")).FontSize(design.FontBody).TextColor(p.TextSecondary).LineHeight(1.45)
-				ok, cancel := footer(c, T("common.cancel"), T("installConflict.replace"), components.Danger, false, false)
+				ok, cancel := kit.SheetFooter(c, T("common.cancel"), T("installConflict.replace"), kit.Danger, false, false)
 				if cancel {
 					d.installConflict = false
 				}
@@ -366,87 +366,84 @@ func (a *App) dialogs(c *ui.Context) {
 }
 
 func (a *App) detailsModal(c *ui.Context, u *detailsDialog, in *domain.Installation) {
-	p := design.Of(c)
-	lobeui.Modal(c.Key("dlg-details"), &u.open, "", 520, func() {
+	kit.Sheet(c.Key("dlg-details"), &u.open, 520, func() {
 		ui.Column(c).Gap(16).Children(func() {
-			ui.Row(c).Gap(14).AlignItems(ui.Center).Children(func() {
-				components.AppIcon(c, in.IconPNG, in.Name, 56)
+			ui.Row(c).Gap(16).AlignItems(ui.Center).Children(func() {
+				ui.Box(c).Size(72, 72).Children(func() {
+					kit.AppIconOpts(c, in.IconPNG, in.Name, 72, kit.IconOpts{Shadow: true})
+				})
 				ui.Column(c).Gap(4).Grow(1).MinWidth(0).Children(func() {
-					components.Heading(c, in.Name).FontSize(design.FontTitle2)
+					kit.PageTitle(c, in.Name).SingleLine()
+					kit.Secondary(c, a.installDomain(in)).SingleLine()
 					st, tone := a.installStatus(in)
-					components.StatusPill(c, st, tone)
+					kit.StatusPill(c, st, tone).Margin(2, 0, 0, 0)
 				})
 			})
 			switch in.State {
 			case domain.InstallMissing:
-				components.Note(c, lobeui.IconWarning(), T("myapps.missing"), components.ToneWarning)
-				components.Caption(c, T("locate.hint"))
+				kit.Note(c, icons.Warning, T("myapps.missing"), kit.ToneWarning)
+				kit.Caption(c, T("locate.hint"))
 			case domain.InstallExternal:
-				components.Note(c, lobeui.IconLock(), T("myapps.readOnly"), components.ToneNeutral)
+				kit.Note(c, icons.Lock, T("myapps.readOnly"), kit.ToneNeutral)
 			}
 			if in.UpdateReason != "" {
-				components.Note(c, lobeui.IconUpdate(), T("myapps.updateAvailable"), components.ToneAccent)
+				kit.Note(c, icons.Update, T("myapps.updateAvailable"), kit.ToneAccent)
 			}
-			ui.Grid(c).ColumnTracks(ui.FitContent(), ui.Fr(1)).GapX(16).GapY(8).Children(func() {
-				kv := func(k, v string, mono bool) {
-					components.Caption(c, k)
-					if mono {
-						components.Mono(c, v).MinWidth(0).Selectable()
-					} else {
-						ui.Text(c, v).FontSize(design.FontSmall).TextColor(p.Text).MinWidth(0)
-					}
-				}
-				kv(T("app.version"), in.Version, false)
-				if in.RuntimeVersion != "" {
-					kv(T("app.runtime"), in.RuntimeVersion, false)
-				}
-				kv(T("app.location"), in.Path, true)
-				kv(T("app.identifier"), in.Identifier, true)
-				if in.ProfileDir != "" {
-					kv(T("app.profile"), in.ProfileDir, true)
-				}
-				kv(T("app.lastManaged"), ago(in.LastManagedAt), false)
-			})
-			ui.Row(c).Gap(8).Wrap().Children(func() {
+			rows := [][2]string{{T("app.version"), in.Version}}
+			mono := map[int]bool{}
+			if in.RuntimeVersion != "" {
+				rows = append(rows, [2]string{T("app.runtime"), in.RuntimeVersion})
+			}
+			mono[len(rows)] = true
+			rows = append(rows, [2]string{T("app.location"), in.Path})
+			mono[len(rows)] = true
+			rows = append(rows, [2]string{T("app.identifier"), in.Identifier})
+			if in.ProfileDir != "" {
+				mono[len(rows)] = true
+				rows = append(rows, [2]string{T("app.profile"), in.ProfileDir})
+			}
+			rows = append(rows, [2]string{T("app.lastManaged"), ago(in.LastManagedAt)})
+			kit.KeyValues(c, rows, mono)
+			ui.Row(c).Gap(8).Wrap().Justify(ui.End).Children(func() {
 				managed := in.State != domain.InstallExternal
-				if in.State == domain.InstallMissing {
-					if components.Button(c.Key("locate"), T("action.locate"), components.ButtonOpts{Variant: components.Primary, Icon: lobeui.IconFolderOpen()}).Clicked() {
-						a.locateApp(in.ID)
-					}
-					if in.ProjectID != "" && components.Button(c.Key("rebuild"), T("action.rebuild"), components.ButtonOpts{}).Clicked() {
-						u.open = false
-						a.startBuild(in.ProjectID, nil)
-					}
-				} else if components.Button(c.Key("open"), T("action.open"), components.ButtonOpts{Variant: components.Primary, Icon: lobeui.IconRocket()}).Clicked() {
-					a.openInstall(in.ID)
-				}
-				if managed && in.UpdateReason != "" && components.Button(c.Key("upd"), T("action.reviewUpdate"), components.ButtonOpts{}).Clicked() {
-					u.open = false
-					a.dlg.openUpdate(in)
-				}
-				if managed && in.ProjectID != "" && components.Button(c.Key("repair"), T("action.repair"), components.ButtonOpts{}).Clicked() {
-					u.open = false
-					a.dlg.repair = installDialog{open: true, id: in.ID}
-				}
-				if in.State == domain.InstallMissing && components.Button(c.Key("forget"), T("locate.remove"), components.ButtonOpts{Variant: components.Ghost}).Clicked() {
-					u.open = false
-					a.forgetApp(in.ID, in.Name)
-				}
-				if in.State != domain.InstallMissing && components.Button(c.Key("reveal"), T("action.reveal"), components.ButtonOpts{}).Clicked() {
-					a.reveal(in.Path)
-				}
-				if !managed && in.SourceURL != "" && components.Button(c.Key("copy"), T("action.createCopy"), components.ButtonOpts{}).Clicked() {
+				if !managed && in.SourceURL != "" && kit.Button(c.Key("copy"), T("action.createCopy"), kit.ButtonOpts{}).Clicked() {
 					u.open = false
 					a.create.reset(a.host)
 					a.create.setInput(in.SourceURL)
 					a.nav(secCreate)
 				}
+				if in.State == domain.InstallMissing && kit.Button(c.Key("forget"), T("locate.remove"), kit.ButtonOpts{Variant: kit.Ghost}).Clicked() {
+					u.open = false
+					a.forgetApp(in.ID, in.Name)
+				}
+				if managed && in.ProjectID != "" && kit.Button(c.Key("repair"), T("action.repair"), kit.ButtonOpts{}).Clicked() {
+					u.open = false
+					a.dlg.repair = installDialog{open: true, id: in.ID}
+				}
+				if in.State != domain.InstallMissing && kit.Button(c.Key("reveal"), T("action.reveal"), kit.ButtonOpts{}).Clicked() {
+					a.reveal(in.Path)
+				}
+				if managed && in.UpdateReason != "" && kit.Button(c.Key("upd"), T("action.reviewUpdate"), kit.ButtonOpts{}).Clicked() {
+					u.open = false
+					a.dlg.openUpdate(in)
+				}
+				if in.State == domain.InstallMissing {
+					if in.ProjectID != "" && kit.Button(c.Key("rebuild"), T("action.rebuild"), kit.ButtonOpts{}).Clicked() {
+						u.open = false
+						a.startBuild(in.ProjectID, nil)
+					}
+					if kit.Button(c.Key("locate"), T("action.locate"), kit.ButtonOpts{Variant: kit.Primary, Icon: icons.Folder}).Clicked() {
+						a.locateApp(in.ID)
+					}
+				} else if kit.Button(c.Key("open"), T("action.open"), kit.ButtonOpts{Variant: kit.Primary, Icon: icons.Rocket}).MinWidth(84).Clicked() {
+					a.openInstall(in.ID)
+				}
 			})
 			if in.State != domain.InstallExternal {
-				components.Hairline(c)
+				kit.Hairline(c)
 				ui.Row(c).AlignItems(ui.Center).Children(func() {
-					components.Caption(c, T("uninstall.keepData")).Grow(1).MinWidth(0)
-					if components.Button(c.Key("un"), T("action.uninstall"), components.ButtonOpts{Variant: components.Ghost, Icon: lobeui.IconTrash()}).TextColor(p.Danger).Clicked() {
+					kit.Caption(c, T("uninstall.keepData")).Grow(1).MinWidth(0)
+					if kit.Button(c.Key("un"), T("action.uninstall"), kit.ButtonOpts{Icon: icons.Trash, Danger: true}).Clicked() {
 						u.open = false
 						a.dlg.uninstall = uninstallDialog{open: true, id: in.ID}
 					}
