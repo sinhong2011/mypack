@@ -137,6 +137,7 @@ func New(opts Options) (*Impl, error) {
 		}
 		s.engine = &builder.Engine{Runtimes: mgr}
 	}
+	s.scheduleRoutes() // link-routing table on service start
 	return s, nil
 }
 
@@ -181,6 +182,7 @@ func (s *Impl) WatchExternal(ctx context.Context, interval time.Duration) {
 				s.bus.publish(Event{Kind: EventProjectChanged})
 				s.bus.publish(Event{Kind: EventJobChanged})
 				s.bus.publish(Event{Kind: EventInstallChanged})
+				s.scheduleRoutes()
 			}
 		}
 	}
@@ -195,6 +197,9 @@ func (s *Impl) emit(e Event) {
 		e.Job = &j
 	}
 	s.bus.publish(e)
+	if e.Kind == EventInstallChanged {
+		s.scheduleRoutes()
+	}
 }
 
 // RecordActivity implements Auditor.

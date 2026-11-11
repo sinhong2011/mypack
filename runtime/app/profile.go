@@ -49,6 +49,9 @@ type State struct {
 	// Tint is the last top-strip color ("r,g,b"), so the next launch starts
 	// with the right color instead of flashing the default.
 	Tint string `json:"tint,omitempty"`
+	// Notify remembers the answers of native.notifications "ask" per origin
+	// ("granted" | "denied").
+	Notify map[string]string `json:"notify,omitempty"`
 }
 
 // Store persists State atomically.
@@ -71,20 +74,24 @@ func OpenStore(dir string) *Store {
 func (s *Store) Get() State {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.s
+	out := s.s
+	if s.s.Notify != nil {
+		out.Notify = make(map[string]string, len(s.s.Notify))
+		for k, v := range s.s.Notify {
+			out.Notify[k] = v
+		}
+	}
+	return out
 }
 
 // Update mutates and saves the state.
 func (s *Store) Update(fn func(*State)) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	old := s.s
+	before, _ := json.Marshal(s.s)
 	fn(&s.s)
-	if s.s == old {
-		return
-	}
 	b, err := json.Marshal(s.s)
-	if err != nil {
+	if err != nil || string(b) == string(before) {
 		return
 	}
 	_ = os.MkdirAll(filepath.Dir(s.path), 0o755)

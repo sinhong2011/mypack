@@ -114,6 +114,24 @@ var oauthRules = []oauthRule{
 	{host: "login.microsoftonline.com"},
 	{host: "login.live.com"},
 	{host: "login.windows.net"},
+	{host: "login.microsoft.com"},
+	{host: "login.microsoftonline.us"},
+	{host: "account.live.com"},
+	{host: "b2clogin.com", suffix: true},
+	{host: "accounts.youtube.com"},
+	{host: "github.com", pathPrefix: "/login/oauth"},
+	{host: "gitlab.com", pathPrefix: "/oauth"},
+	{host: "gitlab.com", pathPrefix: "/users/sign_in"},
+	{host: "www.linkedin.com", pathPrefix: "/oauth"},
+	{host: "discord.com", pathPrefix: "/oauth2"},
+	{host: "accounts.spotify.com"},
+	{host: "login.yahoo.com"},
+	{host: "api.login.yahoo.com"},
+	{host: "id.twitch.tv"},
+	{host: "bitbucket.org", pathPrefix: "/site/oauth2"},
+	{host: "onelogin.com", suffix: true},
+	{host: "duosecurity.com", suffix: true},
+	{host: "pingone.com", suffix: true},
 	{host: "github.com", pathPrefix: "/login"},
 	{host: "github.com", pathPrefix: "/sessions"},
 	{host: "auth0.com", suffix: true},
@@ -131,6 +149,17 @@ var oauthRules = []oauthRule{
 // IsOAuth reports whether u is a well-known identity-provider login URL.
 func IsOAuth(u *url.URL) bool {
 	host := strings.ToLower(u.Hostname())
+	// Firebase / Identity Platform sign-in handlers live on the project's
+	// own (or custom) domain under /__/auth/, opened with signInWithPopup.
+	if strings.HasPrefix(u.Path, "/__/auth/") {
+		return true
+	}
+	// Country domains of Google's sign-in: accounts.google.co.uk, ...
+	if tail, ok := strings.CutPrefix(host, "accounts.google."); ok {
+		if suffix, icann := publicsuffix.PublicSuffix(tail); icann && suffix == tail {
+			return true
+		}
+	}
 	for _, r := range oauthRules {
 		ok := host == r.host
 		if r.suffix {
@@ -227,15 +256,25 @@ func (p *Policy) Navigate(raw string, userInitiated bool) Action {
 }
 
 // Popup decides window.open() / target=_blank.
+//
+// Sign-in popups are special: an identity provider's window must stay inside
+// the app (same session, window.opener kept, closes itself after the
+// redirect), whatever the popup mode, and even when the page opens it from
+// a promise or timer (so the browser's user-gesture flag is already gone,
+// as with "await fetch(...); window.open(authUrl)").
 func (p *Policy) Popup(raw string, userInitiated bool) Action {
-	if !userInitiated {
-		return Block
-	}
 	u, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil {
 		return Block
 	}
 	scheme := strings.ToLower(u.Scheme)
+	isWeb := scheme == "http" || scheme == "https"
+	if isWeb && u.Host != "" && IsOAuth(u) {
+		return Internal
+	}
+	if !userInitiated {
+		return Block
+	}
 	if scheme == "" {
 		// window.open("") : blank popup that scripts fill in later.
 		if p.Popups == PopupInternal {
@@ -243,9 +282,8 @@ func (p *Policy) Popup(raw string, userInitiated bool) Action {
 		}
 		return Block
 	}
-	isWeb := scheme == "http" || scheme == "https"
 	base := p.Navigate(raw, userInitiated)
-	if !isWeb && !(scheme == "about") {
+	if !isWeb && scheme != "about" {
 		return base // OS / Block / local scheme
 	}
 	if scheme == "about" {
@@ -258,11 +296,43 @@ func (p *Policy) Popup(raw string, userInitiated bool) Action {
 	case PopupBlock:
 		return Block
 	case PopupExternal:
-		if IsOAuth(u) || p.isLocal(u) {
+		if p.isLocal(u) {
 			return Internal
 		}
 		return External
 	default:
 		return base // Internal when the URL belongs to the app, else External
 	}
+}
+
+// IsAppURL reports whether a page at raw belongs to the app itself (its
+// start site, safe domains, internal-URL regex, local site), as opposed to
+// an identity provider or a third party. Only such pages may use the
+// native bridge (notifications, badge).
+func (p *Policy) IsAppURL(raw string) bool {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return false
+	}
+	switch strings.ToLower(u.Scheme) {
+	case "http", "https":
+	default:
+		return p.isLocal(u)
+	}
+	if u.Host == "" {
+		return false
+	}
+	if p.isLocal(u) {
+		return true
+	}
+	host := strings.ToLower(u.Hostname())
+	for _, d := range p.SafeDomains {
+		if hostMatches(host, d) {
+			return true
+		}
+	}
+	if p.InternalURL != nil && p.InternalURL.MatchString(raw) {
+		return true
+	}
+	return !p.ExternalByDefault
 }

@@ -462,6 +462,21 @@ func findExecutable(dir string) (string, error) {
 	return "", errors.New("no executable found in " + dir)
 }
 
+// Executable returns the program inside an installed Windows/Linux app folder
+// ("" when it cannot be found, and always on macOS, where the bundle is
+// opened by path). Link routing records it so other Mypack apps can hand URLs
+// to this one.
+func Executable(path string) string {
+	if isApp(path) {
+		return ""
+	}
+	exe, err := findExecutable(path)
+	if err != nil {
+		return ""
+	}
+	return exe
+}
+
 // Launch starts an installed app (open -n on macOS, exec elsewhere).
 func Launch(path string) error {
 	if _, err := os.Stat(path); err != nil {

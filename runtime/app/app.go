@@ -19,6 +19,7 @@ import (
 	"mypack.dev/mypack/pkg/config"
 	"mypack.dev/mypack/runtime/inject"
 	"mypack.dev/mypack/runtime/navigation"
+	"mypack.dev/mypack/runtime/routing"
 )
 
 // App holds the running application state.
@@ -36,11 +37,16 @@ type App struct {
 
 	disabled map[string]bool // normalized disabled accelerators
 
+	bridge *bridgeService   // page -> Go calls: notifications, badge
+	badges *badgeController // Dock / taskbar badge
+	routes *routing.Table   // link routing between Mypack apps
+
 	mu       sync.Mutex
 	main     *mygo.Window
 	windows  map[*mygo.Window]*mygo.Page // app windows -> their web page
 	zoom     int
 	quitting bool
+	started  bool // the main window was created
 	shown    bool
 	creds    map[string]credEntry
 	prompts  map[string]bool
@@ -94,6 +100,7 @@ func New(cfg *config.Config, cfgDir string) (*App, error) {
 		prompts:  map[string]bool{},
 		finds:    map[*mygo.Window]*mygo.Window{},
 		disabled: map[string]bool{},
+		routes:   &routing.Table{},
 	}
 	for _, s := range cfg.WebView.DisabledKeys {
 		a.disabled[inject.Normalize(s)] = true
@@ -129,11 +136,21 @@ func (a *App) Run() error {
 		log.Printf("mypack-runtime: warning: network.proxy=%q is ignored; webviews follow the operating-system proxy settings (platform limitation)", redactProxy(cfg.Network.Proxy))
 	}
 
+	// Links other Mypack apps (or the Builder) hand to this app: macOS
+	// delivers them as open-URL events, Windows/Linux as arguments. Register
+	// before Run to receive the URL the app was launched with.
+	mygo.App.OnOpenURL(a.handleIncomingURL)
 	if !cfg.Window.MultiInstance {
 		if !mygo.App.RequestSingleInstanceLock() {
 			return nil // a running instance was asked to show itself
 		}
-		mygo.App.OnSecondInstance(func([]string, string) { a.showMain() })
+		mygo.App.OnSecondInstance(func(args []string, _ string) {
+			if u := firstWebURL(args); u != "" {
+				a.handleIncomingURL(u)
+				return
+			}
+			a.showMain()
+		})
 	}
 
 	switch cfg.Window.DarkMode {
@@ -152,7 +169,16 @@ func (a *App) Run() error {
 		a.session = mygo.NewEphemeralSession()
 	}
 	a.zoom = EffectiveZoom(cfg.Window.Zoom, a.state.Get())
+	a.badges = newBadgeController(cfg.Native.BadgeMode() == "auto", func(label string) {
+		log.Printf("mypack-runtime: badge: set %q", label)
+		mygo.App.Dock.SetBadge(label)
+	})
+	a.bridge = a.newBridge()
+	mygo.BindAs("mypack", a.bridge)
 	a.preload = a.buildPreload()
+	if u := firstWebURL(os.Args[1:]); u != "" {
+		a.useLaunchURL(u)
+	}
 
 	mygo.App.OnWindowCreated(a.setupWindow)
 	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) {
@@ -250,7 +276,11 @@ func (a *App) buildPreload() string {
 			css = append(css, content)
 		}
 	}
-	return inject.Build(inject.Options{JS: js, CSS: css, DragStrip: a.framelessBar(), DisabledShortcuts: a.cfg.WebView.DisabledKeys})
+	perms := a.state.Get().Notify
+	return inject.Build(inject.Options{
+		JS: js, CSS: css, DragStrip: a.framelessBar(), DisabledShortcuts: a.cfg.WebView.DisabledKeys,
+		WebAPIs: inject.WebAPIs{Notifications: a.cfg.Native.NotificationsMode(), Perms: perms, Badge: a.cfg.Native.BadgeMode() != "off"},
+	})
 }
 
 // framelessBar: only frameless windows (decorations:false) still need the
@@ -264,15 +294,23 @@ func (a *App) framelessBar() bool {
 func (a *App) pageOptions() mygo.PageOptions {
 	p := mygo.PageOptions{
 		Session:          a.session,
-		UserAgent:        userAgent(a.cfg.WebView.UserAgent),
+		UserAgent:        resolveUserAgent(a.cfg.WebView, runtime.GOOS, runtime.GOARCH),
 		ZoomFactor:       float64(a.zoom) / 100,
 		PreloadScript:    a.preload,
-		PreloadAllFrames: false,
-		SwipeNavigation:  true,
-		DevTools:         mygo.DevToolsDisabled,
+		PreloadAllFrames: false, // third-party iframes never get the native bridge
+		// Pages call the bound "mypack" service from any host of the app
+		// (subdomains cannot be listed up front). Every method re-checks the
+		// calling page against the navigation policy.
+		TrustedOrigins:  []string{"*"},
+		SwipeNavigation: true,
+		DevTools:        mygo.DevToolsDisabled,
 	}
 	if a.cfg.WebView.DevTools {
 		p.DevTools = mygo.DevToolsEnabled
+	}
+	// A chat or mail app hidden in the tray must keep running to notify.
+	if a.cfg.Native.NotificationsMode() != "deny" && (a.cfg.Native.Tray || a.cfg.Window.HideOnClose) {
+		p.BackgroundThrottling = mygo.ThrottlingOff
 	}
 	return p
 }
@@ -355,7 +393,12 @@ func safeNewWindow(o mygo.WindowOptions) (w *mygo.Window) {
 }
 
 func (a *App) start() {
-	w, p := a.openWindow(true, a.startURL, "main", true)
+	a.mu.Lock()
+	a.started = true
+	startURL := a.startURL
+	a.mu.Unlock()
+	a.e2eAppHook()
+	w, p := a.openWindow(true, startURL, "main", true)
 	a.mu.Lock()
 	a.main = w
 	a.mu.Unlock()
@@ -432,7 +475,9 @@ func (a *App) registerPage(w *mygo.Window, p *mygo.Page) {
 	}
 	a.windows[w] = p
 	a.mu.Unlock()
+	p.OnPageTitleUpdated(func(e *mygo.TitleEvent) { a.badges.setTitle(p, e.Title) })
 	w.OnClosed(func() {
+		a.badges.drop(p)
 		a.mu.Lock()
 		delete(a.windows, w)
 		if a.main == w {
@@ -475,7 +520,10 @@ div{max-width:30em;padding:2em}h1{font-size:1.3em}code{word-break:break-all;opac
 func (a *App) onWillNavigate(e *mygo.NavigateEvent) {
 	switch a.policy.Navigate(e.URL, e.UserInitiated) {
 	case navigation.Internal:
-	case navigation.External, navigation.OS:
+	case navigation.External:
+		e.PreventDefault()
+		a.openLink(e.URL)
+	case navigation.OS:
 		e.PreventDefault()
 		openExternal(e.URL)
 	default:
@@ -492,7 +540,9 @@ func (a *App) onWindowOpen(req mygo.WindowOpenRequest) *mygo.WindowOptions {
 			o.Width, o.Height = req.Width, req.Height
 		}
 		return &o
-	case navigation.External, navigation.OS:
+	case navigation.External:
+		a.openLink(req.URL)
+	case navigation.OS:
 		openExternal(req.URL)
 	}
 	return nil
@@ -507,7 +557,7 @@ func openExternal(u string) {
 }
 
 // onPermission: camera/microphone only when the app was built with them;
-// notifications are allowed (chat/mail apps); everything else is denied.
+// notifications unless native.notifications is "deny"; everything else is denied.
 func (a *App) onPermission(req mygo.PermissionRequest) bool {
 	for _, perm := range req.Permissions {
 		ok := false

@@ -87,6 +87,11 @@ type Options struct {
 	// (nil = ldflags + MYPACK_LICENSE_PUBKEY); tests use it.
 	LicenseDir  string
 	LicenseKeys []ed25519.PublicKey
+
+	// RoutesFile is where the link-routing table of installed apps is kept.
+	// "" = $MYPACK_ROUTES_FILE, else routes.json beside a custom DBPath,
+	// else <UserConfigDir>/mypack-apps/routes.json; "-" disables writing.
+	RoutesFile string
 }
 
 // ---- production adapters --------------------------------------------------

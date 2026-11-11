@@ -54,8 +54,8 @@ type shell struct {
 	page atomic.Pointer[mygo.Page]
 
 	// main-thread state (touched by the view and by win.Update)
-	tint  ui.Color
-	have  bool
+	tint ui.Color
+	have bool
 
 	fullscreen atomic.Bool
 	focused    atomic.Bool

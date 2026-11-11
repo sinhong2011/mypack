@@ -53,6 +53,23 @@ macOS `~/Library/Application Support/mypack-apps/<profileId>/`,
 Windows `%APPDATA%\mypack-apps\<profileId>\`, Linux `$XDG_DATA_HOME/mypack-apps/<profileId>/`.
 Update/Repair never touch it; Uninstall only with explicit clearData.
 
+## Runtime native features (1.0.5)
+
+The runtime preloads a Web API shim (`runtime/inject/webapi.go`) in each app's main frames: `window.Notification`,
+`ServiceWorkerRegistration.showNotification` and the Badging API (`navigator.setAppBadge`). They call the bound Go
+service `mypack` (`runtime/app/bridge.go`) through MyGo's page-to-Go bridge; every call is checked against the
+navigation policy (`Policy.IsAppURL`), so only the app's own pages (not iframes, not sign-in popups) can notify or
+badge. A title heuristic (`(3) Inbox`, `Inbox (12)`, `• Slack`) feeds the same badge controller
+(`runtime/app/badge.go`). Config: `native.notifications` (allow|ask|deny), `native.badge` (auto|off).
+
+Link routing: the Builder keeps `<UserConfigDir>/mypack-apps/routes.json` (`internal/appservice/routes.go`, schema in
+`runtime/routing`). When the navigation policy sends a clicked link to the browser, the runtime first looks for another
+installed Mypack app owning the host (`open -a <bundle> <url>` on macOS, `<app> <url>` on Windows/Linux) and the target
+app opens it if the URL is internal for it (else the browser; never re-routed). `native.linkRouting` (default true).
+
+`webview.userAgentPreset` (safari|chrome|edge|firefox|mobile-safari|custom) maps to per-OS user agent strings in
+`runtime/app/useragent.go`. See `docs/gui-handoff-p0.md` for the GUI surface.
+
 ## Runtime registry
 
 `registry.json` (schemaVersion 1) + `registry.json.sig` (Ed25519 over the exact bytes).

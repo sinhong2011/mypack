@@ -20,6 +20,8 @@ type Options struct {
 	// DisabledShortcuts are accelerators such as "CmdOrCtrl+R" that the page
 	// must not receive nor act on.
 	DisabledShortcuts []string
+	// Web APIs the platform webview lacks (Notification, Badging API).
+	WebAPIs WebAPIs
 }
 
 func jsString(s string) string {
@@ -32,6 +34,12 @@ func jsString(s string) string {
 // Build returns the preload script ("" when there is nothing to inject).
 func Build(o Options) string {
 	var b strings.Builder
+	// The shims go first so user scripts see the finished APIs.
+	if shim := WebAPIsScript(o.WebAPIs); shim != "" {
+		b.WriteString("try {\n")
+		b.WriteString(shim)
+		b.WriteString("\n} catch (e) { console.error('[mypack] web API shim failed:', e); }\n")
+	}
 	for _, js := range o.JS {
 		if strings.TrimSpace(js) == "" {
 			continue

@@ -20,7 +20,7 @@ import (
 const SchemaVersion = 1
 
 // DefaultRuntimeVersion is the runtime version new projects pin (ADR-005).
-const DefaultRuntimeVersion = "1.0.4"
+const DefaultRuntimeVersion = "1.0.5"
 
 // Config is the full mypack.json document.
 type Config struct {
@@ -112,16 +112,22 @@ type WindowConfig struct {
 
 // WebViewConfig covers WEB-01..13 and CUS-01..03.
 type WebViewConfig struct {
-	UserAgent      string           `json:"userAgent,omitempty"`
-	Incognito      bool             `json:"incognito,omitempty"`
-	RestoreLastURL bool             `json:"restoreLastUrl,omitempty"`
-	Navigation     NavigationConfig `json:"navigation"`
-	Injections     []Injection      `json:"injections,omitempty"`
-	FindInPage     bool             `json:"findInPage,omitempty"`
-	WASM           bool             `json:"wasm,omitempty"`
-	IgnoreCertErrs bool             `json:"ignoreCertificateErrors,omitempty"` // dangerous, debug only
-	DisabledKeys   []string         `json:"disabledShortcuts,omitempty"`
-	DevTools       bool             `json:"devTools,omitempty"`
+	UserAgent string `json:"userAgent,omitempty"`
+	// UserAgentPreset picks a realistic browser user agent per OS:
+	// "safari" (default; the runtime's platform default), "chrome", "edge",
+	// "firefox", "mobile-safari" or "custom" (UserAgent is used verbatim).
+	// Empty means "safari", except that a non-empty UserAgent alone means
+	// "custom" (backward compatibility).
+	UserAgentPreset string           `json:"userAgentPreset,omitempty"`
+	Incognito       bool             `json:"incognito,omitempty"`
+	RestoreLastURL  bool             `json:"restoreLastUrl,omitempty"`
+	Navigation      NavigationConfig `json:"navigation"`
+	Injections      []Injection      `json:"injections,omitempty"`
+	FindInPage      bool             `json:"findInPage,omitempty"`
+	WASM            bool             `json:"wasm,omitempty"`
+	IgnoreCertErrs  bool             `json:"ignoreCertificateErrors,omitempty"` // dangerous, debug only
+	DisabledKeys    []string         `json:"disabledShortcuts,omitempty"`
+	DevTools        bool             `json:"devTools,omitempty"`
 }
 
 type NavigationConfig struct {
@@ -157,7 +163,58 @@ type NativeConfig struct {
 	Camera         bool   `json:"camera,omitempty"`
 	Microphone     bool   `json:"microphone,omitempty"`
 	DragDrop       bool   `json:"dragDrop,omitempty"`
+	// Notifications controls the web Notification API shim: "allow"
+	// (default, because the user chose to make this app), "ask" (a native
+	// prompt once per origin, remembered in the profile) or "deny".
+	Notifications string `json:"notifications,omitempty"`
+	// Badge controls the Dock/taskbar badge: "auto" (default; the Badging
+	// API plus an unread count read from the page title) or "off".
+	Badge string `json:"badge,omitempty"`
+	// LinkRouting (default true) opens links that belong to another
+	// installed Mypack app in that app instead of the default browser.
+	LinkRouting *bool `json:"linkRouting,omitempty"`
 }
+
+// User-agent presets (webview.userAgentPreset).
+const (
+	UAPresetSafari       = "safari"
+	UAPresetChrome       = "chrome"
+	UAPresetEdge         = "edge"
+	UAPresetFirefox      = "firefox"
+	UAPresetMobileSafari = "mobile-safari"
+	UAPresetCustom       = "custom"
+)
+
+// EffectiveUAPreset resolves the preset: an empty preset with a non-empty
+// UserAgent is "custom", an empty preset alone is "safari".
+func (w WebViewConfig) EffectiveUAPreset() string {
+	if w.UserAgentPreset != "" {
+		return w.UserAgentPreset
+	}
+	if strings.TrimSpace(w.UserAgent) != "" {
+		return UAPresetCustom
+	}
+	return UAPresetSafari
+}
+
+// NotificationsMode returns "allow", "ask" or "deny" (empty = "allow").
+func (n NativeConfig) NotificationsMode() string {
+	if n.Notifications == "" {
+		return "allow"
+	}
+	return n.Notifications
+}
+
+// BadgeMode returns "auto" or "off" (empty = "auto").
+func (n NativeConfig) BadgeMode() string {
+	if n.Badge == "" {
+		return "auto"
+	}
+	return n.Badge
+}
+
+// LinkRoutingEnabled reports native.linkRouting (default true).
+func (n NativeConfig) LinkRoutingEnabled() bool { return n.LinkRouting == nil || *n.LinkRouting }
 
 type BuildConfig struct {
 	Targets []Target `json:"targets"`
@@ -414,6 +471,25 @@ func (c *Config) Validate() error {
 	case "", "system", "light", "dark":
 	default:
 		add("window.darkMode", "INVALID_ENUM", "must be system, light or dark")
+	}
+	switch c.Native.Notifications {
+	case "", "ask", "allow", "deny":
+	default:
+		add("native.notifications", "INVALID_ENUM", "must be ask, allow or deny")
+	}
+	switch c.Native.Badge {
+	case "", "auto", "off":
+	default:
+		add("native.badge", "INVALID_ENUM", "must be auto or off")
+	}
+	switch c.WebView.UserAgentPreset {
+	case "", UAPresetSafari, UAPresetChrome, UAPresetEdge, UAPresetFirefox, UAPresetMobileSafari:
+	case UAPresetCustom:
+		if strings.TrimSpace(c.WebView.UserAgent) == "" {
+			add("webview.userAgent", "REQUIRED", "a user agent string is required when the preset is custom")
+		}
+	default:
+		add("webview.userAgentPreset", "INVALID_ENUM", "must be safari, chrome, edge, firefox, mobile-safari or custom")
 	}
 	switch c.WebView.Navigation.Popups {
 	case "", "internal", "external", "block":
