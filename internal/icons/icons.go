@@ -57,7 +57,9 @@ func Decode(data []byte) (image.Image, error) {
 // EncodePNG encodes img as PNG.
 func EncodePNG(img image.Image) ([]byte, error) {
 	var buf bytes.Buffer
-	enc := png.Encoder{CompressionLevel: png.BestCompression}
+	// BestSpeed: icons are re-encoded several times per lookup; maximum
+	// compression cost ~8s per 1024px icon and made metadata lookups time out.
+	enc := png.Encoder{CompressionLevel: png.BestSpeed}
 	if err := enc.Encode(&buf, img); err != nil {
 		return nil, err
 	}
