@@ -262,11 +262,12 @@ func (a *App) settingsEditor(c *ui.Context, ed *editorState, pr *domain.Project)
 	shown := make([]string, len(list))
 	for i, sg := range list {
 		shown[i] = sg.g.id
+		if q != "" {
+			a.settingHits += len(sg.rows)
+		}
 	}
 	ui.Column(c).Gap(0).Children(func() {
-		if len(list) == 0 {
-			kit.EmptyState(c, icons.Search, T("editor.noResults"), "", nil)
-		} else {
+		if len(list) > 0 {
 			kit.GroupBox(c.Key("card")).Children(func() {
 				for _, sg := range list {
 					g, rows := sg.g, sg.rows
@@ -359,7 +360,7 @@ func (a *App) settingsEditor(c *ui.Context, ed *editorState, pr *domain.Project)
 			}
 			ed.moveDown = ""
 		}
-		if kit.Button(c.Key("resetall"), T("editor.reset"), kit.ButtonOpts{Variant: kit.Ghost, Size: 26}).FontWeight(design.WeightRegular).Margin(10, 0, 0, 0).AlignSelf(ui.Start).Clicked() {
+		if q == "" && kit.Button(c.Key("resetall"), T("editor.reset"), kit.ButtonOpts{Variant: kit.Ghost, Size: 26}).FontWeight(design.WeightRegular).Margin(10, 0, 0, 0).AlignSelf(ui.Start).Clicked() {
 			a.dlg.reset = resetDialog{open: true, ed: ed}
 		}
 	})
@@ -368,40 +369,27 @@ func (a *App) settingsEditor(c *ui.Context, ed *editorState, pr *domain.Project)
 
 // searchState is the Advanced Settings header's search.
 type searchState struct {
-	open, focus, had bool
-	h                ui.Handle
+	h ui.Handle
 }
 
-// settingsSearch sits at the right of the Advanced Settings header: a
-// magnifier that opens into a compact field (⌘F too). Esc clears and folds
-// it back; so does leaving it empty.
+// settingsSearch is the inspector's search, pinned at its top: it filters
+// every setting in the column, common and advanced. ⌘F focuses it; Esc
+// clears it.
 func (a *App) settingsSearch(c *ui.Context, ed *editorState) {
 	s := &ed.search
 	if c.Shortcut(ui.Cmd, ui.KeyF) {
-		s.open, s.focus = true, true
-	}
-	if !s.open && ed.query == "" {
-		if kit.IconButton(c.Key("searchbtn"), icons.Search, T("editor.search")).Clicked() {
-			s.open, s.focus = true, true
-		}
-		return
-	}
-	kit.SearchField(c.Key("search"), &ed.query, T("editor.search"), &s.h, 200).
-		Transition(ui.ElementTransition{Animation: &design.Spring, Enter: &ui.Motion{X: 24, Opacity: 0, Scale: 0.96}})
-	focused := s.h.Focused(c)
-	if s.focus {
 		s.h.Focus()
-		s.focus = false
-		return
 	}
-	if focused {
-		s.had = true
-		if c.Shortcut(0, ui.KeyEscape) {
-			ed.query = ""
-			s.open, s.had = false, false
-		}
-	} else if s.had && ed.query == "" {
-		s.open, s.had = false, false
+	kit.SearchField(c.Key("search"), &ed.query, T("editor.search"), &s.h, 0)
+	if s.h.Focused(c) && c.Shortcut(0, ui.KeyEscape) {
+		ed.query = ""
+	}
+}
+
+// searchEmpty is the column's empty state when the search matched nothing.
+func (a *App) searchEmpty(c *ui.Context) {
+	if a.settingsQ != "" && a.settingHits == 0 {
+		kit.EmptyState(c, icons.Search, T("editor.noResults"), "", nil)
 	}
 }
 

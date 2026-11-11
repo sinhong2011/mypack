@@ -57,6 +57,10 @@ func (a *App) createView(c *ui.Context) {
 		a.createURLField(c, 46)
 		a.createPreview(c)
 	}, func() {
+		a.settingHits, a.settingsQ = 0, ""
+		if s.adv != nil {
+			a.settingsQ = strings.TrimSpace(s.adv.query)
+		}
 		// While its build runs the settings are locked: controls dim, labels
 		// stay readable.
 		locked := s.building != ""
@@ -69,28 +73,36 @@ func (a *App) createView(c *ui.Context) {
 				// Holds the pointer: the settings can't change mid-build.
 				ui.Box(c.Key("lock")).Absolute().Fill().ZIndex(10).Cursor(ui.CursorDefault).AccessHidden(true)
 			}
+			searching := a.settingsQ != ""
 			// Look & Behaviour: the common choices, with good defaults.
 			ui.Column(c).Gap(14).Children(func() {
-				kit.SectionHeader(c, T("look.title"), "")
-				a.autoInstallSetting(c)
+				if !searching {
+					kit.SectionHeader(c, T("look.title"), "")
+				}
+				if a.settingHit(T("autoInstall.label")) {
+					a.autoInstallSetting(c)
+				}
 				a.lookAndBehaviourOpts(c, a.ensureCfg(), func() {}, &s.account, true)
 			})
-			// Advanced Settings (collapsed).
+			// Advanced Settings (collapsed; searching opens it to its matches).
 			ui.Column(c).Gap(10).Children(func() {
-				ui.Row(c).AlignItems(ui.Center).Gap(8).Margin(0, 0, 0, -8).Children(func() {
-					kit.Disclosure(c.Key("adv"), &s.advOpen, T("create.advanced"), "").Grow(1)
-					if s.advOpen {
-						a.settingsSearch(c, s.adv)
-					}
-				})
-				if s.advOpen {
+				if !searching {
+					kit.Disclosure(c.Key("adv"), &s.advOpen, T("create.advanced"), "").Margin(0, -8)
+				}
+				if s.advOpen || searching {
 					a.ensureCfg()
 					a.settingsEditor(c, s.adv, nil)
 				}
 			})
-			a.createTargets(c)
+			a.searchEmpty(c)
+			if !searching {
+				a.createTargets(c)
+			}
 		})
-	}, nil)
+	}, nil, func() {
+		a.ensureCfg()
+		a.settingsSearch(c, s.adv)
+	})
 	if s.buildRequested {
 		s.buildRequested = false
 		a.createAndBuild()
@@ -502,25 +514,31 @@ func (a *App) createSuggestions(c *ui.Context) {
 func (a *App) createTargets(c *ui.Context) {
 	p := design.Of(c)
 	s := &a.create
-	ui.Column(c).Gap(10).Children(func() {
-		ui.Row(c).AlignItems(ui.Center).Children(func() {
-			kit.Overline(c, T("create.target.label"))
-			ui.Spacer(c)
-			if kit.Button(c.Key("other"), T("create.otherPlatforms"), kit.ButtonOpts{Variant: kit.Plain, Size: 22,
-				Trailing: map[bool]*ui.SVG{true: icons.ChevronDown, false: icons.ChevronRt}[s.otherOpen]}).FontSize(design.FontSmall).Clicked() {
-				s.otherOpen = !s.otherOpen
+	// The same card and rows as every other setting: one switch per
+	// platform, this Mac first; the others fold under a quiet last row.
+	ui.Column(c).Gap(14).Children(func() {
+		kit.SectionHeader(c, T("create.target.label"), "")
+		kit.GroupBox(c).Children(func() {
+			row := func(t config.Target, ic *ui.SVG, label, sub string, disabled bool) {
+				_, on := s.targets[t.Key()]
+				r := ui.Column(c.Key(t.Key()))
+				if disabled {
+					r.Opacity(0.5)
+				}
+				r.Children(func() {
+					kit.SettingIconRow(c, ic, ui.Color{}, label, sub, func() {
+						v := on
+						kit.Switch(c.Key("sw"), &v, label)
+						if v != on && !disabled {
+							s.toggleTarget(t)
+						}
+					})
+				})
 			}
-		})
-		host := config.DefaultTarget(a.host)
-		ui.Grid(c).ColumnTracks(ui.Fr(1)).Gap(8).Children(func() {
-			_, on := s.targets[host.Key()]
-			if kit.TargetChip(c.Key("host"), icons.Laptop, thisDevice(a.host), T("target.recommended"), on, false).Clicked() {
-				s.toggleTarget(host)
-			}
+			host := config.DefaultTarget(a.host)
+			row(host, icons.Laptop, thisDevice(a.host), "", false)
 			if s.otherOpen {
 				for _, t := range otherTargets(a.host) {
-					t := t
-					_, on := s.targets[t.Key()]
 					unsupported := t.OS == "darwin" && a.host.OS != "darwin"
 					sub := archLabel(t.OS, t.Arch)
 					if unsupported {
@@ -530,14 +548,32 @@ func (a *App) createTargets(c *ui.Context) {
 					if t.OS == "darwin" {
 						ic = icons.Laptop
 					}
-					if kit.TargetChip(c.Key(t.Key()), ic, osLabel(t.OS), sub, on, unsupported).Clicked() {
-						s.toggleTarget(t)
-					}
+					row(t, ic, osLabel(t.OS), sub, unsupported)
 				}
+			}
+			more := ui.ButtonBase(c.Key("other")).Label(T("create.otherPlatforms")).Row().MinHeight(40).Padding(8, 14).Gap(12).
+				AlignItems(ui.Center).Cursor(ui.CursorPointer).Role(ui.RoleDisclosure).Expanded(s.otherOpen).FocusRing(false).
+				Transition(design.Transition(c))
+			if more.Hovered() || more.FocusVisible() {
+				more.Background(p.Hover)
+			}
+			more.Children(func() {
+				kit.FocusMark(c, more.FocusVisible(), 0)
+				ui.Box(c).Size(20, 20).Shrink(0)
+				ui.Text(c, T("create.otherPlatforms")).FontSize(design.FontBody).TextColor(p.TextSecondary).Grow(1)
+				ch := kit.Glyph(c, icons.ChevronRt, 14, p.TextTertiary)
+				turn := float32(0)
+				if s.otherOpen {
+					turn = 90
+				}
+				ch.Rotate(ch.AnimateTo("turn", turn, design.Spring))
+			})
+			if more.Clicked() {
+				s.otherOpen = !s.otherOpen
 			}
 		})
 		if s.otherOpen {
-			ui.Text(c, T("create.otherPlatforms.note")).FontSize(design.FontCaption).TextColor(p.TextSecondary).LineHeight(1.4).Padding(0, 4)
+			ui.Text(c, T("create.otherPlatforms.note")).FontSize(design.FontCaption).TextColor(p.TextSecondary).LineHeight(1.4).Padding(0, 2)
 		}
 	})
 }

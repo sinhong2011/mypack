@@ -19,7 +19,8 @@ func (a *App) inspectorWidth() float32 {
 	return min(max(a.toolbarW*0.38, 400), 480)
 }
 
-func (a *App) previewInspector(c *ui.Context, preview, inspector, footer func()) {
+// head, when given, is pinned above the inspector's scroll (its search).
+func (a *App) previewInspector(c *ui.Context, preview, inspector, footer func(), head ...func()) {
 	p := design.Of(c)
 	// One column when the preview would get less than ~460 pt beside the
 	// inspector (or the window is under ~960 pt): never clip the inspector.
@@ -30,6 +31,9 @@ func (a *App) previewInspector(c *ui.Context, preview, inspector, footer func())
 				ui.Column(c).FillWidth().MaxWidth(560).Gap(24).Children(func() {
 					preview()
 					ui.Box(c).Height(1).FillWidth().Background(p.Divider)
+					for _, h := range head {
+						h()
+					}
 					inspector()
 					if footer != nil {
 						ui.Column(c).Gap(10).Children(footer)
@@ -50,9 +54,15 @@ func (a *App) previewInspector(c *ui.Context, preview, inspector, footer func())
 		})
 		// The inspector: a hairline, its own scroll, a pinned footer.
 		ui.Column(c).Width(a.inspectorWidth()).Shrink(0).BorderWidth(0, 0, 0, 1).BorderColor(p.Divider).Children(func() {
-			ui.Scroll(c.Key("inspector:"+string(a.section)+a.projectID)).Grow(1).Basis(0).ScrollbarInsets(design.TitleBarH, 0, 0).Children(func() {
+			top, inset := design.TitleBarH+12, design.TitleBarH
+			if len(head) > 0 {
+				// Pinned under the title bar, level with the preview's first row.
+				ui.Column(c.Key("head")).Padding(design.TitleBarH+12, 20, 12, 20).Children(head[0])
+				top, inset = 4, 0
+			}
+			ui.Scroll(c.Key("inspector:"+string(a.section)+a.projectID)).Grow(1).Basis(0).ScrollbarInsets(inset, 0, 0).Children(func() {
 				// Its first heading lines up with the preview's first row.
-				ui.Column(c).FillWidth().Gap(22).Padding(design.TitleBarH+12, 20, 24, 20).Children(inspector)
+				ui.Column(c).FillWidth().Gap(22).Padding(top, 20, 24, 20).Children(inspector)
 			})
 			if footer != nil {
 				ui.Column(c).Gap(10).Padding(14, 20, 18, 20).BorderWidth(1, 0, 0, 0).BorderColor(p.Divider).Children(footer)

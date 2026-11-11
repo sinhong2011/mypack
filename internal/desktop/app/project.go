@@ -438,29 +438,37 @@ func (a *App) projectSettingsView(c *ui.Context, pr *domain.Project) {
 			a.appDockPreview(c, pr.IconPNG, ed.cfg.App.Name)
 		})
 	}, func() {
+		a.settingHits, a.settingsQ = 0, strings.TrimSpace(ed.query)
+		searching := a.settingsQ != ""
 		a.conflictBanner(c, pr, ed)
 		ui.Column(c).Gap(14).Children(func() {
-			kit.SectionHeader(c, T("settings.general"), "")
-			kit.GroupBox(c).Children(func() {
-				on := a.ui.autoInstall(pr.ID)
-				kit.SettingIconRow(c.Key("autoinst"), icons.Play, ui.Color{}, T("autoInstall.label"), T("autoInstall.desc"), func() {
-					old := on
-					kit.Switch(c.Key("sw"), &on, T("autoInstall.label"))
-					if on != old {
-						a.ui.setAutoInstall(pr.ID, on)
-					}
+			if !searching {
+				kit.SectionHeader(c, T("settings.general"), "")
+			}
+			if a.settingHit(T("autoInstall.label"), T("autoInstall.desc")) {
+				kit.GroupBox(c).Children(func() {
+					on := a.ui.autoInstall(pr.ID)
+					kit.SettingIconRow(c.Key("autoinst"), icons.Play, ui.Color{}, T("autoInstall.label"), T("autoInstall.desc"), func() {
+						old := on
+						kit.Switch(c.Key("sw"), &on, T("autoInstall.label"))
+						if on != old {
+							a.ui.setAutoInstall(pr.ID, on)
+						}
+					})
 				})
-			})
+			}
 			a.lookAndBehaviourOpts(c, ed.cfg, ed.changed, nil, true)
 		})
 		ui.Column(c).Gap(14).Children(func() {
-			ui.Row(c).AlignItems(ui.Center).Gap(8).MinHeight(32).Children(func() {
-				kit.SectionHeader(c, T("create.advanced"), "").Grow(1)
-				a.settingsSearch(c, ed)
-			})
+			if !searching {
+				kit.SectionHeader(c, T("create.advanced"), "")
+			}
 			a.settingsEditor(c, ed, pr)
 		})
-	}, nil)
+		a.searchEmpty(c)
+	}, nil, func() {
+		a.settingsSearch(c, ed)
+	})
 }
 
 // refreshIcon fetches a URL project's icon from its website again, through

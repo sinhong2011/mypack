@@ -40,10 +40,12 @@ const (
 
 // App is the GUI state.
 type App struct {
-	svc  appservice.Service
-	win  *mygo.Window
-	host config.Target
-	ui   uiState
+	settingsQ   string // the inspector's settings search, while it renders
+	settingHits int    // settings it matched this frame
+	svc         appservice.Service
+	win         *mygo.Window
+	host        config.Target
+	ui          uiState
 
 	section    section
 	projectID  string

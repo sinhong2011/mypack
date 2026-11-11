@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/egoist/mygo/ui"
 
@@ -26,6 +27,16 @@ func (a *App) lookAndBehaviourOpts(c *ui.Context, cfg *config.Config, changed fu
 	p := design.Of(c)
 	w := &cfg.Window
 	a.compactPickers(c, p, w, changed) // one family of single-row pickers everywhere
+	signedInDesc := T("look.signedIn.on")
+	if cfg.WebView.Incognito {
+		signedInDesc = T("look.signedIn.off")
+	}
+	anyRow := a.settingMatch(T("look.signedIn"), signedInDesc) || a.settingMatch(T("look.links"), T("look.links.desc")) ||
+		a.settingMatch(T("look.notifications"), T("look.notifications.desc")) || a.settingMatch(T("look.badge"), T("look.badge.desc")) ||
+		a.settingMatch(T("look.tray"), T("look.tray.desc")) || (account != nil && a.settingMatch(T("look.account"), T("look.account.desc")))
+	if !anyRow {
+		return
+	}
 	ui.Column(c).Gap(18).Children(func() {
 		// Behaviour.
 		kit.GroupBox(c).Children(func() {
@@ -34,7 +45,7 @@ func (a *App) lookAndBehaviourOpts(c *ui.Context, cfg *config.Config, changed fu
 			if !signedIn {
 				desc = T("look.signedIn.off")
 			}
-			kit.SettingIconRow(c.Key("si"), icons.Person, ui.Color{}, T("look.signedIn"), desc, func() {
+			a.lookRow(c.Key("si"), icons.Person, ui.Color{}, T("look.signedIn"), desc, func() {
 				old := signedIn
 				kit.Switch(c.Key("sw-si"), &signedIn, T("look.signedIn"))
 				if signedIn != old {
@@ -43,8 +54,7 @@ func (a *App) lookAndBehaviourOpts(c *ui.Context, cfg *config.Config, changed fu
 				}
 			})
 			ext := cfg.WebView.Navigation.ExternalByDefault == nil || *cfg.WebView.Navigation.ExternalByDefault
-			row := kit.SettingIconRow
-			row(c.Key("ln"), icons.Link, ui.Color{}, T("look.links"), T("look.links.desc"), func() {
+			a.lookRow(c.Key("ln"), icons.Link, ui.Color{}, T("look.links"), T("look.links.desc"), func() {
 				v := "browser"
 				if !ext {
 					v = "app"
@@ -63,7 +73,7 @@ func (a *App) lookAndBehaviourOpts(c *ui.Context, cfg *config.Config, changed fu
 			})
 			tray := cfg.Native.Tray
 			notif := cfg.Native.NotificationsMode()
-			kit.SettingIconRow(c.Key("nt"), icons.Bell, ui.Color{}, T("look.notifications"), T("look.notifications.desc"), func() {
+			a.lookRow(c.Key("nt"), icons.Bell, ui.Color{}, T("look.notifications"), T("look.notifications.desc"), func() {
 				v := notif
 				kit.PopUp(c.Key("pp-nt"), &v, []kit.Option{{Value: "allow", Label: T("look.notifications.allow")},
 					{Value: "ask", Label: T("look.notifications.ask")}, {Value: "deny", Label: T("look.notifications.off")}}, T("look.notifications")).Width(96)
@@ -73,7 +83,7 @@ func (a *App) lookAndBehaviourOpts(c *ui.Context, cfg *config.Config, changed fu
 				}
 			})
 			badge := cfg.Native.BadgeMode() != "off"
-			kit.SettingIconRow(c.Key("bd"), icons.Message, ui.Color{}, T("look.badge"), T("look.badge.desc"), func() {
+			a.lookRow(c.Key("bd"), icons.Message, ui.Color{}, T("look.badge"), T("look.badge.desc"), func() {
 				on := badge
 				kit.Switch(c.Key("sw-bd"), &on, T("look.badge"))
 				if on != badge {
@@ -81,7 +91,7 @@ func (a *App) lookAndBehaviourOpts(c *ui.Context, cfg *config.Config, changed fu
 					changed()
 				}
 			})
-			kit.SettingIconRow(c.Key("tr"), icons.Layers, ui.Color{}, T("look.tray"), T("look.tray.desc"), func() {
+			a.lookRow(c.Key("tr"), icons.Layers, ui.Color{}, T("look.tray"), T("look.tray.desc"), func() {
 				kit.Switch(c.Key("sw-tr"), &tray, T("look.tray"))
 				if tray != cfg.Native.Tray {
 					cfg.Native.Tray, w.HideOnClose = tray, tray
@@ -92,7 +102,7 @@ func (a *App) lookAndBehaviourOpts(c *ui.Context, cfg *config.Config, changed fu
 				}
 			})
 			if account != nil {
-				row(c.Key("ac"), icons.Person, ui.Color{}, T("look.account"), T("look.account.desc"), func() {
+				a.lookRow(c.Key("ac"), icons.Person, ui.Color{}, T("look.account"), T("look.account.desc"), func() {
 					kit.TextField(c.Key("tf-ac"), account, T("look.account"), kit.FieldOpts{Placeholder: T("look.account.placeholder")}).Width(150)
 				})
 			}
@@ -216,7 +226,7 @@ func (a *App) compactPickers(c *ui.Context, p *design.Palette, w *config.WindowC
 	inner := a.inspectorWidth() - 40 - 2 // its padding, and a hair for rounding
 	slot := (inner - 3*gap) / 4
 	ui.Column(c).Gap(16).Children(func() {
-		pickerRow(c, T("look.titleBar"), func() {
+		a.pickerRowIf(c, T("look.titleBar"), func() {
 			seamless := w.TitleBarStyle == "overlay" || w.TitleBarStyle == "hidden"
 			tw, th := slot-6, (slot-6)*aspect
 			if kit.ChoiceTileSmall(c.Key("tb-std"), T("look.titleBar.standard"), "", !seamless, slot, aspect, func() { windowThumb(c, p, false, tw, th) }) {
@@ -228,7 +238,7 @@ func (a *App) compactPickers(c *ui.Context, p *design.Palette, w *config.WindowC
 				changed()
 			}
 		})
-		pickerRow(c, T("set.appearance"), func() {
+		a.pickerRowIf(c, T("set.appearance"), func() {
 			cur := w.DarkMode
 			if cur == "" {
 				cur = "system"
@@ -242,7 +252,7 @@ func (a *App) compactPickers(c *ui.Context, p *design.Palette, w *config.WindowC
 				}
 			}
 		})
-		pickerRow(c, T("look.size"), func() {
+		a.pickerRowIf(c, T("look.size"), func() {
 			tw, th := slot-6, (slot-6)*aspect
 			for _, sp := range sizePresets {
 				sp := sp
@@ -261,6 +271,47 @@ func (a *App) compactPickers(c *ui.Context, p *design.Palette, w *config.WindowC
 			}
 		})
 	})
+}
+
+// ---- Searching the inspector -------------------------------------------------
+
+// settingMatch reports whether a setting's texts match the inspector's
+// search (everything matches when it's empty).
+func (a *App) settingMatch(texts ...string) bool {
+	q := strings.ToLower(strings.TrimSpace(a.settingsQ))
+	if q == "" {
+		return true
+	}
+	for _, t := range texts {
+		if strings.Contains(strings.ToLower(t), q) {
+			return true
+		}
+	}
+	return false
+}
+
+// settingHit is settingMatch that also counts the hit, for the search's
+// empty state.
+func (a *App) settingHit(texts ...string) bool {
+	ok := a.settingMatch(texts...)
+	if ok && a.settingsQ != "" {
+		a.settingHits++
+	}
+	return ok
+}
+
+// lookRow is a Look & Behaviour row, shown while it matches the search.
+func (a *App) lookRow(c *ui.Context, ic *ui.SVG, tint ui.Color, label, desc string, control func()) {
+	if a.settingHit(label, desc) {
+		kit.SettingIconRow(c, ic, tint, label, desc, control)
+	}
+}
+
+// pickerRowIf is a pickerRow shown while its title matches the search.
+func (a *App) pickerRowIf(c *ui.Context, title string, body func()) {
+	if a.settingHit(title) {
+		pickerRow(c, title, body)
+	}
 }
 
 // pickerRow is a captioned single row of small tiles.
