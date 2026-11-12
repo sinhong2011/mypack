@@ -72,7 +72,7 @@ func TestProjectBuildValidation(t *testing.T) {
 
 func TestNativeAndUAPresetDefaults(t *testing.T) {
 	c := New("Mail", Source{Type: SourceURL, Value: "https://mail.example.com"}, Target{OS: "darwin", Arch: "arm64"})
-	if c.Runtime.Version != DefaultRuntimeVersion || DefaultRuntimeVersion != "1.0.8" {
+	if c.Runtime.Version != DefaultRuntimeVersion || DefaultRuntimeVersion != "1.0.9" {
 		t.Fatalf("runtime version = %q", c.Runtime.Version)
 	}
 	if c.Native.NotificationsMode() != "allow" || c.Native.BadgeMode() != "auto" || !c.Native.LinkRoutingEnabled() {
@@ -396,5 +396,23 @@ func TestGlassTitleBar(t *testing.T) {
 	c.Window.TitleBarStyle = "overlay"
 	if got := c.MinRuntime(); got != "" {
 		t.Fatalf("seamless needs no newer runtime, got %q", got)
+	}
+}
+
+// The installer bundles DefaultRuntimeVersion. A feature that needs a newer
+// runtime makes every project using it download one on first build, even on
+// a fresh install, so the default must keep up with MinRuntime.
+func TestDefaultRuntimeCoversEveryFeature(t *testing.T) {
+	host := Target{OS: "darwin", Arch: "arm64"}
+	for name, on := range map[string]func(*Config){
+		"glass":   func(c *Config) { c.Window.TitleBarStyle = "glass" },
+		"tabs":    func(c *Config) { c.Window.Tabs = true },
+		"menuBar": func(c *Config) { c.Window.Mode = ModeMenuBar },
+	} {
+		c := New("Docs", Source{Type: SourceURL, Value: "https://docs.example.com"}, host)
+		on(c)
+		if min := c.MinRuntime(); min == "" || !RuntimeAtLeast(DefaultRuntimeVersion, min) {
+			t.Errorf("%s needs runtime %q, newer than DefaultRuntimeVersion %s: bump it and publish that runtime", name, min, DefaultRuntimeVersion)
+		}
 	}
 }

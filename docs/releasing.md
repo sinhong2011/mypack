@@ -176,10 +176,10 @@ That Release holds `registry.json`, its signature `registry.json.sig`, and every
 
 **Signing key.** Mypack trusts a manifest only when it is signed with a key it knows. The production public key is committed in `internal/runtimemanager/registry.pub` and built into every binary with `go:embed`, so installers made with `mygo build` (which takes no `-ldflags`) trust it too. The private key exists only in the `REGISTRY_SIGNING_KEY` Actions secret and in your password manager. Never commit it.
 
-**Publishing a runtime version.** Bump `DefaultRuntimeVersion` in `pkg/config/config.go` if needed, then run the workflow before you tag an app release that asks for that version:
+**Publishing a runtime version.** Bump `DefaultRuntimeVersion` in `pkg/config/config.go` whenever `Config.MinRuntime()` asks for a newer runtime (`TestDefaultRuntimeCoversEveryFeature` fails until you do), or the installer bundles a runtime too old for that feature and its projects download one on first build. Then run the workflow before you tag an app release that asks for that version:
 
 ```sh
-gh workflow run runtimes.yml -f version=1.0.8
+gh workflow run runtimes.yml -f version=1.0.9
 ```
 
 The workflow builds every target on macOS (for the universal binary), downloads the current `registry.json`, adds the new version to it (`signregistry registry -flat -merge`, so older versions stay listed), signs it with the next sequence number, checks that the key matches `registry.pub`, and uploads the archives, then the manifest. A version that is already on the Release is refused: archives are immutable. The manifest expires 365 days after it is signed, so publish a runtime version at least once a year.

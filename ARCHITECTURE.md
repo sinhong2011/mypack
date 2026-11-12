@@ -96,7 +96,7 @@ before the first page loads (the engine caches the compiled list across launches
 it through `pageOptionsIn`. The list is not EasyList, whose licence would carry over to generated apps.
 
 Feature pins: `Config.MinRuntime()` is the earliest runtime a config's features need (window modes and groups 1.0.6,
-blocking 1.0.7, tabs 1.0.8), and `ApplyDefaults` raises a lower `runtime.version` to it, so turning a feature on in an existing
+blocking 1.0.7, tabs 1.0.8, Glass title bar 1.0.9), and `ApplyDefaults` raises a lower `runtime.version` to it, so turning a feature on in an existing
 project never builds an app that quietly lacks it. Pins are never lowered.
 
 ## Tabs (1.0.8)
