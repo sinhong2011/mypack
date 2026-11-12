@@ -11,6 +11,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/egoist/mygo"
+
 	"mypack.dev/mypack/internal/appservice"
 	"mypack.dev/mypack/internal/cli"
 	"mypack.dev/mypack/internal/desktop/app"
@@ -18,6 +20,7 @@ import (
 )
 
 func main() {
+	useAppVersion()
 	if isCLI(os.Args[1:]) {
 		os.Exit(cli.Run(os.Args[1:], os.Stdout, os.Stderr))
 	}
@@ -55,4 +58,16 @@ func isCLI(args []string) bool {
 		return true
 	}
 	return false
+}
+
+// useAppVersion takes the version mygo build links into the app (mygo.json,
+// set from the release tag) when no -ldflags -X stamped one: the installers
+// are built by mygo build, which takes no ldflags of ours.
+func useAppVersion() {
+	if !strings.HasSuffix(cli.Version, "-dev") {
+		return
+	}
+	if v := mygo.App.Version(); v != "" && !strings.HasSuffix(v, "-dev") {
+		cli.Version, app.Version = v, v
+	}
 }
