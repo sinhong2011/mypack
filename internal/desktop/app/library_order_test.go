@@ -43,8 +43,9 @@ func TestFilterCounts(t *testing.T) {
 		{id: "c", tone: kit.ToneWarning},
 		{id: "d", tone: kit.ToneNeutral, draft: true},
 		{id: "e", tone: kit.ToneDanger, draft: true},
+		{id: "g", tone: kit.ToneNeutral, draft: true, group: true}, // on the Groups shelf, not Not Installed
 	}
-	if got, want := filterCounts(es), [4]int{5, 1, 3, 2}; got != want {
+	if got, want := filterCounts(es), [4]int{6, 1, 3, 2}; got != want {
 		t.Errorf("counts %v, want %v", got, want)
 	}
 	if got := ids(keep(es, filterAttention)); !slices.Equal(got, []string{"b", "c", "e"}) {

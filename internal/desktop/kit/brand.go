@@ -281,6 +281,45 @@ func AppIconOpts(c *ui.Context, png []byte, name string, size float32, o IconOpt
 	return box.AccessHidden(true)
 }
 
+// GroupMember is one site's icon in a group's mosaic.
+type GroupMember struct {
+	PNG  []byte
+	Name string
+}
+
+// GroupIcon is a group of websites: a frosted tile holding up to four of
+// its sites' icons in a 2×2 grid (a folder on the home screen), so a group
+// never passes for one of its own apps.
+func GroupIcon(c *ui.Context, members []GroupMember, size float32, o IconOpts) ui.Element {
+	p := design.Of(c)
+	r := design.AppIconRadius(size)
+	if len(members) > 4 {
+		members = members[:4]
+	}
+	pad := size * 0.14
+	gap := size * 0.07
+	cell := (size - 2*pad - gap) / 2
+	box := ui.Box(c).Size(size, size).Shrink(0).Radius(r).Background(p.Fill.Over(p.Raised)).Border(0.5, p.BorderStrong)
+	if o.Shadow {
+		IconShadow(c, box, size)
+	}
+	// One row (two sites) sits in the middle, not along the top.
+	top := pad
+	if len(members) <= 2 {
+		top = (size - cell) / 2
+	}
+	box.Children(func() {
+		for i, m := range members {
+			x := pad + float32(i%2)*(cell+gap)
+			y := top + float32(i/2)*(cell+gap)
+			ui.Box(c.Key(i)).Absolute().Left(x).Top(y).Size(cell, cell).Children(func() {
+				AppIconOpts(c, m.PNG, m.Name, cell, IconOpts{})
+			})
+		}
+	})
+	return box.AccessHidden(true)
+}
+
 var placeholderGradients = [][2]ui.Color{
 	{ui.RGB(102, 157, 255), ui.RGB(40, 92, 232)},
 	{ui.RGB(156, 128, 255), ui.RGB(98, 60, 222)},

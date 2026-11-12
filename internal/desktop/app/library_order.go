@@ -44,6 +44,7 @@ type libEntry struct {
 	modified time.Time
 	update   bool // an installed app with an update
 	draft    bool // a project with no installed app
+	group    bool // a group of websites: shelved under Groups, installed or not
 }
 
 // toneRank puts what needs the user first when sorting by status.
@@ -71,7 +72,9 @@ func (e libEntry) matches(f libFilter) bool {
 	case filterAttention:
 		return e.needsAttention()
 	case filterDrafts:
-		return e.draft
+		// The Not Installed chip counts what the Not Installed section
+		// shows: a group not installed yet stays on the Groups shelf.
+		return e.draft && !e.group
 	}
 	return true
 }

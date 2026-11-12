@@ -49,7 +49,9 @@ func (a *App) runtimesView(c *ui.Context) {
 			}{
 				{T("runtimes.storage.runtimes"), st.RuntimeCache, p.Accent},
 				{T("runtimes.storage.builds"), st.Artifacts, design.Blue[3]},
-				{T("runtimes.storage.data"), st.Profiles, p.TextTertiary},
+				// A third step of the brand ramp, never grey: grey reads as
+				// the empty track, so the bar looked unfilled.
+				{T("runtimes.storage.data"), st.Profiles, design.Blue[9]},
 			}
 			ui.Row(c).Height(16).Radius(8).Clip().Background(p.Fill).Gap(2).AlignItems(ui.Stretch).Children(func() {
 				for i, s := range cols {

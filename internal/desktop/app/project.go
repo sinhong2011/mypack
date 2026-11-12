@@ -149,10 +149,17 @@ func (a *App) projectToolbar(c *ui.Context) {
 	if j := a.latestJob(pr.ID); j != nil && (j.Status == domain.JobRunning || j.Status == domain.JobQueued || j.Status == domain.JobAwaitingApproval) {
 		busy = true
 	}
-	// On Settings the Build action sits under the preview.
-	if a.projTab == 0 && kit.Button(c.Key("build"), T("action.build"), kit.ButtonOpts{Variant: kit.Primary, Size: design.ToolbarControl, Icon: icons.Build,
-		Disabled: busy, Hotkey: "mod+b"}).Clicked() {
+	// Build stays in the bar on both tabs: the bar never reflows when the
+	// tab changes (the tab indicator used to slide in from where the tabs
+	// had been), and the page's primary action is always in one place.
+	label := T("action.build")
+	if pr.LastBuild != nil {
+		label = T("action.rebuild")
+	}
+	if kit.Button(c.Key("build"), label, kit.ButtonOpts{Variant: kit.Primary, Size: design.ToolbarControl, Icon: icons.Build,
+		Disabled: busy, Loading: busy, Hotkey: "mod+b"}).Clicked() {
 		a.startBuild(pr.ID, nil)
+		a.projTab = 0 // the build's progress shows on Overview
 	}
 	kit.ToolbarIcon(c.Key("more"), icons.More, T("common.more")).Menu(func(m *ui.Menu) { a.projectMenu(m, pr) })
 }
@@ -234,14 +241,9 @@ func (a *App) projectOverview(c *ui.Context, pr *domain.Project, p *design.Palet
 	// Installation.
 	if in := a.installFor(pr.ID); in != nil {
 		kit.Group(c, T("project.installed"), func() {
-			kit.SettingIconRow(c, icons.Folder, ui.Color{}, T("app.location"), in.Path, func() {
-				if kit.Button(c.Key("reveal"), T("action.reveal"), kit.ButtonOpts{Size: design.ControlSM}).Clicked() {
-					a.reveal(in.Path)
-				}
-				if kit.Button(c.Key("open"), T("action.open"), kit.ButtonOpts{Size: design.ControlSM}).Clicked() {
-					a.openInstall(in.ID)
-				}
-			})
+			// Open and Show in Finder live on the hero above; the row only
+			// says where the app is.
+			kit.SettingIconRow(c, icons.Folder, ui.Color{}, T("app.location"), in.Path, nil)
 			if in.UpdateReason != "" {
 				kit.SettingIconRow(c, icons.ArrowUp, p.Accent, T("myapps.update.title"), in.UpdateReason, func() {
 					if kit.Button(c.Key("upd"), T("action.reviewUpdate"), kit.ButtonOpts{Variant: kit.Primary, Size: design.ControlSM}).Clicked() {
@@ -273,16 +275,14 @@ func (a *App) projectOverview(c *ui.Context, pr *domain.Project, p *design.Palet
 		})
 	}
 	if len(hist) > 0 {
-		ui.Column(c).Gap(8).Children(func() {
-			ui.Text(c, T("project.history")).FontSize(design.FontBody).FontWeight(design.WeightSemibold).TextColor(p.Text).Padding(0, 4).Role(ui.RoleHeading)
-			kit.GroupBox(c).Children(func() {
-				for i, hj := range hist {
-					if i >= 6 {
-						break
-					}
-					a.jobRow(c.Key(hj.ID), hj, false, i)
+		// Same eyebrow-over-box as Installed, so the page has one heading style.
+		kit.Group(c, T("project.history"), func() {
+			for i, hj := range hist {
+				if i >= 6 {
+					break
 				}
-			})
+				a.jobRow(c.Key(hj.ID), hj, false, i)
+			}
 		})
 	}
 }
@@ -373,32 +373,40 @@ func (a *App) projectBento(c *ui.Context, pr *domain.Project) {
 				if kit.Button(c.Key("launch"), label, kit.ButtonOpts{Variant: kit.Primary, Size: design.ControlLG, Icon: ic}).Clicked() {
 					run()
 				}
-				if j := a.lastSuccess(pr.ID); j != nil && len(j.Artifacts) > 0 {
-					path := j.Artifacts[0].Path
+				// Show in Finder: the installed app when there is one, else
+				// the latest build.
+				path := ""
+				if in := a.installFor(pr.ID); in != nil && in.State != domain.InstallMissing {
+					path = in.Path
+				} else if j := a.lastSuccess(pr.ID); j != nil && len(j.Artifacts) > 0 {
+					path = j.Artifacts[0].Path
+				}
+				if path != "" {
 					if kit.Button(c.Key("reveal"), T("action.showInFinder"), kit.ButtonOpts{Size: design.ControlLG, Icon: icons.Folder}).Clicked() {
 						a.reveal(path)
 					}
 				}
 			})
 		})
-		stat := func(i int, key, label, value string, numeric bool, extra func()) {
+		stat := func(i int, key, label, value string, numeric bool, dot *ui.Color) {
 			t := tile(key)
 			t.Children(func() {
 				kit.Eyebrow(c, label)
-				v := ui.Text(c, value).FontSize(design.FontTitle1).FontWeight(design.WeightSemibold).TextColor(p.Text).
-					LetterSpacing(design.TrackTitle).SingleLine()
-				if numeric {
-					v.FontFeatures("tnum")
-				}
-				if extra != nil {
-					extra()
-				}
+				// A status dot sits beside its word, read as one.
+				ui.Row(c).Gap(8).AlignItems(ui.Center).MinWidth(0).Children(func() {
+					if dot != nil {
+						ui.Box(c).Size(8, 8).Radius(4).Background(*dot).Shrink(0)
+					}
+					v := ui.Text(c, value).FontSize(design.FontTitle1).FontWeight(design.WeightSemibold).TextColor(p.Text).
+						LetterSpacing(design.TrackTitle).SingleLine().MinWidth(0)
+					if numeric {
+						v.FontFeatures("tnum")
+					}
+				})
 			})
 		}
-		stat(1, "status", T("list.col.status"), st, false, func() {
-			fg, _ := kit.ToneColors(p, tone)
-			ui.Box(c).Absolute().Top(18).Right(18).Size(8, 8).Radius(4).Background(fg)
-		})
+		fg, _ := kit.ToneColors(p, tone)
+		stat(1, "status", T("list.col.status"), st, false, &fg)
 		stat(2, "size", T("builds.size"), size, true, nil)
 		stat(3, "runtime", T("app.runtime"), runtime, true, nil)
 		stat(4, "built", T("project.bento.built"), built, false, nil)
@@ -420,28 +428,16 @@ func (a *App) projectSettingsView(c *ui.Context, pr *domain.Project) {
 				ui.Text(c, domainOf(pr.Config.App.Source)).FontSize(design.FontSmall).TextColor(p.TextSecondary).SingleLine()
 			})
 			a.saveIndicator(c, ed).Margin(10, 0, 0, 0)
-			// Actions under the preview: Build, and Open when installed.
-			busy := false
-			if j := a.latestJob(pr.ID); j != nil && (j.Status == domain.JobRunning || j.Status == domain.JobQueued || j.Status == domain.JobAwaitingApproval) {
-				busy = true
-			}
-			ui.Row(c).Gap(6).AlignItems(ui.Center).Margin(18, 0, 0, 0).Children(func() {
-				label := T("action.build")
-				if pr.LastBuild != nil {
-					label = T("action.rebuild")
-				}
-				if kit.Button(c.Key("build"), label, kit.ButtonOpts{Variant: kit.Primary, Size: design.ControlLG, Icon: icons.Build,
-					Disabled: busy, Loading: busy}).Clicked() {
-					a.startBuild(pr.ID, nil)
-					a.projTab = 0
-				}
-				if in := a.installFor(pr.ID); in != nil {
-					id := in.ID
-					if kit.Button(c.Key("links"), T("action.open"), kit.ButtonOpts{Variant: kit.Ghost, Size: 26}).FontWeight(design.WeightRegular).Clicked() {
+			// Build is in the bar above; under the preview, Open the
+			// installed app to try a change.
+			if in := a.installFor(pr.ID); in != nil && in.State != domain.InstallMissing {
+				id := in.ID
+				ui.Row(c).Gap(6).AlignItems(ui.Center).Margin(18, 0, 0, 0).Children(func() {
+					if kit.Button(c.Key("links"), T("action.open"), kit.ButtonOpts{Size: design.ControlLG, Icon: icons.Play}).Clicked() {
 						a.openInstall(id)
 					}
-				}
-			})
+				})
+			}
 			a.appDockPreview(c, pr.IconPNG, ed.cfg.App.Name)
 		})
 	}, func() {

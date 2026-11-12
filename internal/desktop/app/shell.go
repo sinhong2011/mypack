@@ -296,7 +296,9 @@ func (a *App) toolbar(c *ui.Context) {
 			}
 		case a.section == secProject || a.section == secCreate:
 			// The project's own Build is the primary here.
-			if kit.ToolbarIcon(c.Key("tb-build"), icons.Plus, T("menu.newApp")).Clicked() {
+			// The project's Build is the primary here, so New App is a
+			// quiet button, but still says what it does.
+			if kit.Button(c.Key("tb-build"), T("menu.newApp"), kit.ButtonOpts{Variant: kit.Ghost, Size: design.ToolbarControl, Icon: icons.Plus}).Clicked() {
 				a.newApp()
 			}
 		default:
@@ -329,6 +331,7 @@ func (a *App) toolbarTitle(c *ui.Context) {
 		}
 	case secDiscover:
 		title = T("nav.discover")
+		sub = T("group.sites", "n", len(templates))
 	case secBuilds:
 		title = T("nav.builds")
 		sub = T("builds.count", "count", len(a.jobs))

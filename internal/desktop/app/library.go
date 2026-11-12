@@ -93,6 +93,7 @@ func (a *App) libraryEntries() (apps, groups, drafts []libEntry) {
 		e := libEntry{id: in.ID, name: in.Name, tone: tone, modified: in.LastManagedAt,
 			update: in.State != domain.InstallExternal && in.UpdateReason != ""}
 		if a.installIsGroup(in) {
+			e.group = true
 			groups = append(groups, e)
 		} else {
 			apps = append(apps, e)
@@ -108,8 +109,8 @@ func (a *App) libraryEntries() (apps, groups, drafts []libEntry) {
 		if pr.LastBuild != nil && pr.LastBuild.After(mod) {
 			mod = *pr.LastBuild
 		}
-		e := libEntry{id: pr.ID, name: pr.Config.App.Name, tone: tone, modified: mod, draft: true}
-		if pr.Config.IsGroup() {
+		e := libEntry{id: pr.ID, name: pr.Config.App.Name, tone: tone, modified: mod, draft: true, group: pr.Config.IsGroup()}
+		if e.group {
 			groups = append(groups, e)
 		} else {
 			drafts = append(drafts, e)
@@ -253,6 +254,22 @@ func (a *App) libraryView(c *ui.Context) {
 		if len(drafts) > 0 {
 			l.nav.secs = append(l.nav.secs, ids(drafts))
 		}
+		// A shelf sits closer to its own heading than to the shelf above:
+		// grid tiles carry their own top padding, so their heading needs
+		// little gap, and every shelf after the first gets extra room.
+		shelves := 0
+		shelf := func() ui.Element {
+			gap := float32(14)
+			if l.view == 0 {
+				gap = 2
+			}
+			col := ui.Column(c).Gap(gap)
+			if shelves > 0 {
+				col.Margin(12, 0, 0, 0)
+			}
+			shelves++
+			return col
+		}
 		item := func(e libEntry, grid bool, i int) {
 			if e.draft {
 				if pr := a.project(e.id); pr != nil {
@@ -263,7 +280,7 @@ func (a *App) libraryView(c *ui.Context) {
 			}
 		}
 		if showApps {
-			ui.Column(c).Gap(14).Children(func() {
+			shelf().Children(func() {
 				header(T("library.tab.myApps"), countLabel(len(apps)), false)
 				if len(apps) == 0 && l.query == "" && l.filter == filterAll && len(groups) == 0 {
 					a.noApps(c)
@@ -274,14 +291,14 @@ func (a *App) libraryView(c *ui.Context) {
 			shown += len(apps)
 		}
 		if showGroups {
-			ui.Column(c).Gap(14).Children(func() {
+			shelf().Children(func() {
 				header(T("library.tab.groups"), countLabel(len(groups)), true)
 				a.collection(c, len(groups), false, func(i int, grid bool) { item(groups[i], grid, i) })
 			})
 			shown += len(groups)
 		}
 		if len(drafts) > 0 {
-			ui.Column(c).Gap(14).Children(func() {
+			shelf().Children(func() {
 				header(T("library.tab.projects"), countLabel(len(drafts)), false)
 				a.collection(c, len(drafts), ghost && !showApps, func(i int, grid bool) { item(drafts[i], grid, i) })
 			})
@@ -412,6 +429,7 @@ func (a *App) ghostTile(c *ui.Context, size float32) {
 // tileData is what a library tile or row shows.
 type tileData struct {
 	icon     []byte
+	members  []kit.GroupMember // a group's sites, drawn as a mosaic
 	name     string
 	domain   string
 	status   string
@@ -429,6 +447,52 @@ type tileData struct {
 	action     string
 	actionIcon *ui.SVG
 	run        func()
+}
+
+// iconArt draws the tile's icon: a group's mosaic, or the app's own.
+func (d tileData) iconArt(c *ui.Context, size float32, o kit.IconOpts) ui.Element {
+	if len(d.members) > 0 {
+		return kit.GroupIcon(c, d.members, size, o)
+	}
+	return kit.AppIconOpts(c, d.icon, d.name, size, o)
+}
+
+// groupMembers are a group's sites for its mosaic, in the group's order.
+func (a *App) groupMembers(cfg *config.Config) []kit.GroupMember {
+	if cfg == nil || !cfg.IsGroup() {
+		return nil
+	}
+	var out []kit.GroupMember
+	for _, m := range cfg.App.Group.Members {
+		out = append(out, kit.GroupMember{PNG: a.memberIcon(m), Name: m.Name})
+	}
+	return out
+}
+
+// memberIcon finds a group member's icon: the project it was made from,
+// the icon fetched when its address was pasted, or a Library app on the
+// same site. Nil draws its initial.
+func (a *App) memberIcon(m config.GroupMember) []byte {
+	if pr := a.project(m.ProjectID); pr != nil && len(pr.IconPNG) > 0 {
+		return pr.IconPNG
+	}
+	if m.IsLocal() {
+		return a.letterIcon(m.Name)
+	}
+	if b := a.siteIcons[m.URL]; len(b) > 0 {
+		return b
+	}
+	dom := strings.TrimPrefix(domainOf(config.Source{Type: config.SourceURL, Value: m.URL}), "www.")
+	if dom == "" {
+		return nil
+	}
+	for i := range a.projects {
+		pr := &a.projects[i]
+		if !pr.Config.IsGroup() && len(pr.IconPNG) > 0 && strings.TrimPrefix(domainOf(pr.Config.App.Source), "www.") == dom {
+			return pr.IconPNG
+		}
+	}
+	return nil
 }
 
 // tile is an app floating on the canvas: its icon over a soft glow in its
@@ -463,11 +527,11 @@ func (a *App) tile(c *ui.Context, d tileData) (open bool) {
 		holder.Children(func() {
 			if d.busy {
 				kit.ProgressRing(c, size+12, 3, d.progress, p.Accent, p.Fill).Absolute().Top(-6).Left(-6).Center().Children(func() {
-					kit.AppIconOpts(c, d.icon, d.name, size-12, kit.IconOpts{Shadow: true})
+					d.iconArt(c, size-12, kit.IconOpts{Shadow: true})
 				})
 				return
 			}
-			kit.AppIconOpts(c, d.icon, d.name, size, kit.IconOpts{Shadow: true})
+			d.iconArt(c, size, kit.IconOpts{Shadow: true})
 			if focused {
 				// Keyboard focus: an underline under the icon, no ring.
 				ui.Box(c.Key("focus")).Absolute().Left(size * 0.3).Right(size * 0.3).Bottom(-6).Height(1.5).Radius(0.75).
@@ -531,7 +595,7 @@ func (a *App) row(c *ui.Context, d tileData, i int) (open bool) {
 	b.Children(func() {
 		ui.Row(c).Grow(1).Basis(0).MinWidth(0).Gap(10).AlignItems(ui.Center).Children(func() {
 			ui.Box(c).Size(listIcon, listIcon).Shrink(0).Children(func() {
-				kit.AppIconOpts(c, d.icon, d.name, listIcon, kit.IconOpts{})
+				d.iconArt(c, listIcon, kit.IconOpts{})
 			})
 			ui.Column(c).MinWidth(0).Gap(0).Children(func() {
 				ui.Text(c, d.name).FontSize(design.FontBody).FontWeight(design.WeightMedium).TextColor(p.Text).SingleLine()
@@ -645,10 +709,12 @@ func (a *App) projectItem(c *ui.Context, pr *domain.Project, grid bool, i int) {
 	}
 	prc := *pr
 	site := domainOf(pr.Config.App.Source)
+	var members []kit.GroupMember
 	if pr.Config.IsGroup() {
 		site = groupLine(pr.Config)
+		members = a.groupMembers(pr.Config)
 	}
-	d := tileData{icon: pr.IconPNG, name: pr.Config.App.Name, domain: site, status: st, tone: tone, busy: busy,
+	d := tileData{icon: pr.IconPNG, members: members, name: pr.Config.App.Name, domain: site, status: st, tone: tone, busy: busy,
 		version: pr.Config.App.Version, modified: meta, menu: func(m *ui.Menu) { a.projectMenu(m, &prc) }, idx: i, pid: pr.ID, key: pr.ID}
 	if busy {
 		d.progress = -1
@@ -691,10 +757,12 @@ func (a *App) installStatus(in *domain.Installation) (string, kit.Tone) {
 func (a *App) appItem(c *ui.Context, in domain.Installation, grid bool, i int) {
 	st, tone := a.installStatus(&in)
 	site := a.installDomain(&in)
+	var members []kit.GroupMember
 	if pr := a.project(in.ProjectID); pr != nil && pr.Config.IsGroup() {
 		site = groupLine(pr.Config)
+		members = a.groupMembers(pr.Config)
 	}
-	d := tileData{icon: in.IconPNG, name: in.Name, domain: site, status: st, tone: tone,
+	d := tileData{icon: in.IconPNG, members: members, name: in.Name, domain: site, status: st, tone: tone,
 		version: in.Version, modified: ago(in.LastManagedAt), menu: func(m *ui.Menu) { a.appMenu(m, in) }, idx: i, pid: in.ProjectID, key: in.ID}
 	switch {
 	case in.State == domain.InstallExternal:

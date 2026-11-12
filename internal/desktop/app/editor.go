@@ -138,8 +138,8 @@ func validationText(err error) string {
 // saveIndicator is the quiet save-state pill under the app's name.
 func (a *App) saveIndicator(c *ui.Context, ed *editorState) ui.Element {
 	p := design.Of(c)
-	pill := ui.Row(c).Height(24).Padding(0, 11, 0, 9).Gap(6).AlignItems(ui.Center).Radius(12).
-		Background(p.Fill).Border(0.5, p.Border).Role(ui.RoleStatus)
+	// Plain status text, never a filled pill: a pill reads as a button.
+	pill := ui.Row(c).Height(24).Gap(6).AlignItems(ui.Center).Role(ui.RoleStatus)
 	return pill.Children(func() {
 		switch {
 		case ed.saveErr != "":

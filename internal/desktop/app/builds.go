@@ -23,22 +23,38 @@ func (a *App) buildsView(c *ui.Context) {
 		b.expanded = map[string]bool{}
 	}
 	page(c, func() {
-		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-			kit.Segmented(c.Key("filter"), &b.filter, []string{T("builds.filter.all"), T("builds.filter.active"), T("builds.filter.failed")}, false).Label(T("builds.filter.label"))
-		})
-		var list []domain.BuildJob
+		// The same counted chips as the Library's filters; an empty one
+		// is left out, and a filter left empty goes back to All.
+		var n [3]int
 		for _, j := range a.jobs {
-			switch b.filter {
-			case 1:
-				if j.Status != domain.JobRunning && j.Status != domain.JobQueued && j.Status != domain.JobAwaitingApproval {
-					continue
-				}
-			case 2:
-				if j.Status != domain.JobFailed {
-					continue
+			for f := 0; f < 3; f++ {
+				if jobMatches(j, f) {
+					n[f]++
 				}
 			}
-			list = append(list, j)
+		}
+		if b.filter != 0 && n[b.filter] == 0 {
+			b.filter = 0
+		}
+		labels := [3]string{T("builds.filter.all"), T("builds.filter.active"), T("builds.filter.failed")}
+		if n[1]+n[2] > 0 {
+			ui.Row(c).Gap(6).AlignItems(ui.Center).Wrap().Role(ui.RoleRadioGroup).Label(T("builds.filter.label")).FocusGroup(ui.Horizontal).
+				Children(func() {
+					for f := 0; f < 3; f++ {
+						if f != 0 && n[f] == 0 {
+							continue
+						}
+						if filterChip(c.Key(f), labels[f], n[f], b.filter == f) {
+							b.filter = f
+						}
+					}
+				})
+		}
+		var list []domain.BuildJob
+		for _, j := range a.jobs {
+			if jobMatches(j, b.filter) {
+				list = append(list, j)
+			}
 		}
 		if len(list) == 0 {
 			kit.EmptyState(c, icons.Builds, T("builds.empty.title"), T("builds.empty.body"), nil)
@@ -53,20 +69,33 @@ func (a *App) buildsView(c *ui.Context) {
 	})
 }
 
-func buildCols(showProject bool) []kit.TableColumn {
-	name := T("list.col.name")
-	if !showProject {
-		name = T("list.col.status")
+// jobMatches reports whether a job shows under Builds filter f (All,
+// Running, Failed).
+func jobMatches(j domain.BuildJob, f int) bool {
+	switch f {
+	case 1:
+		return j.Status == domain.JobRunning || j.Status == domain.JobQueued || j.Status == domain.JobAwaitingApproval
+	case 2:
+		return j.Status == domain.JobFailed
 	}
-	cols := []kit.TableColumn{{Width: 18}, {Title: name}}
+	return true
+}
+
+// buildCols are the Builds table's columns. With the project shown, the
+// status icon sits in the Status column beside its word (one place for
+// status); in an app's own history the status is the row's name. Who
+// started a build is in the Started cell's tooltip, not a column of its own.
+func buildCols(showProject bool) []kit.TableColumn {
+	var cols []kit.TableColumn
 	if showProject {
-		cols = append(cols, kit.TableColumn{Title: T("list.col.status"), Width: 150})
+		cols = []kit.TableColumn{{Title: T("list.col.name")}, {Title: T("list.col.status"), Width: 150}}
+	} else {
+		cols = []kit.TableColumn{{Width: 18}, {Title: T("list.col.status")}}
 	}
 	return append(cols,
 		kit.TableColumn{Title: T("builds.col.targets"), Width: 150},
 		kit.TableColumn{Title: T("builds.col.duration"), Width: 64, End: true},
 		kit.TableColumn{Title: T("builds.col.started"), Width: 104, End: true},
-		kit.TableColumn{Title: T("builds.col.by"), Width: 48, End: true},
 		kit.TableColumn{Width: 14})
 }
 
@@ -100,13 +129,16 @@ func (a *App) jobRow(c *ui.Context, j domain.BuildJob, showProject bool, i int) 
 		row.Children(func() {
 			icon, tone, label := jobTone(j)
 			fg, _ := kit.ToneColors(p, tone)
-			ui.Row(c).Width(18).Shrink(0).Center().Children(func() {
+			glyph := func(size float32) {
 				if j.Status == domain.JobRunning || j.Status == domain.JobQueued {
-					kit.BuildingSpinner(c, 14, p.Accent)
-				} else {
-					kit.Glyph(c, icon, 16, fg)
+					kit.BuildingSpinner(c, size-2, p.Accent)
+				} else if icon != nil {
+					kit.Glyph(c, icon, size, fg)
 				}
-			})
+			}
+			if !showProject {
+				ui.Row(c).Width(18).Shrink(0).Center().Children(func() { glyph(16) })
+			}
 			ui.Row(c).Grow(1).Basis(0).MinWidth(0).Gap(8).AlignItems(ui.Center).Children(func() {
 				if showProject {
 					var png []byte
@@ -120,7 +152,10 @@ func (a *App) jobRow(c *ui.Context, j domain.BuildJob, showProject bool, i int) 
 				}
 			})
 			if showProject {
-				ui.Text(c, label).FontSize(design.FontSmall).TextColor(fg).SingleLine().Width(150).Shrink(0)
+				ui.Row(c).Width(150).Shrink(0).Gap(6).AlignItems(ui.Center).Children(func() {
+					glyph(14)
+					ui.Text(c, label).FontSize(design.FontSmall).TextColor(fg).SingleLine().MinWidth(0)
+				})
 			}
 			var ts []string
 			for _, t := range j.Targets {
@@ -132,8 +167,8 @@ func (a *App) jobRow(c *ui.Context, j domain.BuildJob, showProject bool, i int) 
 				dur = duration(j.FinishedAt.Sub(*j.StartedAt))
 			}
 			ui.Text(c, dur).FontSize(design.FontSmall).TextColor(p.TextSecondary).Width(64).Shrink(0).TextAlign(ui.End).FontFeatures("tnum")
-			ui.Text(c, ago(j.CreatedAt)).FontSize(design.FontSmall).TextColor(p.TextSecondary).Width(104).Shrink(0).TextAlign(ui.End).SingleLine()
-			ui.Text(c, actorLabel(j.Actor)).FontSize(design.FontSmall).TextColor(p.TextTertiary).Width(48).Shrink(0).TextAlign(ui.End).SingleLine()
+			ui.Text(c, ago(j.CreatedAt)).FontSize(design.FontSmall).TextColor(p.TextSecondary).Width(104).Shrink(0).TextAlign(ui.End).SingleLine().
+				Tooltip(T("builds.startedFrom", "actor", actorLabel(j.Actor)))
 			ch := kit.Glyph(c, icons.ChevronRt, 10, p.TextTertiary).Width(14)
 			turn := float32(0)
 			if open {

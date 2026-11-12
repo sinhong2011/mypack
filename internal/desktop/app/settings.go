@@ -28,14 +28,13 @@ type settingsState struct {
 type settingsPane string
 
 const (
-	paneGeneral    settingsPane = "general"
-	paneUpdates    settingsPane = "updates"
-	paneAppearance settingsPane = "appearance"
-	paneSync       settingsPane = "sync"
-	paneBuilds     settingsPane = "builds"
-	paneAgents     settingsPane = "agents"
-	paneAdvanced   settingsPane = "advanced"
-	paneAbout      settingsPane = "about"
+	paneGeneral  settingsPane = "general"
+	paneUpdates  settingsPane = "updates"
+	paneSync     settingsPane = "sync"
+	paneBuilds   settingsPane = "builds"
+	paneAgents   settingsPane = "agents"
+	paneAdvanced settingsPane = "advanced"
+	paneAbout    settingsPane = "about"
 )
 
 type paneInfo struct {
@@ -49,7 +48,6 @@ func settingsPanes() []paneInfo {
 	return []paneInfo{
 		{paneGeneral, icons.Sliders, "settings.general"},
 		{paneUpdates, icons.Download, "update.group"},
-		{paneAppearance, icons.Appearance, "settings.appearance"},
 		{paneSync, icons.Refresh, "settings.sync"},
 		{paneBuilds, icons.Build, "settings.builds"},
 		{paneAgents, icons.Agent, "settings.agents"},
@@ -231,8 +229,6 @@ func (a *App) settingsView(c *ui.Context) {
 				a.settingsGeneral(c)
 			case paneUpdates:
 				a.updatesGroup(c)
-			case paneAppearance:
-				a.settingsAppearance(c)
 			case paneSync:
 				a.syncGroup(c)
 				a.transferGroup(c)
@@ -270,6 +266,7 @@ func (a *App) settingsGeneral(c *ui.Context) {
 				a.saveSettings()
 			}
 		})
+		a.themeRow(c)
 		kit.SettingIconRow(c, icons.Bell, ui.Color{}, T("settings.menubar"), T("settings.menubar.desc"), func() {
 			v := a.settings.ShowMenuBarIcon
 			kit.Switch(c.Key("mb"), &v, T("settings.menubar"))
@@ -283,18 +280,18 @@ func (a *App) settingsGeneral(c *ui.Context) {
 	})
 }
 
-func (a *App) settingsAppearance(c *ui.Context) {
-	kit.Group(c, "", func() {
-		kit.SettingIconRow(c, icons.Appearance, ui.Color{}, T("settings.theme"), "", func() {
-			idx := map[string]int{"system": 0, "light": 1, "dark": 2}[a.settings.Appearance]
-			old := idx
-			kit.Segmented(c.Key("ap"), &idx, []string{T("appearance.system"), T("appearance.light"), T("appearance.dark")}, true).Label(T("settings.theme"))
-			if idx != old {
-				a.settings.Appearance = []string{"system", "light", "dark"}[idx]
-				applyAppearance(a.settings.Appearance)
-				a.saveSettings()
-			}
-		})
+// themeRow is Mypack's own light/dark choice. It lives in General: a pane
+// with this one row was a whole page for a single control.
+func (a *App) themeRow(c *ui.Context) {
+	kit.SettingIconRow(c, icons.Appearance, ui.Color{}, T("settings.theme"), "", func() {
+		idx := map[string]int{"system": 0, "light": 1, "dark": 2}[a.settings.Appearance]
+		old := idx
+		kit.Segmented(c.Key("ap"), &idx, []string{T("appearance.system"), T("appearance.light"), T("appearance.dark")}, true).Label(T("settings.theme"))
+		if idx != old {
+			a.settings.Appearance = []string{"system", "light", "dark"}[idx]
+			applyAppearance(a.settings.Appearance)
+			a.saveSettings()
+		}
 	})
 }
 
