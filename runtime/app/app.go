@@ -568,7 +568,21 @@ func (a *App) trackClose(w *mygo.Window, p *mygo.Page) {
 // open decide its navigations and popups.
 func (a *App) wirePage(w *mygo.Window, p *mygo.Page, nav func(*mygo.NavigateEvent), open func(mygo.WindowOpenRequest) *mygo.WindowOptions) {
 	p.OnPageTitleUpdated(func(e *mygo.TitleEvent) { a.badges.setTitle(p, e.Title) })
-	p.OnWillNavigate(nav)
+	// Redirects of a click are not clicks (WebView2 says they are): see
+	// redirectTracker.
+	rt := newRedirectTracker()
+	p.OnWillNavigate(func(e *mygo.NavigateEvent) {
+		gesture := e.UserInitiated
+		e.UserInitiated = rt.userInitiated(gesture)
+		nav(e)
+		if e.DefaultPrevented() {
+			rt.settled()
+		} else {
+			rt.allowed(gesture)
+		}
+	})
+	p.OnDidNavigate(func(string) { rt.settled() })
+	p.OnDidFailLoad(func(*mygo.LoadError) { rt.settled() })
 	p.SetWindowOpenHandler(open)
 	p.SetPermissionHandler(a.onPermission)
 	p.SetAuthHandler(func(req mygo.AuthRequest) mygo.AuthResponse { return a.onAuth(w, req) })
