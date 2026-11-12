@@ -106,6 +106,13 @@ func (a *App) escape() {
 		a.nav(secLibrary)
 	case secProject:
 		a.nav(secLibrary)
+	case secLibrary:
+		// Esc clears the search, then the filter.
+		if a.lib.query != "" {
+			a.lib.query = ""
+		} else {
+			a.lib.filter = filterAll
+		}
 	}
 }
 

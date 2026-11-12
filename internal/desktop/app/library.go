@@ -1,6 +1,7 @@
 package app
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -21,6 +22,11 @@ type libState struct {
 	viewInit    bool
 	focusSearch bool
 	searchH     ui.Handle
+	sort        libSort
+	filter      libFilter
+	nav         libNav                // the shelves as drawn, for the arrow keys
+	handles     map[string]*ui.Handle // tile and row focus, by app or project ID
+	updating    bool                  // Update All is starting its jobs
 }
 
 const (
@@ -53,6 +59,7 @@ func (a *App) libraryToolbar(c *ui.Context) {
 	if !a.loaded || len(a.projects)+len(a.installs) == 0 {
 		return
 	}
+	a.sortMenu(c)
 	ov := l.view
 	kit.PillSegmented(c.Key("view"), &l.view, []kit.PillSegment{{Icon: icons.Grid, Label: T("library.view.grid")}, {Icon: icons.List, Label: T("library.view.list")}},
 		T("library.view.label"), viewGlide{}, false)
@@ -67,6 +74,57 @@ func (a *App) libraryToolbar(c *ui.Context) {
 		l.focusSearch = false
 		l.searchH.Focus()
 	}
+	// Down from the search field moves to the first app.
+	if l.searchH.Focused(c) && c.Shortcut(0, ui.KeyDown) {
+		l.focusFirst()
+	}
+}
+
+// libraryEntries is the installed apps and the drafts, filtered by the
+// search and sorted, before the status filter.
+func (a *App) libraryEntries() (apps, drafts []libEntry) {
+	for i := range a.installs {
+		in := &a.installs[i]
+		if !a.filter(in.Name, a.installDomain(in)) {
+			continue
+		}
+		_, tone := a.installStatus(in)
+		apps = append(apps, libEntry{id: in.ID, name: in.Name, tone: tone, modified: in.LastManagedAt,
+			update: in.State != domain.InstallExternal && in.UpdateReason != ""})
+	}
+	for i := range a.projects {
+		pr := &a.projects[i]
+		if a.installFor(pr.ID) != nil || !a.filter(pr.Config.App.Name, domainOf(pr.Config.App.Source)) {
+			continue
+		}
+		_, tone, _ := a.projectStatus(pr)
+		mod := pr.UpdatedAt
+		if pr.LastBuild != nil && pr.LastBuild.After(mod) {
+			mod = *pr.LastBuild
+		}
+		drafts = append(drafts, libEntry{id: pr.ID, name: pr.Config.App.Name, tone: tone, modified: mod, draft: true})
+	}
+	sortEntries(apps, a.lib.sort)
+	sortEntries(drafts, a.lib.sort)
+	return apps, drafts
+}
+
+func keep(es []libEntry, f libFilter) []libEntry {
+	var out []libEntry
+	for _, e := range es {
+		if e.matches(f) {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+func ids(es []libEntry) []string {
+	out := make([]string, len(es))
+	for i, e := range es {
+		out[i] = e.id
+	}
+	return out
 }
 
 func (a *App) libraryView(c *ui.Context) {
@@ -80,6 +138,12 @@ func (a *App) libraryView(c *ui.Context) {
 		l.viewInit = true
 		if a.settings.LibraryView == "list" {
 			l.view = 1
+		}
+	}
+	if l.sort == "" {
+		l.sort = sortName
+		if s := libSort(a.ui.LibrarySort); s.valid() {
+			l.sort = s
 		}
 	}
 	if !a.loaded {
@@ -119,32 +183,42 @@ func (a *App) libraryView(c *ui.Context) {
 			})
 			first = false
 		}
-		// Installed apps.
-		var apps []domain.Installation
-		for _, in := range a.installs {
-			if a.filter(in.Name, a.installDomain(&in)) {
-				apps = append(apps, in)
-			}
+		allApps, allDrafts := a.libraryEntries()
+		counts := filterCounts(append(slices.Clip(allApps), allDrafts...))
+		// A filter left with nothing (the last update installed) goes back to All.
+		if l.filter != filterAll && counts[l.filter] == 0 {
+			l.filter = filterAll
 		}
-		var drafts []*domain.Project
-		for i := range a.projects {
-			pr := &a.projects[i]
-			if a.installFor(pr.ID) != nil {
-				continue
-			}
-			if a.filter(pr.Config.App.Name, domainOf(pr.Config.App.Source)) {
-				drafts = append(drafts, pr)
-			}
+		apps, drafts := keep(allApps, l.filter), keep(allDrafts, l.filter)
+		if counts[filterUpdates]+counts[filterAttention] > 0 || len(allApps) > 0 && len(allDrafts) > 0 {
+			a.filterChips(c, counts)
 		}
-		if len(a.installs) > 0 || len(drafts) == 0 {
+		if ups := a.updatable(); len(ups) > 0 && l.query == "" && (l.filter == filterAll || l.filter == filterUpdates) {
+			a.updatesBanner(c, ups)
+		}
+		// The ghost tile invites another website only on the whole Library.
+		ghost := l.filter == filterAll
+		showApps := l.filter != filterDrafts && (len(a.installs) > 0 || len(drafts) == 0)
+		// The arrow keys are handled while the tiles are built, so the
+		// shelves they move through are known before any is drawn.
+		l.nav.secs = nil
+		if showApps {
+			l.nav.secs = append(l.nav.secs, ids(apps))
+		}
+		if len(drafts) > 0 {
+			l.nav.secs = append(l.nav.secs, ids(drafts))
+		}
+		if showApps {
 			ui.Column(c).Gap(14).Children(func() {
 				header(T("library.tab.myApps"), countLabel(len(apps)))
-				if len(apps) == 0 && a.lib.query == "" {
+				if len(apps) == 0 && l.query == "" && l.filter == filterAll {
 					a.noApps(c)
 					return
 				}
-				a.collection(c, len(apps), true, func(i int, grid bool) {
-					a.appItem(c.Key(apps[i].ID), apps[i], grid, i)
+				a.collection(c, len(apps), ghost, func(i int, grid bool) {
+					if in := a.install(apps[i].id); in != nil {
+						a.appItem(c.Key(in.ID), *in, grid, i)
+					}
 				})
 			})
 			shown += len(apps)
@@ -152,14 +226,20 @@ func (a *App) libraryView(c *ui.Context) {
 		if len(drafts) > 0 {
 			ui.Column(c).Gap(14).Children(func() {
 				header(T("library.tab.projects"), countLabel(len(drafts)))
-				a.collection(c, len(drafts), len(a.installs) == 0, func(i int, grid bool) {
-					a.projectItem(c.Key(drafts[i].ID), drafts[i], grid, i)
+				a.collection(c, len(drafts), ghost && len(a.installs) == 0, func(i int, grid bool) {
+					if pr := a.project(drafts[i].id); pr != nil {
+						a.projectItem(c.Key(pr.ID), pr, grid, i)
+					}
 				})
 			})
 			shown += len(drafts)
 		}
 		if shown == 0 {
-			kit.EmptyState(c, icons.Search, T("library.noMatches", "query", a.lib.query), "", nil)
+			if l.query != "" {
+				kit.EmptyState(c, icons.Search, T("library.noMatches", "query", l.query), "", nil)
+			} else {
+				kit.EmptyState(c, icons.Check, T("library.filter.empty"), "", nil)
+			}
 		}
 		if len(a.installs) > 0 {
 			a.libraryFooter(c)
@@ -201,6 +281,7 @@ func (a *App) noApps(c *ui.Context) {
 // another website.
 func (a *App) collection(c *ui.Context, n int, ghost bool, item func(i int, grid bool)) {
 	if a.lib.view == 1 {
+		a.lib.nav.cols = 1
 		design.Well(c, ui.Column(c).Radius(design.RadiusCard).Clip()).Children(func() {
 			kit.TableHeader(c, []kit.TableColumn{
 				{Title: T("list.col.name")}, {Title: T("list.col.status"), Width: listColSt},
@@ -219,6 +300,7 @@ func (a *App) collection(c *ui.Context, n int, ghost bool, item func(i int, grid
 	avail := w - design.SidebarWidth - 64
 	minW := size + 56
 	cols := max(2, int((avail+tileGap)/(minW+tileGap)))
+	a.lib.nav.cols = cols
 	rows := (n + cols - 1) / cols
 	if rows == 0 {
 		rows = 1
@@ -289,6 +371,7 @@ type tileData struct {
 	menu     func(m *ui.Menu)
 	idx      int
 	pid      string // the project, for the icon that flies to its page
+	key      string // the app or project ID, for the arrow keys
 	// The one-click action (Open the app, or Build a draft).
 	action     string
 	actionIcon *ui.SVG
@@ -306,6 +389,10 @@ func (a *App) tile(c *ui.Context, d tileData) (open bool) {
 		Radius(design.RadiusPanel).Cursor(ui.CursorPointer).Description(d.status)
 	kit.Arrive(b)
 	b.FocusRing(false)
+	if d.key != "" {
+		b.Bind(a.lib.handle(d.key))
+		a.lib.arrows(b, d.key, true)
+	}
 	hov, focused := b.Hovered(), b.FocusVisible()
 	if d.menu != nil {
 		b.ContextMenu(d.menu)
@@ -381,6 +468,10 @@ func (a *App) row(c *ui.Context, d tileData, i int) (open bool) {
 		Cursor(ui.CursorPointer).Description(d.status)
 	kit.TableRowBG(c, b, i, b.Hovered(), b.Focused())
 	kit.Arrive(b)
+	if d.key != "" {
+		b.Bind(a.lib.handle(d.key))
+		a.lib.arrows(b, d.key, false)
+	}
 	if d.menu != nil {
 		b.ContextMenu(d.menu)
 	}
@@ -501,7 +592,7 @@ func (a *App) projectItem(c *ui.Context, pr *domain.Project, grid bool, i int) {
 	}
 	prc := *pr
 	d := tileData{icon: pr.IconPNG, name: pr.Config.App.Name, domain: domainOf(pr.Config.App.Source), status: st, tone: tone, busy: busy,
-		version: pr.Config.App.Version, modified: meta, menu: func(m *ui.Menu) { a.projectMenu(m, &prc) }, idx: i, pid: pr.ID}
+		version: pr.Config.App.Version, modified: meta, menu: func(m *ui.Menu) { a.projectMenu(m, &prc) }, idx: i, pid: pr.ID, key: pr.ID}
 	if busy {
 		d.progress = -1
 		if j := a.latestJob(pr.ID); j != nil {
@@ -543,7 +634,7 @@ func (a *App) installStatus(in *domain.Installation) (string, kit.Tone) {
 func (a *App) appItem(c *ui.Context, in domain.Installation, grid bool, i int) {
 	st, tone := a.installStatus(&in)
 	d := tileData{icon: in.IconPNG, name: in.Name, domain: a.installDomain(&in), status: st, tone: tone,
-		version: in.Version, modified: ago(in.LastManagedAt), menu: func(m *ui.Menu) { a.appMenu(m, in) }, idx: i, pid: in.ProjectID}
+		version: in.Version, modified: ago(in.LastManagedAt), menu: func(m *ui.Menu) { a.appMenu(m, in) }, idx: i, pid: in.ProjectID, key: in.ID}
 	switch {
 	case in.State == domain.InstallExternal:
 		d.badge = kit.BadgeLocked
