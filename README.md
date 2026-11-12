@@ -1,56 +1,186 @@
+<div align="center">
+
 # Mypack
 
 **Any website. Any desktop. One beautiful native builder.**
 
+Turn a website, or a local HTML project, into a real, standalone desktop app
+in a few clicks. No Go, Rust, Node or Xcode project required.
+
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![CI](https://github.com/sinhong2011/mypack/actions/workflows/ci.yml/badge.svg)](https://github.com/sinhong2011/mypack/actions/workflows/ci.yml)
+[![Go](https://img.shields.io/badge/Go-1.27.3%2B-00ADD8?logo=go&logoColor=white)](go.mod)
+![Platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+
+[Features](#features) · [Getting started](#getting-started) · [CLI & agents](#cli-and-ai-agents) · [Contributing](#contributing) · [Inspiration](#inspiration-and-thanks)
+
+![Mypack Library](docs/screenshots/real-library.png)
+
+</div>
+
+```
+Paste a URL  →  confirm name & icon  →  Build  →  Install & Open
+```
+
 Mypack is free and open source under the [Apache License 2.0](LICENSE).
 Every feature is included: no app limits, no license keys, no account.
 
-Mypack turns a website (or a local HTML project) into a real, standalone desktop
-app for the computer you're on — no Go, Rust, Node or Xcode project required.
+## Why Mypack?
+
+A lot of our work lives in web apps, but a browser tab is a poor home for them.
+Tabs get lost among other tabs, every site shares one set of cookies, and none
+of them get their own Dock icon, notifications or window.
+
+Mypack gives each site a proper app of its own, and then keeps looking after it:
+
+- **No toolchain on your machine.** Mypack doesn't compile anything. It uses a
+  small prebuilt runtime and writes your app's settings into it, so a build
+  takes seconds.
+- **Apps that stand on their own.** Every app has its own name, icon and
+  separate sign-in, uses the system WebView, and keeps working if you uninstall
+  Mypack.
+- **Looked after, not just made.** Update an app in one click without losing
+  your logins (if an update fails, the previous version comes back), repair it,
+  or move it to another computer.
+
+## Features
+
+**Making apps**
+
+- 🌐 **From any website**: Mypack fetches the name and the best icon. You can
+  change both, or design an icon in the Icon Studio.
+- 📁 **From local projects**: an HTML file, a folder with `index.html`, or a
+  Vite, CRA, Astro, Nuxt, SvelteKit or Next export. Mypack runs the project's
+  build first, but only after you approve it.
+- 🧭 **Discover**: dozens of popular sites, one click to start. The list is a
+  plain [JSON file](catalog/discover.json) that anyone can add to.
+- 🗂️ **Group apps**: several sites in one window, with a side rail, a
+  separate session per site and split view.
+- 📥 **Pake configs**: bring your [Pake](https://github.com/tw93/Pake)
+  `pake.json` along.
+
+**Inside the apps you make**
+
+- 🔔 Web notifications and a Dock badge for unread counts
+- 🔗 Links between your Mypack apps open in the right app
+- 🪟 Window modes: normal, compact, sidebar, or in the menu bar
+- 📑 Tabs with pinned pages
+- 🛡️ Content blocking, custom CSS and JavaScript, proxy and user-agent settings
+- 🔑 Sign-in pop-ups (Google, Microsoft and others) that just work
+
+**Managing them**
+
+- 📚 A Library of everything you made, with Install & Open, Update, Repair and
+  Uninstall
+- 🔄 Library sync across computers through a shared folder such as iCloud
+  Drive, or export and import `.mypack` files
+- 🧩 An optional browser extension that turns the tab you're on into an app
+- 🌏 Seven languages: English, 繁體中文, 简体中文, 粵語, Español, Français,
+  日本語
+
+**For developers and AI agents**
+
+- ⌨️ A headless CLI with `--json` output and stable exit codes
+- 🤖 A built-in [MCP](https://modelcontextprotocol.io) server, so Claude Code,
+  Codex and other agents can create and build apps for you. Mypack itself has
+  no built-in chat or LLM.
+
+## How it works
 
 ```
-Paste URL → confirm name & icon → Build for This Mac → Install & Open
+               ┌───────────── Mypack (the builder) ─────────────┐
+  website /    │  name & icon  →  mypack.json  →  assemble app  │      your app
+  folder   ──▶ │                                       ▲        │ ──▶  .app / .exe /
+               └───────────────────────────────────────┼────────┘      Linux folder
+                                                       │
+                          prebuilt runtime, downloaded once from a
+                          signed (Ed25519) registry, verified and cached
 ```
 
-- **Native builder** — the GUI is drawn by [MyGo](https://github.com/egoist/mygo) in pure Go (no Electron, no web frontend).
-- **Tiny, independent apps** — generated apps use the system WebView (WKWebView / WebView2 / WebKitGTK), have their own identity, icon and isolated profile, and keep working if Mypack is uninstalled.
-- **Prebuilt runtime + config injection** — no compiling on your machine. The runtime is downloaded once from a signed (Ed25519) registry, verified and cached.
-- **Manage what you built** — Library › My Apps: Install & Open, one-click Update (keeps your logins), Repair, Uninstall.
-- **Agent-ready** — headless CLI with `--json` and stable exit codes, plus an MCP stdio server (`mypack mcp serve`). No built-in chat or LLM.
-- **Seven languages** — English, 繁體中文, 简体中文, 粵語, Español, Français, 日本語.
-- **Discover** — dozens of popular sites, one click to make an app. The list is [`catalog/discover.json`](catalog/discover.json): suggest more with a pull request.
-- **Library sync** — keep your apps in step across computers through a shared folder such as iCloud Drive.
+The runtime is one small binary per platform that knows nothing about any
+particular website. Mypack copies it, adds your app's name, icon and
+`mypack.json`, and on macOS signs the result. The details are in
+[ARCHITECTURE.md](ARCHITECTURE.md).
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for the implementation design.
+| | Mypack (the builder) | Apps it makes |
+|---|---|---|
+| **macOS** (Apple silicon & Intel) | ✅ Main platform, packaged as `.app` / `.dmg` | ✅ WKWebView |
+| **Linux** (x64 & arm64) | 🧪 Build from source | ✅ WebKitGTK, tested on Ubuntu 24.04 |
+| **Windows** (x64 & arm64) | 🧪 Build from source | 🧪 WebView2, less tested |
 
-## Building from source
+## Getting started
 
-Requires Go ≥ 1.27.3 (`GOTOOLCHAIN=auto` fetches it automatically).
+> [!NOTE]
+> Mypack is young, and signed releases are on the way. Until then, build it
+> from source. It takes about a minute.
+
+### Build from source
+
+You need Go 1.27.3 or newer. With `GOTOOLCHAIN=auto` (the default), Go fetches
+the right version for you.
 
 ```sh
-make runtimes   # cross-compile + sign generated-app runtimes into dist/registry
+git clone https://github.com/sinhong2011/mypack.git
+cd mypack
+make runtimes   # build the app runtimes and sign them with a local dev key
 make app        # build dist/Mypack.app (macOS)
-make test
+open dist/Mypack.app
 ```
 
-## Using it
+`make dmg` also makes a drag-to-Applications disk image. To look around
+without building anything, `make run-fake` starts the app with demo data.
 
-- **App:** open `dist/Mypack-1.0.0.dmg` and drag Mypack to Applications (or `open dist/Mypack.app`).
-- **CLI:** the same binary is the CLI — `Mypack.app/Contents/MacOS/mypack help`.
-  `mypack create github.com --json`, `mypack build <id> --yes --json`, exit codes in ARCHITECTURE.md.
-- **Agents (MCP):** `Mypack.app/Contents/MacOS/mypack mcp serve --transport stdio`
-  (Settings › Agent Connections shows copy-ready config for Claude Code / Codex).
-- **Browser Companion (optional):** build it (`cd apps/browser-companion && pnpm install && pnpm build`), load
-  `apps/browser-companion/.output/chrome-mv3` unpacked in Chrome/Edge, then
-  `Mypack.app/Contents/MacOS/mypack-native-host install --extension-id <ID> --browser all`.
-  See [docs/companion.md](docs/companion.md).
-- **Demo mode:** `make run-fake` runs the GUI against an in-memory demo service.
+### Make your first app
 
-Dev runtime registry: `make runtimes` signs `dist/registry` with a dev key in `dist/keys/`
-(never commit it); `make app` embeds that registry URL and public key into the build.
-A production release needs a hosted registry and a real signing key.
-Forks that distribute builds should host their own registry and sign it with their own key;
-official Mypack builds only trust the project's registry key.
+1. Click **New App** (⌘N) and paste an address, for example `github.com`.
+2. Check the name and icon.
+3. Click **Build**, then **Install & Open**.
+
+You can also drop an HTML file or a folder onto the window, or pick a site in
+**Discover**.
+
+## CLI and AI agents
+
+The app's binary is also the CLI:
+
+```sh
+alias mypack=/Applications/Mypack.app/Contents/MacOS/mypack
+
+mypack create github.com --json          # a draft project; nothing is built yet
+mypack build <project-id> --yes --json   # build it (--yes allows the runtime download)
+mypack install <artifact-id> --open
+mypack apps list
+```
+
+With `--json`, every command prints one JSON object. Exit codes are stable: `0`
+ok, `1` error, `2` usage, `3` invalid input, `4` runtime or network, `5` build
+failed, `6` approval required, `130` cancelled. Run `mypack help` for every
+command.
+
+**MCP server.** Connect an agent with:
+
+```sh
+claude mcp add mypack -- /Applications/Mypack.app/Contents/MacOS/mypack mcp serve
+```
+
+**Settings › Agent Connections** in the app has ready-to-copy setups for Claude
+Code, Codex and other MCP clients. Agents can list, create and build projects,
+but they can't install apps, and a project's build script only runs after you
+approve it.
+
+**Browser extension (optional).** See [docs/companion.md](docs/companion.md).
+
+## Project layout
+
+```
+cmd/          entry points: the app, the CLI, the browser native-messaging host
+runtime/      the runtime inside every app Mypack makes
+internal/     builder, installer, service, storage, CLI, MCP server and the app's UI
+pkg/config/   the mypack.json format (and Pake import)
+catalog/      the Discover catalog, discover.json
+apps/         the browser extension (WXT + SolidJS)
+```
 
 ## Releases
 
@@ -58,13 +188,41 @@ Version releases are for the app and CLI. [release-please](docs/releasing.md) op
 
 ## Contributing
 
-Bug reports, website compatibility reports, platform testing, translations and
-code are all welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md). Please
-report security problems privately as described in [SECURITY.md](SECURITY.md).
+Contributions of every size are welcome:
+
+- **Add a site to Discover**: edit [`catalog/discover.json`](catalog/discover.json).
+  It reaches every user within a day, no release needed.
+- **Report a site that misbehaves** with the *Website compatibility* issue form.
+- **Test on Linux and Windows**: this is where help matters most right now.
+- **Translate, fix bugs, improve the docs.**
+
+Start with [CONTRIBUTING.md](CONTRIBUTING.md). Please report security problems
+privately as described in [SECURITY.md](SECURITY.md), and follow the
+[Code of Conduct](CODE_OF_CONDUCT.md).
+
+## Inspiration and thanks
+
+Mypack stands on the shoulders of two projects:
+
+- **[Pake](https://github.com/tw93/Pake)** by [tw93](https://github.com/tw93)
+  showed how good a website can feel as a small, focused desktop app, and how
+  many people want that. Mypack takes the same idea a different way: a
+  prebuilt runtime instead of a build toolchain, and a native app for making
+  and looking after your apps over time. It reads Pake configs, so you can
+  bring yours along.
+- **[MyGo](https://github.com/egoist/mygo)** by [egoist](https://github.com/egoist)
+  is the pure-Go native UI toolkit behind Mypack's interface and the apps it
+  makes: no Electron, no web front end, no cgo.
+
+Thanks also to [Lucide](https://lucide.dev) for the icons and to
+[modernc.org/sqlite](https://gitlab.com/cznic/sqlite). All third-party notices
+are in [NOTICE](NOTICE).
 
 ## License
 
-Mypack is licensed under the [Apache License 2.0](LICENSE); third-party notices
-are in [NOTICE](NOTICE). The name "Mypack" and its logo are trademarks and are
-not covered by the code license. If you distribute a modified build, please give
-it a different name and icon; see [TRADEMARKS.md](TRADEMARKS.md).
+Mypack is licensed under the [Apache License 2.0](LICENSE).
+
+The name "Mypack" and its logo are trademarks and aren't covered by the code
+license. If you distribute a modified build, please give it a different name
+and icon; see [TRADEMARKS.md](TRADEMARKS.md). Forks that distribute builds
+should host their own runtime registry and sign it with their own key.
