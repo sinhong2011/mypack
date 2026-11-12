@@ -30,7 +30,7 @@ The source defaults stay `0.1.0-dev` (`internal/cli.Version` and `internal/deskt
 These are not part of the GitHub Release:
 
 - **Discover catalog.** The app reads `catalog/discover.json` from `main`, so a catalog edit reaches users without a release.
-- **Generated-app runtimes.** `make runtimes` / `scripts/release-runtimes.sh` writes a signed registry under `dist/registry/`. That version is the Makefile `VERSION` (default `1.0.0`), which is also what `make app` writes into `dist/Mypack-1.0.0.dmg`. It is a different number from the git tag. Release builds do not run `release-runtimes.sh`.
+- **Generated-app runtimes.** These are on their own Release, `runtimes`, published by the **Runtimes** workflow ([below](#runtime-registry)). Locally, `make runtimes` / `scripts/release-runtimes.sh` writes a dev registry under `dist/registry/`, at the Makefile `VERSION` (default `1.0.0`), which is also what `make app` writes into `dist/Mypack-1.0.0.dmg`. Neither is the git tag.
 - **Browser companion.** `apps/browser-companion` is built with pnpm and is not in the archives.
 - **Dev signing keys.** `dist/keys/` is gitignored. The release workflows never read it. GoReleaser writes to `dist/goreleaser/` so `release --clean` cannot delete `dist/keys/` or `dist/registry/`.
 
@@ -162,18 +162,27 @@ Setup, once:
 
 Losing the key strands installed apps, which then accept only updates signed with it: ship a release with a new `publicKey`, which users must install by hand. Anyone with the key can push code to every user. Never commit it, print it in a log, or pass it on the command line.
 
-## Registry key
+## Runtime registry
 
-`make gui` embeds `dist/keys/registry.pub` and a `file://` registry URL when the dev key exists. Release builds do not. They keep the registry URL compiled into the source:
+Apps made with Mypack run on a runtime that Mypack downloads on first build. Every build of Mypack reads the production registry from a GitHub Release with the fixed tag `runtimes`:
 
-`https://registry.mypack.dev/runtimes/registry.json`
+`https://github.com/sinhong2011/mypack/releases/download/runtimes/registry.json`
 
-No production public key is embedded, so a release binary will not trust a registry until one is configured. Either:
+That Release holds `registry.json`, its signature `registry.json.sig`, and every runtime archive, side by side. Each entry's `url` is a bare file name, so it resolves next to `registry.json`. The Release is not marked latest, so it never stands in for an app release.
 
-- set `MYPACK_TRUSTED_KEY` to the base64 Ed25519 public key in the environment of the Builder, or
-- later, append `-X mypack.dev/mypack/internal/runtimemanager.trustedKeysB64=<key>` to the GoReleaser ldflags, with the key stored as a GitHub Actions secret.
+**Signing key.** Mypack trusts a manifest only when it is signed with a key it knows. The production public key is committed in `internal/runtimemanager/registry.pub` and built into every binary with `go:embed`, so installers made with `mygo build` (which takes no `-ldflags`) trust it too. The private key exists only in the `REGISTRY_SIGNING_KEY` Actions secret and in your password manager. Never commit it.
 
-When rotating, keep the old key in that comma-separated list. Never commit `dist/keys/`, `.env`, or the secret value.
+**Publishing a runtime version.** Bump `DefaultRuntimeVersion` in `pkg/config/config.go` if needed, then run the workflow before you tag an app release that asks for that version:
+
+```sh
+gh workflow run runtimes.yml -f version=1.0.8
+```
+
+The workflow builds every target on macOS (for the universal binary), downloads the current `registry.json`, adds the new version to it (`signregistry registry -flat -merge`, so older versions stay listed), signs it with the next sequence number, checks that the key matches `registry.pub`, and uploads the archives, then the manifest. A version that is already on the Release is refused: archives are immutable. The manifest expires 365 days after it is signed, so publish a runtime version at least once a year.
+
+**Rotating the key.** Generate a new pair with `go run ./scripts/signregistry keygen -keys dist/keys-new`, add the new public key as a second line of `registry.pub`, ship an app release, then set `REGISTRY_SIGNING_KEY` to the new private key. Remove the old line once no supported release needs it.
+
+**Development.** `make gui` / `make run` still use the dev key in `dist/keys/` and a `file://` registry in `dist/registry/`. `MYPACK_REGISTRY`, `MYPACK_TRUSTED_KEY` and Settings › Runtime registry override the production registry for self-hosted mirrors.
 
 ## Code signing and notarization
 

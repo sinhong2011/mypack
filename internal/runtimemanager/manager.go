@@ -36,7 +36,7 @@ import (
 )
 
 // DefaultRegistryURL is used when neither an argument nor MYPACK_REGISTRY is given.
-const DefaultRegistryURL = "https://registry.mypack.dev/registry.json"
+const DefaultRegistryURL = "https://github.com/sinhong2011/mypack/releases/download/runtimes/registry.json"
 
 const (
 	markerName     = ".verified"

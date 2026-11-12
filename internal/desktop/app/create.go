@@ -401,6 +401,13 @@ func (a *App) createAndBuild() {
 			}
 		}
 		a.reload("projects")
+		if err != nil {
+			// The project exists but its build never started (no job will
+			// arrive), so Create would wait on "Starting…" forever. Open the
+			// project instead; Build can be retried from there.
+			a.openProject(projectID, 0)
+			return
+		}
 		// The build plays in Create's preview, where it started.
 		a.create.buildStarted(projectID)
 	})
