@@ -4,6 +4,9 @@
 # are the titles of the pull requests merged since the last tag. See
 # docs/releasing.md.
 name: Release
+# Tag runs are named for the release; without this the Actions list shows
+# the tagged commit's message. Pull request runs keep the PR title.
+run-name: ${{ github.event_name == 'push' && format('Release {0}', github.ref_name) || github.event.pull_request.title }}
 
 on:
   push:
