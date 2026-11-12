@@ -4,7 +4,9 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"testing"
+	"time"
 
 	"mypack.dev/mypack/pkg/config"
 	"mypack.dev/mypack/runtime/navigation"
@@ -68,6 +70,19 @@ func TestRouteTarget(t *testing.T) {
 
 func TestOpenLinkCommand(t *testing.T) {
 	p := writeRoutes(t, routing.Entry{Identifier: "com.test.other", Hosts: []string{"other.example"}})
+	// darwin launches with `open -a <bundle>`. Windows and Linux need a real
+	// executable in the folder, or openLink falls through to the browser and
+	// blocks on the UI loop.
+	bundle := filepath.Join(filepath.Dir(p), "com.test.other.app")
+	if runtime.GOOS == "windows" {
+		if err := os.WriteFile(filepath.Join(bundle, filepath.Base(bundle)+".exe"), []byte("MZ"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	} else if runtime.GOOS != "darwin" {
+		if err := os.WriteFile(filepath.Join(bundle, "app"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
 	a := testApp(t, p)
 	got := make(chan []string, 1)
 	old := routing.Start
@@ -77,7 +92,12 @@ func TestOpenLinkCommand(t *testing.T) {
 	}
 	defer func() { routing.Start = old }()
 	a.openLink("https://other.example/doc/1")
-	cmd := <-got
+	var cmd []string
+	select {
+	case cmd = <-got:
+	case <-time.After(5 * time.Second):
+		t.Fatal("link was not handed to the other app")
+	}
 	e, _ := a.routes.Lookup("other.example", "x")
 	wantName, wantArgs, _ := routing.Command("darwin", e, "https://other.example/doc/1")
 	if cmd[0] == "" || len(cmd) < 2 || cmd[len(cmd)-1] != "https://other.example/doc/1" {

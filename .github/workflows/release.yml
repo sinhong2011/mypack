@@ -1,0 +1,78 @@
+# Build and upload release archives. release-please calls this after it tags
+# a release. A pushed vX.Y.Z tag runs it directly, which is how to publish
+# again without cutting another version.
+name: Release
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Tag to publish, including the leading v
+        required: false
+        type: string
+      sha:
+        description: Commit the tag points at
+        required: false
+        type: string
+  push:
+    tags:
+      - "v*.*.*"
+  pull_request:
+    paths:
+      - ".goreleaser.yaml"
+      - ".github/workflows/release.yml"
+      - ".github/workflows/release-please.yml"
+      - "go.mod"
+      - "go.sum"
+      - "cmd/**"
+      - "Makefile"
+
+# contents: write is required to upload Release assets. The check job
+# narrows itself to read. A called workflow cannot raise permissions
+# above this workflow level.
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: v2.20.1
+          args: check
+
+  publish:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      CGO_ENABLED: "0"
+      GOTOOLCHAIN: auto
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.sha || github.sha }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Publish archives
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: v2.20.1
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ inputs.tag || github.ref_name }}

@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -55,7 +56,7 @@ func TestEnsureDownloadsVerifiesAndCaches(t *testing.T) {
 		t.Fatal(exe)
 	}
 	st, err := os.Stat(exe)
-	if err != nil || st.Mode()&0o111 == 0 {
+	if err != nil || (runtime.GOOS != "windows" && st.Mode()&0o111 == 0) {
 		t.Fatalf("not executable: %v %v", st, err)
 	}
 	if last == 0 || last != total {

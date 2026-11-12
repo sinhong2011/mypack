@@ -108,10 +108,10 @@ func TestInstallConflictReplaceAndFidelity(t *testing.T) {
 	if p != filepath.Join(inst, "Fake.app") {
 		t.Fatal(p)
 	}
-	if st, err := os.Stat(filepath.Join(p, "Contents", "MacOS", "Fake")); err != nil || st.Mode()&0o111 == 0 {
+	if st, err := os.Stat(filepath.Join(p, "Contents", "MacOS", "Fake")); err != nil || (runtime.GOOS != "windows" && st.Mode()&0o111 == 0) {
 		t.Fatalf("exec bit lost: %v %v", st, err)
 	}
-	if l, err := os.Readlink(filepath.Join(p, "Contents", "link")); err != nil || l != "MacOS/Fake" {
+	if l, err := os.Readlink(filepath.Join(p, "Contents", "link")); err != nil || filepath.ToSlash(l) != "MacOS/Fake" {
 		t.Fatalf("symlink lost: %v %v", l, err)
 	}
 	if _, err := Install(context.Background(), src, inst, false); code(err) != "INSTALL_CONFLICT" {
@@ -239,7 +239,8 @@ func TestReplaceRefusesRunningApp(t *testing.T) {
 	}
 	found := false
 	for _, c := range *calls {
-		if c[0] == "pgrep" && c[1] == "-f" && strings.Contains(c[2], "Contents/MacOS/") {
+		pat := filepath.ToSlash(strings.ReplaceAll(c[2], `\\`, `/`))
+		if c[0] == "pgrep" && c[1] == "-f" && strings.Contains(pat, "Contents/MacOS") {
 			found = true
 		}
 	}
@@ -316,6 +317,9 @@ func TestLaunchPortable(t *testing.T) {
 	os.MkdirAll(l, 0o755)
 	os.WriteFile(filepath.Join(l, "lin"), []byte("x"), 0o755)
 	os.WriteFile(filepath.Join(l, "lin.desktop"), []byte("x"), 0o644)
+	if runtime.GOOS == "windows" {
+		return // the Unix executable bit is not stored, so a Linux binary cannot be recognised
+	}
 	setGOOS(t, "linux")
 	*calls = nil
 	if err := Launch(l); err != nil {

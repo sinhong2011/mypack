@@ -2,9 +2,19 @@ package config
 
 import (
 	"errors"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
+
+// hostAbs is an absolute path on the machine running the test.
+func hostAbs(parts ...string) string {
+	if runtime.GOOS == "windows" {
+		return filepath.Join(append([]string{`C:\`}, parts...)...)
+	}
+	return filepath.Join(append([]string{"/"}, parts...)...)
+}
 
 func TestProjectBuildValidation(t *testing.T) {
 	host := Target{OS: "darwin", Arch: "arm64", Format: "app"}
@@ -12,8 +22,9 @@ func TestProjectBuildValidation(t *testing.T) {
 		c := New("App", Source{Type: SourceDir, Value: "/p/dist", Entry: "index.html", Project: project, Build: b}, host)
 		return c
 	}
+	proj := hostAbs("p")
 	ok := &ProjectBuild{PackageManager: "pnpm", Script: "build:prod", OutDir: "dist/web", Framework: "Vite"}
-	if err := mk(ok, "/p").Validate(); err != nil {
+	if err := mk(ok, proj).Validate(); err != nil {
 		t.Fatalf("valid build rejected: %v", err)
 	}
 	if err := mk(nil, "").Validate(); err != nil {
@@ -25,19 +36,19 @@ func TestProjectBuildValidation(t *testing.T) {
 		"app.source.build.outDir":         {PackageManager: "npm", Script: "build", OutDir: "../dist"},
 	}
 	for field, b := range bad {
-		err := mk(b, "/p").Validate()
+		err := mk(b, proj).Validate()
 		var ve *ValidationError
 		if !errors.As(err, &ve) || ve.Issues[0].Field != field {
 			t.Errorf("%s: %v", field, err)
 		}
 	}
 	for _, s := range []string{"-rf", "--prefix=/x", "a b", "a;b", ""} {
-		if err := mk(&ProjectBuild{PackageManager: "npm", Script: s, OutDir: "dist"}, "/p").Validate(); err == nil {
+		if err := mk(&ProjectBuild{PackageManager: "npm", Script: s, OutDir: "dist"}, proj).Validate(); err == nil {
 			t.Errorf("script %q accepted", s)
 		}
 	}
 	for _, o := range []string{"/abs", "a/../../b", `..\x`, "C:\\x", ""} {
-		if err := mk(&ProjectBuild{PackageManager: "npm", Script: "build", OutDir: o}, "/p").Validate(); err == nil {
+		if err := mk(&ProjectBuild{PackageManager: "npm", Script: "build", OutDir: o}, proj).Validate(); err == nil {
 			t.Errorf("outDir %q accepted", o)
 		}
 	}
