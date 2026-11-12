@@ -803,7 +803,8 @@ func (a *App) settingGroups(c *ui.Context, ed *editorState, pr *domain.Project) 
 
 	// Packaging.
 	packG := settingGroup{id: "packaging", title: T("group.packaging"), icon: icons.Package, rows: []setting{
-		{label: T("set.targets"), desc: T("set.targets.desc"), wide: true, control: func() { a.targetEditor(c, ed) }},
+		// Create picks platforms under Build for, which wins at build time.
+		{label: T("set.targets"), desc: T("set.targets.desc"), wide: true, hidden: ed.local, control: func() { a.targetEditor(c, ed) }},
 		{label: T("set.output"), desc: T("set.output.desc"), control: func() { kit.Mono(c, shortPath(a.settings.OutputDir)) }},
 	}}
 
