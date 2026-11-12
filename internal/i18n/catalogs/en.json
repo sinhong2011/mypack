@@ -761,5 +761,8 @@
   "update.prereleases.desc": "Offer beta and release-candidate versions too.",
   "update.toast": "Mypack {version} is available",
   "update.toast.view": "View",
-  "update.manager.linux": "your package manager"
+  "update.manager.linux": "your package manager",
+  "window.minimize": "Minimize",
+  "window.maximize": "Maximize",
+  "window.restore": "Restore Down"
 }

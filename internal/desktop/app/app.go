@@ -186,8 +186,10 @@ func Run(svc appservice.Service) error {
 			TrafficLightPosition: &mygo.Point{X: 20, Y: 20},
 			BackgroundColor:      "light-dark(#efefeb, #141415)",
 			StateKey:             "main",
+			HideWindowButtons:    ownWindowButtons,
 			Content:              ui.View(a.view),
 		})
+		watchWindowChrome(a.win)
 		a.win.OnClose(func(e *mygo.CloseEvent) {
 			if !a.quitting {
 				e.PreventDefault()
