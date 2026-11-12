@@ -58,7 +58,6 @@
   "build.viewLog": "Ver registro",
   "builds.artifact": "Resultado",
   "builds.checksum": "Suma de comprobación",
-  "builds.col.by": "Por",
   "builds.col.duration": "Duración",
   "builds.col.started": "Inicio",
   "builds.col.targets": "Plataformas",
@@ -126,7 +125,6 @@
   "discover.hero.eyebrow": "DESCUBRIR",
   "discover.hero.title": "Tus sitios favoritos, como apps de verdad.",
   "discover.body": "Elige un sitio para convertirlo en app. Cualquiera puede proponer más sitios en GitHub.",
-  "discover.popular": "Sitios web populares",
   "drop.body": "Un archivo HTML o una carpeta con index.html",
   "drop.title": "Suelta para crear una app",
   "duration.minutes": "{m} min {s} s",
@@ -465,7 +463,6 @@
   "settings.agents.desc": "Permite que herramientas de IA como Claude Code o Codex creen y compilen apps mediante Mypack. Añade esto a la configuración de tu herramienta; ejecuta Mypack en local a través de stdio.",
   "settings.agents.json": "JSON",
   "settings.agents.note": "Los agentes piden aprobación antes de descargar o reemplazar apps. Mypack no abre ningún puerto de red.",
-  "settings.appearance": "Apariencia",
   "settings.builds": "Compilaciones",
   "settings.general": "General",
   "settings.installDir": "Carpeta de instalación",
@@ -693,5 +690,6 @@
   "update.manager.linux": "tu gestor de paquetes",
   "window.minimize": "Minimizar",
   "window.maximize": "Maximizar",
-  "window.restore": "Restaurar"
+  "window.restore": "Restaurar",
+  "builds.startedFrom": "Iniciado desde {actor}"
 }

@@ -48,10 +48,9 @@ func templateIcon(name string) []byte { return sampleicons.Icon(name) }
 
 func (a *App) discoverView(c *ui.Context) {
 	page(c, func() {
-		ui.Column(c).Gap(4).Children(func() {
-			kit.SectionHeader(c, T("discover.popular"), "")
-			kit.Caption(c, T("discover.body"))
-		})
+		// The bar names the page and counts it, as on every page; the body
+		// opens with one plain line, as Runtimes does.
+		kit.Secondary(c, T("discover.body")).LineHeight(1.45)
 		// One shelf per category, in the catalog's order.
 		n := 0
 		for si, cat := range catalog.Categories {
@@ -66,7 +65,9 @@ func (a *App) discoverView(c *ui.Context) {
 			}
 			ui.Column(c.Key(si)).Gap(10).Children(func() {
 				kit.Eyebrow(c, catLabel(cat)).Padding(0, 2)
-				ui.Row(c).Gap(4).Wrap().Margin(0, -6).Children(func() {
+				// Top-aligned: a name on two lines must not lift its icon
+				// out of line with its neighbours.
+				ui.Row(c).Gap(4).Wrap().AlignItems(ui.Start).Margin(0, -6).Children(func() {
 					for _, t := range items {
 						a.presetTile(c.Key(t.url), t, min(n, 12))
 						n++
@@ -102,7 +103,9 @@ func (a *App) presetTile(c *ui.Context, t template, i int) {
 			design.RaisedControl(c, plate)
 		}
 		plate.Children(func() {
-			ui.Text(c, t.name).FontSize(design.FontBody).FontWeight(design.WeightSemibold).TextColor(p.Text).SingleLine()
+			// A long name wraps to a second line rather than losing its end.
+			ui.Text(c, t.name).FontSize(design.FontBody).FontWeight(design.WeightSemibold).TextColor(p.Text).MaxLines(2).
+				TextAlign(ui.Center).LineHeight(1.2)
 			sub, col := hostOf(t.url), p.TextTertiary
 			if hov {
 				sub, col = T("discover.get"), p.AccentText
@@ -110,6 +113,8 @@ func (a *App) presetTile(c *ui.Context, t template, i int) {
 			ui.Text(c, sub).FontSize(design.FontCaption).TextColor(col).SingleLine()
 		})
 	})
+	// The full name and address, for when the caption is cut short.
+	b.Tooltip(t.name + " · " + hostOf(t.url))
 	if b.Clicked() {
 		a.create.reset(a.host)
 		a.create.setInput(t.url)

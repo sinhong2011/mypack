@@ -58,7 +58,6 @@
   "build.viewLog": "檢視記錄",
   "builds.artifact": "輸出",
   "builds.checksum": "檢查碼",
-  "builds.col.by": "來源",
   "builds.col.duration": "耗時",
   "builds.col.started": "開始時間",
   "builds.col.targets": "平台",
@@ -126,7 +125,6 @@
   "discover.hero.eyebrow": "探索",
   "discover.hero.title": "你最愛的網站，變成真正的 App。",
   "discover.body": "選擇一個網站即可製作成 App。任何人都可以在 GitHub 上推薦更多網站。",
-  "discover.popular": "熱門網站",
   "drop.body": "HTML 檔案或包含 index.html 的檔案夾",
   "drop.title": "放開即可製作 App",
   "duration.minutes": "{m} 分 {s} 秒",
@@ -465,7 +463,6 @@
   "settings.agents.desc": "讓 Claude Code 或 Codex 等 AI 工具透過 Mypack 建立及建置 App。請將以下內容加入工具的設定；它會透過 stdio 在本機執行 Mypack。",
   "settings.agents.json": "JSON",
   "settings.agents.note": "代理程式在下載或取代 App 前會先徵求你批准。Mypack 不會開啟網絡連接埠。",
-  "settings.appearance": "外觀",
   "settings.builds": "建立作業",
   "settings.general": "一般",
   "settings.installDir": "安裝資料夾",
@@ -693,5 +690,6 @@
   "update.manager.linux": "你的套件管理工具",
   "window.minimize": "最小化",
   "window.maximize": "最大化",
-  "window.restore": "還原"
+  "window.restore": "還原",
+  "builds.startedFrom": "從{actor}開始"
 }

@@ -58,7 +58,6 @@
   "build.viewLog": "ログを表示",
   "builds.artifact": "出力",
   "builds.checksum": "チェックサム",
-  "builds.col.by": "実行元",
   "builds.col.duration": "所要時間",
   "builds.col.started": "開始",
   "builds.col.targets": "プラットフォーム",
@@ -126,7 +125,6 @@
   "discover.hero.eyebrow": "見つける",
   "discover.hero.title": "お気に入りのサイトを、本物のアプリに。",
   "discover.body": "サイトを選んでアプリにしましょう。ほかのサイトは誰でも GitHub で提案できます。",
-  "discover.popular": "人気のWebサイト",
   "drop.body": "HTML ファイル、または index.html を含むフォルダ",
   "drop.title": "ドロップしてアプリに",
   "duration.minutes": "{m}分{s}秒",
@@ -465,7 +463,6 @@
   "settings.agents.desc": "Claude CodeやCodexなどのAIツールが、Mypackを通じてアプリを作成・ビルドできるようにします。これをツールの設定に追加してください。Mypackはstdio経由でローカルで実行されます。",
   "settings.agents.json": "JSON",
   "settings.agents.note": "エージェントは、ダウンロードやアプリの置き換えの前に承認を求めます。Mypackはネットワークポートを開きません。",
-  "settings.appearance": "外観",
   "settings.builds": "ビルド",
   "settings.general": "一般",
   "settings.installDir": "インストール先フォルダ",
@@ -693,5 +690,6 @@
   "update.manager.linux": "パッケージマネージャ",
   "window.minimize": "最小化",
   "window.maximize": "最大化",
-  "window.restore": "元に戻す"
+  "window.restore": "元に戻す",
+  "builds.startedFrom": "{actor} から開始"
 }

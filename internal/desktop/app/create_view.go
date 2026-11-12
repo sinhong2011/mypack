@@ -444,7 +444,8 @@ func (a *App) appDockPreview(c *ui.Context, png []byte, name string) {
 func (a *App) dockWith(c *ui.Context, icon func(big float32)) {
 	p := design.Of(c)
 	const sz float32 = 40
-	ui.Column(c).AlignItems(ui.Start).Gap(8).Margin(24, 0, 0, 0).AccessHidden(true).Children(func() {
+	// Centred, caption included, under the centred preview above it.
+	ui.Column(c).AlignItems(ui.Center).Gap(8).Margin(24, 0, 0, 0).AccessHidden(true).Children(func() {
 		dock := ui.Row(c).Height(64).Padding(0, 12).Gap(10).AlignItems(ui.End).Radius(18).Background(p.Overlay).Border(0.5, p.BorderStrong)
 		design.Elevate(c, dock, design.Floating)
 		dock.Children(func() {
@@ -510,13 +511,16 @@ func editBadge(c *ui.Context, p *design.Palette, size float32, show bool) {
 func (a *App) createSuggestions(c *ui.Context) {
 	p := design.Of(c)
 	ui.Column(c).Gap(12).Children(func() {
-		ui.Text(c, T("create.try")).FontSize(design.FontBody).FontWeight(design.WeightSemibold).TextColor(p.TextSecondary).
-			TextAlign(ui.Center).AlignSelf(ui.Center)
+		// Left-aligned like the field's own label above it.
+		ui.Text(c, T("create.try")).FontSize(design.FontBody).FontWeight(design.WeightSemibold).TextColor(p.TextSecondary)
 		ui.Grid(c).ColumnTracks(ui.Fr(1), ui.Fr(1), ui.Fr(1)).Gap(8).Children(func() {
-			for i, t := range templates {
-				if i >= 6 {
-					break
+			shown := 0
+			for _, t := range templates {
+				// Suggest only sites not in the Library yet.
+				if shown >= 6 || a.siteInLibrary(t.url) {
+					continue
 				}
+				shown++
 				t := t
 				chip := ui.ButtonBase(c.Key(t.url)).Label(t.name).Row().Justify(ui.Start).Height(48).Padding(0, 12, 0, 8).Gap(10).AlignItems(ui.Center).
 					Radius(design.RadiusCard+2).Background(p.Group).Border(0.5, p.GroupBorder).Cursor(ui.CursorPointer).Transition(design.Transition(c))
@@ -540,6 +544,27 @@ func (a *App) createSuggestions(c *ui.Context) {
 			}
 		})
 	})
+}
+
+// siteInLibrary reports whether a single-site app for u's site is already
+// in the Library (installed or not).
+func (a *App) siteInLibrary(u string) bool {
+	dom := strings.TrimPrefix(domainOf(config.Source{Type: config.SourceURL, Value: u}), "www.")
+	if dom == "" {
+		return false
+	}
+	for i := range a.projects {
+		pr := &a.projects[i]
+		if !pr.Config.IsGroup() && strings.TrimPrefix(domainOf(pr.Config.App.Source), "www.") == dom {
+			return true
+		}
+	}
+	for i := range a.installs {
+		if strings.TrimPrefix(a.installDomain(&a.installs[i]), "www.") == dom {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *App) createTargets(c *ui.Context) {

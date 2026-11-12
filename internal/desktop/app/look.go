@@ -419,9 +419,10 @@ func (a *App) pickerRowIf(c *ui.Context, title string, body func()) {
 
 // pickerRow is a captioned single row of small tiles.
 func pickerRow(c *ui.Context, title string, body func()) {
-	p := design.Of(c)
+	// An eyebrow, as over every settings group: one step below the
+	// section heading (General), never level with it.
 	ui.Column(c).Gap(8).Children(func() {
-		ui.Text(c, title).FontSize(design.FontBody).FontWeight(design.WeightSemibold).TextColor(p.Text).Padding(0, 2).Role(ui.RoleHeading)
+		kit.Eyebrow(c, title).Padding(0, 2)
 		ui.Row(c).Gap(10).Role(ui.RoleRadioGroup).Label(title).Children(body)
 	})
 }
