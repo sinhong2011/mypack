@@ -274,7 +274,7 @@ func (a *App) settingsEditor(c *ui.Context, ed *editorState, pr *domain.Project)
 	}
 	ui.Column(c).Gap(0).Children(func() {
 		if len(list) > 0 {
-			kit.GroupBox(c.Key("card")).Children(func() {
+			kit.Follow(kit.GroupBox(c.Key("card"))).Children(func() {
 				for _, sg := range list {
 					g, rows := sg.g, sg.rows
 					open := q != "" || a.ui.SettingsOpen[key(g.id)]
@@ -283,7 +283,7 @@ func (a *App) settingsEditor(c *ui.Context, ed *editorState, pr *domain.Project)
 						h = &ui.Handle{}
 						ed.headers[g.id] = h
 					}
-					ui.Column(c.Key(g.id)).Children(func() {
+					kit.Follow(ui.Column(c.Key(g.id))).Children(func() {
 						hdr := ui.ButtonBase(c.Key("h")).Label(g.title).Row().Justify(ui.Start).MinHeight(design.Row+4).Padding(10, 14).Gap(12).
 							AlignItems(ui.Center).Cursor(ui.CursorPointer).Role(ui.RoleDisclosure).Expanded(open).
 							FocusRing(false).Transition(design.Transition(c)).Bind(h)
@@ -311,7 +311,7 @@ func (a *App) settingsEditor(c *ui.Context, ed *editorState, pr *domain.Project)
 							if open {
 								turn = 90
 							}
-							ch.Rotate(ch.AnimateTo("turn", turn, design.Spring))
+							ch.Rotate(ch.AnimateTo("turn", turn, design.SpringSoft))
 						})
 						if hdr.Clicked() && q == "" {
 							a.ui.SettingsOpen[key(g.id)] = !a.ui.SettingsOpen[key(g.id)]
@@ -363,8 +363,14 @@ func (a *App) settingsEditor(c *ui.Context, ed *editorState, pr *domain.Project)
 			}
 			ed.moveDown = ""
 		}
-		if q == "" && kit.Button(c.Key("resetall"), T("editor.reset"), kit.ButtonOpts{Variant: kit.Ghost, Size: 26}).FontWeight(design.WeightRegular).Margin(10, 0, 0, 0).AlignSelf(ui.Start).Clicked() {
-			a.dlg.reset = resetDialog{open: true, ed: ed}
+		if q == "" {
+			// In a row of its own that follows the card as groups open
+			// (the button keeps its quick hover transition).
+			kit.Follow(ui.Row(c.Key("resetallrow")).Margin(10, 0, 0, 0)).Children(func() {
+				if kit.Button(c.Key("resetall"), T("editor.reset"), kit.ButtonOpts{Variant: kit.Ghost, Size: 26}).FontWeight(design.WeightRegular).Clicked() {
+					a.dlg.reset = resetDialog{open: true, ed: ed}
+				}
+			})
 		}
 	})
 	a.autosave(c, ed)

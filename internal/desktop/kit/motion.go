@@ -47,6 +47,14 @@ func Reveal(e ui.Element) ui.Element {
 		Enter: &ui.Motion{Collapse: true}, Exit: &ui.Motion{Collapse: true}})
 }
 
+// Follow moves and resizes e in step with a Reveal opening or closing
+// beside or inside it: give it to the siblings after a disclosure and to
+// the containers around it, or they jump to their new place while the
+// disclosure is still on its way.
+func Follow(e ui.Element) ui.Element {
+	return e.Transition(ui.ElementTransition{Animation: &design.SpringSoft})
+}
+
 // PageSwap is the change between pages (key the element by the page): the
 // new page fades in quickly and the old one is gone at once, so nothing
 // slides and two pages never overlap.
