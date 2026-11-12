@@ -86,7 +86,9 @@ func (a *App) drainToasts(c *ui.Context) {
 		case 2:
 			typ = "error"
 		}
-		if t.action != "" {
+		if t.toast != nil {
+			c.AddToast(*t.toast)
+		} else if t.action != "" {
 			c.ToastAction(t.title, t.action, t.fn)
 		} else {
 			c.AddToast(ui.Toast{Title: t.title, Description: t.desc, Type: typ})

@@ -112,6 +112,7 @@ type toastReq struct {
 	kind        int
 	action      string
 	fn          func()
+	toast       *ui.Toast // shown as is, when set
 }
 
 // Run starts the GUI on the main goroutine and returns when the app quits.
@@ -481,6 +482,7 @@ func (a *App) upsertJob(j domain.BuildJob) {
 		case domain.JobSucceeded:
 			a.successAt[j.ID] = time.Now()
 			a.autoInstall(j)
+			a.starAfterBuild()
 			c := a.win
 			if c != nil {
 				// announce for screen readers via a toast when not on the page
