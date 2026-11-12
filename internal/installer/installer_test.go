@@ -111,7 +111,7 @@ func TestInstallConflictReplaceAndFidelity(t *testing.T) {
 	if st, err := os.Stat(filepath.Join(p, "Contents", "MacOS", "Fake")); err != nil || (runtime.GOOS != "windows" && st.Mode()&0o111 == 0) {
 		t.Fatalf("exec bit lost: %v %v", st, err)
 	}
-	if l, err := os.Readlink(filepath.Join(p, "Contents", "link")); err != nil || l != "MacOS/Fake" {
+	if l, err := os.Readlink(filepath.Join(p, "Contents", "link")); err != nil || filepath.ToSlash(l) != "MacOS/Fake" {
 		t.Fatalf("symlink lost: %v %v", l, err)
 	}
 	if _, err := Install(context.Background(), src, inst, false); code(err) != "INSTALL_CONFLICT" {
@@ -239,7 +239,8 @@ func TestReplaceRefusesRunningApp(t *testing.T) {
 	}
 	found := false
 	for _, c := range *calls {
-		if c[0] == "pgrep" && c[1] == "-f" && strings.Contains(filepath.ToSlash(c[2]), "Contents/MacOS/") {
+		pat := filepath.ToSlash(strings.ReplaceAll(c[2], `\\`, `/`))
+		if c[0] == "pgrep" && c[1] == "-f" && strings.Contains(pat, "Contents/MacOS") {
 			found = true
 		}
 	}
