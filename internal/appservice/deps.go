@@ -65,6 +65,7 @@ type CapabilityFunc func(host, target config.Target) builder.Capability
 type Options struct {
 	DBPath      string // "" = <UserConfigDir>/mypack/mypack.db
 	CacheDir    string // runtime cache; "" = platform default
+	BundledDir  string // installer-shipped runtimes; "" = DefaultBundledDir
 	RegistryURL string // overrides the stored/default registry when set
 	OutputDir   string // default build output directory
 	InstallDir  string // default install directory

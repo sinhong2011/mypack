@@ -9,6 +9,11 @@
 // are checked for size and sha256 before a safe extraction, and the
 // extracted binary's own sha256 is stored in a ".verified" marker so cached
 // runtimes can be re-verified offline.
+//
+// Installers ship the host platform's archive (and a copy of the signed
+// manifest) inside the app bundle. SeedFromDir copies those into the cache
+// on first launch. The remote registry is fetched only when Ensure needs a
+// version or platform that is not already cached.
 package runtimemanager
 
 import (
@@ -363,7 +368,11 @@ func (m *Manager) fetchManifest(ctx context.Context) (*Manifest, error) {
 	if err != nil {
 		return nil, err
 	}
-	// persist (best effort; failing to cache must not fail the operation)
+	m.persistManifest(raw, sig, man)
+	return man, nil
+}
+
+func (m *Manager) persistManifest(raw, sig []byte, man *Manifest) {
 	m.stateMu.Lock()
 	defer m.stateMu.Unlock()
 	dir := m.registryDir()
@@ -374,6 +383,18 @@ func (m *Manager) fetchManifest(ctx context.Context) (*Manifest, error) {
 			_ = writeFileAtomic(filepath.Join(dir, "state.json"), b, 0o644)
 		}
 	}
+}
+
+// Refresh fetches and persists the remote registry. List and a cache hit
+// on Ensure do not call this; it is for updates and tests.
+func (m *Manager) Refresh(ctx context.Context) (*Manifest, error) {
+	man, err := m.fetchManifest(ctx)
+	if err != nil {
+		return nil, err
+	}
+	m.mu.Lock()
+	m.memo, m.memoAt, m.memoURL = man, m.now(), m.registryURL
+	m.mu.Unlock()
 	return man, nil
 }
 
@@ -640,19 +661,14 @@ func (m *Manager) localRuntimes() [][2]string {
 
 // ------------------------------------------------------------------- API
 
-// List returns every runtime in the manifest (falling back to cache-only
-// info when offline) merged with local cache state.
+// List returns every runtime in the cached manifest merged with local cache
+// state. It does not contact the remote registry; call Refresh or Ensure for
+// a version that is not cached.
 func (m *Manager) List(ctx context.Context) ([]domain.RuntimeInfo, error) {
-	man, _, merr := m.bestManifest(ctx)
-	if merr != nil {
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
-		}
-		var de *domain.Error
-		if errors.As(merr, &de) && de.Code == "RUNTIME_VERIFY_FAILED" {
-			return nil, merr
-		}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
+	man, _, _ := m.cachedManifest()
 	var out []domain.RuntimeInfo
 	seen := map[[2]string]bool{}
 	if man != nil {
@@ -669,9 +685,6 @@ func (m *Manager) List(ctx context.Context) ([]domain.RuntimeInfo, error) {
 		ri := m.info(vk[0], vk[1], nil)
 		ri.Source = "cache"
 		out = append(out, ri)
-	}
-	if len(out) == 0 && merr != nil {
-		return nil, merr
 	}
 	sort.SliceStable(out, func(i, j int) bool {
 		if out[i].Version != out[j].Version {
@@ -699,7 +712,8 @@ func versionLess(a, b string) bool {
 	return a < b
 }
 
-// Status reports one runtime without network access beyond a cached manifest.
+// Status reports one runtime. A cached copy or a cached-manifest entry needs
+// no network. An unknown version fetches the remote registry (an update).
 func (m *Manager) Status(ctx context.Context, version, key string) (domain.RuntimeInfo, error) {
 	if err := checkVK(version, key); err != nil {
 		return domain.RuntimeInfo{}, err
@@ -709,28 +723,26 @@ func (m *Manager) Status(ctx context.Context, version, key string) (domain.Runti
 		entry = &e
 	}
 	ri := m.info(version, key, entry)
-	if entry == nil && !ri.Cached {
-		// No cached manifest lists it (e.g. first run): consult the registry
-		// so preflight can report the download size instead of failing.
-		e, err := m.Entry(ctx, version, key)
-		if err == nil {
-			return m.info(version, key, &e), nil
-		}
-		if de, ok := err.(*domain.Error); ok {
-			return ri, de
-		}
-		return ri, newErr("RUNTIME_NOT_FOUND", fmt.Sprintf("Runtime %s for %s is not cached and no manifest lists it", version, key), nil,
-			"Run a build with downloads allowed, or list runtimes to refresh the registry manifest.")
+	if ri.Cached || entry != nil {
+		return ri, nil
 	}
-	return ri, nil
+	e, err := m.Entry(ctx, version, key)
+	if err == nil {
+		return m.info(version, key, &e), nil
+	}
+	if de, ok := err.(*domain.Error); ok {
+		return ri, de
+	}
+	return ri, newErr("RUNTIME_NOT_FOUND", fmt.Sprintf("Runtime %s for %s is not cached and no manifest lists it", version, key), nil,
+		"Run a build with downloads allowed, or list runtimes to refresh the registry manifest.")
 }
 
 // Ensure returns the path of the verified runtime executable, downloading it
 // if missing. progress may be nil. Errors are *domain.Error with codes
 // RUNTIME_NOT_FOUND, RUNTIME_DOWNLOAD_FAILED, RUNTIME_VERIFY_FAILED, except
 // that cancellation returns ctx.Err() unchanged. Concurrent calls for the same
-// version/key coalesce into one download. When a cached runtime matches the
-// cached manifest no network access happens.
+// version/key coalesce into one download. A verified cache hit (with or
+// without a cached manifest) does not contact the remote registry.
 func (m *Manager) Ensure(ctx context.Context, version, key string, progress func(done, total int64)) (string, error) {
 	if err := checkVK(version, key); err != nil {
 		return "", err
@@ -743,6 +755,9 @@ func (m *Manager) Ensure(ctx context.Context, version, key string, progress func
 			touch(m.runtimeDir(version, key))
 			return exe, nil
 		}
+	} else if exe, err := m.checkLocal(version, key, nil); err == nil {
+		touch(m.runtimeDir(version, key))
+		return exe, nil
 	}
 	return m.do(ctx, version+"/"+key, func(ctx context.Context) (string, error) {
 		return m.install(ctx, version, key, progress)
@@ -777,6 +792,15 @@ func (m *Manager) do(ctx context.Context, id string, fn func(context.Context) (s
 }
 
 func (m *Manager) install(ctx context.Context, version, key string, progress func(done, total int64)) (string, error) {
+	if man, _, err := m.cachedManifest(); err == nil {
+		if entry, ok := man.Find(version, key); ok {
+			if exe, err := m.checkLocal(version, key, &entry); err == nil {
+				touch(m.runtimeDir(version, key))
+				return exe, nil
+			}
+			return m.download(ctx, entry, progress)
+		}
+	}
 	man, stale, err := m.bestManifest(ctx)
 	if err != nil {
 		if ctx.Err() != nil {
@@ -838,7 +862,10 @@ func (m *Manager) resolveEntryURL(e Entry) (string, error) {
 }
 
 func (m *Manager) download(ctx context.Context, e Entry, progress func(done, total int64)) (string, error) {
-	version, key := e.Version, e.Key()
+	if e.Size <= 0 || e.Size > maxArchiveSize || len(e.SHA256) != 64 {
+		return "", newErr("RUNTIME_VERIFY_FAILED", "The registry entry for this runtime is malformed", fmt.Errorf("size=%d sha256=%q", e.Size, e.SHA256),
+			"Report this to the registry operator.")
+	}
 	if err := os.MkdirAll(m.cacheDir, 0o755); err != nil {
 		return "", newErr("RUNTIME_DOWNLOAD_FAILED", "Cannot create the runtime cache directory", err, "Check permissions of "+m.cacheDir+".")
 	}
@@ -857,7 +884,11 @@ func (m *Manager) download(ctx context.Context, e Entry, progress func(done, tot
 	if err := m.fetchArchive(ctx, src, e, archive, progress); err != nil {
 		return "", err
 	}
+	return m.materialize(e, archive, tmp)
+}
 
+func (m *Manager) materialize(e Entry, archive, tmp string) (string, error) {
+	version, key := e.Version, e.Key()
 	extracted := filepath.Join(tmp, "x")
 	if err := os.Mkdir(extracted, 0o755); err != nil {
 		return "", newErr("RUNTIME_DOWNLOAD_FAILED", "Cannot create a temporary directory", err, "")
@@ -865,9 +896,6 @@ func (m *Manager) download(ctx context.Context, e Entry, progress func(done, tot
 	if err := ExtractTarGz(archive, extracted); err != nil {
 		return "", newErr("RUNTIME_VERIFY_FAILED", "The runtime archive is invalid or unsafe", err,
 			"The download was discarded. Try again; if it keeps failing the registry may be compromised.")
-	}
-	if err := ctx.Err(); err != nil {
-		return "", err
 	}
 	exeName := ExecutableName(key)
 	exe := filepath.Join(extracted, exeName)
@@ -988,9 +1016,13 @@ func (m *Manager) cleanStaleTemp() {
 	}
 }
 
-// Verify re-hashes a cached runtime against the manifest.
+// Verify re-hashes a cached runtime against its marker and, when present, the
+// cached manifest. It does not contact the remote registry.
 func (m *Manager) Verify(ctx context.Context, version, key string) error {
 	if err := checkVK(version, key); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
 		return err
 	}
 	dir := m.runtimeDir(version, key)
@@ -999,15 +1031,8 @@ func (m *Manager) Verify(ctx context.Context, version, key string) error {
 			"Download it first (build with downloads allowed).")
 	}
 	var entry *Entry
-	man, _, err := m.bestManifest(ctx)
-	if err == nil {
-		if e, ok := man.Find(version, key); ok {
-			entry = &e
-		}
-	} else if ctx.Err() != nil {
-		return ctx.Err()
-	} else if de, ok := err.(*domain.Error); ok && de.Code == "RUNTIME_VERIFY_FAILED" {
-		return err
+	if e, ok := m.CachedEntry(version, key); ok {
+		entry = &e
 	}
 	if _, err := m.checkLocal(version, key, entry); err != nil {
 		return newErr("RUNTIME_VERIFY_FAILED", "The cached runtime failed verification", err,

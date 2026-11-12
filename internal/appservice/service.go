@@ -117,6 +117,13 @@ func New(opts Options) (*Impl, error) {
 	if s.runtimes == nil {
 		s.runtimes = runtimemanager.New(opts.CacheDir, set.RegistryURL)
 	}
+	if mgr, ok := s.runtimes.(*runtimemanager.Manager); ok {
+		bundled := opts.BundledDir
+		if bundled == "" {
+			bundled = runtimemanager.DefaultBundledDir()
+		}
+		_ = mgr.SeedFromDir(bundled)
+	}
 	s.lastReg = set.RegistryURL
 	s.engine = opts.Engine
 	if s.engine == nil {

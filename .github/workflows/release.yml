@@ -16,6 +16,7 @@ on:
       - "scripts/packages.sh"
       - "scripts/linux-repo.sh"
       - "scripts/macos-notary-credentials.sh"
+      - "scripts/bundle-runtime.sh"
       - "docs/releasing.md"
       - "mygo.json"
       - "cmd/mypack/**"
@@ -39,6 +40,8 @@ jobs:
         run: bash scripts/packages.sh --self-test
       - name: Notary credential examples
         run: bash scripts/macos-notary-credentials.sh --self-test
+      - name: Bundle-runtime script examples
+        run: bash scripts/bundle-runtime.sh --self-test
       - uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser

@@ -30,7 +30,7 @@ internal/cli/            CLI commands, --json output contract, exit codes
 internal/mcp/            MCP stdio server (JSON-RPC 2.0)
 internal/companion/      Native-messaging protocol for the browser extension
 apps/browser-companion/  Chrome/Edge MV3 extension, WXT + SolidJS (7 locales)
-scripts/                 release-runtimes.sh: cross-compile runtimes → signed registry
+scripts/                 release-runtimes.sh, bundle-runtime.sh (installer-shipped host runtime)
 ```
 
 ## Generated-app runtime contract (Builder ⇄ Runtime)
@@ -144,8 +144,12 @@ image, `UpdateProject` redraws when the style or name changes, and `ProjectIconI
 `registry.json` (schemaVersion 1) + `registry.json.sig` (Ed25519 over the exact bytes).
 Root public key embedded in Builder (`internal/runtimemanager/trust.go`).
 Archive: `mypack-runtime-<version>-<os>-<arch>.tar.gz` containing the single binary.
-Verify: signature → sha256 + size → safe extract to temp → atomic rename into
-`<cache>/runtimes/<version>/<os-arch>/`, with a `.verified` marker.
+Each platform installer ships the matching archive (and a copy of the signed
+manifest) in `Resources/runtimes`; first launch copies it into the cache
+(`SeedFromDir`). The remote registry is fetched only for a version or platform
+that is not already cached. Verify: signature → sha256 + size → safe extract
+to temp → atomic rename into `<cache>/runtimes/<version>/<os-arch>/`, with a
+`.verified` marker.
 Cache: macOS `~/Library/Caches/mypack/runtimes`, Windows `%LOCALAPPDATA%\mypack\cache\runtimes`,
 Linux `${XDG_CACHE_HOME:-~/.cache}/mypack/runtimes`.
 Dev registry: `scripts/release-runtimes.sh` builds all 7 targets into `dist/registry/`

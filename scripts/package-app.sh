@@ -17,6 +17,12 @@ go run ./scripts/macicon assets/AppIcon-1024.png assets/AppIcon-macOS-1024.png
 go run ./scripts/mkicns assets/AppIcon-macOS-1024.png "$APP/Contents/Resources/AppIcon.icns"
 mkdir -p "$APP/Contents/Resources/licenses"
 cp LICENSE NOTICE "$APP/Contents/Resources/licenses/"
+if bash scripts/bundle-runtime.sh "darwin/$(go env GOARCH)"; then
+  mkdir -p "$APP/Contents/Resources/runtimes"
+  cp resources/runtimes/* "$APP/Contents/Resources/runtimes/"
+else
+  echo "warning: no bundled runtime; first build will download from the registry" >&2
+fi
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
