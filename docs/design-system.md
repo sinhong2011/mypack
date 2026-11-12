@@ -46,20 +46,20 @@ blobs.
 
 ## How it moves
 
-Springs everywhere, all interruptible:
+Motion only where it explains a change of state; content otherwise just
+shows. All of it is interruptible:
 
-- pages slide in from the way you travelled, the old one easing back;
-- an app's icon flies between screens: from its Library tile, sidebar row
-  or ⌘K row to the project hero and home again, and from Create into the
-  build scene;
-- staggered arrivals (30 ms), tiles that re-flow as you filter, and
-  removals that collapse;
-- indicators that glide between items, and a toolbar that firms up as the
-  page scrolls under it;
-- labels that roll when they change, and buttons that morph into their
-  loading state;
-- sheets and the palette that spring in (.96 → 1) while the page behind
-  blurs.
+- a page change is a quick 140 ms fade-in of the new page, with no slide;
+  Settings switches panes at once, as a settings window does;
+- lists and grids show at once (no staggered arrivals); a removed tile or
+  row folds its space away so its neighbours close the gap;
+- the sidebar pill and segmented indicators glide between items, and the
+  toolbar firms up as the page scrolls under it;
+- controls answer input: hover and press colours (140 ms), a press sink on
+  icons, switches, checkboxes, disclosure chevrons and progress;
+- sheets, menus and the palette spring in (.96 → 1) while the page behind
+  blurs;
+- the build scene is the one story: the site's window becomes its app.
 
 Every motion has a cause and payoffs hold. Reduce Motion turns all of it
 into settled states.
@@ -165,9 +165,9 @@ CleanShot and Mercury. They also draw on two references the owner sent.
 9. **Make a signature moment.** CleanShot has its capture overlay and Arc its
    spaces. mypack's is the build scene: the site's window morphs into its
    app icon, is signed with a badge, and lands in the Dock.
-10. **Keep feedback fast and story motion slow** (*Stageshow*). Hover and press
-    take 140–260 ms springs. Storytelling motion takes 600 ms or more on
-    travel/arrive curves. Grids and lists stagger 30 ms.
+10. **Keep feedback fast and story motion rare** (*Stageshow*). Hover and press
+    take 140–260 ms. Only the build scene tells a story (600 ms or more).
+    Navigation, lists and grids do not animate their arrival.
 
 **Inspora (Product and Motion).** The gallery lazy-loads its images, so the
 tools could read only titles such as "Usage Meter Component", "Project Card
@@ -181,20 +181,12 @@ code:
 
 | mygo-music technique | MyGo API | mypack usage |
 |---|---|---|
-| Pages are scrolls keyed by the route, so a new route is a new element that transitions in | `c.Key(route)`, `ElementTransition{Enter, Exit}` | `kit.PageSwap(page, dir)`: slide 28 pt from the way of travel; the old page eases back 12 pt and to .985 (`SpringPage`, 280 ms) |
-| The now-playing cover enters from the side it is on in the play order and the old one leaves the other way, scaled .92 | `Motion{X, Scale}`, direction from the order | `App.travel` ranks sections, so going deeper slides from the right and coming back from the left |
-| Rows of a list roll in one after another | `Animation.Delay` per row (30 ms) | `kit.Arrive` / `kit.Block` / `kit.Stagger`; `StaggerList` = `StaggerGrid` = 30 ms |
+| Pages are scrolls keyed by the route, so a new route is a new element that transitions in | `c.Key(route)`, `ElementTransition{Enter, Exit}` | `kit.PageSwap(page)`: the new page fades in over 140 ms; the old one goes at once |
 | Popovers and menus come in at .94 and leave at .96 on `Snappy` | `Enter/Exit: &Motion{Scale}` | `kit.Pop`; sheets and ⌘K at .96 → 1 on `Spring` |
-| Hover lifts artwork; press sinks | `AnimatePose(Pose{Y, Scale})` | `kit.Lift`, `kit.Press` (press .98) |
-| Inserted and removed comments collapse their height | `Motion{Collapse: true}` | tiles leave with `Collapse` and .92, so the grid closes up |
+| Press sinks | `AnimatePose(Pose{Scale})` | `kit.Press` (press .98); tile icons sink to .97. No hover lift |
+| Removed comments collapse their height | `Motion{Collapse: true}` | `kit.Arrive`: tiles and rows leave with `Collapse` and .96, so the grid closes up |
 | Scroll position tracked per page | `TrackScroll(&ScrollState)` | `pageScroll`: the toolbar's subtitle folds away and a hairline appears as content scrolls under it |
 | Blur as a transition material | `Element.Blur` | the page blurs (6 pt, on a spring) behind sheets and ⌘K |
-
-mypack adds the shared icon flight (`app/motion.go`): the source notes its
-icon's rect in the window (`Element.Bounds`), the destination hides its own
-icon until the flight lands, and one overlay carries the icon on a spring
-with a slight arc. (MyGo's `Match`/`Fly` did not take across our keyed page
-swap, so the flight is explicit.)
 
 ## Tokens (`internal/desktop/design`)
 
@@ -276,7 +268,6 @@ Controls are 24/30/36/44 high and rows 36/44/52.
 | Kind | Tokens |
 |---|---|
 | Durations | `MotionInstant` 90, `Fast` 140, `Base` 220, `Slow` 320, `Scene` 640 ms |
-| Staggers | `StaggerList` 35, `StaggerGrid` 55 ms |
 | Easings | `EaseTravel` (0.45,0,0.1,1), `EaseArrive` (0.25,0.8,0.25,1), `EaseStd` |
 | Springs | `Spring` 260 ms / bounce .16, `SpringSoft` 320/0, `SpringPop` 540/.42, `SpringGlide` 620/.06 |
 
@@ -292,12 +283,11 @@ its motion built in.
 
 | Helper | What it does |
 |---|---|
-| `Arrive` | enter from below and fade; leave upward; staggered |
+| `Arrive` | shows at once; leaves by folding its space away |
 | `Pop` | grow in |
 | `Reveal` | open and close its own height |
 | `Roll` | a label rolls up when it changes |
-| `PageSwap` | page change: slide from the way of travel, old page eases back |
-| `Block` | a page's blocks stagger in after it |
+| `PageSwap` | page change: a quick fade-in of the new page |
 | `MarkModal` / `ModalOpen` | a sheet or palette is up: blur the page behind |
 | `Press` / `Lift` | hover lift, press sink |
 | `Glide` | shared-element indicator |

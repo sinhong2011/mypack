@@ -22,10 +22,6 @@ func (a *App) view(c *ui.Context) {
 	design.Apply(c)
 	p := design.Of(c)
 	kit.Strings.Close = T("common.close")
-	a.reduced = c.Preferences().ReduceMotion
-	if a.iconAt == nil {
-		a.iconAt = iconRects{}
-	}
 	c.Root().Background(p.Chrome)
 	win := ui.Box(c).Fill()
 	dragging := win.FileDragOver()
@@ -68,7 +64,6 @@ func (a *App) view(c *ui.Context) {
 	if dragging {
 		a.dropOverlay(c)
 	}
-	a.flightsView(c)
 	a.dialogs(c)
 	a.paletteView(c)
 	kit.Toasts(c)
@@ -165,16 +160,12 @@ func (a *App) sidebar(c *ui.Context) {
 						AlignItems(ui.Center).Cursor(ui.CursorPointer)
 					kit.NavRow(c, row, active)
 					kbd := row.FocusVisible()
-					kit.Arrive(row, i, design.StaggerList)
 					row.Children(func() {
 						kit.FocusMark(c, kbd, 10)
 						if active {
 							a.navPill(c)
 						}
-						ic := kit.AppIconOpts(c, pr.IconPNG, pr.Config.App.Name, 18, kit.IconOpts{})
-						if row.Clicked() {
-							a.flyFrom(iconKey(pr.ID), ic.Bounds(), pr.IconPNG, pr.Config.App.Name)
-						}
+						kit.AppIconOpts(c, pr.IconPNG, pr.Config.App.Name, 18, kit.IconOpts{})
 						fg := p.TextSecondary
 						if active {
 							fg = p.Text
@@ -343,15 +334,11 @@ func (a *App) toolbarTitle(c *ui.Context) {
 // ---- content --------------------------------------------------------------------
 
 func (a *App) content(c *ui.Context) {
-	dir := a.navDir
-	if dir == 0 {
-		dir = 1
-	}
-	ui.Box(c.Key("pages")).Absolute().Fill().Children(func() { a.pageView(c, dir) })
+	ui.Box(c.Key("pages")).Absolute().Fill().Children(func() { a.pageView(c) })
 }
 
-func (a *App) pageView(c *ui.Context, dir float32) {
-	kit.PageSwap(ui.Column(c.Key(string(a.section)+a.projectID)).Absolute().Fill(), dir).Children(func() {
+func (a *App) pageView(c *ui.Context) {
+	kit.PageSwap(ui.Column(c.Key(string(a.section) + a.projectID)).Absolute().Fill()).Children(func() {
 		switch a.section {
 		case secLibrary:
 			a.libraryView(c)
@@ -417,7 +404,7 @@ func (a *App) dropOverlay(c *ui.Context) {
 		ui.Box(c).Absolute().Top(14).Left(14).Right(14).Bottom(14).PassThrough().AccessHidden(true).Draw(func(pt *ui.Painter, r ui.Rect) {
 			pt.StrokeDashed(r, p.Accent, design.RadiusCanvas+4, 2)
 		})
-		kit.Pop(ui.Row(c.Key("dropicon")).Size(64, 64).Radius(18).Center().Background(p.AccentSoft)).Children(func() {
+		ui.Row(c.Key("dropicon")).Size(64, 64).Radius(18).Center().Background(p.AccentSoft).Children(func() {
 			kit.Glyph(c, icons.Import, 30, p.Accent)
 		})
 		ui.Text(c, T("drop.title")).FontSize(design.FontDisplay).FontWeight(design.WeightBold).TextColor(p.Text).LetterSpacing(design.TrackDisplay)

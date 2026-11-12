@@ -125,7 +125,5 @@ func (a *App) presetIconView(c *ui.Context, t template, size float32, shadow boo
 	if len(icon) > 0 {
 		png = icon
 	}
-	kit.Pop(ui.Box(c.Key("ic" + t.url)).Children(func() {
-		kit.AppIconOpts(c, png, t.name, size, kit.IconOpts{Shadow: shadow})
-	}))
+	kit.AppIconOpts(c, png, t.name, size, kit.IconOpts{Shadow: shadow})
 }
