@@ -15,6 +15,7 @@ type MockupOpts struct {
 	Name     string
 	Tint     ui.Color // the site's theme colour
 	Seamless bool     // title bar: seamless (traffic lights over a tinted strip) or standard
+	Glass    bool     // with Seamless: the strip is glass over the page, which runs under it
 	Dark     bool     // the app's appearance
 	W, H     int      // window size in points (Fill: Maximized)
 	Fill     bool
@@ -67,6 +68,7 @@ func AppMockup(c *ui.Context, o MockupOpts) ui.Element {
 	sw := e.AnimateTo("w", min(fw, 1), design.SpringSoft)
 	sh := e.AnimateTo("h", min(fh, 1), design.SpringSoft)
 	seam := e.AnimateTo("seam", b2f(o.Seamless), design.SpringSoft)
+	glassK := e.AnimateTo("glass", b2f(o.Seamless && o.Glass), design.SpringSoft)
 	dark := e.AnimateTo("dark", b2f(o.Dark), design.SpringSoft)
 	menubar := o.Mode == "menubar"
 	tray := e.AnimateTo("tray", b2f(o.Tray || menubar), design.Spring)
@@ -233,6 +235,13 @@ func AppMockup(c *ui.Context, o MockupOpts) ui.Element {
 				}
 				pt.FillPath(roundRect(cx+16, y, (cw-32)*f, 7, 3.5), line)
 				y += 15
+			}
+			// Glass: the page runs under the bar, frosted and lit along its
+			// rim, a line of it showing through.
+			if g := glassK * chromeK; g > 0.01 {
+				pt.FillPath(roundRect(cx+ww*0.32, wy+barH*0.3, min(120, cw*0.36), 7, 3.5), design.Fade(ui.RGBA(255, 255, 255, 0.9), g))
+				pt.Fill(ui.Rect{X: wx, Y: wy, W: ww, H: barH}, design.Fade(mix(ui.RGBA(255, 255, 255, 0.45), ui.RGBA(30, 38, 53, 0.5), dark), g), 0)
+				pt.Fill(ui.Rect{X: wx, Y: wy + barH - 0.5, W: ww, H: 0.5}, design.Fade(ui.RGBA(255, 255, 255, 0.7), g), 0)
 			}
 			// Traffic lights over either bar (a menu-bar panel has none).
 			if chromeK > 0.05 {

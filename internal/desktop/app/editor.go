@@ -407,10 +407,7 @@ func (a *App) describeGroups(ed *editorState, groups []settingGroup) {
 		case "window":
 			g.summary = func() string {
 				w := cfg.Window
-				tb := T("look.titleBar.standard")
-				if w.TitleBarStyle == "overlay" || w.TitleBarStyle == "hidden" {
-					tb = T("look.titleBar.seamless")
-				}
+				tb := map[string]string{tbStandard: T("look.titleBar.standard"), tbSeamless: T("look.titleBar.seamless"), tbGlass: T("look.titleBar.glass")}[titleBarKind(w.TitleBarStyle)]
 				ap := map[string]string{"": T("appearance.system"), "system": T("appearance.system"), "light": T("appearance.light"), "dark": T("appearance.dark")}[w.DarkMode]
 				size := fmt.Sprintf("%d × %d", w.Width, w.Height)
 				if w.Maximized {
