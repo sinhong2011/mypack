@@ -11,7 +11,22 @@ import (
 	"mypack.dev/mypack/internal/desktop/kit"
 	"mypack.dev/mypack/internal/desktop/kit/icons"
 	"mypack.dev/mypack/internal/domain"
+	"mypack.dev/mypack/pkg/config"
 )
+
+// shownRuntimes keeps every platform of the runtime this Mypack pins new
+// projects to, and older or newer versions only where a copy is on disk.
+// The registry lists every version ever published, so without this a fresh
+// install shows a full table of downloads nobody needs per old version.
+func shownRuntimes(all []domain.RuntimeInfo, current string) []domain.RuntimeInfo {
+	out := make([]domain.RuntimeInfo, 0, len(all))
+	for _, rt := range all {
+		if rt.Version == current || rt.Cached {
+			out = append(out, rt)
+		}
+	}
+	return out
+}
 
 func (a *App) runtimesView(c *ui.Context) {
 	p := design.Of(c)
@@ -73,7 +88,7 @@ func (a *App) runtimesView(c *ui.Context) {
 					{Title: T("runtimes.col.size"), Width: 76, End: true}, {Title: T("runtimes.col.status"), Width: 130},
 					{Title: T("runtimes.col.lastUsed"), Width: 104}, {Width: 150},
 				}, 14)
-				for i, rt := range a.runtimes {
+				for i, rt := range shownRuntimes(a.runtimes, config.DefaultRuntimeVersion) {
 					a.runtimeRow(c.Key(rt.Key+rt.Version), rt, i)
 				}
 			})
