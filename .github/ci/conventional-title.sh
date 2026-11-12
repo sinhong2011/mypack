@@ -18,7 +18,7 @@ title_type() {
 }
 
 # A type/slug branch must use the same type as the title.
-# cursor/, dependabot/, renovate/, and release-please-- branches are left alone.
+# cursor/, dependabot/, and renovate/ branches are left alone.
 # Commit subjects use the same title pattern. They do not have to share the
 # branch type: a feature pull request may contain a fix.
 check_branch() {
@@ -27,9 +27,6 @@ check_branch() {
   case "$first" in
     cursor|dependabot|renovate) return 0 ;;
   esac
-  if [[ "$branch" == release-please--* ]]; then
-    return 0
-  fi
   if [[ "$first" =~ ^($types)$ ]]; then
     [[ "$first" == "$ttype" ]]
     return
@@ -94,7 +91,6 @@ self_test() {
   expect_ok 'chore(main): release 0.1.0' 'chore/release-0.1.0'
   expect_ok 'ci: check pull request titles' 'cursor/conventional-title-6f82'
   expect_ok 'chore: bump a dependency' 'dependabot/npm_and_yarn/left-pad-1.0.0'
-  expect_ok 'chore(main): release 0.1.0' 'release-please--branches--main'
   expect_ok 'docs: update the library screenshot' 'wip-readme'
 
   expect_bad_title 'Update the README'
@@ -138,7 +134,7 @@ if ! check_branch "$branch" "$ttype"; then
   echo "Branch name prefers the same type as the title." >&2
   echo "  branch: $branch" >&2
   echo "  title:  $title" >&2
-  echo "Use ${ttype}/short-description, or rename the branch. cursor/, dependabot/, renovate/, and release-please-- branches are left alone." >&2
+  echo "Use ${ttype}/short-description, or rename the branch. cursor/, dependabot/, and renovate/ branches are left alone." >&2
   exit 1
 fi
 echo "title ok: $title"

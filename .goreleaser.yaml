@@ -1,6 +1,6 @@
-# Publish the Mypack app and CLI. release-please owns the version, changelog,
-# release pull request, tag, and GitHub Release notes. This file only builds
-# and uploads archives. See docs/releasing.md.
+# Publish the Mypack app and CLI from a pushed vX.Y.Z tag: build the
+# archives, and create the GitHub Release with notes GitHub generates from
+# the pull requests since the last tag. See docs/releasing.md.
 version: 2
 
 project_name: mypack
@@ -61,18 +61,18 @@ archives:
       - LICENSE
       - NOTICE
       - README.md
-      - CHANGELOG*
 
 checksum:
   name_template: checksums.txt
   algorithm: sha256
 
+# The notes GitHub's "Generate release notes" writes: merged pull request
+# titles and new contributors, as MyGo's releases have.
 changelog:
-  sort: asc
-  use: git
+  use: github-native
 
 release:
-  name_template: "v{{ .Version }}"
+  name_template: "Mypack {{ .Version }}"
   mode: keep-existing
   replace_existing_artifacts: true
   prerelease: auto
