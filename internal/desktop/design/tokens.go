@@ -258,10 +258,6 @@ const (
 	MotionBase    = 220 * time.Millisecond
 	MotionSlow    = 320 * time.Millisecond
 	MotionScene   = 640 * time.Millisecond
-
-	StaggerList  = 30 * time.Millisecond // rows in reading order
-	StaggerGrid  = 30 * time.Millisecond // tiles of a grid
-	StaggerBlock = 45 * time.Millisecond // a page's blocks: header, then content
 )
 
 // Easings: travel (departure, clear travel, soft arrival) and arrival

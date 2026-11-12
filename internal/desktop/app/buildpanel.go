@@ -492,17 +492,8 @@ func (a *App) sceneFor(c *ui.Context, pr *domain.Project, j *domain.BuildJob, h 
 		a.scenes[key] = m
 	}
 	host := addressLabel(pr.Config.App.Source, pr.Config.App.Name)
-	// The icon flies in from Create onto the card; once risen, it is
-	// where the icon flies home from when the page is left.
-	slot := func(e ui.Element, stage int) {
-		if stage == kit.SceneValidate {
-			a.flyTo(c, cardKey(pr.ID), e)
-		} else {
-			a.iconAt[iconKey(pr.ID)] = e.Bounds()
-		}
-	}
 	native := func() {
-		kit.BuildScene(c, kit.SceneOpts{IconSlot: slot, Stage: st, StageAt: m.at, Progress: a.statusProgress(*j), Failed: j.Status == domain.JobFailed,
+		kit.BuildScene(c, kit.SceneOpts{Stage: st, StageAt: m.at, Progress: a.statusProgress(*j), Failed: j.Status == domain.JobFailed,
 			Cancelled: j.Status == domain.JobCancelled, Icon: pr.IconPNG, Name: pr.Config.App.Name, Host: host,
 			Tint: kit.IconTint(pr.IconPNG, pr.Config.App.Name), Height: h})
 	}

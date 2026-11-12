@@ -22,10 +22,6 @@ func (a *App) view(c *ui.Context) {
 	design.Apply(c)
 	p := design.Of(c)
 	kit.Strings.Close = T("common.close")
-	a.reduced = c.Preferences().ReduceMotion
-	if a.iconAt == nil {
-		a.iconAt = iconRects{}
-	}
 	c.Root().Background(p.Chrome)
 	win := ui.Box(c).Fill()
 	dragging := win.FileDragOver()
@@ -68,10 +64,20 @@ func (a *App) view(c *ui.Context) {
 	if dragging {
 		a.dropOverlay(c)
 	}
-	a.flightsView(c)
 	a.dialogs(c)
 	a.paletteView(c)
 	kit.Toasts(c)
+	a.drainToasts(c)
+	if a.setWin != nil && a.setWin.IsVisible() {
+		a.setWin.Invalidate() // it shows the same state
+	}
+	if c.Shortcut(0, ui.KeyEscape) {
+		a.escape()
+	}
+}
+
+// drainToasts shows the queued toasts in the window drawing c.
+func (a *App) drainToasts(c *ui.Context) {
 	for _, t := range a.toasts {
 		typ := ""
 		switch t.kind {
@@ -80,16 +86,15 @@ func (a *App) view(c *ui.Context) {
 		case 2:
 			typ = "error"
 		}
-		if t.action != "" {
+		if t.toast != nil {
+			c.AddToast(*t.toast)
+		} else if t.action != "" {
 			c.ToastAction(t.title, t.action, t.fn)
 		} else {
 			c.AddToast(ui.Toast{Title: t.title, Description: t.desc, Type: typ})
 		}
 	}
 	a.toasts = nil
-	if c.Shortcut(0, ui.KeyEscape) {
-		a.escape()
-	}
 }
 
 func (a *App) escape() {
@@ -157,16 +162,12 @@ func (a *App) sidebar(c *ui.Context) {
 						AlignItems(ui.Center).Cursor(ui.CursorPointer)
 					kit.NavRow(c, row, active)
 					kbd := row.FocusVisible()
-					kit.Arrive(row, i, design.StaggerList)
 					row.Children(func() {
 						kit.FocusMark(c, kbd, 10)
 						if active {
 							a.navPill(c)
 						}
-						ic := kit.AppIconOpts(c, pr.IconPNG, pr.Config.App.Name, 18, kit.IconOpts{})
-						if row.Clicked() {
-							a.flyFrom(iconKey(pr.ID), ic.Bounds(), pr.IconPNG, pr.Config.App.Name)
-						}
+						kit.AppIconOpts(c, pr.IconPNG, pr.Config.App.Name, 18, kit.IconOpts{})
 						fg := p.TextSecondary
 						if active {
 							fg = p.Text
@@ -185,7 +186,13 @@ func (a *App) sidebar(c *ui.Context) {
 		ui.Spacer(c)
 		ui.Column(c).Gap(1).Children(func() {
 			a.navItem(c, secRuntimes, icons.Runtimes, T("nav.runtimes"), "")
-			a.navItem(c, secSettings, icons.Settings, T("nav.settings"), a.updateBadge())
+			if a.sideRow(c, "settings", icons.Settings, T("nav.settings"), a.updateBadge(), true, false, nil) {
+				if a.updateBadge() != "" {
+					a.openSettings(paneUpdates) // where the waiting update is
+				} else {
+					a.openSettings("")
+				}
+			}
 		})
 	})
 }
@@ -194,9 +201,20 @@ func (a *App) sidebar(c *ui.Context) {
 func (a *App) navPill(c *ui.Context) { kit.NavPill(c, navGlide{}) }
 
 func (a *App) navItem(c *ui.Context, s section, ic *ui.SVG, label, badge string) {
+	if a.sideRow(c, string(s), ic, label, badge, s == secLibrary, a.section == s, nil) {
+		a.nav(s)
+	}
+}
+
+// sideRow is one sidebar row, the selection pill gliding between rows that
+// share glide (navGlide when nil); it reports a click. A badge of "•"
+// (and a count after it) is a spinner; accent marks a count to act on.
+func (a *App) sideRow(c *ui.Context, key string, ic *ui.SVG, label, badge string, accent, active bool, glide any) bool {
 	p := design.Of(c)
-	active := a.section == s
-	row := ui.ButtonBase(c.Key(string(s))).Label(label).Row().Justify(ui.Start).Height(30).PaddingX(9).Gap(10).AlignItems(ui.Center).
+	if glide == nil {
+		glide = navGlide{}
+	}
+	row := ui.ButtonBase(c.Key(key)).Label(label).Row().Justify(ui.Start).Height(30).PaddingX(9).Gap(10).AlignItems(ui.Center).
 		Cursor(ui.CursorPointer).Current(ui.CurrentPage)
 	kit.NavRow(c, row, active)
 	kbd := row.FocusVisible()
@@ -206,7 +224,7 @@ func (a *App) navItem(c *ui.Context, s section, ic *ui.SVG, label, badge string)
 	row.Children(func() {
 		kit.FocusMark(c, kbd, 10)
 		if active {
-			a.navPill(c)
+			kit.NavPill(c, glide)
 		}
 		col, tc := p.TextSecondary, p.TextSecondary
 		if active {
@@ -226,12 +244,10 @@ func (a *App) navItem(c *ui.Context, s section, ic *ui.SVG, label, badge string)
 				kit.NavCount(c, n, false)
 			}
 		default:
-			kit.NavCount(c, badge, s == secLibrary || s == secSettings) // app updates; Mypack's own
+			kit.NavCount(c, badge, accent)
 		}
 	})
-	if row.Clicked() {
-		a.nav(s)
-	}
+	return row.Clicked()
 }
 
 // ---- toolbar --------------------------------------------------------------------
@@ -293,8 +309,6 @@ func (a *App) toolbarTitle(c *ui.Context) {
 		sub = T("builds.count", "count", len(a.jobs))
 	case secRuntimes:
 		title = T("nav.runtimes")
-	case secSettings:
-		title = T("nav.settings")
 	case secCreate:
 		title = T("create.toolbar")
 	case secProject:
@@ -326,15 +340,11 @@ func (a *App) toolbarTitle(c *ui.Context) {
 // ---- content --------------------------------------------------------------------
 
 func (a *App) content(c *ui.Context) {
-	dir := a.navDir
-	if dir == 0 {
-		dir = 1
-	}
-	ui.Box(c.Key("pages")).Absolute().Fill().Children(func() { a.pageView(c, dir) })
+	ui.Box(c.Key("pages")).Absolute().Fill().Children(func() { a.pageView(c) })
 }
 
-func (a *App) pageView(c *ui.Context, dir float32) {
-	kit.PageSwap(ui.Column(c.Key(string(a.section)+a.projectID)).Absolute().Fill(), dir).Children(func() {
+func (a *App) pageView(c *ui.Context) {
+	kit.PageSwap(ui.Column(c.Key(string(a.section) + a.projectID)).Absolute().Fill()).Children(func() {
 		switch a.section {
 		case secLibrary:
 			a.libraryView(c)
@@ -344,8 +354,6 @@ func (a *App) pageView(c *ui.Context, dir float32) {
 			a.buildsView(c)
 		case secRuntimes:
 			a.runtimesView(c)
-		case secSettings:
-			a.settingsView(c)
 		case secCreate:
 			a.createView(c)
 		case secProject:
@@ -402,7 +410,7 @@ func (a *App) dropOverlay(c *ui.Context) {
 		ui.Box(c).Absolute().Top(14).Left(14).Right(14).Bottom(14).PassThrough().AccessHidden(true).Draw(func(pt *ui.Painter, r ui.Rect) {
 			pt.StrokeDashed(r, p.Accent, design.RadiusCanvas+4, 2)
 		})
-		kit.Pop(ui.Row(c.Key("dropicon")).Size(64, 64).Radius(18).Center().Background(p.AccentSoft)).Children(func() {
+		ui.Row(c.Key("dropicon")).Size(64, 64).Radius(18).Center().Background(p.AccentSoft).Children(func() {
 			kit.Glyph(c, icons.Import, 30, p.Accent)
 		})
 		ui.Text(c, T("drop.title")).FontSize(design.FontDisplay).FontWeight(design.WeightBold).TextColor(p.Text).LetterSpacing(design.TrackDisplay)

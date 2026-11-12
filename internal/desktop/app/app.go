@@ -32,7 +32,6 @@ const (
 	secDiscover section = "discover"
 	secBuilds   section = "builds"
 	secRuntimes section = "runtimes"
-	secSettings section = "settings"
 	secCreate   section = "create"
 	secProject  section = "project"
 	secGallery  section = "gallery" // MYPACK_KIT_GALLERY=1
@@ -49,10 +48,8 @@ type App struct {
 
 	section    section
 	projectID  string
-	projTab    int                // 0 overview, 1 settings
-	navDir     float32            // +1 the last page change went deeper, -1 back
-	flights    map[string]*flight // app icons on their way between screens
-	toolbarW   float32            // the toolbar's width last frame (compact controls when narrow)
+	projTab    int     // 0 overview, 1 settings
+	toolbarW   float32 // the toolbar's width last frame (compact controls when narrow)
 	hud        hudState
 	status     map[string]*statusState // the build status blocks, per job
 	steps      map[string]*stepTrack   // the build step lists, per job
@@ -60,8 +57,6 @@ type App struct {
 	traySpin   bool                    // the build HUD near the notch
 	previewBox ui.Rect                 // the preview column's viewport last frame (the stage fills it)
 	autoOpen   map[string]time.Time    // jobs installed & opened automatically, and when
-	iconAt     iconRects               // where the project hero's icon showed last
-	reduced    bool                    // the user asked for reduced motion
 
 	loaded   bool
 	settings appservice.Settings
@@ -90,6 +85,7 @@ type App struct {
 	palette   paletteState
 
 	flyout    *mygo.Window
+	setWin    *mygo.Window // Settings, once opened
 	flyoutURL string
 
 	lib     libState
@@ -117,6 +113,7 @@ type toastReq struct {
 	kind        int
 	action      string
 	fn          func()
+	toast       *ui.Toast // shown as is, when set
 }
 
 // Run starts the GUI on the main goroutine and returns when the app quits.
@@ -130,7 +127,7 @@ func Run(svc appservice.Service) error {
 	}
 	a.section = section(a.ui.Section)
 	switch a.section {
-	case secLibrary, secDiscover, secBuilds, secRuntimes, secSettings:
+	case secLibrary, secDiscover, secBuilds, secRuntimes:
 	case secProject:
 		a.projectID = a.ui.ProjectID
 		if a.projectID == "" {
@@ -139,6 +136,7 @@ func Run(svc appservice.Service) error {
 	default:
 		a.section = secLibrary
 	}
+	a.set.pane = settingsPane(a.ui.SettingsPane)
 	a.create.reset(a.host)
 	if galleryEnabled() {
 		a.section = secGallery
@@ -200,6 +198,7 @@ func Run(svc appservice.Service) error {
 			if a.win != nil {
 				a.win.Invalidate()
 			}
+			a.redrawSettings()
 		}
 		svc.Subscribe(a.onEvent)
 		a.reload("projects", "installs", "jobs", "runtimes", "storage")
@@ -303,6 +302,7 @@ func (a *App) toast(title, desc string, kind int) {
 	if a.win != nil {
 		a.win.Invalidate()
 	}
+	a.redrawSettings()
 }
 
 func (a *App) toastAction(title, action string, fn func()) {
@@ -484,6 +484,7 @@ func (a *App) upsertJob(j domain.BuildJob) {
 		case domain.JobSucceeded:
 			a.successAt[j.ID] = time.Now()
 			a.autoInstall(j)
+			a.starAfterBuild()
 			c := a.win
 			if c != nil {
 				// announce for screen readers via a toast when not on the page

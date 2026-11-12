@@ -80,8 +80,7 @@ func (a *App) autoCheckUpdates() {
 
 // checkForUpdatesMenu is "Check for Updates…": Settings, and a check.
 func (a *App) checkForUpdatesMenu() {
-	a.showWindow()
-	a.nav(secSettings)
+	a.openSettings(paneUpdates)
 	a.checkForUpdates(true)
 }
 
@@ -100,14 +99,10 @@ func (a *App) checkForUpdates(manual bool) {
 		rel, err := selfupdate.Checker{UserAgent: "Mypack/" + Version}.Latest(ctx, pre)
 		mygo.RunOnMain(func() {
 			a.finishCheck(rel, err, manual)
-			if a.win != nil {
-				a.win.Invalidate()
-			}
+			a.redrawUpdates()
 		})
 	}()
-	if a.win != nil {
-		a.win.Invalidate()
-	}
+	a.redrawUpdates()
 }
 
 func (a *App) finishCheck(rel *selfupdate.Release, err error, manual bool) {
@@ -126,12 +121,11 @@ func (a *App) finishCheck(rel *selfupdate.Release, err error, manual bool) {
 	a.upd.phase, a.upd.rel = updAvailable, rel
 	// A check of its own tells of each new version once, in a toast,
 	// unless Settings, which shows it, is in front.
-	if !manual && a.ui.UpdateNotified != rel.Version && !(a.section == secSettings && a.win != nil && a.win.IsVisible()) {
+	if !manual && a.ui.UpdateNotified != rel.Version && !(a.curPane() == paneUpdates && a.setWin != nil && a.setWin.IsVisible()) {
 		a.ui.UpdateNotified = rel.Version
 		a.ui.save()
 		a.toastAction(T("update.toast", "version", rel.Version), T("update.toast.view"), func() {
-			a.showWindow()
-			a.nav(secSettings)
+			a.openSettings(paneUpdates)
 		})
 	}
 }
@@ -164,9 +158,7 @@ func (a *App) installUpdate() {
 				mygo.RunOnMain(func() {
 					if a.upd.phase == updDownloading {
 						a.upd.progress = float64(pct) / 100
-						if a.win != nil {
-							a.win.Invalidate()
-						}
+						a.redrawUpdates()
 					}
 				})
 			})
@@ -185,9 +177,7 @@ func (a *App) installUpdate() {
 			default:
 				a.upd.phase = updReady
 			}
-			if a.win != nil {
-				a.win.Invalidate()
-			}
+			a.redrawUpdates()
 		})
 	}()
 }
@@ -219,7 +209,7 @@ func managerName(m selfupdate.Manager) string {
 
 func (a *App) updatesGroup(c *ui.Context) {
 	u := &a.upd
-	kit.Group(c, T("update.group"), func() {
+	kit.Group(c, "", func() { // the pane is titled Updates
 		a.updateStatus(c)
 		if u.phase == updAvailable || (u.phase == updFailed && u.rel != nil) || u.phase == updDownloading {
 			a.updateDetails(c)
@@ -398,4 +388,13 @@ func (a *App) updateBadge() string {
 		return "1"
 	}
 	return ""
+}
+
+// redrawUpdates redraws where updating shows: the main window's sidebar
+// badge and Settings' Updates pane.
+func (a *App) redrawUpdates() {
+	if a.win != nil {
+		a.win.Invalidate()
+	}
+	a.redrawSettings()
 }

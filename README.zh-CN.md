@@ -93,8 +93,54 @@ runtime 是每个平台一个小巧的二进制文件，对任何特定网站一
 
 ## 开始使用
 
+### 安装
+
+**macOS**，使用 [Homebrew](https://brew.sh)：
+
+```sh
+brew install --cask sinhong2011/tap/mypack
+```
+
+**Windows**，使用 winget、[Scoop](https://scoop.sh) 或 [Chocolatey](https://chocolatey.org)：
+
+```powershell
+winget install Mypack.Mypack
+```
+
+```powershell
+scoop bucket add mypack https://github.com/sinhong2011/scoop-bucket
+scoop install mypack/mypack
+```
+
+```powershell
+choco install mypack
+```
+
+**Debian 与 Ubuntu**（APT）：
+
+```sh
+curl -fsSL https://sinhong2011.github.io/mypack/mypack.gpg | sudo tee /usr/share/keyrings/mypack.gpg >/dev/null
+echo "deb [signed-by=/usr/share/keyrings/mypack.gpg] https://sinhong2011.github.io/mypack/apt stable main" | sudo tee /etc/apt/sources.list.d/mypack.list
+sudo apt update && sudo apt install mypack
+```
+
+**Fedora、RHEL 与 openSUSE**（DNF、YUM、Zypper）：
+
+```sh
+sudo curl -fsSL -o /etc/yum.repos.d/mypack.repo https://sinhong2011.github.io/mypack/rpm/mypack.repo
+sudo dnf install mypack        # sudo zypper install mypack
+```
+
+**Arch Linux**，从 [AUR](https://aur.archlinux.org/packages/mypack-bin)：
+
+```sh
+yay -S mypack-bin
+```
+
+每个 [Release](https://github.com/sinhong2011/mypack/releases/latest) 也提供可直接下载的安装程序：macOS 的 `.dmg`、Windows 的安装程序，以及 Linux 的 `.deb` 与 `.rpm`。通过包管理器安装后，`mypack` 命令就在 PATH 中，之后用该包管理器的升级命令更新即可。
+
 > [!NOTE]
-> Mypack 还很新，已签名的发行版本即将推出。在那之前，请从源码构建。大约一分钟即可完成。
+> 发行版本尚未签名。macOS 若被 Gatekeeper 拦截，请右键点击 Mypack.app 并选择“打开”；Windows 的 SmartScreen 可能会要求确认（“更多信息 › 仍要运行”）。
 
 ### 从源码构建
 
@@ -123,7 +169,7 @@ open dist/Mypack.app
 应用的可执行文件同时也是 CLI：
 
 ```sh
-alias mypack=/Applications/Mypack.app/Contents/MacOS/mypack
+alias mypack=/Applications/Mypack.app/Contents/MacOS/Mypack   # not needed after a package-manager install
 
 mypack create github.com --json          # a draft project; nothing is built yet
 mypack build <project-id> --yes --json   # build it (--yes allows the runtime download)
@@ -136,7 +182,7 @@ mypack apps list
 **MCP 服务器。** 用以下方式连接智能体：
 
 ```sh
-claude mcp add mypack -- /Applications/Mypack.app/Contents/MacOS/mypack mcp serve
+claude mcp add mypack -- mypack mcp serve
 ```
 
 应用里的 **设置 › 智能体连接** 提供可直接复制的 Claude Code、Codex 和其他 MCP 客户端配置。智能体可以列出、创建和构建项目，但不能安装应用；项目的构建脚本也只有在你批准后才会运行。

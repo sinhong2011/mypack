@@ -388,7 +388,6 @@ func (a *App) createAndBuild() {
 			return err
 		}
 		a.win.Update(func() {
-			a.flyFrom(cardKey(pr.ID), a.iconAt["create"], pr.IconPNG, pr.Config.App.Name)
 			a.watch[pr.ID] = j.ID
 			a.upsertJob(j)
 		})

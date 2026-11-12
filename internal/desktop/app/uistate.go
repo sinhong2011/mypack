@@ -15,6 +15,7 @@ type uiState struct {
 	ProjectID    string          `json:"projectId,omitempty"`
 	LibraryTab   int             `json:"libraryTab"` // 0 My Apps, 1 Projects
 	SettingsOpen map[string]bool `json:"advancedOpen,omitempty"`
+	SettingsPane string          `json:"settingsPane,omitempty"` // Settings' category on show
 	// AutoInstall is, per project, whether a successful build for this
 	// device is installed and opened at once; AutoInstallDefault (nil =
 	// on) seeds new projects.
@@ -28,6 +29,8 @@ type uiState struct {
 	// version a toast told of, so each is told once.
 	LastUpdateCheck time.Time `json:"lastUpdateCheck,omitempty"`
 	UpdateNotified  string    `json:"updateNotified,omitempty"`
+	// Star is when to ask for a star on GitHub (starask.go).
+	Star starAsk `json:"star"`
 }
 
 // autoInstallDefault is the default for new projects (on unless turned off).

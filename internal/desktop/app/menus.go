@@ -31,10 +31,10 @@ func (a *App) installMenu() {
 	}
 	menu := mygo.NewMenu([]*mygo.MenuItem{
 		{Label: "Mypack", Submenu: []*mygo.MenuItem{
-			{Label: T("menu.about"), Click: on(func() { a.nav(secSettings); a.set.scrollAbout = true })},
+			{Label: T("menu.about"), Click: on(func() { a.showWindow(); a.openSettings(paneAbout) })},
 			{Label: T("menu.checkUpdates"), Click: on(a.checkForUpdatesMenu)},
 			mygo.Separator(),
-			{Label: T("menu.settings"), Accelerator: "CmdOrCtrl+,", Click: on(func() { a.showWindow(); a.nav(secSettings) })},
+			{Label: T("menu.settings"), Accelerator: "CmdOrCtrl+,", Click: on(func() { a.showWindow(); a.openSettings("") })},
 			mygo.Separator(),
 			{Role: mygo.RoleServices},
 			mygo.Separator(),
@@ -235,7 +235,7 @@ func (a *App) flyoutView(c *ui.Context) {
 				kit.StatusDot(c, T("tray.ready"), kit.ToneSuccess)
 			}
 			if kit.IconButton(c.Key("settings"), icons.Settings, T("menu.settings")).Clicked() {
-				a.closeFlyoutAnd(func() { a.nav(secSettings) })
+				a.closeFlyoutAnd(func() { a.openSettings("") })
 			}
 		})
 		ui.Column(c).Padding(0, 6, 4, 6).Children(func() {
@@ -431,7 +431,7 @@ func (a *App) trayMenu(active []domain.BuildJob) *mygo.Menu {
 	}
 	items = append(items, mygo.Separator(),
 		&mygo.MenuItem{Label: T("tray.open"), Click: on(func() {})},
-		&mygo.MenuItem{Label: T("menu.settings"), Click: on(func() { a.nav(secSettings) })},
+		&mygo.MenuItem{Label: T("menu.settings"), Click: on(func() { a.openSettings("") })},
 		&mygo.MenuItem{Label: T("menu.quit"), Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Quit() }},
 	)
 	return mygo.NewMenu(items)

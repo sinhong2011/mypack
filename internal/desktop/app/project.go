@@ -127,9 +127,7 @@ func (a *App) projectIcon(c *ui.Context, pr *domain.Project, size float32) {
 	})
 	hov := b.Hovered()
 	b.Children(func() {
-		ic := kit.AppIconOpts(c, pr.IconPNG, pr.Config.App.Name, size, kit.IconOpts{Shadow: true})
-		a.flyTo(c, iconKey(pr.ID), ic)
-		a.iconAt[iconKey(pr.ID)] = ic.Bounds()
+		kit.AppIconOpts(c, pr.IconPNG, pr.Config.App.Name, size, kit.IconOpts{Shadow: true})
 		editBadge(c, p, size, hov)
 	})
 	b.Tooltip(T("create.icon.change"))
@@ -354,7 +352,6 @@ func (a *App) projectBento(c *ui.Context, pr *domain.Project) {
 	}
 	ui.Grid(c).ColumnTracks(ui.Fr(1), ui.Fr(1), ui.Fr(1), ui.Fr(1)).Gap(12).Children(func() {
 		hero := tile("hero").ColumnSpan(2).RowSpan(2).Padding(22).Gap(14).Clip().Justify(ui.SpaceBetween)
-		kit.Arrive(hero, 0, design.StaggerGrid)
 		hero.Children(func() {
 			ui.Box(c).Absolute().Fill().PassThrough().AccessHidden(true).ZIndex(-1).
 				LinearGradient(ui.LinearGradient{Angle: 160, From: design.Fade(tint, 0.16), To: tint.Alpha(0)})
@@ -385,7 +382,6 @@ func (a *App) projectBento(c *ui.Context, pr *domain.Project) {
 		})
 		stat := func(i int, key, label, value string, numeric bool, extra func()) {
 			t := tile(key)
-			kit.Arrive(t, i, design.StaggerGrid)
 			t.Children(func() {
 				kit.Eyebrow(c, label)
 				v := ui.Text(c, value).FontSize(design.FontTitle1).FontWeight(design.WeightSemibold).TextColor(p.Text).

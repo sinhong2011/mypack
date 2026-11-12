@@ -45,7 +45,7 @@ func (a *app) cmdImport(args []string) int {
 	replace := fs.Bool("replace", false, "replace apps already in the Library")
 	pos, err := parse(fs, args)
 	if err != nil || len(pos) != 1 {
-		return a.usageErr(asJSON, "usage: mypack import <file.mypack> [--replace] [--json]")
+		return a.usageErr(asJSON, "usage: mypack import <file.mypack|file.json> [--replace] [--json]")
 	}
 	svc, err := a.service()
 	if err != nil {

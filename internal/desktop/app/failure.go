@@ -69,7 +69,7 @@ func (a *App) fixesFor(e *domain.Error, projectID string, retry func()) []fix {
 			out = append(out, fix{T("fail.projectSettings"), func() { a.openProject(id, 1) }})
 		}
 	case "RUNTIME_DOWNLOAD_FAILED":
-		out = append(out, fix{T("fail.openSettings"), func() { a.nav(secSettings) }})
+		out = append(out, fix{T("fail.openSettings"), func() { a.openSettings(paneAdvanced) }})
 	}
 	if retry != nil && len(out) < 2 {
 		out = append(out, fix{T("action.retry"), retry})

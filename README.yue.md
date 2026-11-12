@@ -93,8 +93,54 @@ runtime 係每個平台一個細細嘅二進位檔，對任何特定網站都一
 
 ## 開始使用
 
+### 安裝
+
+**macOS**，用 [Homebrew](https://brew.sh)：
+
+```sh
+brew install --cask sinhong2011/tap/mypack
+```
+
+**Windows**，用 winget、[Scoop](https://scoop.sh) 或者 [Chocolatey](https://chocolatey.org)：
+
+```powershell
+winget install Mypack.Mypack
+```
+
+```powershell
+scoop bucket add mypack https://github.com/sinhong2011/scoop-bucket
+scoop install mypack/mypack
+```
+
+```powershell
+choco install mypack
+```
+
+**Debian 同 Ubuntu**（APT）：
+
+```sh
+curl -fsSL https://sinhong2011.github.io/mypack/mypack.gpg | sudo tee /usr/share/keyrings/mypack.gpg >/dev/null
+echo "deb [signed-by=/usr/share/keyrings/mypack.gpg] https://sinhong2011.github.io/mypack/apt stable main" | sudo tee /etc/apt/sources.list.d/mypack.list
+sudo apt update && sudo apt install mypack
+```
+
+**Fedora、RHEL 同 openSUSE**（DNF、YUM、Zypper）：
+
+```sh
+sudo curl -fsSL -o /etc/yum.repos.d/mypack.repo https://sinhong2011.github.io/mypack/rpm/mypack.repo
+sudo dnf install mypack        # sudo zypper install mypack
+```
+
+**Arch Linux**，由 [AUR](https://aur.archlinux.org/packages/mypack-bin)：
+
+```sh
+yay -S mypack-bin
+```
+
+每個 [Release](https://github.com/sinhong2011/mypack/releases/latest) 都有安裝程式可以直接下載：macOS 嘅 `.dmg`、Windows 嘅安裝程式，同埋 Linux 嘅 `.deb` 同 `.rpm`。用套件管理員裝咗之後，`mypack` 指令就喺 PATH 入面，之後用嗰個套件管理員嘅升級指令更新就得。
+
 > [!NOTE]
-> Mypack 仲好新，已簽名嘅發行版本就快推出。喺嗰陣之前，請由原始碼編譯。大概一分鐘就搞得掂。
+> 發行版本仲未簽名。macOS 如果俾 Gatekeeper 擋咗，喺 Mypack.app 撳右掣揀「打開」；Windows 嘅 SmartScreen 可能會要你確認（「其他資訊 › 仍要執行」）。
 
 ### 由原始碼編譯
 
@@ -123,7 +169,7 @@ open dist/Mypack.app
 應用程式嘅執行檔同時亦係 CLI：
 
 ```sh
-alias mypack=/Applications/Mypack.app/Contents/MacOS/mypack
+alias mypack=/Applications/Mypack.app/Contents/MacOS/Mypack   # not needed after a package-manager install
 
 mypack create github.com --json          # a draft project; nothing is built yet
 mypack build <project-id> --yes --json   # build it (--yes allows the runtime download)
@@ -136,7 +182,7 @@ mypack apps list
 **MCP 伺服器。** 用以下方式連接 agent：
 
 ```sh
-claude mcp add mypack -- /Applications/Mypack.app/Contents/MacOS/mypack mcp serve
+claude mcp add mypack -- mypack mcp serve
 ```
 
 App 入面嘅 **設定 › Agent 連線** 提供可以直接複製嘅 Claude Code、Codex 同其他 MCP 客戶端設定。Agent 可以列出、建立同建置專案，但唔可以安裝 App；專案嘅建置指令碼亦只有喺你核准之後先會執行。

@@ -51,8 +51,9 @@ The Release workflow then:
 1. **verify**: checks that the tag is `vX.Y.Z` or `vX.Y.Z-pre` (`scripts/release.sh --check-tag`) and that its commit is on `main`, then runs `go vet ./...` and `go test ./...` on it. A tag pushed by hand, or before CI on `main` finished, cannot publish a broken build.
 2. **publish**: runs `goreleaser release --clean`. It builds the six archives, writes `checksums.txt`, and creates the GitHub Release named `Mypack X.Y.Z`. A tag with `-` in it is marked as a pre-release (`prerelease: auto`).
 3. **installers**: three jobs at once, after publish, run `make installers` (see [Installers](#installers)) and upload the results to that Release with `gh release upload --clobber`: macOS on a macOS runner, Windows and Linux on Ubuntu.
+4. **packages**: for a stable tag (no `-`), downloads those installers back from the Release, writes every package manager's manifest with [`scripts/packages.sh`](../scripts/packages.sh), and hands them to one job per package manager: **homebrew**, **scoop**, **winget**, **chocolatey**, **aur** and **linux-repo** (see [Package managers](#package-managers)). A job whose secret is not set skips with a notice, so the Release itself never fails on them.
 
-On pull requests that touch the release files, the same workflow runs `goreleaser check` and the script's `--self-test`, and builds the installers without uploading them, so a broken installer build shows on the pull request.
+On pull requests that touch the release files, the same workflow runs `goreleaser check` and the `--self-test` of `scripts/release.sh` and `scripts/packages.sh`, and builds the installers without uploading them, so a broken installer build shows on the pull request.
 
 ### Choosing the version
 
@@ -74,7 +75,7 @@ The publish job fetches tags again after checkout, because `actions/checkout` ca
 
 ### Publishing again
 
-Re-running the Release workflow on the same tag rebuilds the archives and installers and replaces them on the existing Release (`replace_existing_artifacts`, `--clobber`). "Re-run failed jobs" on one installer job rebuilds that platform alone. Notes that are already there are kept (`mode: keep-existing`). Do not move a tag that has been published; cut the next patch version instead.
+Re-running the Release workflow on the same tag rebuilds the archives and installers and replaces them on the existing Release (`replace_existing_artifacts`, `--clobber`). "Re-run failed jobs" on one installer job rebuilds that platform alone, and on one package-manager job publishes to that manager alone. Notes that are already there are kept (`mode: keep-existing`). Do not move a tag that has been published; cut the next patch version instead.
 
 ### Trying it locally
 
@@ -174,9 +175,9 @@ No production public key is embedded, so a release binary will not trust a regis
 
 When rotating, keep the old key in that comma-separated list. Never commit `dist/keys/`, `.env`, or the secret value.
 
-## Code signing, notarization, and Homebrew
+## Code signing and notarization
 
-These need Apple and Homebrew setup that this repository does not have. The workflows do not invent certificates, API keys, or a tap token. The tag publishes the unsigned archives above.
+These need Apple setup that this repository does not have. The workflows do not invent certificates or API keys. The tag publishes the unsigned archives above.
 
 ### Notarized macOS disk image
 
@@ -191,12 +192,53 @@ These need Apple and Homebrew setup that this repository does not have. The work
 
 On GitHub Actions, the macOS installer job also needs the certificate and notary credentials in a temporary keychain. MyGo's [GitHub Actions guide](https://github.com/egoist/mygo/blob/main/docs/github-actions.md#signing-and-notarizing-macos-apps) has the step and the secrets it reads (`MACOS_CERTIFICATE`, `MACOS_CERTIFICATE_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD`). Add that step before **Build** in the macOS row. Do not commit the certificate or passwords. The Windows setup can be signed the same way with `windows.certificate` or `windows.signCommand`.
 
-### Homebrew
-
-GoReleaser's open-source distribution can update a formula from the archives above. It needs a tap this project does not have yet:
-
-1. A tap repository you control.
-2. A token that can write to that repository, stored as an Actions secret. The default `GITHUB_TOKEN` can only write to this repository.
-3. A `brews` section in `.goreleaser.yaml` that points at the tap and installs the same `vX.Y.Z` archives. Do not give the formula its own tag or a second GitHub Release.
-
 If the repository later enables immutable releases, a published Release cannot take more assets, and re-running the workflow cannot replace them. Set GoReleaser `release.draft: true` and publish the draft once the archives are on it.
+
+## Package managers
+
+Stable releases (tags without `-`) are published to these, from the installers on the Release. Pre-releases go to GitHub only.
+
+| Manager | Users run | Where it lives | Job | Secret |
+| --- | --- | --- | --- | --- |
+| Homebrew | `brew install --cask sinhong2011/tap/mypack` | `Casks/mypack.rb` in [sinhong2011/homebrew-tap](https://github.com/sinhong2011/homebrew-tap) | homebrew | `PACKAGING_TOKEN` |
+| Scoop | `scoop bucket add mypack https://github.com/sinhong2011/scoop-bucket`, `scoop install mypack/mypack` | `bucket/mypack.json` in sinhong2011/scoop-bucket | scoop | `PACKAGING_TOKEN` |
+| winget | `winget install Mypack.Mypack` | `manifests/m/Mypack/Mypack/` in [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs), by pull request | winget | `PACKAGING_TOKEN` |
+| Chocolatey | `choco install mypack` | [community.chocolatey.org/packages/mypack](https://community.chocolatey.org/packages/mypack) | chocolatey | `CHOCOLATEY_API_KEY` |
+| AUR | `yay -S mypack-bin` | [aur.archlinux.org/packages/mypack-bin](https://aur.archlinux.org/packages/mypack-bin) | aur | `AUR_SSH_PRIVATE_KEY` |
+| APT | `apt install mypack` (README › Install adds the source) | `apt/` on the `gh-pages` branch, served at https://sinhong2011.github.io/mypack/ | linux-repo | `LINUX_REPO_GPG_KEY` |
+| DNF, YUM, Zypper | `dnf install mypack` | `rpm/` on the same branch | linux-repo | `LINUX_REPO_GPG_KEY` |
+
+What each installs:
+
+- **Homebrew**: the universal `.dmg`, `Mypack.app` in `/Applications`, and the `mypack` command (a link to `Mypack.app/Contents/MacOS/Mypack`). `brew uninstall --zap` also removes the app's data.
+- **Scoop, winget, Chocolatey**: the per-user setup program (`/S`). Scoop installs it into its own app folder and adds the `mypack` shim; winget and Chocolatey into `%LOCALAPPDATA%\Programs\Mypack`. Chocolatey has x64 only (it runs emulated on arm64); Scoop and winget have both.
+- **APT, DNF, AUR**: the `.deb` / `.rpm` packages, in `/opt/mypack` with `/usr/bin/mypack` (`linux.command` in `mygo.json`), the desktop entry and the `mypack://` handler. `mypack-bin` unpacks the Debian package.
+
+Try the manifests without publishing:
+
+```sh
+scripts/packages.sh fake-assets 0.2.0 /tmp/assets
+scripts/packages.sh render 0.2.0 /tmp/assets /tmp/packages
+```
+
+### One-time setup
+
+None of this is in the repository; each step is done once, by a maintainer.
+
+1. **`PACKAGING_TOKEN`**: a classic personal access token with the `public_repo` scope, from an account that can push to `sinhong2011/homebrew-tap` and `sinhong2011/scoop-bucket`. Add it under *Settings › Secrets and variables › Actions*. A fine-grained token does not work for winget, which forks `microsoft/winget-pkgs` and opens a pull request from the fork.
+2. **Scoop bucket**: create the public repository `sinhong2011/scoop-bucket` with an empty `bucket/` folder (a `README.md` with the two `scoop` commands helps).
+3. **winget**: fork `microsoft/winget-pkgs` under the token's account. The automatic update needs a version already in winget, so submit the first one by hand: render the manifests from a published Release (`gh release download v0.2.0 --dir assets --pattern '*.exe' --pattern '*.dmg' --pattern '*.deb'`, then `scripts/packages.sh render 0.2.0 assets out`), check them with `winget validate out/winget/manifests/m/Mypack/Mypack/0.2.0` on Windows, and open the pull request with those three files (or `wingetcreate submit`). Later versions are opened by the winget job with [komac](https://github.com/russellbanks/Komac) through `vedantmgoyal9/winget-releaser`. Microsoft reviews each pull request; it can take a few days.
+4. **Chocolatey**: create an account on [community.chocolatey.org](https://community.chocolatey.org), copy the API key from your account page into `CHOCOLATEY_API_KEY`. Every version goes through Chocolatey's automated checks and human moderation before it is listed; the first can take a while.
+5. **AUR**: create an account on [aur.archlinux.org](https://aur.archlinux.org) with a dedicated SSH key (`ssh-keygen -t ed25519 -f aur -C mypack-aur`), add the public half to the account, and put the private half in `AUR_SSH_PRIVATE_KEY`. The job's first push creates `mypack-bin`.
+6. **APT and RPM repositories**: make a signing key for the repositories alone, without a passphrase, and keep a copy offline:
+
+   ```sh
+   gpg --batch --passphrase '' --quick-gen-key 'Mypack packages <packages@mypack.dev>' ed25519 sign 3y
+   gpg --armor --export-secret-keys 'Mypack packages' > mypack-packages.key   # into LINUX_REPO_GPG_KEY, then delete
+   ```
+
+   After the first release has run the linux-repo job, turn on GitHub Pages: *Settings › Pages › Deploy from a branch*, `gh-pages`, `/ (root)`. The job rewrites `gh-pages` as a single commit each release and keeps the newest five versions (`KEEP` in `scripts/linux-repo.sh`), so the branch does not grow with every release. Before the key expires, extend it (`gpg --quick-set-expire`), update the secret, and run the job again; users' copies of `mypack.gpg` need the new expiry, so mention it in the release notes. Rotating to a new key means every user re-downloads `mypack.gpg`.
+
+### Publishing to one manager again
+
+Re-run that job from the Release's workflow run. Each job only adds the manifest of the tag it ran for, so re-running it is safe. To publish a release that ran before a secret was set, use *Re-run all jobs*: the archives and installers are replaced with identical ones, and every manager is published.

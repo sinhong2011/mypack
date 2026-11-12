@@ -68,12 +68,13 @@ func (a *App) exportLibrary(ids []string, name string) {
 	}()
 }
 
-// importApps picks a .mypack file and imports it.
+// importApps picks a .mypack file (or the same JSON named .json) and
+// imports it.
 func (a *App) importApps() {
 	a.showWindow()
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.win, Title: T("library.import.title"),
-			ButtonLabel: T("library.import.button"), Filters: []mygo.FileFilter{{Name: "Mypack", Extensions: []string{"mypack"}}}})
+			ButtonLabel: T("library.import.button"), Filters: []mygo.FileFilter{{Name: "Mypack", Extensions: []string{"mypack", "json"}}}})
 		if err != nil || len(paths) == 0 {
 			return
 		}
@@ -204,10 +205,10 @@ func (a *App) syncNow(manual bool) {
 	a.win.Invalidate()
 }
 
-// syncGroup is Settings' Sync section.
+// syncGroup is Settings' Sync pane.
 func (a *App) syncGroup(c *ui.Context) {
 	p := design.Of(c)
-	kit.Group(c, T("settings.sync"), func() {
+	kit.Group(c, "", func() {
 		on := strings.TrimSpace(a.settings.SyncFolder) != ""
 		kit.SettingIconRow(c.Key("sync"), icons.Refresh, ui.Color{}, T("sync.library"), T("sync.library.desc"), func() {
 			v := on
@@ -231,7 +232,7 @@ func (a *App) syncGroup(c *ui.Context) {
 			ui.Text(c, syncFolderLabel(a.settings.SyncFolder)).FontSize(design.FontSmall).TextColor(p.TextSecondary).SingleLine().MaxWidth(240)
 			if kit.Button(c.Key("ch"), T("common.choose"), kit.ButtonOpts{Size: design.ControlSM}).Clicked() {
 				go func() {
-					paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.win, Directory: true, CreateDirectories: true, DefaultPath: a.settings.SyncFolder})
+					paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.dialogParent(), Directory: true, CreateDirectories: true, DefaultPath: a.settings.SyncFolder})
 					if err == nil && len(paths) > 0 {
 						a.win.Update(func() { a.settings.SyncFolder = paths[0]; a.saveSettings(); go a.syncNow(true) })
 					}
