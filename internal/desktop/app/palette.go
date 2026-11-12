@@ -21,8 +21,6 @@ type paletteState struct {
 	query string
 	sel   int
 	focus bool
-	// iconAt is where each project's row icon showed (for its flight).
-	iconAt map[string]ui.Rect
 }
 
 type cmdItem struct {
@@ -100,7 +98,6 @@ func (a *App) paletteItems() []cmdItem {
 		id := pr.ID
 		add(cmdItem{key: "prj:" + id, pid: id, icon: pr.IconPNG, name: pr.Config.App.Name, title: pr.Config.App.Name, kind: T("palette.kind.project"),
 			run: func() {
-				a.flyFrom(iconKey(id), a.palette.iconAt[id], pr.IconPNG, pr.Config.App.Name)
 				a.openProject(id, 0)
 			}}, pr.Config.App.Name+" "+domainOf(pr.Config.App.Source))
 	}
@@ -165,9 +162,6 @@ func (a *App) paletteView(c *ui.Context) {
 		ps.open = false
 		items[i].run()
 	}
-	if ps.iconAt == nil {
-		ps.iconAt = map[string]ui.Rect{}
-	}
 	ui.DialogBase(c.Key("palette"), &ps.open, func(backdrop, panel ui.Element) {
 		fade := design.Tween(design.MotionBase, design.EaseStd)
 		kit.MarkModal()
@@ -222,10 +216,7 @@ func (a *App) paletteView(c *ui.Context) {
 							kit.Glyph(c, it.glyph, 15, p.TextSecondary)
 						})
 					} else {
-						ic := kit.AppIconOpts(c, it.icon, it.name, 26, kit.IconOpts{})
-						if it.pid != "" {
-							ps.iconAt[it.pid] = ic.Bounds()
-						}
+						kit.AppIconOpts(c, it.icon, it.name, 26, kit.IconOpts{})
 					}
 					ui.Text(c, it.title).FontSize(design.FontBodyLG).FontWeight(design.WeightMedium).TextColor(p.Text).SingleLine().Grow(1).MinWidth(0)
 					ui.Text(c, it.kind).FontSize(design.FontCaption).TextColor(p.TextTertiary).SingleLine()

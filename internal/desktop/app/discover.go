@@ -77,21 +77,17 @@ func (a *App) discoverView(c *ui.Context) {
 	})
 }
 
-// presetTile is a floating preset: hover lifts it and turns its caption
+// presetTile is a floating preset: hover raises its caption plate and turns it
 // into "Make App".
 func (a *App) presetTile(c *ui.Context, t template, i int) {
 	p := design.Of(c)
 	const size = 76
 	b := ui.ButtonBase(c).Label(T("discover.get.label", "name", t.name)).Column().Width(132).AlignItems(ui.Center).Padding(12, 6, 10, 6).
 		Cursor(ui.CursorPointer)
-	kit.Arrive(b, i, design.StaggerGrid)
 	hov := b.Hovered()
 	b.Children(func() {
 		holder := ui.Box(c).Size(size, size).Center()
 		pose := ui.Pose{}
-		if hov {
-			pose = ui.Pose{Y: -3, Scale: 1.04}
-		}
 		if b.Pressed() {
 			pose = ui.Pose{Scale: 0.97}
 		}

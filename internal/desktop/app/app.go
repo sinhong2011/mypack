@@ -48,10 +48,8 @@ type App struct {
 
 	section    section
 	projectID  string
-	projTab    int                // 0 overview, 1 settings
-	navDir     float32            // +1 the last page change went deeper, -1 back
-	flights    map[string]*flight // app icons on their way between screens
-	toolbarW   float32            // the toolbar's width last frame (compact controls when narrow)
+	projTab    int     // 0 overview, 1 settings
+	toolbarW   float32 // the toolbar's width last frame (compact controls when narrow)
 	hud        hudState
 	status     map[string]*statusState // the build status blocks, per job
 	steps      map[string]*stepTrack   // the build step lists, per job
@@ -59,8 +57,6 @@ type App struct {
 	traySpin   bool                    // the build HUD near the notch
 	previewBox ui.Rect                 // the preview column's viewport last frame (the stage fills it)
 	autoOpen   map[string]time.Time    // jobs installed & opened automatically, and when
-	iconAt     iconRects               // where the project hero's icon showed last
-	reduced    bool                    // the user asked for reduced motion
 
 	loaded   bool
 	settings appservice.Settings

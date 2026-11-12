@@ -251,7 +251,6 @@ func (a *App) ghostTile(c *ui.Context, size float32) {
 	p := design.Of(c)
 	b := ui.ButtonBase(c.Key("ghost")).Label(T("library.ghost")).Column().AlignItems(ui.Center).Padding(14, 6, 12, 6).Cursor(ui.CursorPointer)
 	hov := b.Hovered()
-	kit.Arrive(b, 3, design.StaggerGrid)
 	b.Children(func() {
 		box := ui.Box(c).Size(size, size).Center().Radius(design.AppIconRadius(size))
 		if hov {
@@ -266,7 +265,7 @@ func (a *App) ghostTile(c *ui.Context, size float32) {
 			pt.StrokeDashed(rr, col, r, 1.5)
 		})
 		box.Children(func() { kit.Glyph(c, icons.Plus, size*0.26, col) })
-		kit.Press(box, hov, b.Pressed(), 3)
+		kit.Press(box, false, b.Pressed(), 0)
 		ui.Text(c, T("library.ghost")).FontSize(design.FontBody).FontWeight(design.WeightMedium).TextColor(col).SingleLine().
 			MaxWidthPercent(100).TextAlign(ui.Center).Margin(12, 0, 0, 0)
 	})
@@ -297,15 +296,15 @@ type tileData struct {
 }
 
 // tile is an app floating on the canvas: its icon over a soft glow in its
-// own colour, the name and one compact status line. Hover lifts it a
-// little, blooms the glow and fades in its quick actions; keyboard focus
+// own colour, the name and one compact status line. Hover blooms the
+// glow and shows its quick actions; keyboard focus
 // rings it in the accent.
 func (a *App) tile(c *ui.Context, d tileData) (open bool) {
 	p := design.Of(c)
 	size := a.lib.iconSize
 	b := ui.ButtonBase(c).Label(d.name).Column().AlignItems(ui.Center).Justify(ui.Start).Padding(14, 6, 12, 6).Gap(0).
 		Radius(design.RadiusPanel).Cursor(ui.CursorPointer).Description(d.status)
-	kit.Arrive(b, d.idx, design.StaggerGrid)
+	kit.Arrive(b)
 	b.FocusRing(false)
 	hov, focused := b.Hovered(), b.FocusVisible()
 	if d.menu != nil {
@@ -314,13 +313,9 @@ func (a *App) tile(c *ui.Context, d tileData) (open bool) {
 	if d.run != nil && (b.DoubleClicked() || b.Shortcut(0, ui.KeyEnter)) {
 		d.run()
 	}
-	var iconAt ui.Rect
 	b.Children(func() {
 		holder := ui.Box(c).Size(size, size).Shrink(0)
 		pose := ui.Pose{}
-		if hov {
-			pose = ui.Pose{Y: -3, Scale: 1.04}
-		}
 		if b.Pressed() {
 			pose = ui.Pose{Scale: 0.97}
 		}
@@ -332,11 +327,7 @@ func (a *App) tile(c *ui.Context, d tileData) (open bool) {
 				})
 				return
 			}
-			ic := kit.AppIconOpts(c, d.icon, d.name, size, kit.IconOpts{Shadow: true})
-			if d.pid != "" {
-				iconAt = ic.Bounds()
-				a.flyTo(c, iconKey(d.pid), ic)
-			}
+			kit.AppIconOpts(c, d.icon, d.name, size, kit.IconOpts{Shadow: true})
 			if focused {
 				// Keyboard focus: an underline under the icon, no ring.
 				ui.Box(c.Key("focus")).Absolute().Left(size * 0.3).Right(size * 0.3).Bottom(-6).Height(1.5).Radius(0.75).
@@ -350,7 +341,6 @@ func (a *App) tile(c *ui.Context, d tileData) (open bool) {
 				more := ui.ButtonBase(c.Key("more")).Label(T("common.more")).Absolute().Top(-6).Left(-6).Size(24, 24).Radius(12).Center().
 					Background(p.Overlay).Border(0.5, p.BorderStrong).Cursor(ui.CursorPointer).Menu(d.menu)
 				design.Elevate(c, more, design.Floating)
-				kit.Pop(more)
 				more.Children(func() { kit.Glyph(c, icons.More, 13, p.Text) })
 			}
 		})
@@ -373,9 +363,6 @@ func (a *App) tile(c *ui.Context, d tileData) (open bool) {
 		})
 	})
 	if b.Clicked() {
-		if d.pid != "" {
-			a.flyFrom(iconKey(d.pid), iconAt, d.icon, d.name)
-		}
 		return true
 	}
 	return false
@@ -386,7 +373,7 @@ func (a *App) row(c *ui.Context, d tileData, i int) (open bool) {
 	b := ui.ButtonBase(c).Label(d.name).Row().Justify(ui.Start).Height(listRowH).PaddingX(listPadX).Gap(12).AlignItems(ui.Center).
 		Cursor(ui.CursorPointer).Description(d.status)
 	kit.TableRowBG(c, b, i, b.Hovered(), b.Focused())
-	kit.Arrive(b, i, design.StaggerList)
+	kit.Arrive(b)
 	if d.menu != nil {
 		b.ContextMenu(d.menu)
 	}
@@ -645,7 +632,6 @@ func (a *App) launchButton(c *ui.Context, d tileData, size float32) {
 		base = p.AccentHover
 	}
 	b.Background(base).Border(2, p.CanvasTop)
-	kit.Pop(b)
 	kit.Press(b, false, b.Pressed(), 0)
 	b.Children(func() { kit.Glyph(c, d.actionIcon, s*0.44, p.TextOnAccent) })
 	b.Tooltip(d.action)
