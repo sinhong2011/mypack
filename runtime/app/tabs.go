@@ -134,6 +134,7 @@ func (a *App) openTabsWindow(startURL, stateKey string, hidden bool) (*mygo.Wind
 		for _, tb := range list {
 			if tb.page != nil {
 				a.badges.drop(tb.page)
+				a.dropMedia(tb.page)
 			}
 		}
 		a.mu.Lock()
@@ -422,6 +423,7 @@ func (t *tabSet) close(i int, fromKeyboard bool) {
 	t.mu.Unlock()
 	if tb.page != nil {
 		t.a.badges.drop(tb.page)
+		t.a.dropMedia(tb.page)
 	}
 	if tb.view != nil {
 		tb.view.Destroy()
@@ -457,6 +459,7 @@ func (t *tabSet) closeOthers(i int) {
 	for _, tb := range drop {
 		if tb.page != nil {
 			t.a.badges.drop(tb.page)
+			t.a.dropMedia(tb.page)
 		}
 		if tb.view != nil {
 			tb.view.Destroy()

@@ -52,6 +52,7 @@ Mypack donne à chaque site une véritable application à soi, puis continue de 
 **Dans les applications que vous créez**
 
 - 🔔 Notifications web et un badge dans le Dock pour les compteurs de non-lus
+- 🎵 Touches multimédia et « À l’écoute » pour les sites de musique et de vidéo (macOS et Linux ; Windows les a déjà)
 - 🔗 Les liens entre vos applications Mypack s’ouvrent dans la bonne application
 - 🪟 Modes de fenêtre : fenêtre, compacte, barre latérale, ou dans la barre des menus
 - 📑 Onglets avec pages épinglées

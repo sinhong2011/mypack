@@ -66,6 +66,7 @@ Mypack gives each site a proper app of its own, and then keeps looking after it:
 **Inside the apps you make**
 
 - 🔔 Web notifications and a Dock badge for unread counts
+- 🎵 Media keys and Now Playing for music and video sites (macOS and Linux; Windows already has them)
 - 🔗 Links between your Mypack apps open in the right app
 - 🪟 Window modes: normal, compact, sidebar, or in the menu bar
 - 📑 Tabs with pinned pages

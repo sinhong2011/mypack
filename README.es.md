@@ -52,6 +52,7 @@ Mypack le da a cada sitio una app propia de verdad, y después sigue cuidándola
 **Dentro de las apps que creas**
 
 - 🔔 Notificaciones web y una insignia en el Dock para los recuentos de no leídos
+- 🎵 Teclas multimedia y «Ahora suena» en sitios de música y vídeo (macOS y Linux; Windows ya las tiene)
 - 🔗 Los enlaces entre tus apps de Mypack se abren en la app correcta
 - 🪟 Modos de ventana: ventana, compacta, barra lateral, o en la barra de menús
 - 📑 Pestañas con páginas fijadas

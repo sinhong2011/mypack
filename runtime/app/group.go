@@ -185,6 +185,7 @@ func (g *group) attach(w *mygo.Window) *mygo.Page {
 		for _, m := range g.members {
 			if m.page != nil {
 				a.badges.drop(m.page)
+				a.dropMedia(m.page)
 			}
 		}
 	})
