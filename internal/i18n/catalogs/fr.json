@@ -182,6 +182,7 @@
   "library.search": "Rechercher",
   "library.subtitle": "{count, plural, one {# app} other {# apps}}",
   "library.tab.myApps": "Mes apps",
+  "library.tab.groups": "Groupes",
   "library.tab.projects": "Non installées",
   "library.tip.new": "Créez une app à partir de n’importe quel site",
   "library.updates": "{count, plural, one {# mise à jour} other {# mises à jour}}",

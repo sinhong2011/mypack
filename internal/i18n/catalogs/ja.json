@@ -182,6 +182,7 @@
   "library.search": "検索",
   "library.subtitle": "{count, plural, one {#個のアプリ} other {#個のアプリ}}",
   "library.tab.myApps": "マイアプリ",
+  "library.tab.groups": "グループ",
   "library.tab.projects": "未インストール",
   "library.tip.new": "どんな Web サイトもアプリに",
   "library.updates": "{count, plural, one {#件のアップデート} other {#件のアップデート}}",

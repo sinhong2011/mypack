@@ -127,9 +127,10 @@ func TestLibraryArrowKeys(t *testing.T) {
 		settle()
 		got = append(got, focused)
 	}
-	// My Apps: ChatGPT Linear WhatsApp YouTube Music; Not Installed:
-	// Discord Excalidraw Figma Notion Spotify / Todoist (5 to a row).
-	want := []string{"ChatGPT", "Linear", "WhatsApp", "Figma", "Excalidraw", "Linear", "Excalidraw", "Todoist"}
+	// My Apps: ChatGPT Linear WhatsApp YouTube Music; Groups: Social
+	// Workspace; Not Installed: Discord Excalidraw Figma Notion Spotify /
+	// Todoist (5 to a row).
+	want := []string{"ChatGPT", "Linear", "WhatsApp", "Workspace", "Social", "ChatGPT", "Social", "Discord"}
 	if !slices.Equal(got, want) {
 		t.Errorf("grid focus path %v, want %v", got, want)
 	}
@@ -139,7 +140,11 @@ func TestLibraryArrowKeys(t *testing.T) {
 	settle()
 	tt.Key(0, ui.KeyDown)
 	settle()
-	if focused != "Discord" {
-		t.Errorf("list Down from the last app focused %q, want Discord", focused)
+	if focused != "Social" {
+		t.Errorf("list Down from the last app focused %q, want Social", focused)
+	}
+	// The groups have their own shelf, apart from the single websites.
+	if got := a.lib.nav.secs; len(got) != 3 || len(got[1]) != 2 {
+		t.Errorf("shelves %v, want My Apps, Groups (2), Not Installed", got)
 	}
 }

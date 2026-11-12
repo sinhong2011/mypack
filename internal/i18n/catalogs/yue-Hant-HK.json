@@ -182,6 +182,7 @@
   "library.search": "搜尋",
   "library.subtitle": "{count, plural, one {# 個 App} other {# 個 App}}",
   "library.tab.myApps": "我嘅 App",
+  "library.tab.groups": "群組",
   "library.tab.projects": "未安裝",
   "library.tip.new": "將任何網站變做 App",
   "library.updates": "{count, plural, one {# 個更新} other {# 個更新}}",

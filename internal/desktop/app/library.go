@@ -10,6 +10,7 @@ import (
 	"mypack.dev/mypack/internal/desktop/kit"
 	"mypack.dev/mypack/internal/desktop/kit/icons"
 	"mypack.dev/mypack/internal/domain"
+	"mypack.dev/mypack/pkg/config"
 )
 
 // viewGlide pairs the grid/list switch indicator across frames.
@@ -82,15 +83,20 @@ func (a *App) libraryToolbar(c *ui.Context) {
 
 // libraryEntries is the installed apps and the drafts, filtered by the
 // search and sorted, before the status filter.
-func (a *App) libraryEntries() (apps, drafts []libEntry) {
+func (a *App) libraryEntries() (apps, groups, drafts []libEntry) {
 	for i := range a.installs {
 		in := &a.installs[i]
 		if !a.filter(in.Name, a.installDomain(in)) {
 			continue
 		}
 		_, tone := a.installStatus(in)
-		apps = append(apps, libEntry{id: in.ID, name: in.Name, tone: tone, modified: in.LastManagedAt,
-			update: in.State != domain.InstallExternal && in.UpdateReason != ""})
+		e := libEntry{id: in.ID, name: in.Name, tone: tone, modified: in.LastManagedAt,
+			update: in.State != domain.InstallExternal && in.UpdateReason != ""}
+		if a.installIsGroup(in) {
+			groups = append(groups, e)
+		} else {
+			apps = append(apps, e)
+		}
 	}
 	for i := range a.projects {
 		pr := &a.projects[i]
@@ -102,11 +108,28 @@ func (a *App) libraryEntries() (apps, drafts []libEntry) {
 		if pr.LastBuild != nil && pr.LastBuild.After(mod) {
 			mod = *pr.LastBuild
 		}
-		drafts = append(drafts, libEntry{id: pr.ID, name: pr.Config.App.Name, tone: tone, modified: mod, draft: true})
+		e := libEntry{id: pr.ID, name: pr.Config.App.Name, tone: tone, modified: mod, draft: true}
+		if pr.Config.IsGroup() {
+			groups = append(groups, e)
+		} else {
+			drafts = append(drafts, e)
+		}
 	}
 	sortEntries(apps, a.lib.sort)
+	sortEntries(groups, a.lib.sort)
 	sortEntries(drafts, a.lib.sort)
-	return apps, drafts
+	return apps, groups, drafts
+}
+
+// installIsGroup reports whether an installed app is a group of websites.
+func (a *App) installIsGroup(in *domain.Installation) bool {
+	pr := a.project(in.ProjectID)
+	return pr != nil && pr.Config.IsGroup()
+}
+
+// groupLine is a group's subtitle: how many websites it holds.
+func groupLine(cfg *config.Config) string {
+	return T("group.sites", "n", len(cfg.App.Group.Members))
 }
 
 func keep(es []libEntry, f libFilter) []libEntry {
@@ -168,14 +191,18 @@ func (a *App) libraryView(c *ui.Context) {
 		shown := 0
 		first := true
 		// The first section's header carries Import Existing App…, at its
-		// right, level with the title.
-		header := func(title, count string) {
+		// right, level with the title; New Group… sits on the Groups
+		// header when there is one, else on the first.
+		var showGroups bool
+		header := func(title, count string, groupsHeader bool) {
 			ui.Row(c).AlignItems(ui.Center).Gap(8).MinHeight(32).Children(func() {
 				kit.SectionHeader(c, title, count).Grow(1)
-				if first {
+				if groupsHeader || first && !showGroups {
 					if len(a.groupCandidates()) >= 2 && kit.Button(c.Key("grp2"), T("menu.newGroup"), kit.ButtonOpts{Variant: kit.Ghost, Size: design.ControlSM, Icon: icons.Layers}).Clicked() {
 						a.newGroup()
 					}
+				}
+				if first {
 					if kit.Button(c.Key("imp2"), T("menu.importApp"), kit.ButtonOpts{Variant: kit.Ghost, Size: design.ControlSM, Icon: icons.Import}).Clicked() {
 						a.importExistingApp()
 					}
@@ -183,14 +210,20 @@ func (a *App) libraryView(c *ui.Context) {
 			})
 			first = false
 		}
-		allApps, allDrafts := a.libraryEntries()
-		counts := filterCounts(append(slices.Clip(allApps), allDrafts...))
+		allApps, allGroups, allDrafts := a.libraryEntries()
+		counts := filterCounts(slices.Concat(allApps, allGroups, allDrafts))
 		// A filter left with nothing (the last update installed) goes back to All.
 		if l.filter != filterAll && counts[l.filter] == 0 {
 			l.filter = filterAll
 		}
-		apps, drafts := keep(allApps, l.filter), keep(allDrafts, l.filter)
-		if counts[filterUpdates]+counts[filterAttention] > 0 || len(allApps) > 0 && len(allDrafts) > 0 {
+		apps, groups, drafts := keep(allApps, l.filter), keep(allGroups, l.filter), keep(allDrafts, l.filter)
+		kinds := 0
+		for _, n := range []int{len(allApps), len(allGroups), len(allDrafts)} {
+			if n > 0 {
+				kinds++
+			}
+		}
+		if counts[filterUpdates]+counts[filterAttention] > 0 || kinds > 1 {
 			a.filterChips(c, counts)
 		}
 		if ups := a.updatable(); len(ups) > 0 && l.query == "" && (l.filter == filterAll || l.filter == filterUpdates) {
@@ -198,39 +231,59 @@ func (a *App) libraryView(c *ui.Context) {
 		}
 		// The ghost tile invites another website only on the whole Library.
 		ghost := l.filter == filterAll
-		showApps := l.filter != filterDrafts && (len(a.installs) > 0 || len(drafts) == 0)
+		// My Apps (single websites, installed), Groups (installed or not),
+		// then single websites not installed yet.
+		single := 0
+		for _, in := range a.installs {
+			if !a.installIsGroup(&in) {
+				single++
+			}
+		}
+		showApps := l.filter != filterDrafts && (single > 0 || len(drafts)+len(groups) == 0)
+		showGroups = len(groups) > 0
 		// The arrow keys are handled while the tiles are built, so the
 		// shelves they move through are known before any is drawn.
 		l.nav.secs = nil
 		if showApps {
 			l.nav.secs = append(l.nav.secs, ids(apps))
 		}
+		if showGroups {
+			l.nav.secs = append(l.nav.secs, ids(groups))
+		}
 		if len(drafts) > 0 {
 			l.nav.secs = append(l.nav.secs, ids(drafts))
 		}
+		item := func(e libEntry, grid bool, i int) {
+			if e.draft {
+				if pr := a.project(e.id); pr != nil {
+					a.projectItem(c.Key(pr.ID), pr, grid, i)
+				}
+			} else if in := a.install(e.id); in != nil {
+				a.appItem(c.Key(in.ID), *in, grid, i)
+			}
+		}
 		if showApps {
 			ui.Column(c).Gap(14).Children(func() {
-				header(T("library.tab.myApps"), countLabel(len(apps)))
-				if len(apps) == 0 && l.query == "" && l.filter == filterAll {
+				header(T("library.tab.myApps"), countLabel(len(apps)), false)
+				if len(apps) == 0 && l.query == "" && l.filter == filterAll && len(groups) == 0 {
 					a.noApps(c)
 					return
 				}
-				a.collection(c, len(apps), ghost, func(i int, grid bool) {
-					if in := a.install(apps[i].id); in != nil {
-						a.appItem(c.Key(in.ID), *in, grid, i)
-					}
-				})
+				a.collection(c, len(apps), ghost, func(i int, grid bool) { item(apps[i], grid, i) })
 			})
 			shown += len(apps)
 		}
+		if showGroups {
+			ui.Column(c).Gap(14).Children(func() {
+				header(T("library.tab.groups"), countLabel(len(groups)), true)
+				a.collection(c, len(groups), false, func(i int, grid bool) { item(groups[i], grid, i) })
+			})
+			shown += len(groups)
+		}
 		if len(drafts) > 0 {
 			ui.Column(c).Gap(14).Children(func() {
-				header(T("library.tab.projects"), countLabel(len(drafts)))
-				a.collection(c, len(drafts), ghost && len(a.installs) == 0, func(i int, grid bool) {
-					if pr := a.project(drafts[i].id); pr != nil {
-						a.projectItem(c.Key(pr.ID), pr, grid, i)
-					}
-				})
+				header(T("library.tab.projects"), countLabel(len(drafts)), false)
+				a.collection(c, len(drafts), ghost && !showApps, func(i int, grid bool) { item(drafts[i], grid, i) })
 			})
 			shown += len(drafts)
 		}
@@ -591,7 +644,11 @@ func (a *App) projectItem(c *ui.Context, pr *domain.Project, grid bool, i int) {
 		meta = ago(*pr.LastBuild)
 	}
 	prc := *pr
-	d := tileData{icon: pr.IconPNG, name: pr.Config.App.Name, domain: domainOf(pr.Config.App.Source), status: st, tone: tone, busy: busy,
+	site := domainOf(pr.Config.App.Source)
+	if pr.Config.IsGroup() {
+		site = groupLine(pr.Config)
+	}
+	d := tileData{icon: pr.IconPNG, name: pr.Config.App.Name, domain: site, status: st, tone: tone, busy: busy,
 		version: pr.Config.App.Version, modified: meta, menu: func(m *ui.Menu) { a.projectMenu(m, &prc) }, idx: i, pid: pr.ID, key: pr.ID}
 	if busy {
 		d.progress = -1
@@ -633,7 +690,11 @@ func (a *App) installStatus(in *domain.Installation) (string, kit.Tone) {
 
 func (a *App) appItem(c *ui.Context, in domain.Installation, grid bool, i int) {
 	st, tone := a.installStatus(&in)
-	d := tileData{icon: in.IconPNG, name: in.Name, domain: a.installDomain(&in), status: st, tone: tone,
+	site := a.installDomain(&in)
+	if pr := a.project(in.ProjectID); pr != nil && pr.Config.IsGroup() {
+		site = groupLine(pr.Config)
+	}
+	d := tileData{icon: in.IconPNG, name: in.Name, domain: site, status: st, tone: tone,
 		version: in.Version, modified: ago(in.LastManagedAt), menu: func(m *ui.Menu) { a.appMenu(m, in) }, idx: i, pid: in.ProjectID, key: in.ID}
 	switch {
 	case in.State == domain.InstallExternal:
