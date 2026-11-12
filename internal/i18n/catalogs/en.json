@@ -445,6 +445,9 @@
   "settings.licenses.desc": "Mypack is built with these open-source projects.",
   "settings.menubar": "Show in menu bar",
   "settings.menubar.desc": "Quick access to new apps and build status.",
+  "settings.openAtLogin": "Open at login",
+  "settings.openAtLogin.desc": "Start Mypack when you log in to this computer.",
+  "settings.openAtLogin.failed": "Open at login couldn’t be changed.",
   "settings.outputDir": "Output folder",
   "settings.outputDir.desc": "Where finished builds are saved.",
   "settings.registry": "Runtime source",
@@ -761,5 +764,8 @@
   "update.prereleases.desc": "Offer beta and release-candidate versions too.",
   "update.toast": "Mypack {version} is available",
   "update.toast.view": "View",
-  "update.manager.linux": "your package manager"
+  "update.manager.linux": "your package manager",
+  "window.minimize": "Minimize",
+  "window.maximize": "Maximize",
+  "window.restore": "Restore Down"
 }

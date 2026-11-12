@@ -44,6 +44,7 @@ type Impl struct {
 	fetch    MetadataFetcher
 	caps     CapabilityFunc
 	host     config.Target
+	login    LoginItem
 
 	bus *bus
 
@@ -98,6 +99,7 @@ func New(opts Options) (*Impl, error) {
 	if s.fetch == nil {
 		s.fetch = metadata.Fetch
 	}
+	s.login = opts.LoginItem
 	s.caps = opts.Capabilities
 	if s.caps == nil {
 		s.caps = builder.Capabilities

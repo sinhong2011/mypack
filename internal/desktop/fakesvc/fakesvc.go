@@ -45,6 +45,7 @@ type Service struct {
 	installs        []*domain.Installation
 	runtimes        map[string]*domain.RuntimeInfo // key "version/os-arch"
 	settings        appservice.Settings
+	openAtLogin     bool // stands in for the system login item
 	activity        []domain.Activity
 	cancels         map[string]context.CancelFunc
 	projectApproved map[string]bool   // projects whose own build was approved
@@ -1467,4 +1468,19 @@ func (s *Service) CreateGroup(ctx context.Context, req appservice.GroupRequest) 
 	s.mu.Unlock()
 	s.publish(appservice.Event{Kind: appservice.EventProjectChanged, ProjectID: p.ID})
 	return out, nil
+}
+
+// OpenAtLogin implements appservice.Service; the demo keeps it in memory.
+func (s *Service) OpenAtLogin(ctx context.Context) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.openAtLogin, nil
+}
+
+func (s *Service) SetOpenAtLogin(ctx context.Context, on bool, actor string) error {
+	s.mu.Lock()
+	s.openAtLogin = on
+	s.mu.Unlock()
+	s.publish(appservice.Event{Kind: appservice.EventSettingsChanged})
+	return nil
 }

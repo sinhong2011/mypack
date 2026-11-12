@@ -445,6 +445,9 @@
   "settings.licenses.desc": "Mypack está creado con estos proyectos de código abierto.",
   "settings.menubar": "Mostrar en la barra de menús",
   "settings.menubar.desc": "Acceso rápido a las apps nuevas y al estado de las compilaciones.",
+  "settings.openAtLogin": "Abrir al iniciar sesión",
+  "settings.openAtLogin.desc": "Abre Mypack cuando inicias sesión en este ordenador.",
+  "settings.openAtLogin.failed": "No se ha podido cambiar «Abrir al iniciar sesión».",
   "settings.outputDir": "Carpeta de salida",
   "settings.outputDir.desc": "Dónde se guardan las compilaciones terminadas.",
   "settings.registry": "Origen de runtimes",
@@ -655,5 +658,8 @@
   "update.prereleases.desc": "Ofrece también versiones beta y candidatas.",
   "update.toast": "Mypack {version} está disponible",
   "update.toast.view": "Ver",
-  "update.manager.linux": "tu gestor de paquetes"
+  "update.manager.linux": "tu gestor de paquetes",
+  "window.minimize": "Minimizar",
+  "window.maximize": "Maximizar",
+  "window.restore": "Restaurar"
 }

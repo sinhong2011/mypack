@@ -445,6 +445,9 @@
   "settings.licenses.desc": "Mypack 係用呢啲開放原始碼專案建構出嚟。",
   "settings.menubar": "喺選單列顯示",
   "settings.menubar.desc": "快速進入新增 App 同建立狀態。",
+  "settings.openAtLogin": "登入時開啟",
+  "settings.openAtLogin.desc": "登入呢部電腦嗰陣啟動 Mypack。",
+  "settings.openAtLogin.failed": "改唔到「登入時開啟」。",
   "settings.outputDir": "輸出資料夾",
   "settings.outputDir.desc": "建立好嘅成品會儲存喺呢度。",
   "settings.registry": "執行環境來源",
@@ -655,5 +658,8 @@
   "update.prereleases.desc": "都提供 Beta 同候選版本。",
   "update.toast": "Mypack {version} 已經推出",
   "update.toast.view": "睇下",
-  "update.manager.linux": "你嘅套件管理工具"
+  "update.manager.linux": "你嘅套件管理工具",
+  "window.minimize": "最小化",
+  "window.maximize": "最大化",
+  "window.restore": "還原"
 }

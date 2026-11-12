@@ -449,6 +449,27 @@ func (g *group) viewFn(c *ui.Context) {
 				drawRail()
 			}
 		}()
+		// Where the system draws the window controls over the top-right
+		// corner (Windows), the members start under a strip that holds
+		// them, as a title bar would, rather than under the site's own
+		// header.
+		if h := c.TitleBar().Height; h > 0 && !horizontal && runtime.GOOS != "darwin" {
+			col := ui.Column(c).Grow(1).FillHeight().MinWidth(0).Gap(0)
+			col.Children(func() {
+				ui.Box(c.Key("captionstrip")).FillWidth().Height(h).Shrink(0).Background(t.Surface).DragWindow().
+					BorderWidth(0, 0, 1, 0).BorderColor(t.Border)
+				g.drawMembers(c, t, active, split, ratio)
+			})
+			return
+		}
+		g.drawMembers(c, t, active, split, ratio)
+	})
+}
+
+// drawMembers draws the shown members: the active one, and the one beside it
+// in a split.
+func (g *group) drawMembers(c *ui.Context, t *ui.Theme, active, split int, ratio float32) {
+	ui.Box(c.Key("members")).Grow(1).Basis(0).MinWidth(0).MinHeight(0).Row().Gap(0).Children(func() {
 		if active >= len(g.members) || g.members[active].view == nil {
 			ui.Spacer(c)
 			return

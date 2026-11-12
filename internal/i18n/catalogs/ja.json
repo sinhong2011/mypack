@@ -445,6 +445,9 @@
   "settings.licenses.desc": "Mypackは、これらのオープンソースプロジェクトを使用して作られています。",
   "settings.menubar": "メニューバーに表示",
   "settings.menubar.desc": "新規アプリとビルドの状況にすばやくアクセスできます。",
+  "settings.openAtLogin": "ログイン時に開く",
+  "settings.openAtLogin.desc": "このコンピュータにログインしたときに Mypack を起動します。",
+  "settings.openAtLogin.failed": "「ログイン時に開く」を変更できませんでした。",
   "settings.outputDir": "出力フォルダ",
   "settings.outputDir.desc": "完成したビルドの保存先です。",
   "settings.registry": "ランタイムの入手元",
@@ -655,5 +658,8 @@
   "update.prereleases.desc": "ベータ版やリリース候補版も提示します。",
   "update.toast": "Mypack {version} が利用可能です",
   "update.toast.view": "表示",
-  "update.manager.linux": "パッケージマネージャ"
+  "update.manager.linux": "パッケージマネージャ",
+  "window.minimize": "最小化",
+  "window.maximize": "最大化",
+  "window.restore": "元に戻す"
 }

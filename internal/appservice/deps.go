@@ -86,6 +86,10 @@ type Options struct {
 	// "" = $MYPACK_ROUTES_FILE, else routes.json beside a custom DBPath,
 	// else <UserConfigDir>/mypack-apps/routes.json; "-" disables writing.
 	RoutesFile string
+
+	// LoginItem starts Mypack at login (OpenAtLogin). Only the GUI sets it;
+	// without one, OpenAtLogin and SetOpenAtLogin return UNSUPPORTED.
+	LoginItem LoginItem
 }
 
 // ---- production adapters --------------------------------------------------

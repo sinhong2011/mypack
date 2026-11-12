@@ -18,6 +18,7 @@ type settingsState struct {
 	agentTab int
 	registry string
 	regInit  bool
+	login    loginState
 
 	pane settingsPane // the category on show
 	scrl ui.ScrollState
@@ -91,8 +92,12 @@ func (a *App) openSettings(pane settingsPane) {
 			TrafficLightPosition: &mygo.Point{X: 20, Y: 20},
 			BackgroundColor:      "light-dark(#efefeb, #141415)",
 			StateKey:             "settings",
+			HideWindowButtons:    ownWindowButtons,
 			Content:              ui.View(a.settingsWindowView),
 		})
+		// Coming forward re-reads what the system does at login.
+		a.setWin.OnFocus(a.refreshLogin)
+		watchWindowChrome(a.setWin)
 		// Closing hides it, so it opens again where it was.
 		a.setWin.OnClose(func(e *mygo.CloseEvent) {
 			if !a.quitting {
@@ -101,6 +106,7 @@ func (a *App) openSettings(pane settingsPane) {
 			}
 		})
 	}
+	a.refreshLogin()
 	a.setWin.SetTitle(T("nav.settings"))
 	a.setWin.Show()
 	a.setWin.Restore()
@@ -155,12 +161,14 @@ func (a *App) settingsWindowView(c *ui.Context) {
 				a.settingsView(c)
 			})
 			// The pane's title, over the content that scrolls under it.
-			ui.Row(c).Absolute().Top(0).Left(0).Right(0).Height(design.TitleBarH).Padding(0, 20).AlignItems(ui.Center).DragWindow().
+			ui.Row(c).Absolute().Top(0).Left(0).Right(0).Height(design.TitleBarH).Padding(0, toolbarEnd(c), 0, 20).Gap(8).AlignItems(ui.Center).DragWindow().
 				LinearGradient(ui.LinearGradient{Angle: 180, Stops: []ui.GradientStop{
 					{Color: p.CanvasTop, At: 0}, {Color: p.CanvasTop, At: 0.7}, {Color: design.Fade(p.CanvasTop, 0), At: 1}}}).
 				Children(func() {
 					ui.Text(c, T(settingsPanes()[paneIndex(a.curPane())].title)).FontSize(design.FontTitle3).FontWeight(design.WeightBold).
 						TextColor(p.Text).SingleLine().Role(ui.RoleHeading).LetterSpacing(design.TrackTitle)
+					ui.Spacer(c)
+					windowButtons(c, a.setWin)
 				})
 		})
 	})
@@ -271,6 +279,7 @@ func (a *App) settingsGeneral(c *ui.Context) {
 				a.saveSettings()
 			}
 		})
+		a.openAtLoginRow(c)
 	})
 }
 
