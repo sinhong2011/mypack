@@ -1,0 +1,6 @@
+{
+  "appName": "mypack Companion",
+  "appDescription": "Optional helper: turn the current website into a mypack desktop app draft. Nothing is built without your approval in mypack.",
+  "actionTitle": "Create Desktop App",
+  "contextMenuTitle": "Create Desktop App from this page"
+}

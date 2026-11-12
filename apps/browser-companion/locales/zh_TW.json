@@ -1,0 +1,6 @@
+{
+  "appName": "mypack 輔助工具",
+  "appDescription": "選用輔助工具：把目前的網站變成 mypack 桌面 App 草稿。未經你在 mypack 中確認，不會建置任何東西。",
+  "actionTitle": "建立桌面 App",
+  "contextMenuTitle": "從此頁面建立桌面 App"
+}

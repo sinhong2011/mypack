@@ -1,0 +1,6 @@
+{
+  "appName": "mypack コンパニオン",
+  "appDescription": "オプションのヘルパー：現在のウェブサイトを mypack のデスクトップアプリの下書きにします。mypack での承認なしにビルドされることはありません。",
+  "actionTitle": "デスクトップアプリを作成",
+  "contextMenuTitle": "このページからデスクトップアプリを作成"
+}

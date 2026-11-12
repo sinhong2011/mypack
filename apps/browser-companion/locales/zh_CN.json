@@ -1,0 +1,6 @@
+{
+  "appName": "mypack 助手",
+  "appDescription": "可选助手：把当前网站变成 mypack 桌面应用草稿。未经你在 mypack 中确认，不会构建任何内容。",
+  "actionTitle": "创建桌面应用",
+  "contextMenuTitle": "从此页面创建桌面应用"
+}

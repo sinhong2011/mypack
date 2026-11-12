@@ -29,7 +29,7 @@ internal/desktop/        GUI: design tokens (design), motion-first kit (kit), sc
 internal/cli/            CLI commands, --json output contract, exit codes
 internal/mcp/            MCP stdio server (JSON-RPC 2.0)
 internal/companion/      Native-messaging protocol for the browser extension
-apps/browser-companion/  Chrome/Edge MV3 extension (7 locales)
+apps/browser-companion/  Chrome/Edge MV3 extension, WXT + SolidJS (7 locales)
 scripts/                 release-runtimes.sh: cross-compile runtimes → signed registry
 ```
 
