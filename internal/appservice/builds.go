@@ -34,6 +34,9 @@ type jobState struct {
 	lastEmit    time.Time
 	lastPersist time.Time
 	logBuf      []domain.LogLine
+	// flushMu holds a flush until its lines are stored, so a reader that
+	// flushes (JobLog) never sees them neither buffered nor stored.
+	flushMu sync.Mutex
 }
 
 func (j *jobState) snapshot() domain.BuildJob {
@@ -553,6 +556,8 @@ func (s *Impl) appendLog(st *jobState, l domain.LogLine) {
 }
 
 func (s *Impl) flushLogs(st *jobState) {
+	st.flushMu.Lock()
+	defer st.flushMu.Unlock()
 	st.mu.Lock()
 	lines := st.logBuf
 	st.logBuf = nil
