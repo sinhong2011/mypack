@@ -102,7 +102,7 @@ func (a *App) jobRow(c *ui.Context, j domain.BuildJob, showProject bool, i int) 
 			fg, _ := kit.ToneColors(p, tone)
 			ui.Row(c).Width(18).Shrink(0).Center().Children(func() {
 				if j.Status == domain.JobRunning || j.Status == domain.JobQueued {
-					kit.Spinner(c, 14, p.Accent)
+					kit.BuildingSpinner(c, 14, p.Accent)
 				} else {
 					kit.Glyph(c, icon, 16, fg)
 				}

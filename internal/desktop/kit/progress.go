@@ -4,6 +4,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/egoist/mygo/plugins/loading"
 	"github.com/egoist/mygo/ui"
 
 	"mypack.dev/mypack/internal/desktop/design"
@@ -27,17 +28,21 @@ func arc(cx, cy, r, a0, a1 float32) *ui.Path {
 	return &p
 }
 
-// Spinner is the macOS-style indeterminate ring.
+// Spinner is the indeterminate indicator shown beside "busy" text:
+// loading.dev's Loading, drawn by MyGO's loading plugin so it honours
+// Reduce Motion and stops drawing when off screen. Callers always pair it with a label, so it stays hidden from
+// assistive technologies rather than announcing a second, unnamed progress.
 func Spinner(c *ui.Context, size float32, col ui.Color) ui.Element {
-	e := ui.Box(c).Size(size, size).Shrink(0).AccessHidden(true)
-	turn := e.Loop("spin", 850*time.Millisecond, ui.Linear)
-	w := max(1.5, size*0.13)
-	e.Draw(func(p *ui.Painter, r ui.Rect) {
-		cx, cy, rad := r.X+r.W/2, r.Y+r.H/2, r.W/2-w/2
-		p.StrokePath((&ui.Path{}).Circle(cx, cy, rad), w, design.Fade(col, 0.18))
-		p.StrokePath(arc(cx, cy, rad, turn, turn+0.3), w, col)
-	})
-	return e
+	return loading.Loading(c, loading.Options{Size: size, Color: col}).
+		Shrink(0).AccessHidden(true)
+}
+
+// BuildingSpinner marks an app that is being built: loading.dev's Blocks,
+// whose grid of blocks reads as something being assembled. Like Spinner it
+// is decorative beside a label or a row that already says what is happening.
+func BuildingSpinner(c *ui.Context, size float32, col ui.Color) ui.Element {
+	return loading.Blocks(c, loading.Options{Size: size, Color: col}).
+		Shrink(0).AccessHidden(true)
 }
 
 // ProgressRing draws a thin ring around a box of size: value 0..1, or
