@@ -13,6 +13,8 @@ in a few clicks. No Go, Rust, Node or Xcode project required.
 ![Platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
+**English** · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md) · [粵語](README.yue.md) · [Español](README.es.md) · [Français](README.fr.md) · [日本語](README.ja.md)
+
 [Features](#features) · [Getting started](#getting-started) · [CLI & agents](#cli-and-ai-agents) · [Contributing](#contributing) · [Inspiration](#inspiration-and-thanks)
 
 ![Mypack Library](docs/screenshots/real-library.png)
