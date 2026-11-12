@@ -44,8 +44,15 @@
     { "name": "Google Chat", "url": "https://chat.google.com/", "category": "chat" },
     { "name": "企业微信", "url": "https://work.weixin.qq.com/", "category": "chat" },
 
+    { "name": "X", "url": "https://x.com/", "category": "social" },
+    { "name": "Threads", "url": "https://www.threads.net/", "category": "social" },
+    { "name": "Instagram", "url": "https://www.instagram.com/", "category": "social" },
+    { "name": "Facebook", "url": "https://www.facebook.com/", "category": "social" },
+    { "name": "TikTok", "url": "https://www.tiktok.com/", "category": "social" },
+
     { "name": "Claude", "url": "https://claude.ai/", "category": "ai" },
     { "name": "Gemini", "url": "https://gemini.google.com/", "category": "ai" },
+    { "name": "Grok", "url": "https://grok.com/", "category": "ai" },
     { "name": "Perplexity", "url": "https://www.perplexity.ai/", "category": "ai" },
     { "name": "Copilot", "url": "https://copilot.microsoft.com/", "category": "ai" },
     { "name": "DeepSeek", "url": "https://chat.deepseek.com/", "category": "ai" },
