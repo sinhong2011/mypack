@@ -16,6 +16,10 @@
   "urlSchemes": [
     "mypack"
   ],
+  "updates": {
+    "publicKey": "6ix7lVlRLVCJUAzTjigTHOE0FruDyAXuHCOQm7kGUT4=",
+    "github": "sinhong2011/mypack"
+  },
   "macos": {
     "icon": "build/AppIcon.icns",
     "minimumSystemVersion": "12.0",

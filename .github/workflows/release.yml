@@ -126,8 +126,17 @@ jobs:
       - name: Install NSIS, for the Windows installers
         if: matrix.name == 'Windows'
         run: sudo apt-get update && sudo apt-get install -y nsis
+      # The key signs the update archives and manifests that installed
+      # apps update from (mygo.json "updates"; docs/releasing.md). Without
+      # it mygo build makes the installers alone.
       - name: Build
-        run: make installers PLATFORM="${{ matrix.platform }}" VERSION="${{ github.event_name == 'push' && github.ref_name || 'v0.0.0-check' }}"
+        env:
+          MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
+        run: |
+          if [[ -z "$MYGO_UPDATER_PRIVATE_KEY" && "${{ github.event_name }}" == push ]]; then
+            echo "::warning::MYGO_UPDATER_PRIVATE_KEY is not set: this release has no self-updates"
+          fi
+          make installers PLATFORM="${{ matrix.platform }}" VERSION="${{ github.event_name == 'push' && github.ref_name || 'v0.0.0-check' }}"
       - name: Upload to the Release
         if: github.event_name == 'push'
         env:
@@ -135,9 +144,22 @@ jobs:
         run: |
           shopt -s nullglob
           files=(build/*/*.dmg build/*/*-setup-*.exe build/*/*.deb build/*/*.rpm)
+          # Self-updates: signed archives, deltas and update-<platform>.json
+          # manifests, which apps read from the latest Release.
+          updates=(build/*/mypack-*.tar.gz build/*/*.delta)
+          manifests=(build/*/update-*.json)
           if (( ${#files[@]} == 0 )); then
             echo "::error::mygo build made no installers"
             exit 1
           fi
           printf '%s\n' "${files[@]}"
           gh release upload "$GITHUB_REF_NAME" "${files[@]}" --clobber
+          # Manifests last, so an app never reads one whose archive is missing.
+          if (( ${#updates[@]} > 0 )); then
+            printf '%s\n' "${updates[@]}"
+            gh release upload "$GITHUB_REF_NAME" "${updates[@]}" --clobber
+          fi
+          if (( ${#manifests[@]} > 0 )); then
+            printf '%s\n' "${manifests[@]}"
+            gh release upload "$GITHUB_REF_NAME" "${manifests[@]}" --clobber
+          fi
