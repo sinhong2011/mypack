@@ -416,7 +416,11 @@ func (a *App) describeGroups(ed *editorState, groups []settingGroup) {
 				if w.Maximized {
 					size = T("look.size.fullScreen")
 				}
-				return strings.Join([]string{tb, ap, size}, " · ")
+				parts := []string{tb, ap, size}
+				if !titleBarApplies(cfg) {
+					parts = parts[1:]
+				}
+				return strings.Join(parts, " · ")
 			}
 			g.modified = func() bool { return !reflect.DeepEqual(cfg.Window, def.Window) }
 			g.reset = func() { cfg.Window = def.Window }
