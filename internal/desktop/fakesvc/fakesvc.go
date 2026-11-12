@@ -50,6 +50,7 @@ type Service struct {
 	cancels         map[string]context.CancelFunc
 	projectApproved map[string]bool   // projects whose own build was approved
 	iconBases       map[string][]byte // image beneath a styled icon, by project
+	lastSync        *appservice.SyncResult
 	approvals       map[string]bool
 	nextID          int
 	host            config.Target

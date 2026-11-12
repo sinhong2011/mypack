@@ -127,7 +127,7 @@ func chipList(c *ui.Context, list *[]string, buf *string, placeholder string, mo
 			if in.Submitted() {
 				add()
 			}
-			if kit.Button(c.Key("add"), T("common.add"), kit.ButtonOpts{Size: design.ControlSM, Disabled: v == ""}).Clicked() {
+			if kit.Button(c.Key("add"), T("common.add"), kit.ButtonOpts{Disabled: v == ""}).Clicked() {
 				add()
 			}
 		})

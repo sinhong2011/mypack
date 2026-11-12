@@ -110,6 +110,21 @@ first shown. Favicons are fetched by the runtime from the page's `<link rel=icon
 Tab ⌘⇧T, Close Tab ⌘W, Close Window ⌘⇧W; View: ⌃Tab / ⌃⇧Tab, ⌘1…⌘9. Not in group apps (validation) or the menu-bar
 panel.
 
+## Moving apps between computers
+
+A `.mypack` file (`internal/appservice/library.go`) holds one or more apps: each config plus the pictures a config only
+points at (the icon, the image beneath an Icon Studio style, a group's site icons), with local paths stripped.
+`ExportLibrary` writes one; `ImportLibrary` adds its apps keeping their identifier and profile id, skipping apps
+already in the Library unless asked to replace them (a replaced app keeps its local project id, so builds and installs
+stay linked). GUI: File > Export Library… / Import Apps…, a project's Export…; CLI: `mypack export`, `mypack import`.
+
+Library sync (Pro, `internal/appservice/sync.go`) keeps one `.mypack` file per app under `<SyncFolder>/apps/` in a
+folder a sync service shares (iCloud Drive by default). Each sync compares every app here, its file there and the hash
+both had at the last sync (settings key `sync.state`): the side that changed wins, the later edit when both did.
+Moving an app to the Trash writes a tombstone that moves it to the Trash elsewhere; restoring brings it back. A sync
+never deletes for good, builds or installs. The GUI syncs at launch, every two minutes and a few seconds after a
+Library change; `mypack sync` runs one.
+
 ## Icon studio
 
 `app.icon.style` (`config.IconStyle`) dresses an icon up: a glyph (the icon's image, up to 3 letters, or an emoji), a

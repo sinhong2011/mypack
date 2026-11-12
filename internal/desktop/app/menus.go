@@ -10,6 +10,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
+	"mypack.dev/mypack/internal/appservice"
 	"mypack.dev/mypack/internal/desktop/design"
 	"mypack.dev/mypack/internal/desktop/kit"
 	"mypack.dev/mypack/internal/desktop/kit/icons"
@@ -47,6 +48,8 @@ func (a *App) installMenu() {
 			mygo.Separator(),
 			{Label: T("menu.importApp"), Click: on(a.importExistingApp)},
 			{Label: T("menu.importConfig"), Click: on(a.importConfig)},
+			{Label: T("menu.importApps"), Click: on(a.importApps)},
+			{Label: T("menu.exportLibrary"), Click: on(func() { a.exportLibrary(nil, T("library.export.name")) })},
 			{Label: T("create.open"), Accelerator: "CmdOrCtrl+O", Click: on(a.openSource)},
 			mygo.Separator(),
 			{Role: mygo.RoleClose},
@@ -425,8 +428,12 @@ func (a *App) importConfig() {
 	a.showWindow()
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.win, Title: T("importConfig.title"),
-			ButtonLabel: T("importConfig.button"), Filters: []mygo.FileFilter{{Name: T("importConfig.filter"), Extensions: []string{"json"}}}})
+			ButtonLabel: T("importConfig.button"), Filters: []mygo.FileFilter{{Name: T("importConfig.filter"), Extensions: []string{"json", "mypack"}}}})
 		if err != nil || len(paths) == 0 {
+			return
+		}
+		if appservice.IsLibraryFile(paths[0]) {
+			a.win.Update(func() { a.importLibraryFile(paths[0], false) })
 			return
 		}
 		a.win.Update(func() {

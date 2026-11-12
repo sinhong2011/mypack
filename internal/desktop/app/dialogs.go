@@ -32,6 +32,7 @@ type dialogs struct {
 
 	licenseLimit      bool // free-edition limit explainer (spec §9E.6)
 	groupLimit        bool // free edition: one group app
+	importSkip        importSkip
 	deactivateLicense licenseConfirm
 }
 
@@ -340,6 +341,7 @@ func (a *App) dialogs(c *ui.Context) {
 	}
 
 	a.iconStudioSheet(c)
+	a.importSkipSheet(c)
 
 	// Free edition: one group app; Pro makes as many as you like.
 	if d.groupLimit {

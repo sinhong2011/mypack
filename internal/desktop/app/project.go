@@ -288,7 +288,13 @@ func (a *App) projectOverview(c *ui.Context, pr *domain.Project, p *design.Palet
 	}
 }
 
-func (a *App) exportProject(id, name string) {
+// exportProject saves the app as a .mypack file (its icon included), to
+// import on another computer.
+func (a *App) exportProject(id, name string) { a.exportLibrary([]string{id}, name) }
+
+// exportProjectConfig saves the app's mypack.json alone (for the CLI and
+// version control).
+func (a *App) exportProjectConfig(id, name string) {
 	go func() {
 		path, err := mygoSave(a, strings.ReplaceAll(name, "/", "-")+".mypack.json")
 		if err != nil || path == "" {

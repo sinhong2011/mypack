@@ -734,7 +734,7 @@ func (a *App) settingGroups(c *ui.Context, ed *editorState, pr *domain.Project) 
 		}},
 		{label: T("set.downloads"), desc: T("set.downloads.desc"), control: func() {
 			text("dl", &cfg.Network.DownloadDirectory, T("set.downloads"), "~/Downloads", 200)
-			if kit.Button(k("dlc"), T("common.choose"), kit.ButtonOpts{Size: design.ControlSM}).Clicked() {
+			if kit.Button(k("dlc"), T("common.choose"), kit.ButtonOpts{}).Clicked() {
 				go func() {
 					paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.win, Directory: true, CreateDirectories: true})
 					if err == nil && len(paths) > 0 {
@@ -819,7 +819,7 @@ func (a *App) settingGroups(c *ui.Context, ed *editorState, pr *domain.Project) 
 					a.toast(T("set.diag.copied"), "", 1)
 				}
 				if kit.Button(k("ex"), T("action.export"), kit.ButtonOpts{Size: design.ControlSM}).Clicked() {
-					a.exportProject(pr.ID, pr.Config.App.Name)
+					a.exportProjectConfig(pr.ID, pr.Config.App.Name)
 				}
 			}},
 			{label: T("set.diag.revision"), control: func() { kit.Mono(c, fmt.Sprintf("rev %d · %s", ed.rev, pr.ID)) }},
@@ -889,7 +889,7 @@ func (a *App) domainList(c *ui.Context, ed *editorState) {
 			if in.Submitted() {
 				add()
 			}
-			if kit.Button(c.Key("adddom"), T("common.add"), kit.ButtonOpts{Size: design.ControlSM, Disabled: strings.TrimSpace(ed.newDom) == ""}).Clicked() {
+			if kit.Button(c.Key("adddom"), T("common.add"), kit.ButtonOpts{Disabled: strings.TrimSpace(ed.newDom) == ""}).Clicked() {
 				add()
 			}
 		})

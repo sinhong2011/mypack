@@ -90,6 +90,7 @@ func (a *App) settingsView(c *ui.Context) {
 		})
 
 		a.licenseGroup(c)
+		a.syncGroup(c)
 
 		// Appearance.
 		kit.Group(c, T("settings.appearance"), func() {
@@ -170,7 +171,7 @@ func (a *App) settingsView(c *ui.Context) {
 			kit.SettingBlock(c, T("settings.registry"), T("settings.registry.desc"), func() {
 				ui.Row(c).Gap(8).Children(func() {
 					kit.TextField(c.Key("reg"), &s.registry, T("settings.registry"), kit.FieldOpts{Placeholder: "https://…/registry.json", Mono: true}).Grow(1)
-					if kit.Button(c.Key("regsave"), T("common.save"), kit.ButtonOpts{Size: design.ControlSM, Disabled: s.registry == a.settings.RegistryURL}).Clicked() {
+					if kit.Button(c.Key("regsave"), T("common.save"), kit.ButtonOpts{Disabled: s.registry == a.settings.RegistryURL}).Clicked() {
 						a.settings.RegistryURL = s.registry
 						a.saveSettings()
 						a.toast(T("settings.registry.saved"), "", 1)
@@ -249,7 +250,7 @@ func (a *App) licenseGroup(c *ui.Context) {
 		kit.SettingBlock(c, T("license.key.label"), T("license.key.desc"), func() {
 			ui.Row(c).Gap(8).Children(func() {
 				kit.TextField(c.Key("lickey"), &s.licKey, T("license.key.label"), kit.FieldOpts{Placeholder: T("license.key.placeholder"), Invalid: s.licErr != "", Mono: true}).Grow(1)
-				if kit.Button(c.Key("licgo"), T("license.activate"), kit.ButtonOpts{Variant: kit.Primary, Size: design.ControlSM, Loading: s.licBusy}).Clicked() {
+				if kit.Button(c.Key("licgo"), T("license.activate"), kit.ButtonOpts{Variant: kit.Primary, Loading: s.licBusy}).Clicked() {
 					a.activateLicense()
 				}
 			})

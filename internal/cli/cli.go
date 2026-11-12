@@ -94,6 +94,12 @@ func RunWith(d Deps, args []string, stdout, stderr io.Writer) int {
 		return a.cmdRuntime(rest)
 	case "import-config", "import-pake": // import-pake: compatibility alias
 		return a.cmdImportConfig(cmd, rest)
+	case "export":
+		return a.cmdExport(rest)
+	case "import":
+		return a.cmdImport(rest)
+	case "sync":
+		return a.cmdSync(rest)
 	case "install":
 		return a.cmdInstall(rest)
 	case "apps":
@@ -134,6 +140,9 @@ Usage:
   mypack project list|get <id>|validate <path|id>|export <id> <path>
   mypack runtime list|download [key] [--version V]|verify [key]|clean [--all]
   mypack import-config <mypack.json|pake.json> [--out mypack.json]
+  mypack export [<project-id>...] -o <file.mypack>   (all apps when no id)
+  mypack import <file.mypack> [--replace]
+  mypack sync                                        (Pro: sync with the sync folder)
   mypack install <artifact-id> [--open] [--replace]
   mypack apps list | apps locate <id> <path>
   mypack license status | activate <token|-> | deactivate

@@ -82,7 +82,7 @@ func URLField(c *ui.Context, value *string, o URLFieldOpts) URLFieldResult {
 	if h == 0 {
 		h = 52
 	}
-	box := ui.Row(c).Height(h).Padding(0, 7, 0, 18).Gap(12).AlignItems(ui.Center).Cursor(ui.CursorText)
+	box := ui.Row(c).Height(h).Padding(0, (h-design.Control-2)/2, 0, 18).Gap(12).AlignItems(ui.Center).Cursor(ui.CursorText)
 	var in ui.Element
 	box.Children(func() {
 		ic, col := icons.Globe, p.TextTertiary
@@ -104,13 +104,19 @@ func URLField(c *ui.Context, value *string, o URLFieldOpts) URLFieldResult {
 		if o.Loading {
 			Spinner(c, 16, p.TextTertiary).Margin(0, 8, 0, 0)
 		}
-		bh := h - 14
+		// The field's accessories sit in one tight cluster at the standard
+		// control height, as in a macOS field: a Paste pill, and Open as a
+		// round folder button (its tooltip names it and its shortcut).
+		bh := design.Control
+		if h >= 48 {
+			bh = design.Control + 2
+		}
 		switch {
 		case o.Paste != "" && *value == "":
-			ui.Row(c).Gap(6).Children(func() {
-				r.Paste = Button(c.Key("paste"), o.Paste, ButtonOpts{Variant: Ghost, Size: bh, Icon: icons.Paste}).Clicked()
+			ui.Row(c).Gap(6).AlignItems(ui.Center).Shrink(0).Children(func() {
+				r.Paste = Button(c.Key("paste"), o.Paste, ButtonOpts{Size: bh, Icon: icons.Paste}).Clicked()
 				if o.Open != "" {
-					r.Open = Button(c.Key("open"), o.Open, ButtonOpts{Variant: Ghost, Size: bh, Icon: icons.Folder, Hotkey: "mod+o"}).Clicked()
+					r.Open = Button(c.Key("open"), "", ButtonOpts{Size: bh, Icon: icons.Folder, Tooltip: o.Open, Hotkey: "mod+o"}).Label(o.Open).Clicked()
 				}
 			})
 		case o.Action != "":

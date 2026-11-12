@@ -41,6 +41,16 @@ type Service interface {
 	RestoreProject(ctx context.Context, id, actor string) error
 	DuplicateProject(ctx context.Context, id, actor string) (domain.Project, error)
 	ExportProject(ctx context.Context, id, path string) error
+	// ExportLibrary writes projects (all when ids is empty) to a .mypack
+	// file with their icons; it returns how many.
+	ExportLibrary(ctx context.Context, ids []string, path string) (int, error)
+	// ImportLibrary adds the apps of a .mypack file, keeping their identity;
+	// apps already in the Library are skipped unless opts.Replace.
+	ImportLibrary(ctx context.Context, path string, opts ImportOptions) (ImportResult, error)
+	// SyncLibrary syncs the Library with Settings.SyncFolder (Pro).
+	SyncLibrary(ctx context.Context) (SyncResult, error)
+	// SyncStatus is the last sync's result (nil before the first).
+	SyncStatus(ctx context.Context) (*SyncResult, error)
 
 	// FetchMetadata resolves a website's title and best icon (≤ 8s, size
 	// limited). Never fails hard on network errors: returns a Metadata with
@@ -216,6 +226,8 @@ type Settings struct {
 	ShowMenuBarIcon bool   `json:"showMenuBarIcon"`
 	CheckUpdates    bool   `json:"checkUpdates"`
 	LibraryView     string `json:"libraryView"` // "grid" | "list"
+	// SyncFolder is where Library sync keeps the Library (Pro); empty = off.
+	SyncFolder string `json:"syncFolder,omitempty"`
 }
 
 // EventKind enumerates service events.

@@ -52,7 +52,7 @@ func (a *App) createSites(c *ui.Context) {
 		if s.addingAddr {
 			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 				f := kit.TextField(c.Key("more-addr"), &s.moreAddr, T("group.addr"), kit.FieldOpts{Placeholder: T("group.addr")}).Width(260).AutoFocus()
-				if (f.Submitted() || kit.Button(c.Key("more-add"), T("group.addr.add"), kit.ButtonOpts{Size: design.ControlSM, Variant: kit.Primary,
+				if (f.Submitted() || kit.Button(c.Key("more-add"), T("group.addr.add"), kit.ButtonOpts{Variant: kit.Primary,
 					Disabled: strings.TrimSpace(s.moreAddr) == ""}).Clicked()) && strings.TrimSpace(s.moreAddr) != "" {
 					a.addCreateURL(s.moreAddr)
 				}

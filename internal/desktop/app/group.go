@@ -111,11 +111,10 @@ func (a *App) groupSheet(c *ui.Context) {
 				if f.Submitted() && strings.TrimSpace(d.addr) != "" {
 					d.addURL(d.addr)
 				}
-				if kit.Button(c.Key("g-addr-add"), T("group.addr.add"), kit.ButtonOpts{Size: design.ControlSM, Disabled: strings.TrimSpace(d.addr) == ""}).Clicked() {
+				if kit.Button(c.Key("g-addr-add"), T("group.addr.add"), kit.ButtonOpts{Disabled: strings.TrimSpace(d.addr) == ""}).Clicked() {
 					d.addURL(d.addr)
 				}
-				folder := ui.ButtonBase(c.Key("g-local")).Label(T("create.addSite.local")).Size(30, 30).Center().Radius(8).Border(1, p.Divider).Cursor(ui.CursorPointer).Tooltip(T("create.addSite.local"))
-				folder.Children(func() { kit.Glyph(c, icons.Folder, 14, p.TextSecondary) })
+				folder := kit.Button(c.Key("g-local"), "", kit.ButtonOpts{Icon: icons.Folder, Tooltip: T("create.addSite.local")}).Label(T("create.addSite.local"))
 				folder.Menu(func(m *ui.Menu) {
 					add := func(path string) {
 						if !slices.Contains(d.locals, path) {
@@ -135,48 +134,25 @@ func (a *App) groupSheet(c *ui.Context) {
 			})
 			cands := a.groupCandidates()
 			ui.Scroll(c).MaxHeight(300).Children(func() {
-				ui.Column(c).Gap(2).Children(func() {
+				ui.Column(c).Gap(2).Padding(0, 10, 0, 0).Children(func() { // room for the scroll bar
 					for _, l := range d.locals {
 						key := "l:" + l
 						on := d.has(key)
-						row := ui.Row(c.Key("g-"+key)).Gap(10).AlignItems(ui.Center).Padding(6, 8).Radius(design.RadiusControl).
-							Role(ui.RoleCheckBox).Label(localName(l)).Checked(on)
-						if on {
-							row.Background(p.Accent.Mix(p.Surface, 0.88))
-						}
-						row.Children(func() {
+						l := l
+						clicked := pickRow(c.Key("g-"+key), localName(l), shortPath(l), on, indexOf(d.picked, key)+1, func() {
 							kit.AppIcon(c, a.letterIcon(localName(l)), localName(l), 28)
-							ui.Column(c).Grow(1).Gap(1).Children(func() {
-								ui.Text(c, localName(l)).FontSize(design.FontBody).FontWeight(design.WeightSemibold).TextColor(p.Text).SingleLine()
-								ui.Text(c, shortPath(l)).FontSize(design.FontCaption).TextColor(p.TextSecondary).SingleLine()
-							})
-							if on {
-								ui.Text(c, itoa(indexOf(d.picked, key)+1)).FontSize(design.FontCaption).Bold().TextColor(p.Accent).Padding(0, 10, 0, 0)
-							}
 						})
-						if row.Clicked() && !d.busy && (on || len(d.picked) < config.MaxGroupMembers) {
+						if clicked && !d.busy && (on || len(d.picked) < config.MaxGroupMembers) {
 							d.toggle(key)
 						}
 					}
 					for _, u := range d.urls {
 						key := "u:" + u
 						on := d.has(key)
-						row := ui.Row(c.Key("g-"+key)).Gap(10).AlignItems(ui.Center).Padding(6, 8).Radius(design.RadiusControl).
-							Role(ui.RoleCheckBox).Label(hostLabel(u)).Checked(on)
-						if on {
-							row.Background(p.Accent.Mix(p.Surface, 0.88))
-						}
-						row.Children(func() {
+						clicked := pickRow(c.Key("g-"+key), hostLabel(u), T("group.pasted"), on, indexOf(d.picked, key)+1, func() {
 							ui.Row(c).Size(28, 28).Center().Shrink(0).Radius(7).Background(p.Hover).Children(func() { kit.Glyph(c, icons.Globe, 15, p.TextSecondary) })
-							ui.Column(c).Grow(1).Gap(1).Children(func() {
-								ui.Text(c, hostLabel(u)).FontSize(design.FontBody).FontWeight(design.WeightSemibold).TextColor(p.Text).SingleLine()
-								ui.Text(c, T("group.pasted")).FontSize(design.FontCaption).TextColor(p.TextSecondary).SingleLine()
-							})
-							if on {
-								ui.Text(c, itoa(indexOf(d.picked, key)+1)).FontSize(design.FontCaption).Bold().TextColor(p.Accent).Padding(0, 10, 0, 0)
-							}
 						})
-						if row.Clicked() && !d.busy && (on || len(d.picked) < config.MaxGroupMembers) {
+						if clicked && !d.busy && (on || len(d.picked) < config.MaxGroupMembers) {
 							d.toggle(key)
 						}
 					}
@@ -184,22 +160,9 @@ func (a *App) groupSheet(c *ui.Context) {
 						pr := pr
 						key := "p:" + pr.ID
 						on := d.has(key)
-						row := ui.Row(c.Key("g-"+pr.ID)).Gap(10).AlignItems(ui.Center).Padding(6, 8).Radius(design.RadiusControl).
-							Role(ui.RoleCheckBox).Label(pr.Config.App.Name).Checked(on)
-						if on {
-							row.Background(p.Accent.Mix(p.Surface, 0.88))
-						}
-						row.Children(func() {
-							kit.AppIcon(c, pr.IconPNG, pr.Config.App.Name, 28)
-							ui.Column(c).Grow(1).Gap(1).Children(func() {
-								ui.Text(c, pr.Config.App.Name).FontSize(design.FontBody).FontWeight(design.WeightSemibold).TextColor(p.Text).SingleLine()
-								ui.Text(c, addressLabel(pr.Config.App.Source, pr.Config.App.Name)).FontSize(design.FontCaption).TextColor(p.TextSecondary).SingleLine()
-							})
-							if on {
-								ui.Text(c, itoa(indexOf(d.picked, key)+1)).FontSize(design.FontCaption).Bold().TextColor(p.Accent).Padding(0, 10, 0, 0)
-							}
-						})
-						if row.Clicked() && !d.busy {
+						clicked := pickRow(c.Key("g-"+pr.ID), pr.Config.App.Name, addressLabel(pr.Config.App.Source, pr.Config.App.Name), on,
+							indexOf(d.picked, key)+1, func() { kit.AppIcon(c, pr.IconPNG, pr.Config.App.Name, 28) })
+						if clicked && !d.busy {
 							if on || len(d.picked) < config.MaxGroupMembers {
 								d.toggle(key)
 								d.err = ""
@@ -224,6 +187,35 @@ func (a *App) groupSheet(c *ui.Context) {
 			}
 		})
 	})
+}
+
+// pickRow is a row of the New Group list: the site, and on the right an
+// empty ring, or once picked a filled accent circle with its place in the
+// rail. Rows only tint on hover, so a long pick stays calm to read.
+func pickRow(c *ui.Context, title, sub string, on bool, order int, icon func()) bool {
+	p := design.Of(c)
+	row := ui.ButtonBase(c).Row().Justify(ui.Start).Gap(10).AlignItems(ui.Center).Padding(6, 10, 6, 8).Radius(design.RadiusControl).
+		Role(ui.RoleCheckBox).Label(title).Checked(on).Cursor(ui.CursorPointer).Transition(design.Transition(c))
+	if row.Hovered() {
+		row.Background(p.Hover)
+	}
+	row.Children(func() {
+		icon()
+		ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {
+			ui.Text(c, title).FontSize(design.FontBody).FontWeight(design.WeightSemibold).TextColor(p.Text).SingleLine()
+			ui.Text(c, sub).FontSize(design.FontCaption).TextColor(p.TextSecondary).SingleLine()
+		})
+		mark := ui.Row(c).Size(22, 22).Radius(11).Center().Shrink(0)
+		if on {
+			mark.Background(p.Accent).Children(func() {
+				ui.Text(c, itoa(order)).FontSize(11.5).FontWeight(design.WeightSemibold).TextColor(p.TextOnAccent).FontFeatures("tnum")
+			})
+			kit.Pop(mark)
+		} else {
+			mark.Border(1.5, p.BorderStrong)
+		}
+	})
+	return row.Clicked()
 }
 
 // createGroup makes the group project and opens its settings.

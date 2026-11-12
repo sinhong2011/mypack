@@ -100,6 +100,7 @@ type App struct {
 	set     settingsState
 	dlg     dialogs
 	studio  iconStudio
+	sync    librarySync
 
 	toasts []toastReq
 
@@ -202,6 +203,7 @@ func Run(svc appservice.Service) error {
 		}
 		svc.Subscribe(a.onEvent)
 		a.reload("projects", "installs", "jobs", "runtimes", "storage", "license")
+		a.startLibrarySync()
 		a.watchFront()
 		a.syncTray()
 		if isFake() && os.Getenv("MYPACK_FAKE_FLYOUT") == "1" {
@@ -426,6 +428,7 @@ func (a *App) onEvent(e appservice.Event) {
 	switch e.Kind {
 	case appservice.EventProjectChanged, appservice.EventProjectDeleted:
 		a.reload("projects")
+		a.syncSoon()
 	case appservice.EventInstallChanged:
 		a.reload("installs", "storage", "license")
 	case appservice.EventRuntimeChanged:

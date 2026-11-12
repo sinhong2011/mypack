@@ -36,12 +36,14 @@ func (p *Palette) theme() *ui.Theme {
 		FocusRingOffset: 2,
 		Inverse:         p.Text,
 		InverseText:     p.Window,
-		Scrollbar:       p.TextTertiary.Alpha(0.55),
-		ScrollbarWidth:  7,
-		Radius:          RadiusControl,
-		Spacing:         4,
-		FontSize:        FontBody,
-		TooltipDelay:    550 * time.Millisecond,
+		// A slim, quiet thumb (as macOS overlay scrollers): the text colour
+		// at low alpha reads on any surface without a grey slab.
+		Scrollbar:      p.Text.Alpha(0.22),
+		ScrollbarWidth: 5,
+		Radius:         RadiusControl,
+		Spacing:        4,
+		FontSize:       FontBody,
+		TooltipDelay:   550 * time.Millisecond,
 	}
 }
 
