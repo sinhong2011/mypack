@@ -655,5 +655,8 @@
   "update.prereleases.desc": "同时提供 Beta 和候选版本。",
   "update.toast": "Mypack {version} 已发布",
   "update.toast.view": "查看",
-  "update.manager.linux": "你的包管理器"
+  "update.manager.linux": "你的包管理器",
+  "window.minimize": "最小化",
+  "window.maximize": "最大化",
+  "window.restore": "还原"
 }

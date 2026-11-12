@@ -655,5 +655,8 @@
   "update.prereleases.desc": "Propose aussi les versions bêta et candidates.",
   "update.toast": "Mypack {version} est disponible",
   "update.toast.view": "Voir",
-  "update.manager.linux": "votre gestionnaire de paquets"
+  "update.manager.linux": "votre gestionnaire de paquets",
+  "window.minimize": "Réduire",
+  "window.maximize": "Agrandir",
+  "window.restore": "Restaurer"
 }

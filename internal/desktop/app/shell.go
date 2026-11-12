@@ -253,9 +253,7 @@ func (a *App) sideRow(c *ui.Context, key string, ic *ui.SVG, label, badge string
 // ---- toolbar --------------------------------------------------------------------
 
 func (a *App) toolbar(c *ui.Context) {
-	bar := c.TitleBar()
-	right := max(bar.Right-design.CanvasInset, 0) + 14
-	row := ui.Row(c).Absolute().Top(0).Left(0).Right(0).Height(design.TitleBarH).Padding(0, right, 0, 20).Gap(8).AlignItems(ui.Center).
+	row := ui.Row(c).Absolute().Top(0).Left(0).Right(0).Height(design.TitleBarH).Padding(0, toolbarEnd(c), 0, 20).Gap(8).AlignItems(ui.Center).
 		DragWindow().Role(ui.RoleToolbar).Label(T("toolbar.label"))
 	a.toolbarW = row.Bounds().W
 	row.Children(func() {
@@ -290,7 +288,18 @@ func (a *App) toolbar(c *ui.Context) {
 				a.newApp()
 			}
 		}
+		windowButtons(c, a.win)
 	})
+}
+
+// toolbarEnd is a toolbar's right padding: clear of the system's window
+// controls where they overlap the canvas, and a pill's breadth from the
+// canvas edge where the view draws its own (as from the top).
+func toolbarEnd(c *ui.Context) float32 {
+	if ownWindowButtons {
+		return (design.TitleBarH - design.ToolbarControl) / 2
+	}
+	return max(c.TitleBar().Right-design.CanvasInset, 0) + 14
 }
 
 func (a *App) toolbarTitle(c *ui.Context) {
