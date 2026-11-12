@@ -583,7 +583,7 @@ func (t *tabSet) viewFn(c *ui.Context) {
 	}
 	ui.Column(c).Fill().Gap(0).Children(func() {
 		bar := ui.Row(c.Key("tabbar")).FillWidth().Height(tabBarH).Shrink(0).Gap(4).AlignItems(ui.Center).
-			Padding(0, 8, 0, left).Background(th.Surface).DragWindow().Role(ui.RoleTabList).Label("Tabs")
+			Padding(0, 8+c.TitleBar().Right, 0, left).Background(th.Surface).DragWindow().Role(ui.RoleTabList).Label("Tabs")
 		bar.Children(func() {
 			for i, tb := range list {
 				t.tabItem(c.Key(tabKey(tb.id)), tb, i, i == active, len(list))

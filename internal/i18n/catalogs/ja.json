@@ -623,6 +623,13 @@
   "sync.last": "{when}に同期 · {count, plural, one {#個のアプリ} other {#個のアプリ}}",
   "sync.status": "状態",
   "sync.now": "今すぐ同期",
+  "sync.file.title": "書き出しと読み込み",
+  "sync.export": "ライブラリを書き出す",
+  "sync.export.desc": "すべてのアプリを .mypack ファイルに保存します。バックアップや別のコンピュータでの読み込みに使えます。",
+  "sync.export.button": "書き出す…",
+  "sync.import": "アプリを読み込む",
+  "sync.import.desc": ".mypack ファイルからアプリを追加します。ライブラリにすでにあるアプリは、置き換えを選ばない限りそのままです。",
+  "sync.import.button": "読み込む…",
   "menu.checkUpdates": "アップデートを確認…",
   "update.group": "アップデート",
   "update.idle": "新しい Mypack を確認",
@@ -651,5 +658,8 @@
   "update.prereleases.desc": "ベータ版やリリース候補版も提示します。",
   "update.toast": "Mypack {version} が利用可能です",
   "update.toast.view": "表示",
-  "update.manager.linux": "パッケージマネージャ"
+  "update.manager.linux": "パッケージマネージャ",
+  "window.minimize": "最小化",
+  "window.maximize": "最大化",
+  "window.restore": "元に戻す"
 }

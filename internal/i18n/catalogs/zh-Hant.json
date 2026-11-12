@@ -623,6 +623,13 @@
   "sync.last": "{when}同步 · {count, plural, one {# 個 App} other {# 個 App}}",
   "sync.status": "狀態",
   "sync.now": "立即同步",
+  "sync.file.title": "匯出與匯入",
+  "sync.export": "匯出資料庫",
+  "sync.export.desc": "將所有 App 儲存為 .mypack 檔案，可作為備份或在另一部電腦上開啟。",
+  "sync.export.button": "匯出…",
+  "sync.import": "匯入 App",
+  "sync.import.desc": "從 .mypack 檔案加入 App。資料庫中已有的 App 會維持不變，除非你選擇取代。",
+  "sync.import.button": "匯入…",
   "menu.checkUpdates": "檢查更新…",
   "update.group": "更新",
   "update.idle": "檢查是否有新版 Mypack",
@@ -651,5 +658,8 @@
   "update.prereleases.desc": "同時提供 Beta 與候選版本。",
   "update.toast": "Mypack {version} 已推出",
   "update.toast.view": "查看",
-  "update.manager.linux": "你的套件管理工具"
+  "update.manager.linux": "你的套件管理工具",
+  "window.minimize": "最小化",
+  "window.maximize": "最大化",
+  "window.restore": "還原"
 }
