@@ -10,10 +10,11 @@ import (
 	"time"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/ui"
 )
 
-// The "safe" window layout used for titleBarStyle hidden / overlay.
+// The "safe" window layout used for titleBarStyle hidden / overlay / glass.
 //
 // A web page that fills a window with a hidden title bar sits under the
 // macOS traffic lights, so every site's own header collides with them. The
@@ -25,7 +26,7 @@ import (
 
 const (
 	stripHeightHidden  = 28 // titleBarStyle "hidden"
-	stripHeightOverlay = 38 // titleBarStyle "overlay" (hiddenInset)
+	stripHeightOverlay = 38 // titleBarStyle "overlay" (hiddenInset) and "glass"
 	tintAnimation      = 150 * time.Millisecond
 	tintPollInterval   = 1500 * time.Millisecond
 )
@@ -36,11 +37,11 @@ func (a *App) useStrip() bool {
 	if w.Decorations != nil && !*w.Decorations {
 		return false // frameless windows keep the injected drag region
 	}
-	return w.TitleBarStyle == "hidden" || w.TitleBarStyle == "overlay"
+	return w.TitleBarStyle == "hidden" || w.TitleBarStyle == "overlay" || w.TitleBarStyle == "glass"
 }
 
 func (a *App) stripHeight() int {
-	if a.cfg.Window.TitleBarStyle == "overlay" {
+	if s := a.cfg.Window.TitleBarStyle; s == "overlay" || s == "glass" {
 		return stripHeightOverlay
 	}
 	return stripHeightHidden
@@ -54,8 +55,9 @@ type shell struct {
 	page atomic.Pointer[mygo.Page]
 
 	// main-thread state (touched by the view and by win.Update)
-	tint ui.Color
-	have bool
+	tint  ui.Color
+	have  bool
+	inset float32 // the web view's top inset last set (glass)
 
 	fullscreen atomic.Bool
 	focused    atomic.Bool
@@ -106,6 +108,25 @@ func (s *shell) height() float32 {
 	return float32(s.a.stripHeight())
 }
 
+// glassOverPage reports whether the strip is the system's glass laid over
+// the page (titleBarStyle "glass"). The glass samples the page only where
+// the system draws it (macOS 26 and later); MyGo's shader glass elsewhere
+// sees none of the page, and with Reduce Transparency the glass is opaque,
+// so those windows keep the Seamless strip above the page.
+func (a *App) glassOverPage(native, reduceTransparency bool) bool {
+	return a.useStrip() && a.cfg.Window.TitleBarStyle == "glass" && native && !reduceTransparency
+}
+
+// setInset gives the web view a top inset of top points, so that the top
+// of the page starts under the glass strip. Main thread.
+func (s *shell) setInset(top float32) {
+	if top == s.inset || s.view.Load() == nil {
+		return
+	}
+	s.inset = top
+	setWebViewTopInset(s.win, float64(top))
+}
+
 // view draws the strip and the web view. Main thread.
 func (s *shell) viewFn(c *ui.Context) {
 	t := c.Theme()
@@ -120,6 +141,21 @@ func (s *shell) viewFn(c *ui.Context) {
 			h = 0
 		}
 	}
+	if s.a.glassOverPage(nativeGlassAvailable(), c.Preferences().ReduceTransparency) {
+		// The page fills the window and scrolls under the strip, which the
+		// system's glass fills; the web view's inset starts the page below it.
+		s.setInset(h)
+		ui.Box(c).Fill().Children(func() {
+			if v := s.view.Load(); v != nil {
+				ui.WebView(c, v).Fill()
+			}
+			if h > 0 {
+				ui.Row(c).Absolute().Top(0).Left(0).Right(0).Height(h).Material(glass.Glass{Native: true}).DragWindow()
+			}
+		})
+		return
+	}
+	s.setInset(0)
 	ui.Column(c).Fill().Gap(0).Children(func() {
 		strip := ui.Row(c).FillWidth().Height(h).Shrink(0)
 		col := target

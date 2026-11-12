@@ -316,7 +316,7 @@ func (a *App) buildPreload() string {
 }
 
 // framelessBar: only frameless windows (decorations:false) still need the
-// injected drag region; hidden/overlay use the native strip (shell.go).
+// injected drag region; hidden/overlay/glass use the native strip (shell.go).
 func (a *App) framelessBar() bool {
 	w := a.cfg.Window
 	return w.Decorations != nil && !*w.Decorations
@@ -374,7 +374,7 @@ func (a *App) windowOptions(main, strip bool) mygo.WindowOptions {
 	}
 	if strip {
 		h := a.stripHeight()
-		if w.TitleBarStyle == "overlay" {
+		if w.TitleBarStyle == "overlay" || w.TitleBarStyle == "glass" {
 			o.TitleBarStyle = mygo.TitleBarHiddenInset
 			// Traffic lights (14px) vertically centered in the strip.
 			o.TrafficLightPosition = &mygo.Point{X: 18, Y: (h - 14) / 2}

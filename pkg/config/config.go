@@ -291,7 +291,7 @@ type WindowConfig struct {
 	Maximized     bool   `json:"maximized,omitempty"`
 	Fullscreen    bool   `json:"fullscreen,omitempty"`
 	AlwaysOnTop   bool   `json:"alwaysOnTop,omitempty"`
-	TitleBarStyle string `json:"titleBarStyle,omitempty"` // "default" | "hidden" | "overlay"
+	TitleBarStyle string `json:"titleBarStyle,omitempty"` // "default" | "hidden" | "overlay" | "glass"
 	Decorations   *bool  `json:"decorations,omitempty"`   // nil = true
 	HideOnClose   bool   `json:"hideOnClose,omitempty"`
 	MultiWindow   bool   `json:"multiWindow,omitempty"`
@@ -468,6 +468,8 @@ func (b *BlockingConfig) validate(add func(field, code, msg string)) {
 // MinRuntime is the earliest runtime that has every feature c turns on.
 func (c *Config) MinRuntime() string {
 	switch {
+	case c.Window.TitleBarStyle == "glass":
+		return "1.0.9"
 	case c.Window.Tabs:
 		return "1.0.8"
 	case c.WebView.Blocking.Active():
@@ -822,9 +824,9 @@ func (c *Config) Validate() error {
 		add("window.zoom", "OUT_OF_RANGE", "zoom must be between 30 and 300")
 	}
 	switch w.TitleBarStyle {
-	case "", "default", "hidden", "overlay":
+	case "", "default", "hidden", "overlay", "glass":
 	default:
-		add("window.titleBarStyle", "INVALID_ENUM", "must be default, hidden or overlay")
+		add("window.titleBarStyle", "INVALID_ENUM", "must be default, hidden, overlay or glass")
 	}
 	switch w.DarkMode {
 	case "", "system", "light", "dark":
