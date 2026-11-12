@@ -15,6 +15,8 @@ on:
       - "scripts/release.sh"
       - "scripts/packages.sh"
       - "scripts/linux-repo.sh"
+      - "scripts/macos-notary-credentials.sh"
+      - "docs/releasing.md"
       - "mygo.json"
       - "cmd/mypack/**"
 
@@ -35,6 +37,8 @@ jobs:
         run: bash scripts/release.sh --self-test
       - name: Package manifest examples
         run: bash scripts/packages.sh --self-test
+      - name: Notary credential examples
+        run: bash scripts/macos-notary-credentials.sh --self-test
       - uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
@@ -131,9 +135,10 @@ jobs:
         if: matrix.name == 'Windows'
         run: sudo apt-get update && sudo apt-get install -y nsis
       # Developer ID signing and notarization (docs/releasing.md). The
-      # certificate goes into a keychain that lasts as long as the job, and
-      # mygo.json gets signingIdentity and notarize for this build only, so
-      # local and pull request builds stay ad hoc.
+      # certificate goes into a keychain that lasts as long as the job.
+      # Notary credentials prefer an App Store Connect API key and otherwise
+      # a complete Apple ID. mygo.json gets signingIdentity and notarize for
+      # this build only, so local and pull request builds stay ad hoc.
       - name: Import the certificate and the notary credentials
         if: matrix.name == 'macOS' && github.event_name == 'push'
         env:
@@ -142,17 +147,19 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
           if [ -z "$MACOS_CERTIFICATE" ]; then
             echo "::warning::MACOS_CERTIFICATE is not set; the disk image is signed ad hoc"
             exit 0
           fi
-          for s in MACOS_CERTIFICATE_PASSWORD APPLE_ID APPLE_TEAM_ID APPLE_APP_PASSWORD; do
-            if [ -z "${!s}" ]; then
-              echo "::error::$s is not set; it is needed to sign and notarize the macOS app"
-              exit 1
-            fi
-          done
+          if [ -z "$MACOS_CERTIFICATE_PASSWORD" ]; then
+            echo "::error::MACOS_CERTIFICATE_PASSWORD is not set; it is needed to sign the macOS app"
+            exit 1
+          fi
+          bash scripts/macos-notary-credentials.sh check
           keychain="$RUNNER_TEMP/signing.keychain-db"
           password="$(openssl rand -base64 24)"
           security create-keychain -p "$password" "$keychain"
@@ -164,8 +171,7 @@ jobs:
           rm "$RUNNER_TEMP/certificate.p12"
           security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain"
           security list-keychains -d user -s "$keychain" login.keychain
-          xcrun notarytool store-credentials notary --keychain "$keychain" \
-            --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD"
+          KEYCHAIN="$keychain" bash scripts/macos-notary-credentials.sh store
           identity="$(security find-identity -v -p codesigning "$keychain" | grep -o '"Developer ID Application: [^"]*"' | head -1 | tr -d '"')"
           if [ -z "$identity" ]; then
             echo "::error::MACOS_CERTIFICATE holds no Developer ID Application identity"

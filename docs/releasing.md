@@ -53,7 +53,7 @@ The Release workflow then:
 3. **installers**: three jobs at once, after publish, run `make installers` (see [Installers](#installers)) and upload the results to that Release with `gh release upload --clobber`: macOS on a macOS runner, Windows and Linux on Ubuntu.
 4. **packages**: for a stable tag (no `-`), downloads those installers back from the Release, writes every package manager's manifest with [`scripts/packages.sh`](../scripts/packages.sh), and hands them to one job per package manager: **homebrew**, **scoop**, **winget**, **chocolatey**, **aur** and **linux-repo** (see [Package managers](#package-managers)). A job whose secret is not set skips with a notice, so the Release itself never fails on them.
 
-On pull requests that touch the release files, the same workflow runs `goreleaser check` and the `--self-test` of `scripts/release.sh` and `scripts/packages.sh`, and builds the installers without uploading them, so a broken installer build shows on the pull request.
+On pull requests that touch the release files, the same workflow runs `goreleaser check` and the `--self-test` of `scripts/release.sh`, `scripts/packages.sh`, and `scripts/macos-notary-credentials.sh`, and builds the installers without uploading them, so a broken installer build shows on the pull request.
 
 ### Choosing the version
 
@@ -186,21 +186,49 @@ The workflow builds every target on macOS (for the universal binary), downloads 
 
 ## Code signing and notarization
 
-The workflows do not invent certificates or API keys. Without the secrets below, the tag publishes the unsigned archives above.
+The workflows do not invent certificates, API keys, or an issuer. Without the secrets below, the tag publishes the unsigned archives above.
 
 ### Notarized macOS disk image
 
-On a tag push, the macOS installer job signs the app with a Developer ID and notarizes the DMG when these repository secrets are set:
+On a tag push, the macOS installer job signs the app with a Developer ID and notarizes the DMG. Signing needs the certificate. Notarization uses an App Store Connect API key when one is configured, and an Apple ID only when no API key secret is set.
 
 ```sh
 base64 -i certificate.p12 | gh secret set MACOS_CERTIFICATE   # "Developer ID Application" cert + private key
 gh secret set MACOS_CERTIFICATE_PASSWORD                       # the .p12 password
-gh secret set APPLE_ID                                         # the developer account's Apple ID
-gh secret set APPLE_TEAM_ID                                    # the (TEAMID) in the identity
-gh secret set APPLE_APP_PASSWORD                               # app-specific password, account.apple.com
 ```
 
-The step **Import the certificate and the notary credentials** puts them in a keychain that lasts as long as the job, reads the identity from the certificate, and adds `macos.signingIdentity` and `macos.notarize` to `mygo.json` for that build only, so local and pull request builds stay ad hoc. With `MACOS_CERTIFICATE` unset it warns and builds ad hoc; with it set but another secret missing it fails. To sign locally, add the same keys to `mygo.json` by hand (`"notarize": { "keychainProfile": "notary" }`, after `xcrun notarytool store-credentials notary`) and do not commit them. The Windows setup can be signed the same way with `windows.certificate` or `windows.signCommand`.
+The API key is the path that does not need `APPLE_ID` or `APPLE_APP_PASSWORD`. `ASC_KEY_P8` is the raw private key, not base64:
+
+```sh
+gh secret set ASC_KEY_P8 < AuthKey_XXXXXXXXXX.p8
+gh secret set ASC_KEY_ID
+gh secret set ASC_ISSUER_ID
+```
+
+Create a Team key as an Admin: App Store Connect › Users and Access › Integrations › App Store Connect API › Team Keys. Download the `.p8` once; Apple does not keep a copy. `ASC_KEY_ID` is that key's Key ID. `ASC_ISSUER_ID` is the Issuer ID from the API Keys page, near the top of Integrations ([Generating Tokens for API Requests](https://developer.apple.com/documentation/appstoreconnectapi/generating-tokens-for-api-requests)). It is a UUID. It is not the 10-character Developer Team ID in the signing identity, and the workflow does not invent an issuer.
+
+The job writes that private key to a file with mode 600 and stores a profile named `notary` in the same temporary keychain as the certificate:
+
+```sh
+xcrun notarytool store-credentials notary --keychain <keychain> \
+  --key <file> --key-id "$ASC_KEY_ID" --issuer "$ASC_ISSUER_ID"
+```
+
+The key file is removed on success and on failure. `notarytool` validates the credentials as it stores them (its default `--validate`).
+
+An Individual key comes from a user profile and has no Issuer ID. The same token documentation says Individual keys do not use the issuer (`iss`) claim. `notarytool` requires `--issuer` for a Team key and returns 401 Unauthorized if `--issuer` is set on an Individual key, so leave `ASC_ISSUER_ID` unset for an Individual key. The workflow then passes `--key` and `--key-id` only. [Creating API Keys for App Store Connect API](https://developer.apple.com/documentation/appstoreconnectapi/creating-api-keys-for-app-store-connect-api) says Individual keys are not able to use notarytool, so use a Team key to notarize. The workflow does not invent an issuer to try to make an Individual key pass.
+
+Apple ID credentials are the fallback when `ASC_KEY_P8`, `ASC_KEY_ID`, and `ASC_ISSUER_ID` are all unset and these three are all set:
+
+```sh
+gh secret set APPLE_ID
+gh secret set APPLE_TEAM_ID          # the (TEAMID) in the identity; not the API issuer
+gh secret set APPLE_APP_PASSWORD     # app-specific password, account.apple.com
+```
+
+[`scripts/macos-notary-credentials.sh`](../scripts/macos-notary-credentials.sh) chooses the credentials. A partial set fails the job and names the missing secret: a Team key that sets `ASC_ISSUER_ID` but omits `ASC_KEY_P8` or `ASC_KEY_ID`, an API key missing `ASC_KEY_P8` or `ASC_KEY_ID`, or an Apple ID set without `APPLE_TEAM_ID` or `APPLE_APP_PASSWORD` when no API key is configured. A partial API key does not fall back to Apple ID. Secret values are not printed.
+
+With `MACOS_CERTIFICATE` unset the step warns and the disk image is signed ad hoc. With the certificate set and `MACOS_CERTIFICATE_PASSWORD` missing, the step fails. The step **Import the certificate and the notary credentials** reads the Developer ID Application identity from the certificate and adds `macos.signingIdentity` and `macos.notarize` (`keychainProfile` `notary`) to `mygo.json` for that build only, so local and pull request builds stay ad hoc. Update archives still upload only when `MYGO_UPDATER_PRIVATE_KEY` is set. To sign locally, add the same keys to `mygo.json` by hand (`"notarize": { "keychainProfile": "notary" }`, after `xcrun notarytool store-credentials notary`) and do not commit them. The Windows setup can be signed the same way with `windows.certificate` or `windows.signCommand`.
 
 If the repository later enables immutable releases, a published Release cannot take more assets, and re-running the workflow cannot replace them. Set GoReleaser `release.draft: true` and publish the draft once the archives are on it.
 
