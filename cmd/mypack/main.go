@@ -29,8 +29,9 @@ func main() {
 		svc = fakesvc.New()
 	} else {
 		s, err := appservice.New(appservice.Options{
-			DBPath:   os.Getenv("MYPACK_DB"),
-			CacheDir: os.Getenv("MYPACK_CACHE_DIR"),
+			DBPath:    os.Getenv("MYPACK_DB"),
+			CacheDir:  os.Getenv("MYPACK_CACHE_DIR"),
+			LoginItem: app.LoginItem(),
 		})
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "mypack:", err)
