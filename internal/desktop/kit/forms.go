@@ -59,6 +59,9 @@ type URLFieldOpts struct {
 	AutoFocus   bool
 	Handle      *ui.Handle
 	Height      float32 // 0 = 52
+	// Compact is the small field of the menu bar flyout: body-size text,
+	// and Paste and the action as round icon buttons named by tooltips.
+	Compact bool
 	// OnPaste sees a paste before it is inserted (main thread); return true
 	// to take it.
 	OnPaste func(text string) bool
@@ -82,15 +85,25 @@ func URLField(c *ui.Context, value *string, o URLFieldOpts) URLFieldResult {
 	if h == 0 {
 		h = 52
 	}
-	box := ui.Row(c).Height(h).Padding(0, (h-design.Control-2)/2, 0, 18).Gap(12).AlignItems(ui.Center).Cursor(ui.CursorText)
+	padL, gap, glyph, font := float32(18), float32(12), float32(18), design.FontHeroField
+	if o.Compact {
+		padL, gap, glyph, font = 12, 8, 15, design.FontBody+1
+	}
+	bh := design.Control
+	if h >= 48 {
+		bh = design.Control + 2
+	} else if o.Compact {
+		bh = h - 10
+	}
+	box := ui.Row(c).Height(h).Padding(0, (h-bh)/2, 0, padL).Gap(gap).AlignItems(ui.Center).Cursor(ui.CursorText)
 	var in ui.Element
 	box.Children(func() {
 		ic, col := icons.Globe, p.TextTertiary
 		if o.Invalid {
 			ic, col = icons.Warning, p.Warning
 		}
-		Glyph(c, ic, 18, col)
-		in = ui.TextInputBase(c, value).Grow(1).MinWidth(0).FocusRing(false).FontSize(design.FontHeroField).
+		Glyph(c, ic, glyph, col)
+		in = ui.TextInputBase(c, value).Grow(1).MinWidth(0).FocusRing(false).FontSize(font).
 			Placeholder(o.Placeholder).PlaceholderColor(p.TextTertiary).Label(o.Label).TextColor(p.Text)
 		if o.OnPaste != nil {
 			in.OnPaste(o.OnPaste)
@@ -107,11 +120,11 @@ func URLField(c *ui.Context, value *string, o URLFieldOpts) URLFieldResult {
 		// The field's accessories sit in one tight cluster at the standard
 		// control height, as in a macOS field: a Paste pill, and Open as a
 		// round folder button (its tooltip names it and its shortcut).
-		bh := design.Control
-		if h >= 48 {
-			bh = design.Control + 2
-		}
 		switch {
+		case o.Compact && o.Paste != "" && *value == "":
+			r.Paste = Button(c.Key("paste"), "", ButtonOpts{Size: bh, Variant: Ghost, Icon: icons.Paste, Tooltip: o.Paste, Hotkey: "mod+v"}).Label(o.Paste).Clicked()
+		case o.Compact && o.Action != "":
+			r.Action = Button(c.Key("action"), "", ButtonOpts{Variant: Primary, Size: bh, Disabled: o.ActionOff, Icon: icons.ArrowRight, Tooltip: o.Action}).Label(o.Action).Clicked()
 		case o.Paste != "" && *value == "":
 			ui.Row(c).Gap(6).AlignItems(ui.Center).Shrink(0).Children(func() {
 				r.Paste = Button(c.Key("paste"), o.Paste, ButtonOpts{Size: bh, Icon: icons.Paste}).Clicked()
