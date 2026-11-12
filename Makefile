@@ -47,7 +47,10 @@ release: gui
 # Installers with mygo build (mygo.json): a .dmg on macOS, a setup .exe
 # (needs NSIS) and .deb/.rpm packages. VERSION here is the release's, with
 # or without a v; build/ holds the results. The Release workflow runs this.
-# Each installer ships the matching runtime (scripts/bundle-runtime.sh).
+# Each installer ships the host runtime (scripts/bundle-runtime.sh).
+# Windows/Linux: the .tar.gz. macOS: a Mach-O helper in
+# resources/darwin-<arch>/bin so `mygo build` signs it (Apple notarization
+# unpacks .tar.gz and would reject the unsigned nested binary).
 # UPLOAD=1 also uploads them, with the update files, install.sh,
 # install.ps1 and SHA256SUMS, to the GitHub Release vVERSION (mygo build
 # -upload: needs gh, GH_TOKEN and MYGO_UPDATER_PRIVATE_KEY).

@@ -164,13 +164,15 @@ Losing the key strands installed apps, which then accept only updates signed wit
 
 ## Runtime registry
 
-Apps made with Mypack run on a runtime. Each platform installer ships the matching archive for `DefaultRuntimeVersion` (`pkg/config/config.go`) plus a copy of the signed `registry.json`, via `scripts/bundle-runtime.sh`. On first launch Mypack copies those into the runtime cache, so a first build on that platform does not need the network.
+Apps made with Mypack run on a runtime. Each platform installer ships a copy of the signed `registry.json`, via `scripts/bundle-runtime.sh`. On first launch Mypack copies the host runtime into the cache, so a same-platform first build does not need the network.
+
+Windows and Linux ship the matching archive for `DefaultRuntimeVersion` (`pkg/config/config.go`). macOS cannot ship that `.tar.gz`: Apple's notary service unpacks gzip and rejects the unsigned nested Mach-O (that is why v0.1.0-beta.4 never uploaded `mypack-*.dmg` or `update-darwin-universal.json`). The macOS job therefore extracts `mypack-runtime` into `resources/darwin-arm64/bin` and `resources/darwin-amd64/bin`. `mygo build` lipos them for a universal app and signs the helper with the app (Developer ID, hardened runtime, inside-out), then notarization sees a signed Mach-O instead of an archive. First launch seeds `Contents/Resources/bin/mypack-runtime` into the cache. The published `runtimes` Release stays unsigned: that binary becomes the user's generated app, which Mypack ad-hoc signs after assembly.
 
 The production registry lives on a GitHub Release with the fixed tag `runtimes`, and is fetched only when a project asks for a runtime version or platform that is not already cached (an update, or a cross-compile):
 
 `https://github.com/sinhong2011/mypack/releases/download/runtimes/registry.json`
 
-That Release holds `registry.json`, its signature `registry.json.sig`, and every runtime archive, side by side. Each entry's `url` is a bare file name, so it resolves next to `registry.json`. The Release is not marked latest, so it never stands in for an app release. Publish a runtime version (below) before tagging an app release that bundles it; `make installers` downloads the archives from this Release.
+That Release holds `registry.json`, its signature `registry.json.sig`, and every runtime archive, side by side. Each entry's `url` is a bare file name, so it resolves next to `registry.json`. It is marked as a prerelease so GitHub's `/releases/latest` (where MyGo looks for `update-*.json` when pre-releases are off) cannot be this Release. Apps fetch it by the `runtimes` tag. Publish a runtime version (below) before tagging an app release that bundles it; `make installers` downloads the archives from this Release.
 
 **Signing key.** Mypack trusts a manifest only when it is signed with a key it knows. The production public key is committed in `internal/runtimemanager/registry.pub` and built into every binary with `go:embed`, so installers made with `mygo build` (which takes no `-ldflags`) trust it too. The private key exists only in the `REGISTRY_SIGNING_KEY` Actions secret and in your password manager. Never commit it.
 
@@ -184,7 +186,7 @@ The workflow builds every target on macOS (for the universal binary), downloads 
 
 **Rotating the key.** Generate a new pair with `go run ./scripts/signregistry keygen -keys dist/keys-new`, add the new public key as a second line of `registry.pub`, ship an app release, then set `REGISTRY_SIGNING_KEY` to the new private key. Remove the old line once no supported release needs it.
 
-A macOS `.dmg` carries `darwin-arm64` and `darwin-amd64`. Each Windows setup and Linux package carries that architecture only. `darwin-universal` and other platforms stay on the Release for cross-builds.
+A macOS `.dmg` carries `registry.json` and a signed `bin/mypack-runtime` helper. Each Windows setup and Linux package carries that architecture's archive. `darwin-universal` and other platforms stay on the Release for cross-builds.
 
 **Development.** `make gui` / `make run` still use the dev key in `dist/keys/` and a `file://` registry in `dist/registry/`. `MYPACK_REGISTRY`, `MYPACK_TRUSTED_KEY` and Settings › Runtime registry override the production registry for self-hosted mirrors. `MYPACK_BUNDLED_RUNTIMES` points at a local bundle directory (the same layout as `resources/runtimes/`).
 

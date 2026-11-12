@@ -10,7 +10,7 @@
 // extracted binary's own sha256 is stored in a ".verified" marker so cached
 // runtimes can be re-verified offline.
 //
-// Installers ship the host platform's archive (and a copy of the signed
+// Installers ship the host platform's runtime (and a copy of the signed
 // manifest) inside the app bundle. SeedFromDir copies those into the cache
 // on first launch. The remote registry is fetched only when Ensure needs a
 // version or platform that is not already cached.

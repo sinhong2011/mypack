@@ -131,6 +131,65 @@ func TestSeedFromDirOfflineEnsure(t *testing.T) {
 	}
 }
 
+func TestSeedFromDirHelperBinary(t *testing.T) {
+	reg, err := testregistry.Create(t.TempDir(), testregistry.Options{Keys: []string{"darwin-arm64"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	runtimes := filepath.Join(root, "runtimes")
+	bin := filepath.Join(root, "bin")
+	if err := os.MkdirAll(runtimes, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"registry.json", "registry.json.sig"} {
+		b, err := os.ReadFile(filepath.Join(reg.Dir, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(runtimes, name), b, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(runtimes, "bundled.json"), []byte(`{"version":"1.0.0","keys":["darwin-arm64"]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Bytes differ from the archive (as after codesign of the helper).
+	if err := os.WriteFile(filepath.Join(bin, "mypack-runtime"), []byte("signed-helper"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	var hits int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&hits, 1)
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(srv.Close)
+
+	m := New(t.TempDir(), srv.URL+"/registry.json")
+	m.SetTrustedKeys(reg.Public)
+	if err := m.SeedFromDir(runtimes); err != nil {
+		t.Fatal(err)
+	}
+	exe, err := m.Ensure(context.Background(), "1.0.0", "darwin-arm64", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(exe)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "signed-helper" {
+		t.Fatalf("seeded %q", got)
+	}
+	if atomic.LoadInt32(&hits) != 0 {
+		t.Fatalf("helper seed hit the network %d times", hits)
+	}
+}
+
 func TestSeedFromDirMissingIsNoop(t *testing.T) {
 	m := New(t.TempDir(), "https://127.0.0.1:1/registry.json")
 	if err := m.SeedFromDir(""); err != nil {

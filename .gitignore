@@ -12,3 +12,7 @@
 /resources/runtimes/*.tar.gz
 /resources/runtimes/registry.json
 /resources/runtimes/registry.json.sig
+/resources/runtimes/bundled.json
+/resources/darwin-arm64/
+/resources/darwin-amd64/
+/resources/darwin/
