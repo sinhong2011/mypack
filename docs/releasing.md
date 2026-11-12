@@ -131,6 +131,37 @@ How the installed app differs from the archives:
 
 `make app` / `make dmg` (`scripts/package-app.sh`) still build `dist/Mypack.app` for local development. The Release does not use them.
 
+## App updates
+
+Mypack checks GitHub for a newer release and, where it can, installs it itself (Settings › Updates, and **Check for Updates…** in the Mypack menu; code in `internal/selfupdate` and `internal/desktop/app/updates.go`).
+
+**Checking.** The app reads `GET /repos/sinhong2011/mypack/releases` from the GitHub API and takes the highest `vX.Y.Z` that is not a draft. Pre-releases count only when the user turns on **Include pre-releases**. It checks about 8 s after launch, then on an hourly tick once the last successful check is a day old (**Check for updates automatically**, on by default; the time is kept in `ui-state.json`). Development builds (`…-dev`) and `MYPACK_FAKE=1` never check on their own. A background check that finds a new version shows one toast per version and a count on Settings in the sidebar.
+
+**Installing.** A copy that can replace itself (MyGo's `mygo.Updater.Enabled()`: built by `mygo build` with `updates` in `mygo.json`, and installed where the user can write, which covers the `.dmg` app in `/Applications` and the per-user Windows setup in `%LOCALAPPDATA%\Programs\Mypack`) downloads the signed update with `mygo.Updater`, shows its progress, and offers **Restart to Update**. A copy that cannot (an archive build or a Linux tarball without a manifest) gets a **Download** button to the release page instead.
+
+**Package managers.** A copy installed by a package manager is never updated by the app. It shows "Installed with <manager>" and the command:
+
+| Manager | Detected by | Command |
+| --- | --- | --- |
+| Homebrew | `<prefix>/Caskroom/mypack` (`$HOMEBREW_PREFIX`, `/opt/homebrew`, `/usr/local`) | `brew upgrade --cask mypack` |
+| winget | `%LOCALAPPDATA%\Microsoft\WinGet\Packages\Mypack.Mypack_*`, or the app running from it | `winget upgrade Mypack.Mypack` |
+| Chocolatey | `%ChocolateyInstall%\lib\mypack` | `choco upgrade mypack` |
+| Scoop | the app in `<scoop>\apps\mypack` | `scoop update mypack` |
+| APT | the app in `/opt/mypack` or `/usr`, with `/var/lib/dpkg/info/mypack.list` | `sudo apt update && sudo apt install --only-upgrade mypack` |
+| AUR | `/var/lib/pacman/local/mypack[-bin\|-git]-*` | `yay -Syu <package>` |
+| DNF / zypper | the app in `/opt/mypack` and `/usr/bin/dnf` or `/usr/bin/zypper` | `sudo dnf upgrade mypack` / `sudo zypper update mypack` |
+
+winget installs the per-user setup like a manual download does, and leaves no record in a folder for that installer type. Such a copy is not detected and updates itself, and winget sees the newer version the next time it looks. If the package IDs or names change (cask `mypack`, winget `Mypack.Mypack`, Chocolatey and Scoop `mypack`), update `internal/selfupdate/source.go` to match.
+
+**Publishing updates.** `mygo.json` `updates` holds the public key and `"github": "sinhong2011/mypack"`. With `MYGO_UPDATER_PRIVATE_KEY` set, `make installers` also writes, per platform, `mypack-<version>-<os>-<arch>.tar.gz` (signed), any `*.delta` from the last published versions, and `update-<os>-<arch>.json`, plus `install.sh` (macOS and Linux), `install.ps1` (Windows) and `SHA256SUMS` (the SHA-256 of every file but the manifests; check a download with `sha256sum -c --ignore-missing SHA256SUMS`). On a tag push with the key, the installers job runs `make installers UPLOAD=1`, which is `mygo build -upload`: it uploads every one of these files with the installers to the Release `v<version>` (made by the publish job before; `-upload` would create a draft if it were missing), merges `SHA256SUMS` with the copy the other platforms already uploaded, and uploads the manifests last. Two platforms that finish at once can still drop each other's `SHA256SUMS` lines, so the `checksums` job adds any asset the file is missing afterwards. `-upload` needs `gh` with `GH_TOKEN` (`github.token`, `contents: write`) and refuses to run without the key; pull requests build without it. Installed apps read the manifests from `releases/latest/download/`, so an update is live once its Release is the latest; a pre-release is offered only to users who opted in. There is no `CHANGELOG.md`, so manifests carry no notes, and the app shows the Release's notes from the API instead.
+
+Setup, once:
+
+1. The key pair is made with `go run github.com/egoist/mygo/cmd/mygo@v0.9.0 keygen -o <dir>`; its public half is in `mygo.json`. Keep `mygo-update.key` out of the repository, in a password manager.
+2. Add the secret: `gh secret set MYGO_UPDATER_PRIVATE_KEY < <dir>/mygo-update.key`. Without it the installers still build and the job uploads them alone, with a warning: that release has no self-updates, install scripts or `SHA256SUMS`.
+
+Losing the key strands installed apps, which then accept only updates signed with it: ship a release with a new `publicKey`, which users must install by hand. Anyone with the key can push code to every user. Never commit it, print it in a log, or pass it on the command line.
+
 ## Registry key
 
 `make gui` embeds `dist/keys/registry.pub` and a `file://` registry URL when the dev key exists. Release builds do not. They keep the registry URL compiled into the source:

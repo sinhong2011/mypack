@@ -175,21 +175,77 @@ jobs:
           jq --arg id "$identity" --arg kc "$keychain" \
             '.macos.signingIdentity = $id | .macos.notarize = {keychainProfile: "notary", keychain: $kc}' \
             mygo.json > "$RUNNER_TEMP/mygo.json" && mv "$RUNNER_TEMP/mygo.json" mygo.json
-      - name: Build
-        run: make installers PLATFORM="${{ matrix.platform }}" VERSION="${{ github.event_name == 'push' && github.ref_name || 'v0.0.0-check' }}"
-      - name: Upload to the Release
-        if: github.event_name == 'push'
+      # The key signs the update archives and manifests that installed
+      # apps update from (mygo.json "updates"; docs/releasing.md). On a tag
+      # push with the key, mygo build -upload uploads every artifact to the
+      # Release: installers, update archives and deltas, install.sh,
+      # install.ps1 and SHA256SUMS (merged with the other platforms'), and
+      # the update manifests last. Without the key, -upload refuses to run,
+      # so the installers are built and uploaded alone.
+      - name: Build and upload
         env:
           GH_TOKEN: ${{ github.token }}
+          MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
+          VERSION: ${{ github.event_name == 'push' && github.ref_name || 'v0.0.0-check' }}
         run: |
-          shopt -s nullglob
-          files=(build/*/*.dmg build/*/*-setup-*.exe build/*/*.deb build/*/*.rpm)
-          if (( ${#files[@]} == 0 )); then
-            echo "::error::mygo build made no installers"
-            exit 1
+          if [[ "${{ github.event_name }}" != push ]]; then
+            make installers PLATFORM="${{ matrix.platform }}" VERSION="$VERSION"
+          elif [[ -n "$MYGO_UPDATER_PRIVATE_KEY" ]]; then
+            make installers PLATFORM="${{ matrix.platform }}" VERSION="$VERSION" UPLOAD=1
+          else
+            echo "::warning::MYGO_UPDATER_PRIVATE_KEY is not set: this release has no self-updates, install scripts or SHA256SUMS"
+            make installers PLATFORM="${{ matrix.platform }}" VERSION="$VERSION"
+            shopt -s nullglob
+            files=(build/*/*.dmg build/*/*-setup-*.exe build/*/*.deb build/*/*.rpm)
+            if (( ${#files[@]} == 0 )); then
+              echo "::error::mygo build made no installers"
+              exit 1
+            fi
+            printf '%s\n' "${files[@]}"
+            gh release upload "$GITHUB_REF_NAME" "${files[@]}" --clobber
           fi
-          printf '%s\n' "${files[@]}"
-          gh release upload "$GITHUB_REF_NAME" "${files[@]}" --clobber
+
+  # The installers jobs each merge their SHA256SUMS with the Release's, so
+  # two that finish together can drop each other's lines. This adds any
+  # asset the file is missing.
+  checksums:
+    needs: installers
+    if: github.event_name == 'push' && needs.installers.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Complete SHA256SUMS
+        run: |
+          tag="$GITHUB_REF_NAME"; repo="$GITHUB_REPOSITORY"
+          mapfile -t assets < <(gh release view "$tag" --repo "$repo" --json assets --jq '.assets[].name')
+          if ! printf '%s\n' "${assets[@]}" | grep -qx SHA256SUMS; then
+            echo "no SHA256SUMS on the Release (no update key); nothing to do"; exit 0
+          fi
+          mkdir sums && cd sums
+          gh release download "$tag" --repo "$repo" --pattern SHA256SUMS
+          missing=()
+          for a in "${assets[@]}"; do
+            case "$a" in
+              *.dmg|*-setup-*.exe|*.deb|*.rpm|*.tar.gz|*.delta|install.sh|install.ps1) ;;
+              *) continue ;;
+            esac
+            # GoReleaser's archives (mypack_<version>_…) are in checksums.txt.
+            [[ "$a" == mypack_* ]] && continue
+            awk '{ sub(/^\*/, "", $2); print $2 }' SHA256SUMS | grep -qxF "$a" || missing+=("$a")
+          done
+          if (( ${#missing[@]} == 0 )); then echo "SHA256SUMS is complete"; exit 0; fi
+          printf 'adding %s\n' "${missing[@]}"
+          for a in "${missing[@]}"; do
+            gh release download "$tag" --repo "$repo" --pattern "$a"
+            sha256sum "$a" >>SHA256SUMS
+            rm -f "$a"
+          done
+          sort -k2 -o SHA256SUMS SHA256SUMS
+          gh release upload "$tag" --repo "$repo" SHA256SUMS --clobber
 
   # Package managers, for stable releases (no "-" in the tag): the
   # manifests are written from the installers just uploaded, then each

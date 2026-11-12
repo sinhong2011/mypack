@@ -186,8 +186,12 @@ func (a *App) sidebar(c *ui.Context) {
 		ui.Spacer(c)
 		ui.Column(c).Gap(1).Children(func() {
 			a.navItem(c, secRuntimes, icons.Runtimes, T("nav.runtimes"), "")
-			if a.sideRow(c, "settings", icons.Settings, T("nav.settings"), "", false, false, nil) {
-				a.openSettings("")
+			if a.sideRow(c, "settings", icons.Settings, T("nav.settings"), a.updateBadge(), true, false, nil) {
+				if a.updateBadge() != "" {
+					a.openSettings(paneUpdates) // where the waiting update is
+				} else {
+					a.openSettings("")
+				}
 			}
 		})
 	})

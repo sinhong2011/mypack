@@ -28,6 +28,7 @@ type settingsPane string
 
 const (
 	paneGeneral    settingsPane = "general"
+	paneUpdates    settingsPane = "updates"
 	paneAppearance settingsPane = "appearance"
 	paneSync       settingsPane = "sync"
 	paneBuilds     settingsPane = "builds"
@@ -46,6 +47,7 @@ type paneInfo struct {
 func settingsPanes() []paneInfo {
 	return []paneInfo{
 		{paneGeneral, icons.Sliders, "settings.general"},
+		{paneUpdates, icons.Download, "update.group"},
 		{paneAppearance, icons.Appearance, "settings.appearance"},
 		{paneSync, icons.Refresh, "settings.sync"},
 		{paneBuilds, icons.Build, "settings.builds"},
@@ -190,7 +192,11 @@ func (a *App) settingsSidebar(c *ui.Context) {
 		cur := a.curPane()
 		ui.Column(c).Gap(1).Role(ui.RoleNavigation).Label(T("nav.settings")).Children(func() {
 			for _, pi := range settingsPanes() {
-				if a.sideRow(c, "pane-"+string(pi.id), pi.glyph, T(pi.title), "", false, pi.id == cur, settingsGlide{}) {
+				badge := ""
+				if pi.id == paneUpdates {
+					badge = a.updateBadge()
+				}
+				if a.sideRow(c, "pane-"+string(pi.id), pi.glyph, T(pi.title), badge, badge != "", pi.id == cur, settingsGlide{}) {
 					a.selectPane(pi.id)
 				}
 			}
@@ -215,6 +221,8 @@ func (a *App) settingsView(c *ui.Context) {
 			switch a.curPane() {
 			case paneGeneral:
 				a.settingsGeneral(c)
+			case paneUpdates:
+				a.updatesGroup(c)
 			case paneAppearance:
 				a.settingsAppearance(c)
 			case paneSync:
@@ -259,14 +267,6 @@ func (a *App) settingsGeneral(c *ui.Context) {
 			if v != a.settings.ShowMenuBarIcon {
 				a.settings.ShowMenuBarIcon = v
 				a.syncTray()
-				a.saveSettings()
-			}
-		})
-		kit.SettingIconRow(c, icons.Download, ui.Color{}, T("settings.updates"), T("settings.updates.desc"), func() {
-			v := a.settings.CheckUpdates
-			kit.Switch(c.Key("cu"), &v, T("settings.updates"))
-			if v != a.settings.CheckUpdates {
-				a.settings.CheckUpdates = v
 				a.saveSettings()
 			}
 		})

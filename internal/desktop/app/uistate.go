@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 // uiState is GUI-only presentation state persisted across restarts in
@@ -23,6 +24,11 @@ type uiState struct {
 	// ShowHUD (nil = on) shows build progress near the notch while
 	// Mypack's window is not in front.
 	ShowHUD *bool `json:"showHud,omitempty"`
+	// LastUpdateCheck is when Mypack last asked for a new release, which
+	// spaces automatic checks a day apart; UpdateNotified is the newest
+	// version a toast told of, so each is told once.
+	LastUpdateCheck time.Time `json:"lastUpdateCheck,omitempty"`
+	UpdateNotified  string    `json:"updateNotified,omitempty"`
 	// Star is when to ask for a star on GitHub (starask.go).
 	Star starAsk `json:"star"`
 }
