@@ -92,8 +92,54 @@ runtime はプラットフォームごとに1つの小さなバイナリで、�
 
 ## はじめ方
 
+### インストール
+
+**macOS**（[Homebrew](https://brew.sh)）：
+
+```sh
+brew install --cask sinhong2011/tap/mypack
+```
+
+**Windows**（winget、[Scoop](https://scoop.sh)、[Chocolatey](https://chocolatey.org)）：
+
+```powershell
+winget install Mypack.Mypack
+```
+
+```powershell
+scoop bucket add mypack https://github.com/sinhong2011/scoop-bucket
+scoop install mypack/mypack
+```
+
+```powershell
+choco install mypack
+```
+
+**Debian と Ubuntu**（APT）：
+
+```sh
+curl -fsSL https://sinhong2011.github.io/mypack/mypack.gpg | sudo tee /usr/share/keyrings/mypack.gpg >/dev/null
+echo "deb [signed-by=/usr/share/keyrings/mypack.gpg] https://sinhong2011.github.io/mypack/apt stable main" | sudo tee /etc/apt/sources.list.d/mypack.list
+sudo apt update && sudo apt install mypack
+```
+
+**Fedora、RHEL、openSUSE**（DNF、YUM、Zypper）：
+
+```sh
+sudo curl -fsSL -o /etc/yum.repos.d/mypack.repo https://sinhong2011.github.io/mypack/rpm/mypack.repo
+sudo dnf install mypack        # sudo zypper install mypack
+```
+
+**Arch Linux**（[AUR](https://aur.archlinux.org/packages/mypack-bin)）：
+
+```sh
+yay -S mypack-bin
+```
+
+各 [Release](https://github.com/sinhong2011/mypack/releases/latest) には直接ダウンロードできるインストーラーもあります：macOS 用の `.dmg`、Windows 用のセットアッププログラム、Linux 用の `.deb` と `.rpm`。パッケージマネージャーでインストールすると `mypack` コマンドが PATH に入り、そのマネージャーのアップグレードコマンドで更新できます。
+
 > [!NOTE]
-> Mypack はまだ新しく、署名済みリリースは準備中です。それまではソースからビルドしてください。およそ1分で終わります。
+> リリースはまだ署名されていません。macOS で Gatekeeper に初回起動をブロックされたら、Mypack.app を右クリックして「開く」を選んでください。Windows では SmartScreen が確認を求めることがあります（「詳細情報 › 実行」）。
 
 ### ソースからビルドする
 
@@ -122,7 +168,7 @@ HTMLファイルやフォルダをウィンドウにドロップしたり、**�
 アプリのバイナリはそのまま CLI でもあります。
 
 ```sh
-alias mypack=/Applications/Mypack.app/Contents/MacOS/mypack
+alias mypack=/Applications/Mypack.app/Contents/MacOS/Mypack   # not needed after a package-manager install
 
 mypack create github.com --json          # a draft project; nothing is built yet
 mypack build <project-id> --yes --json   # build it (--yes allows the runtime download)
@@ -135,7 +181,7 @@ mypack apps list
 **MCPサーバー。** 次のようにエージェントを接続します。
 
 ```sh
-claude mcp add mypack -- /Applications/Mypack.app/Contents/MacOS/mypack mcp serve
+claude mcp add mypack -- mypack mcp serve
 ```
 
 アプリの **設定 › エージェント接続** には、Claude Code、Codex、その他のMCPクライアント向けにコピーできる設定があります。エージェントはプロジェクトの一覧、作成、ビルドができますが、アプリのインストールはできず、プロジェクトのビルドスクリプトはあなたが承認したあとだけ実行されます。

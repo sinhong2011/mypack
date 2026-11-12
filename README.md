@@ -15,7 +15,7 @@ in a few clicks. No Go, Rust, Node or Xcode project required.
 
 **English** · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md) · [粵語](README.yue.md) · [Español](README.es.md) · [Français](README.fr.md) · [日本語](README.ja.md)
 
-[Features](#features) · [Getting started](#getting-started) · [CLI & agents](#cli-and-ai-agents) · [Contributing](#contributing) · [Inspiration](#inspiration-and-thanks)
+[Features](#features) · [Install](#install) · [Getting started](#getting-started) · [CLI & agents](#cli-and-ai-agents) · [Contributing](#contributing) · [Inspiration](#inspiration-and-thanks)
 
 ![Mypack Library](docs/screenshots/real-library.png)
 
@@ -142,19 +142,76 @@ particular website. Mypack copies it, adds your app's name, icon and
 
 | | Mypack (the builder) | Apps it makes |
 |---|---|---|
-| **macOS** (Apple silicon & Intel) | ✅ Main platform, packaged as `.app` / `.dmg` | ✅ WKWebView |
-| **Linux** (x64 & arm64) | 🧪 Build from source | ✅ WebKitGTK, tested on Ubuntu 24.04 |
-| **Windows** (x64 & arm64) | 🧪 Build from source | 🧪 WebView2, less tested |
+| **macOS** (Apple silicon & Intel) | ✅ Main platform: Homebrew or `.dmg` | ✅ WKWebView |
+| **Linux** (x64 & arm64) | 🧪 APT, DNF/Zypper, AUR, `.deb` / `.rpm` | ✅ WebKitGTK, tested on Ubuntu 24.04 |
+| **Windows** (x64 & arm64) | 🧪 winget, Scoop, Chocolatey, setup `.exe` | 🧪 WebView2, less tested |
 
 ## Getting started
 
+### Install
+
+**macOS** with [Homebrew](https://brew.sh):
+
+```sh
+brew install --cask sinhong2011/tap/mypack
+```
+
+**Windows** with [winget](https://learn.microsoft.com/windows/package-manager/),
+[Scoop](https://scoop.sh) or [Chocolatey](https://chocolatey.org):
+
+```powershell
+winget install Mypack.Mypack
+```
+
+```powershell
+scoop bucket add mypack https://github.com/sinhong2011/scoop-bucket
+scoop install mypack/mypack
+```
+
+```powershell
+choco install mypack
+```
+
+**Debian and Ubuntu** (APT):
+
+```sh
+curl -fsSL https://sinhong2011.github.io/mypack/mypack.gpg | sudo tee /usr/share/keyrings/mypack.gpg >/dev/null
+echo "deb [signed-by=/usr/share/keyrings/mypack.gpg] https://sinhong2011.github.io/mypack/apt stable main" | sudo tee /etc/apt/sources.list.d/mypack.list
+sudo apt update && sudo apt install mypack
+```
+
+**Fedora, RHEL and openSUSE** (DNF, YUM, Zypper):
+
+```sh
+sudo curl -fsSL -o /etc/yum.repos.d/mypack.repo https://sinhong2011.github.io/mypack/rpm/mypack.repo
+sudo dnf install mypack        # or: sudo zypper install mypack
+```
+
+**Arch Linux** from the [AUR](https://aur.archlinux.org/packages/mypack-bin):
+
+```sh
+yay -S mypack-bin
+```
+
+Every [Release](https://github.com/sinhong2011/mypack/releases/latest) also
+has the installers to download directly: a `.dmg` for macOS (Apple silicon
+and Intel), setup programs for Windows (x64 and arm64), `.deb` and `.rpm`
+packages for Linux (x64 and arm64), and plain archives of the app and CLI.
+
+Each package manager installs the app and puts a `mypack` command on your
+PATH (on Windows, `mypack` from Scoop, or `mypack.exe` from the archive),
+and updates it with that manager's own upgrade command. The Linux packages
+need GTK 3 and WebKitGTK, which they pull in.
+
 > [!NOTE]
-> Mypack is young, and signed releases are on the way. Until then, build it
-> from source. It takes about a minute.
+> Releases aren't signed yet. On macOS, if Gatekeeper blocks the first
+> launch, right-click Mypack.app and choose **Open** (Homebrew users can
+> run `xattr -dr com.apple.quarantine /Applications/Mypack.app`). On
+> Windows, SmartScreen may ask you to confirm (**More info › Run anyway**).
 
 ### Build from source
 
-You need Go 1.27.3 or newer. With `GOTOOLCHAIN=auto` (the default), Go fetches
+To work on Mypack itself, you need Go 1.27.3 or newer. With `GOTOOLCHAIN=auto` (the default), Go fetches
 the right version for you.
 
 ```sh
@@ -182,7 +239,8 @@ You can also drop an HTML file or a folder onto the window, or pick a site in
 The app's binary is also the CLI:
 
 ```sh
-alias mypack=/Applications/Mypack.app/Contents/MacOS/mypack
+# installed by a package manager, mypack is already on your PATH; otherwise:
+alias mypack=/Applications/Mypack.app/Contents/MacOS/Mypack
 
 mypack create github.com --json          # a draft project; nothing is built yet
 mypack build <project-id> --yes --json   # build it (--yes allows the runtime download)
@@ -198,7 +256,7 @@ command.
 **MCP server.** Connect an agent with:
 
 ```sh
-claude mcp add mypack -- /Applications/Mypack.app/Contents/MacOS/mypack mcp serve
+claude mcp add mypack -- mypack mcp serve
 ```
 
 **Settings › Agent Connections** in the app has ready-to-copy setups for Claude
@@ -221,7 +279,7 @@ apps/         the browser extension (WXT + SolidJS)
 
 ## Releases
 
-A release is a `vX.Y.Z` tag pushed on `main`. The Release workflow tests that commit, then GoReleaser builds unsigned binaries for macOS, Linux and Windows and publishes them, with checksums, to a GitHub Release whose notes list the pull requests merged since the last one. `mygo build` adds installers to the same Release: a macOS disk image, Windows setup programs, and Debian and RPM packages. Discover catalog edits reach users without a release. Signed macOS builds and Homebrew are not part of this pipeline yet; [docs/releasing.md](docs/releasing.md) lists what they need.
+A release is a `vX.Y.Z` tag pushed on `main`. The Release workflow tests that commit, then GoReleaser builds unsigned binaries for macOS, Linux and Windows and publishes them, with checksums, to a GitHub Release whose notes list the pull requests merged since the last one. `mygo build` adds installers to the same Release: a macOS disk image, Windows setup programs, and Debian and RPM packages. For stable releases the workflow then updates the Homebrew cask, the Scoop bucket, winget, Chocolatey, the AUR package and the APT and RPM repositories. Discover catalog edits reach users without a release. Signed macOS builds are not part of this pipeline yet; [docs/releasing.md](docs/releasing.md) lists what they need and how the package managers are set up.
 
 ## Contributing
 
