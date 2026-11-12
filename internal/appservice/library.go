@@ -160,7 +160,8 @@ func writeLibraryFile(path string, f LibraryFile) error {
 	return os.Rename(tmp, path)
 }
 
-// ReadLibraryFile parses a .mypack file.
+// ReadLibraryFile parses a Library file (.mypack, or the same JSON named
+// .json); the document, not the extension, decides.
 func ReadLibraryFile(path string) (LibraryFile, error) {
 	var f LibraryFile
 	fh, err := os.Open(path)
@@ -187,8 +188,26 @@ func ReadLibraryFile(path string) (LibraryFile, error) {
 	return f, nil
 }
 
-// IsLibraryFile reports whether path looks like a .mypack file.
-func IsLibraryFile(path string) bool { return strings.EqualFold(filepath.Ext(path), LibraryExt) }
+// IsLibraryFile reports whether path is a Library file: any .mypack file,
+// or a .json file whose document says it is one (a .mypack renamed or
+// hand-edited as JSON), as opposed to an app config such as mypack.json.
+func IsLibraryFile(path string) bool {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case LibraryExt:
+		return true
+	case ".json":
+		fh, err := os.Open(path)
+		if err != nil {
+			return false
+		}
+		defer fh.Close()
+		var head struct {
+			Format string `json:"format"`
+		}
+		return json.NewDecoder(io.LimitReader(fh, maxLibraryFile)).Decode(&head) == nil && head.Format == LibraryFormat
+	}
+	return false
+}
 
 // ImportLibrary implements Service.
 func (s *Impl) ImportLibrary(ctx context.Context, path string, opts ImportOptions) (res ImportResult, err error) {
@@ -196,7 +215,7 @@ func (s *Impl) ImportLibrary(ctx context.Context, path string, opts ImportOption
 	defer func() { s.audit(ctx, actor, "library.import", filepath.Base(path), err) }()
 	f, rerr := ReadLibraryFile(expandHome(path))
 	if rerr != nil {
-		return res, newErr(CodeInvalidInput, "That file could not be imported: "+rerr.Error()+".", "Choose a .mypack file exported by mypack.")
+		return res, newErr(CodeInvalidInput, "That file could not be imported: "+rerr.Error()+".", "Choose a .mypack (or .json) file exported by mypack.")
 	}
 	byID, err := s.projectsByIdentifier(ctx)
 	if err != nil {
