@@ -47,6 +47,9 @@ release: gui
 # Installers with mygo build (mygo.json): a .dmg on macOS, a setup .exe
 # (needs NSIS) and .deb/.rpm packages. VERSION here is the release's, with
 # or without a v; build/ holds the results. The Release workflow runs this.
+# UPLOAD=1 also uploads them, with the update files, install.sh,
+# install.ps1 and SHA256SUMS, to the GitHub Release vVERSION (mygo build
+# -upload: needs gh, GH_TOKEN and MYGO_UPDATER_PRIVATE_KEY).
 #   make installers PLATFORM=darwin/universal VERSION=v0.2.0
 PLATFORM ?= $(shell go env GOOS)/$(shell go env GOARCH)
 MYGO      = go run github.com/egoist/mygo/cmd/mygo@$(shell go list -m -f '{{.Version}}' github.com/egoist/mygo)
@@ -55,7 +58,7 @@ installers:
 	go run ./scripts/mkicns assets/AppIcon-macOS-1024.png build/AppIcon.icns
 	cp mygo.json build/mygo.json.orig
 	go run ./scripts/setversion mygo.json $(VERSION)
-	$(MYGO) build -platform $(PLATFORM); s=$$?; mv build/mygo.json.orig mygo.json; exit $$s
+	$(MYGO) build -platform $(PLATFORM)$(if $(UPLOAD), -upload); s=$$?; mv build/mygo.json.orig mygo.json; exit $$s
 
 run:
 	MYPACK_REGISTRY=$(REGISTRY) MYPACK_DEV_TRUST=1 go run ./cmd/mypack
