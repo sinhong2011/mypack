@@ -28,7 +28,7 @@ import (
 var bundled []byte
 
 // Categories are the shelves of Discover, in display order.
-var Categories = []string{"work", "dev", "chat", "ai", "design", "media"}
+var Categories = []string{"work", "dev", "chat", "social", "ai", "design", "media"}
 
 // App is one catalog entry.
 type App struct {
