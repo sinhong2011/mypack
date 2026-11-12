@@ -349,7 +349,15 @@ func (a *App) detailsModal(c *ui.Context, u *detailsDialog, in *domain.Installat
 				kit.Note(c, icons.Lock, T("myapps.readOnly"), kit.ToneNeutral)
 			}
 			if in.UpdateReason != "" {
-				kit.Note(c, icons.Update, T("myapps.updateAvailable"), kit.ToneAccent)
+				if in.State != domain.InstallExternal {
+					// The update's next step sits in its own callout.
+					if kit.NoteAction(c.Key("upd"), icons.Update, T("myapps.updateAvailable"), kit.ToneAccent, T("library.updates.review")) {
+						u.open = false
+						a.dlg.openUpdate(in)
+					}
+				} else {
+					kit.Note(c, icons.Update, T("myapps.updateAvailable"), kit.ToneAccent)
+				}
 			}
 			rows := [][2]string{{T("app.version"), in.Version}}
 			mono := map[int]bool{}
@@ -366,52 +374,7 @@ func (a *App) detailsModal(c *ui.Context, u *detailsDialog, in *domain.Installat
 			}
 			rows = append(rows, [2]string{T("app.lastManaged"), ago(in.LastManagedAt)})
 			kit.KeyValues(c, rows, mono)
-			ui.Row(c).Gap(8).Wrap().Justify(ui.End).Children(func() {
-				managed := in.State != domain.InstallExternal
-				if !managed && in.SourceURL != "" && kit.Button(c.Key("copy"), T("action.createCopy"), kit.ButtonOpts{}).Clicked() {
-					u.open = false
-					a.create.reset(a.host)
-					a.create.setInput(in.SourceURL)
-					a.nav(secCreate)
-				}
-				if in.State == domain.InstallMissing && kit.Button(c.Key("forget"), T("locate.remove"), kit.ButtonOpts{Variant: kit.Ghost}).Clicked() {
-					u.open = false
-					a.forgetApp(in.ID, in.Name)
-				}
-				if managed && in.ProjectID != "" && in.State != domain.InstallMissing {
-					// Rebuild from the project as it is now; the build panel
-					// takes over, so the sheet closes. While one is already
-					// running the button shows it instead of queueing another.
-					j := a.latestJob(in.ProjectID)
-					busy := j != nil && (j.Status == domain.JobRunning || j.Status == domain.JobQueued)
-					if kit.Button(c.Key("rebuild"), T("action.rebuild"), kit.ButtonOpts{Icon: icons.Retry, Loading: busy, Disabled: busy}).Clicked() {
-						u.open = false
-						a.startBuild(in.ProjectID, nil)
-					}
-				}
-				if managed && in.ProjectID != "" && kit.Button(c.Key("repair"), T("action.repair"), kit.ButtonOpts{}).Clicked() {
-					u.open = false
-					a.dlg.repair = installDialog{open: true, id: in.ID}
-				}
-				if in.State != domain.InstallMissing && kit.Button(c.Key("reveal"), T("action.reveal"), kit.ButtonOpts{}).Clicked() {
-					a.reveal(in.Path)
-				}
-				if managed && in.UpdateReason != "" && kit.Button(c.Key("upd"), T("action.reviewUpdate"), kit.ButtonOpts{}).Clicked() {
-					u.open = false
-					a.dlg.openUpdate(in)
-				}
-				if in.State == domain.InstallMissing {
-					if in.ProjectID != "" && kit.Button(c.Key("rebuild"), T("action.rebuild"), kit.ButtonOpts{}).Clicked() {
-						u.open = false
-						a.startBuild(in.ProjectID, nil)
-					}
-					if kit.Button(c.Key("locate"), T("action.locate"), kit.ButtonOpts{Variant: kit.Primary, Icon: icons.Folder}).Clicked() {
-						a.locateApp(in.ID)
-					}
-				} else if kit.Button(c.Key("open"), T("action.open"), kit.ButtonOpts{Variant: kit.Primary, Icon: icons.Rocket}).MinWidth(84).Clicked() {
-					a.openInstall(in.ID)
-				}
-			})
+			a.detailsActions(c, u, in)
 			if in.State != domain.InstallExternal {
 				kit.Hairline(c)
 				ui.Row(c).AlignItems(ui.Center).Children(func() {
@@ -472,5 +435,60 @@ func (a *App) forgetApp(id, name string) {
 			return
 		}
 		a.toast(T("locate.removed", "name", name), "", 1)
+	})
+}
+
+// detailsActions is the App Details action bar: quiet secondary actions
+// at the left (Show in Finder, or Remove from Library for a missing app,
+// and a More menu with the maintenance ones), the one main action at the
+// right.
+func (a *App) detailsActions(c *ui.Context, u *detailsDialog, in *domain.Installation) {
+	managed := in.State != domain.InstallExternal
+	missing := in.State == domain.InstallMissing
+	ghost := kit.ButtonOpts{Variant: kit.Ghost}
+	ui.Row(c).Gap(6).AlignItems(ui.Center).Margin(4, 0, 0, 0).Children(func() {
+		if missing {
+			if kit.Button(c.Key("forget"), T("locate.remove"), ghost).Clicked() {
+				u.open = false
+				a.forgetApp(in.ID, in.Name)
+			}
+		} else {
+			o := ghost
+			o.Icon = icons.Folder
+			if kit.Button(c.Key("reveal"), T("action.reveal"), o).Clicked() {
+				a.reveal(in.Path)
+			}
+		}
+		if managed && in.ProjectID != "" {
+			// Rebuild from the project as it is now, or Repair; the build
+			// panel or the repair sheet takes over, so the sheet closes.
+			j := a.latestJob(in.ProjectID)
+			busy := j != nil && (j.Status == domain.JobRunning || j.Status == domain.JobQueued)
+			more := kit.Button(c.Key("more"), "", kit.ButtonOpts{Variant: kit.Ghost, Icon: icons.More, Tooltip: T("common.more")}).Label(T("common.more"))
+			more.Menu(func(m *ui.Menu) {
+				if m.Item(T("action.rebuild")).Disabled(busy).Chosen() {
+					u.open = false
+					a.startBuild(in.ProjectID, nil)
+				}
+				if m.Item(T("action.repair")).Chosen() {
+					u.open = false
+					a.dlg.repair = installDialog{open: true, id: in.ID}
+				}
+			})
+		}
+		ui.Spacer(c).MinWidth(8)
+		if !managed && in.SourceURL != "" && kit.Button(c.Key("copy"), T("action.createCopy"), kit.ButtonOpts{}).Clicked() {
+			u.open = false
+			a.create.reset(a.host)
+			a.create.setInput(in.SourceURL)
+			a.nav(secCreate)
+		}
+		if missing {
+			if kit.Button(c.Key("locate"), T("action.locate"), kit.ButtonOpts{Variant: kit.Primary, Icon: icons.Folder}).MinWidth(96).Clicked() {
+				a.locateApp(in.ID)
+			}
+		} else if kit.Button(c.Key("open"), T("action.open"), kit.ButtonOpts{Variant: kit.Primary, Icon: icons.Rocket}).MinWidth(96).Clicked() {
+			a.openInstall(in.ID)
+		}
 	})
 }

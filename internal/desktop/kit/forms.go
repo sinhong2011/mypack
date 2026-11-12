@@ -612,6 +612,20 @@ func Note(c *ui.Context, ic *ui.SVG, text string, tone Tone) ui.Element {
 	})
 }
 
+// NoteAction is a Note with one small button at its right, for the
+// callout's own next step (Review an update); it reports a click.
+func NoteAction(c *ui.Context, ic *ui.SVG, text string, tone Tone, action string) bool {
+	p := design.Of(c)
+	fg, bg := ToneColors(p, tone)
+	clicked := false
+	ui.Row(c).Gap(10).Padding(8, 8, 8, 12).Radius(design.RadiusControl + 2).Background(bg).AlignItems(ui.Center).Children(func() {
+		Glyph(c, ic, 15, fg)
+		ui.Text(c, text).FontSize(design.FontSmall).TextColor(p.Text).LineHeight(1.4).Grow(1).MinWidth(0)
+		clicked = Button(c.Key("act"), action, ButtonOpts{Size: design.ControlSM}).Clicked()
+	})
+	return clicked
+}
+
 // EmptyState is a centered, calm empty message on a patch of the
 // workbench dot grid.
 func EmptyState(c *ui.Context, ic *ui.SVG, title, body string, actions func()) {
