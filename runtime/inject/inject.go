@@ -22,6 +22,8 @@ type Options struct {
 	DisabledShortcuts []string
 	// Web APIs the platform webview lacks (Notification, Badging API).
 	WebAPIs WebAPIs
+	// Media reports what the page plays, for the media keys (MediaScript).
+	Media bool
 }
 
 func jsString(s string) string {
@@ -39,6 +41,11 @@ func Build(o Options) string {
 		b.WriteString("try {\n")
 		b.WriteString(shim)
 		b.WriteString("\n} catch (e) { console.error('[mypack] web API shim failed:', e); }\n")
+	}
+	if o.Media {
+		b.WriteString("try {\n")
+		b.WriteString(MediaScript())
+		b.WriteString("\n} catch (e) { console.error('[mypack] media shim failed:', e); }\n")
 	}
 	for _, js := range o.JS {
 		if strings.TrimSpace(js) == "" {

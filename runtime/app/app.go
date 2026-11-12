@@ -40,6 +40,7 @@ type App struct {
 
 	bridge *bridgeService   // page -> Go calls: notifications, badge
 	badges *badgeController // Dock / taskbar badge
+	media  *mediaController // media keys and Now Playing; nil where the webview has them
 	routes *routing.Table   // link routing between Mypack apps
 
 	mu       sync.Mutex
@@ -186,6 +187,7 @@ func (a *App) Run() error {
 		}
 	})
 	a.badges.sum = cfg.IsGroup() // a group's Dock badge is its sites' total
+	a.media = a.newMedia()
 	a.bridge = a.newBridge()
 	mygo.BindAs("mypack", a.bridge)
 	a.preload = a.buildPreload()
@@ -312,6 +314,7 @@ func (a *App) buildPreload() string {
 	return inject.Build(inject.Options{
 		JS: js, CSS: css, DragStrip: a.framelessBar(), DisabledShortcuts: a.cfg.WebView.DisabledKeys,
 		WebAPIs: inject.WebAPIs{Notifications: a.cfg.Native.NotificationsMode(), Perms: perms, Badge: a.cfg.Native.BadgeMode() != "off"},
+		Media:   a.media != nil,
 	})
 }
 
@@ -549,6 +552,7 @@ func (a *App) registerPage(w *mygo.Window, p *mygo.Page) {
 func (a *App) trackClose(w *mygo.Window, p *mygo.Page) {
 	w.OnClosed(func() {
 		a.badges.drop(p)
+		a.dropMedia(p)
 		a.mu.Lock()
 		delete(a.windows, w)
 		if a.main == w {
