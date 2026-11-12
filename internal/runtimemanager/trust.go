@@ -2,12 +2,22 @@ package runtimemanager
 
 import (
 	"crypto/ed25519"
+	_ "embed"
 	"encoding/base64"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 )
+
+// productionKeyB64 is the public key of the production registry (the
+// "runtimes" GitHub Release). Every build trusts it, including installers made
+// with mygo build, which take no ldflags. Its private key is only in the
+// REGISTRY_SIGNING_KEY Actions secret. To rotate, add the new key here (one per
+// line) and keep the old one until no published manifest is signed with it.
+//
+//go:embed registry.pub
+var productionKeyB64 string
 
 // trustedKeysB64 is a comma-separated list of base64 Ed25519 public keys (raw
 // 32-byte keys). Release builds set it at link time (key rotation = list the
@@ -16,8 +26,9 @@ import (
 //	go build -ldflags "-X mypack.dev/mypack/internal/runtimemanager.trustedKeysB64=KEY1,KEY2"
 var trustedKeysB64 string
 
-// Additional key sources (in this order, all merged):
+// Key sources (in this order, all merged):
 //
+//  0. productionKeyB64 (embedded, above)
 //  1. trustedKeysB64 (ldflags, above)
 //  2. env MYPACK_TRUSTED_KEY: one or more comma-separated base64 keys. Intended
 //     for CI and self-hosted registries. Anyone who controls the environment of
@@ -71,6 +82,7 @@ func parseKeys(list string) []ed25519.PublicKey {
 // TrustedKeys returns every key currently trusted to sign registry manifests.
 func TrustedKeys() []ed25519.PublicKey {
 	var keys []ed25519.PublicKey
+	keys = append(keys, parseKeys(productionKeyB64)...)
 	keys = append(keys, parseKeys(trustedKeysB64)...)
 	keys = append(keys, parseKeys(os.Getenv(envTrustedKey))...)
 	if os.Getenv(envDevTrust) == "1" {

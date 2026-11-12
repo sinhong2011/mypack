@@ -21,9 +21,9 @@ import (
 	"mypack.dev/mypack/pkg/config"
 )
 
-// DefaultRegistryURL is the placeholder production registry.
-// DefaultRegistryURL is overridable at link time (-X ...appservice.DefaultRegistryURL=...).
-var DefaultRegistryURL = "https://registry.mypack.dev/runtimes/registry.json"
+// DefaultRegistryURL is the production registry: the "runtimes" GitHub Release
+// (see docs/releasing.md). It is overridable at link time (-X ...appservice.DefaultRegistryURL=...).
+var DefaultRegistryURL = "https://github.com/sinhong2011/mypack/releases/download/runtimes/registry.json"
 
 // Auditor is an optional capability of the service: frontends that perform
 // read-only calls (the MCP server) record them in the activity log through it.
