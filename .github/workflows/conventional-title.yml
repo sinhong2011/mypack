@@ -1,4 +1,5 @@
-# The pull request title must be a Conventional Commit. Nothing else runs here.
+# The pull request title must be a Conventional Commit. A branch named
+# type/slug must use that same type. Nothing else runs here.
 name: Conventional title
 
 on:
@@ -20,7 +21,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Examples
         run: bash .github/ci/conventional-title.sh --self-test
-      - name: Pull request title
+      - name: Pull request title and branch
         env:
           TITLE: ${{ github.event.pull_request.title }}
+          BRANCH: ${{ github.head_ref }}
         run: bash .github/ci/conventional-title.sh
