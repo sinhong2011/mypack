@@ -336,7 +336,21 @@ jobs:
     steps:
       - if: env.TOKEN == ''
         run: echo "::notice::PACKAGING_TOKEN is not set; winget was not updated"
-      - if: env.TOKEN != ''
+      # The action can only update a package that is already in winget-pkgs:
+      # until the first version is merged there, skip it with a notice
+      # rather than fail the release.
+      - name: Check that Mypack.Mypack is in winget-pkgs
+        id: listed
+        if: env.TOKEN != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api repos/microsoft/winget-pkgs/contents/manifests/m/Mypack/Mypack --silent 2>/dev/null; then
+            echo "listed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Mypack.Mypack is not in microsoft/winget-pkgs yet; submit the first version by hand (docs/releasing.md)"
+          fi
+      - if: steps.listed.outputs.listed == 'true'
         uses: vedantmgoyal9/winget-releaser@v2
         with:
           identifier: Mypack.Mypack
