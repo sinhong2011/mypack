@@ -115,11 +115,11 @@ func (a *App) paletteItems() []cmdItem {
 		{icons.Discover, T("nav.discover"), func() { a.nav(secDiscover) }},
 		{icons.Builds, T("nav.builds"), func() { a.nav(secBuilds) }},
 		{icons.Runtimes, T("nav.runtimes"), func() { a.nav(secRuntimes) }},
-		{icons.Settings, T("nav.settings"), func() { a.nav(secSettings) }},
+		{icons.Settings, T("nav.settings"), func() { a.openSettings("") }},
 		{icons.Appearance, T("palette.appearance", "mode", T("appearance.light")), func() { a.setAppearance("light") }},
 		{icons.Appearance, T("palette.appearance", "mode", T("appearance.dark")), func() { a.setAppearance("dark") }},
 		{icons.Appearance, T("palette.appearance", "mode", T("appearance.system")), func() { a.setAppearance("system") }},
-		{icons.Globe, T("settings.language"), func() { a.nav(secSettings) }},
+		{icons.Globe, T("settings.language"), func() { a.openSettings(paneGeneral) }},
 		{icons.Import, T("menu.importApp"), a.importExistingApp},
 	}
 	for i, ac := range actions {

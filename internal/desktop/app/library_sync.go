@@ -231,7 +231,7 @@ func (a *App) syncGroup(c *ui.Context) {
 			ui.Text(c, syncFolderLabel(a.settings.SyncFolder)).FontSize(design.FontSmall).TextColor(p.TextSecondary).SingleLine().MaxWidth(240)
 			if kit.Button(c.Key("ch"), T("common.choose"), kit.ButtonOpts{Size: design.ControlSM}).Clicked() {
 				go func() {
-					paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.win, Directory: true, CreateDirectories: true, DefaultPath: a.settings.SyncFolder})
+					paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.dialogParent(), Directory: true, CreateDirectories: true, DefaultPath: a.settings.SyncFolder})
 					if err == nil && len(paths) > 0 {
 						a.win.Update(func() { a.settings.SyncFolder = paths[0]; a.saveSettings(); go a.syncNow(true) })
 					}
