@@ -61,12 +61,6 @@ func (a *App) createSites(c *ui.Context) {
 				}
 			})
 		}
-		if s.isGroup() && a.license.FreeGroups > 0 && a.license.Groups >= a.license.FreeGroups {
-			ui.Row(c).Gap(5).AlignItems(ui.Center).Children(func() {
-				kit.Glyph(c, icons.Sparkles, 12, p.Accent)
-				ui.Text(c, T("group.limit.hint")).FontSize(design.FontCaption).TextColor(p.TextSecondary)
-			})
-		}
 	})
 }
 

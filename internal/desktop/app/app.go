@@ -75,7 +75,6 @@ type App struct {
 	jobs      []domain.BuildJob
 	runtimes  []domain.RuntimeInfo
 	storage   appservice.Storage
-	license   appservice.LicenseStatus
 	logs      map[string][]domain.LogLine
 	logOpen   map[string]bool
 	rtBusy    map[string]string // runtime key -> "download"/"verify"/"delete"
@@ -202,8 +201,9 @@ func Run(svc appservice.Service) error {
 			}
 		}
 		svc.Subscribe(a.onEvent)
-		a.reload("projects", "installs", "jobs", "runtimes", "storage", "license")
+		a.reload("projects", "installs", "jobs", "runtimes", "storage")
 		a.startLibrarySync()
+		a.loadCatalog()
 		a.watchFront()
 		a.syncTray()
 		if isFake() && os.Getenv("MYPACK_FAKE_FLYOUT") == "1" {
@@ -345,7 +345,6 @@ func (a *App) flushReload() {
 		runtimes []domain.RuntimeInfo
 		storage  appservice.Storage
 		settings appservice.Settings
-		license  appservice.LicenseStatus
 		errs     []error
 	)
 	var projErr error
@@ -367,10 +366,6 @@ func (a *App) flushReload() {
 	if want["storage"] {
 		p, err := a.svc.StorageBreakdown(ctx)
 		storage, errs = p, append(errs, err)
-	}
-	if want["license"] {
-		p, err := a.svc.License(ctx)
-		license, errs = p, append(errs, err)
 	}
 	if want["settings"] {
 		p, err := a.svc.Settings(ctx)
@@ -404,9 +399,6 @@ func (a *App) flushReload() {
 		if want["storage"] {
 			a.storage = storage
 		}
-		if want["license"] {
-			a.license = license
-		}
 		if want["settings"] && settings.Appearance != "" {
 			lang := a.settings.Language
 			a.settings = settings
@@ -430,7 +422,7 @@ func (a *App) onEvent(e appservice.Event) {
 		a.reload("projects")
 		a.syncSoon()
 	case appservice.EventInstallChanged:
-		a.reload("installs", "storage", "license")
+		a.reload("installs", "storage")
 	case appservice.EventRuntimeChanged:
 		a.reload("runtimes", "storage")
 	case appservice.EventSettingsChanged:

@@ -1,6 +1,6 @@
 # MyGo API digest (github.com/egoist/mygo v0.8.3)
 
-Source: `/Users/room1910/go/pkg/mod/github.com/egoist/mygo@v0.8.3` (docs/, ui/, examples/, cmd/mygo).
+Source: `$(go env GOMODCACHE)/github.com/egoist/mygo@v0.8.3` (docs/, ui/, examples/, cmd/mygo).
 Signatures below were copied from source/docs; items marked **[docs]** come from prose docs only,
 **[os]** is OS/WebKit behaviour not implemented in MyGo source.
 Module needs `go 1.27.3` (use `GOTOOLCHAIN=auto`; local go is 1.27.2 and auto-switches). No cgo needed (purego).

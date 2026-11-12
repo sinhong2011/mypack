@@ -1,6 +1,6 @@
 # GUI handoff: window modes (runtime 1.0.6)
 
-Roadmap P1 item 5 (`docs/research/competitors-2026-11.md`): menu-bar, compact and sidebar modes.
+Menu-bar, compact and sidebar window modes.
 All fields are optional and additive in `mypack.json`; absent = default, and defaults are never written.
 
 ## Fields
@@ -56,7 +56,6 @@ One app made of several websites, like a workspace in Zen: a rail of the sites' 
 
 ## Service
 - `CreateGroup(GroupRequest{Name, Sites: []GroupSite{ProjectID | URL | Path}})` keeps the site order. Addresses get their name and icon fetched, and a repeated site is dropped. A `Path` is a folder with index.html or an HTML file. A JavaScript project joins with its built output and is refused while unbuilt, because a group never runs build scripts. Library apps built from local folders join as local members. The group icon is a 2×2 grid of the first four member icons (`icons.Group`). Member icons are stored beside the database in `groups/<project>/`.
-- Pro limit: the Free edition can have **one** group app in the Library (`FreeGroups`), and Pro is unlimited. Creating another returns `LICENSE_LIMIT`. Editing, building and installing a group are never gated. `LicenseStatus` reports `groups` and `freeGroups`.
 - Routes: an installed group claims every member's site, so links from other Mypack apps open in it.
 
 ## Runtime
@@ -71,7 +70,6 @@ One app made of several websites, like a workspace in Zen: a rail of the sites' 
 - **Create (New App)**: after the first address or folder, "Add another site" (paste an address, choose a folder or HTML file, or pick a Library app) turns the app into a group. The name defaults to "Workspace", the icon becomes the grid, a chip per site can be removed, and the preview draws the rail in the chosen Show as mode. The toolbar above the inspector holds the settings search and Build.
 - **New Group…** (⌘⇧N, the Library header, the command palette) opens a sheet for grouping existing Library apps or pasted addresses.
 - **Group settings**: a Sites card at the top (icons; move up or down and remove on hover; "Add a site" from the Library).
-- The Free-edition limit shows its own sheet ("Unlimited groups with Pro") and a hint under the site chips when the one free group is already used.
 
 ## Not done
 - Choosing which members load at start (all load today).

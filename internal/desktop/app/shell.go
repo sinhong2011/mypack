@@ -357,16 +357,12 @@ func (a *App) pageView(c *ui.Context, dir float32) {
 }
 
 // page is the standard scrolling content column; it starts under the
-// toolbar and scrolls beneath it.
-func page(c *ui.Context, maxW float32, body func()) {
+// toolbar and scrolls beneath it. Every page uses the canvas's full width,
+// inset by the same gutter as the toolbar's title, so no page leaves empty
+// bands at its sides.
+func page(c *ui.Context, body func()) {
 	ui.Scroll(c).Grow(1).Basis(0).ScrollbarInsets(design.TitleBarH, 0, 0).TrackScroll(&pageScroll).Children(func() {
-		ui.Column(c).FillWidth().AlignItems(ui.Center).Padding(design.TitleBarH+16, 32, 48, 32).Children(func() {
-			col := ui.Column(c).FillWidth().Gap(24)
-			if maxW > 0 { // 0: the full width (shelves of tiles)
-				col.MaxWidth(maxW)
-			}
-			col.Children(body)
-		})
+		ui.Column(c).FillWidth().Gap(24).Padding(design.TitleBarH+16, design.PageGutter, 48, design.PageGutter).Children(body)
 	})
 }
 

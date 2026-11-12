@@ -2,6 +2,9 @@
 
 **Any website. Any desktop. One beautiful native builder.**
 
+Mypack is free and open source under the [Apache License 2.0](LICENSE).
+Every feature is included: no app limits, no license keys, no account.
+
 Mypack turns a website (or a local HTML project) into a real, standalone desktop
 app for the computer you're on — no Go, Rust, Node or Xcode project required.
 
@@ -15,9 +18,10 @@ Paste URL → confirm name & icon → Build for This Mac → Install & Open
 - **Manage what you built** — Library › My Apps: Install & Open, one-click Update (keeps your logins), Repair, Uninstall.
 - **Agent-ready** — headless CLI with `--json` and stable exit codes, plus an MCP stdio server (`mypack mcp serve`). No built-in chat or LLM.
 - **Seven languages** — English, 繁體中文, 简体中文, 粵語, Español, Français, 日本語.
+- **Discover** — dozens of popular sites, one click to make an app. The list is [`catalog/discover.json`](catalog/discover.json): suggest more with a pull request.
+- **Library sync** — keep your apps in step across computers through a shared folder such as iCloud Drive.
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for the implementation design and
-`mypack_product_technical_spec_v1.7.html` for the product specification.
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the implementation design.
 
 ## Building from source
 
@@ -45,3 +49,18 @@ make test
 Dev runtime registry: `make runtimes` signs `dist/registry` with a dev key in `dist/keys/`
 (never commit it); `make app` embeds that registry URL and public key into the build.
 A production release needs a hosted registry and a real signing key.
+Forks that distribute builds should host their own registry and sign it with their own key;
+official Mypack builds only trust the project's registry key.
+
+## Contributing
+
+Bug reports, website compatibility reports, platform testing, translations and
+code are all welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md). Please
+report security problems privately as described in [SECURITY.md](SECURITY.md).
+
+## License
+
+Mypack is licensed under the [Apache License 2.0](LICENSE); third-party notices
+are in [NOTICE](NOTICE). The name "Mypack" and its logo are trademarks and are
+not covered by the code license. If you distribute a modified build, please give
+it a different name and icon; see [TRADEMARKS.md](TRADEMARKS.md).

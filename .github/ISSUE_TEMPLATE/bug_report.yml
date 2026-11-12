@@ -1,0 +1,46 @@
+name: Bug report
+description: Something in Mypack doesn't work as it should.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Paste https://example.com
+        2. Click Build for This Mac
+        3. …
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Mypack version
+      description: Settings › About, or `mypack version`.
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [macOS, Windows, Linux]
+    validations:
+      required: true
+  - type: input
+    id: osversion
+    attributes:
+      label: OS version
+      placeholder: macOS 26.1 / Windows 11 24H2 / Ubuntu 26.04
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error message or build log
+      description: Copy the error from the build panel, or run the CLI with `--json`. Remove anything private first.
+      render: text

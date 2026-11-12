@@ -40,9 +40,6 @@ func (s *Impl) CreateGroup(ctx context.Context, req GroupRequest) (p domain.Proj
 	if name == "" {
 		return p, &domain.Error{Code: CodeInvalidInput, Message: "Give the group a name.", Field: "name"}
 	}
-	if qerr := s.checkGroupQuota(ctx); qerr != nil {
-		return p, qerr
-	}
 	if n := len(req.Sites); n < config.MinGroupMembers || n > config.MaxGroupMembers {
 		return p, &domain.Error{Code: CodeInvalidInput, Field: "projectIds",
 			Message: fmt.Sprintf("Pick %d to %d websites for a group.", config.MinGroupMembers, config.MaxGroupMembers)}

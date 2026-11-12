@@ -212,11 +212,12 @@ const (
 	RadiusPanel   float32 = 16
 	RadiusCanvas  float32 = 14
 
-	SidebarWidth  float32 = 228
-	CanvasInset   float32 = 8 // the canvas floats this far from the window edges
-	TitleBarH     float32 = 52
-	ContentMaxW   float32 = 1040
-	ContentNarrow float32 = 640
+	SidebarWidth float32 = 228
+	CanvasInset  float32 = 8 // the canvas floats this far from the window edges
+	TitleBarH    float32 = 52
+	// PageGutter is the side inset of every page, level with the toolbar
+	// title.
+	PageGutter float32 = 20
 )
 
 // ---- Typography ----------------------------------------------------------------

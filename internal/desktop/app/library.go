@@ -83,7 +83,7 @@ func (a *App) libraryView(c *ui.Context) {
 		}
 	}
 	if !a.loaded {
-		page(c, 0, func() {
+		page(c, func() {
 			ui.Row(c).Gap(tileGap).Margin(36, 0, 0, 0).Children(func() {
 				for i := 0; i < 5; i++ {
 					ui.Column(c.Key(i)).Grow(1).Basis(0).AlignItems(ui.Center).Gap(10).Padding(14, 8).Children(func() {
@@ -100,7 +100,7 @@ func (a *App) libraryView(c *ui.Context) {
 		a.emptyLibrary(c)
 		return
 	}
-	page(c, 0, func() {
+	page(c, func() {
 		shown := 0
 		first := true
 		// The first section's header carries Import Existing App…, at its

@@ -33,7 +33,7 @@ var Supported = []Locale{
 	{"en", "English", "English"},
 	{"zh-Hant", "繁體中文", "Traditional Chinese"},
 	{"zh-Hans", "简体中文", "Simplified Chinese"},
-	{"yue-Hant-HK", "粵語（香港）", "Cantonese (Hong Kong)"},
+	{"yue-Hant-HK", "粵語", "Cantonese"},
 	{"es", "Español", "Spanish"},
 	{"fr", "Français", "French"},
 	{"ja", "日本語", "Japanese"},

@@ -37,8 +37,6 @@ func plainError(e *domain.Error) string {
 		return T("fail.conflict")
 	case "APP_RUNNING":
 		return T("fail.running")
-	case "LICENSE_LIMIT":
-		return T("fail.license")
 	}
 	if e.Message != "" {
 		return e.Message
@@ -70,8 +68,6 @@ func (a *App) fixesFor(e *domain.Error, projectID string, retry func()) []fix {
 			id := projectID
 			out = append(out, fix{T("fail.projectSettings"), func() { a.openProject(id, 1) }})
 		}
-	case "LICENSE_LIMIT":
-		out = append(out, fix{T("fail.manageApps"), func() { a.nav(secLibrary) }})
 	case "RUNTIME_DOWNLOAD_FAILED":
 		out = append(out, fix{T("fail.openSettings"), func() { a.nav(secSettings) }})
 	}

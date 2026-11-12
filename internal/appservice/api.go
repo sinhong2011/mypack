@@ -106,16 +106,6 @@ type Service interface {
 	// ImportExistingApp registers a third-party app read-only (spec §9C.7).
 	ImportExistingApp(ctx context.Context, path, actor string) (domain.Installation, error)
 
-	// ---- License (spec §9E, offline-first, Builder-only) -----------------
-
-	// License reports the local entitlement. It never needs the network.
-	License(ctx context.Context) (LicenseStatus, error)
-	// ActivateLicense verifies an entitlement token locally and stores it.
-	// Failure: LICENSE_INVALID. The Free edition's managed-app allowance is
-	// enforced by InstallAndOpen (LICENSE_LIMIT); nothing else is gated.
-	ActivateLicense(ctx context.Context, token, actor string) (LicenseStatus, error)
-	DeactivateLicense(ctx context.Context, actor string) error
-
 	// ---- Runtimes -------------------------------------------------------
 
 	ListRuntimes(ctx context.Context) ([]domain.RuntimeInfo, error)

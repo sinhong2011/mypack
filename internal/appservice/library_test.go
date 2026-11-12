@@ -3,14 +3,12 @@ package appservice
 import (
 	"bytes"
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"mypack.dev/mypack/internal/domain"
 	"mypack.dev/mypack/pkg/config"
 )
 
@@ -97,9 +95,7 @@ func TestLibraryGroupIcons(t *testing.T) {
 
 func TestLibrarySync(t *testing.T) {
 	folder := t.TempDir()
-	a, privA := licEnv(t)
-	b, privB := licEnv(t)
-	t.Setenv("MYPACK_LICENSE", "")
+	a, b := newEnv(t), newEnv(t)
 	ctx := context.Background()
 	for _, e := range []*env{a, b} {
 		set, _ := e.svc.Settings(ctx)
@@ -108,14 +104,6 @@ func TestLibrarySync(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	// Free: refused.
-	var de *domain.Error
-	if _, err := a.svc.SyncLibrary(ctx); !errors.As(err, &de) || de.Code != CodeLicenseLimit {
-		t.Fatalf("free sync: %v", err)
-	}
-	a.svc.ActivateLicense(ctx, token(t, privA), "cli")
-	b.svc.ActivateLicense(ctx, token(t, privB), "cli")
-
 	p, _ := a.svc.CreateProject(ctx, CreateRequest{Input: "notes.example.com", Name: "Notes", Actor: "cli"})
 	r, err := a.svc.SyncLibrary(ctx)
 	if err != nil || r.Pushed != 1 {

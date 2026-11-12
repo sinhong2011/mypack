@@ -240,11 +240,6 @@ func (a *App) createGroup() {
 			d.busy = false
 			if err != nil {
 				var de *domain.Error
-				if errors.As(err, &de) && de.Code == appservice.CodeLicenseLimit {
-					d.open = false
-					a.dlg.groupLimit = true
-					return
-				}
 				if errors.As(err, &de) {
 					d.err = de.Message
 				} else {

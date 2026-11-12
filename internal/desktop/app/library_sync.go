@@ -141,7 +141,7 @@ func (a *App) importSkipSheet(c *ui.Context) {
 
 // ---- sync ----
 
-func (a *App) syncOn() bool { return strings.TrimSpace(a.settings.SyncFolder) != "" && a.license.Valid }
+func (a *App) syncOn() bool { return strings.TrimSpace(a.settings.SyncFolder) != "" }
 
 // startLibrarySync syncs now and then every few minutes while it is on.
 func (a *App) startLibrarySync() {
@@ -151,7 +151,7 @@ func (a *App) startLibrarySync() {
 			a.sync.last = st
 			a.sync.mu.Unlock()
 		}
-		time.Sleep(3 * time.Second) // settings and license load first
+		time.Sleep(3 * time.Second) // settings load first
 		for {
 			a.syncNow(false)
 			time.Sleep(syncEvery)
@@ -175,7 +175,7 @@ func (a *App) syncNow(manual bool) {
 		return
 	}
 	ch := make(chan bool, 1)
-	a.win.Update(func() { ch <- a.syncOn() }) // settings and license live on the UI thread
+	a.win.Update(func() { ch <- a.syncOn() }) // settings live on the UI thread
 	on := <-ch
 	if !on && !manual {
 		return
@@ -207,16 +207,12 @@ func (a *App) syncNow(manual bool) {
 // syncGroup is Settings' Sync section.
 func (a *App) syncGroup(c *ui.Context) {
 	p := design.Of(c)
-	pro := a.license.Valid
 	kit.Group(c, T("settings.sync"), func() {
 		on := strings.TrimSpace(a.settings.SyncFolder) != ""
 		kit.SettingIconRow(c.Key("sync"), icons.Refresh, ui.Color{}, T("sync.library"), T("sync.library.desc"), func() {
-			if !pro {
-				kit.StatusPill(c, T("license.pro"), kit.ToneAccent)
-			}
-			v := on && pro
-			kit.Switch(c.Key("sw"), &v, T("sync.library")).Disabled(!pro)
-			if v != (on && pro) && pro {
+			v := on
+			kit.Switch(c.Key("sw"), &v, T("sync.library"))
+			if v != on {
 				if v {
 					a.settings.SyncFolder = appservice.DefaultSyncFolder()
 				} else {
@@ -228,7 +224,7 @@ func (a *App) syncGroup(c *ui.Context) {
 				}
 			}
 		})
-		if !pro || !on {
+		if !on {
 			return
 		}
 		kit.SettingIconRow(c.Key("folder"), icons.Folder, ui.Color{}, T("sync.folder"), T("sync.folder.desc"), func() {

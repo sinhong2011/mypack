@@ -23,6 +23,8 @@ const (
 	CodeCancelled        = "BUILD_CANCELLED"
 	CodeBuildFailed      = "BUILD_FAILED"
 	CodeInternal         = "INTERNAL"
+	// CodeNotSameApp: RelocateInstallation was pointed at a different app.
+	CodeNotSameApp = "NOT_SAME_APP"
 
 	// Project build (running the user's JS build before packaging).
 	CodeProjectBuildRequired = "PROJECT_BUILD_REQUIRED"

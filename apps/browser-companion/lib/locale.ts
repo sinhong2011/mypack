@@ -9,7 +9,7 @@ export const LOCALE_NAMES: Record<Locale, string> = {
   en: 'English',
   'zh-Hant': '繁體中文',
   'zh-Hans': '简体中文',
-  'yue-Hant-HK': '粵語（香港）',
+  'yue-Hant-HK': '粵語',
   es: 'Español',
   fr: 'Français',
   ja: '日本語',

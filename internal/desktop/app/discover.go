@@ -1,64 +1,75 @@
 package app
 
 import (
+	"context"
+
 	"github.com/egoist/mygo/ui"
+
+	"mypack.dev/mypack/catalog"
 
 	"mypack.dev/mypack/internal/desktop/design"
 	"mypack.dev/mypack/internal/desktop/kit"
 	"mypack.dev/mypack/internal/desktop/sampleicons"
 )
 
-// template is a declarative quick-start preset (spec §09A: local, static,
-// no executable rules). Choosing one only prefills Create.
+// template is a declarative quick-start preset from the Discover catalog
+// (catalog/discover.json): a name, an address and a category, nothing that
+// runs. Choosing one only prefills Create.
 type template struct {
 	name, url, category string
 }
 
-var templates = []template{
-	{"GitHub", "https://github.com/", "dev"},
-	{"Notion", "https://www.notion.so/", "work"},
-	{"ChatGPT", "https://chatgpt.com/", "ai"},
-	{"Figma", "https://www.figma.com/", "design"},
-	{"Linear", "https://linear.app/", "work"},
-	{"YouTube Music", "https://music.youtube.com/", "media"},
-	{"WhatsApp", "https://web.whatsapp.com/", "chat"},
-	{"Gmail", "https://mail.google.com/", "work"},
-	{"Slack", "https://app.slack.com/", "chat"},
-	{"Discord", "https://discord.com/app", "chat"},
+// templates is the Discover list. It starts as the catalog built into this
+// binary and is replaced on the UI thread by a newer one (loadCatalog).
+var templates = fromCatalog(catalog.Bundled())
+
+func fromCatalog(c catalog.Catalog) []template {
+	out := make([]template, 0, len(c.Apps))
+	for _, a := range c.Apps {
+		out = append(out, template{a.Name, a.URL, a.Category})
+	}
+	return out
+}
+
+// loadCatalog fetches a newer catalog in the background (cached for a day;
+// offline, the bundled list stays).
+func (a *App) loadCatalog() {
+	go func() {
+		c := catalog.Latest(context.Background())
+		if a.win == nil {
+			return
+		}
+		a.win.Update(func() { templates = fromCatalog(c) })
+	}()
 }
 
 // templateIcon is the neutral generated icon a preset shows.
 func templateIcon(name string) []byte { return sampleicons.Icon(name) }
 
 func (a *App) discoverView(c *ui.Context) {
-	page(c, design.ContentMaxW, func() {
+	page(c, func() {
 		ui.Column(c).Gap(4).Children(func() {
 			kit.SectionHeader(c, T("discover.popular"), "")
-			kit.Caption(c, T("discover.later.body"))
+			kit.Caption(c, T("discover.body"))
 		})
-		// Shelves by kind of site.
-		shelves := []struct {
-			title string
-			cats  []string
-		}{
-			{T("discover.shelf.work"), []string{"work", "dev"}},
-			{T("discover.shelf.chat"), []string{"chat"}},
-			{T("discover.shelf.create"), []string{"design", "ai", "media"}},
-		}
-		for si, sh := range shelves {
+		// One shelf per category, in the catalog's order.
+		n := 0
+		for si, cat := range catalog.Categories {
 			var items []template
 			for _, t := range templates {
-				for _, cat := range sh.cats {
-					if t.category == cat {
-						items = append(items, t)
-					}
+				if t.category == cat {
+					items = append(items, t)
 				}
 			}
+			if len(items) == 0 {
+				continue
+			}
 			ui.Column(c.Key(si)).Gap(10).Children(func() {
-				kit.Eyebrow(c, sh.title).Padding(0, 2)
+				kit.Eyebrow(c, catLabel(cat)).Padding(0, 2)
 				ui.Row(c).Gap(4).Wrap().Margin(0, -6).Children(func() {
-					for i, t := range items {
-						a.presetTile(c.Key(t.url), t, si*4+i)
+					for _, t := range items {
+						a.presetTile(c.Key(t.url), t, min(n, 12))
+						n++
 					}
 				})
 			})

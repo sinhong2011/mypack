@@ -106,8 +106,6 @@ func RunWith(d Deps, args []string, stdout, stderr io.Writer) int {
 		return a.cmdApps(rest)
 	case "settings":
 		return a.cmdSettings(rest)
-	case "license":
-		return a.cmdLicense(rest)
 	case "mcp":
 		return a.cmdMCP(rest)
 	}
@@ -142,10 +140,9 @@ Usage:
   mypack import-config <mypack.json|pake.json> [--out mypack.json]
   mypack export [<project-id>...] -o <file.mypack>   (all apps when no id)
   mypack import <file.mypack> [--replace]
-  mypack sync                                        (Pro: sync with the sync folder)
+  mypack sync                                        (sync with the sync folder)
   mypack install <artifact-id> [--open] [--replace]
   mypack apps list | apps locate <id> <path>
-  mypack license status | activate <token|-> | deactivate
   mypack settings get [key] | settings set <key> <value>
   mypack mcp serve [--transport stdio]
   mypack version
@@ -319,7 +316,7 @@ func toDomainError(err error) *domain.Error {
 func exitCodeFor(de *domain.Error) int {
 	switch de.Code {
 	case "INVALID_CONFIG", "INVALID_INPUT", "INVALID_ARGUMENTS", "IDENTITY_CHANGE_REQUIRES_CONFIRMATION",
-		"REVISION_CONFLICT", "TARGET_UNSUPPORTED", "USAGE", "LICENSE_INVALID", "NOT_SAME_APP":
+		"REVISION_CONFLICT", "TARGET_UNSUPPORTED", "USAGE", "NOT_SAME_APP":
 		return ExitValidation
 	case "RUNTIME_DOWNLOAD_REQUIRED", "APPROVAL_REQUIRED", "PROJECT_BUILD_REQUIRED":
 		return ExitApproval

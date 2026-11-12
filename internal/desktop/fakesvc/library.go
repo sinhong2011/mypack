@@ -87,9 +87,6 @@ func (s *Service) SyncLibrary(ctx context.Context) (appservice.SyncResult, error
 	if set.SyncFolder == "" {
 		return appservice.SyncResult{}, &domain.Error{Code: appservice.CodeInvalidInput, Message: "Library sync is off."}
 	}
-	if st, _ := s.License(ctx); !st.Valid {
-		return appservice.SyncResult{}, &domain.Error{Code: appservice.CodeLicenseLimit, Message: "Library sync is part of mypack Pro."}
-	}
 	s.mu.Lock()
 	n := 0
 	for _, p := range s.projects {

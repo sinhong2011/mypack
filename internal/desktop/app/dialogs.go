@@ -30,14 +30,7 @@ type dialogs struct {
 	details   detailsDialog
 	group     groupDialog
 
-	licenseLimit      bool // free-edition limit explainer (spec §9E.6)
-	groupLimit        bool // free edition: one group app
-	importSkip        importSkip
-	deactivateLicense licenseConfirm
-}
-
-type licenseConfirm struct {
-	open, busy bool
+	importSkip importSkip
 }
 
 type identityDialog struct {
@@ -312,82 +305,8 @@ func (a *App) dialogs(c *ui.Context) {
 		}
 	}
 
-	// Free-edition limit: calm and factual, no countdowns, no price (spec §9E.6).
-	if d.licenseLimit {
-		limit := a.license.FreeLimit
-		if limit == 0 {
-			limit = appservice.FreeManagedApps
-		}
-		kit.Sheet(c.Key("dlg-limit"), &d.licenseLimit, 460, func() {
-			kit.SheetHeader(c, T("license.limit.title"), nil)
-			ui.Column(c).Gap(12).Children(func() {
-				ui.Text(c, T("license.limit.body", "limit", limit)).FontSize(design.FontBody).TextColor(p.TextSecondary).LineHeight(1.45)
-				ui.Text(c, T("license.limit.options")).FontSize(design.FontBody).TextColor(p.TextSecondary).LineHeight(1.45)
-				ui.Row(c).Gap(8).Justify(ui.End).Margin(8, 0, 0, 0).Children(func() {
-					if kit.Button(c.Key("later"), T("license.limit.later"), kit.ButtonOpts{Variant: kit.Ghost}).Clicked() {
-						d.licenseLimit = false
-					}
-					if kit.Button(c.Key("manage"), T("license.limit.manage"), kit.ButtonOpts{}).Clicked() {
-						d.licenseLimit = false
-						a.nav(secLibrary)
-					}
-					if kit.Button(c.Key("enter"), T("license.limit.enter"), kit.ButtonOpts{Variant: kit.Primary}).Clicked() {
-						d.licenseLimit = false
-						a.nav(secSettings)
-					}
-				})
-			})
-		})
-	}
-
 	a.iconStudioSheet(c)
 	a.importSkipSheet(c)
-
-	// Free edition: one group app; Pro makes as many as you like.
-	if d.groupLimit {
-		kit.Sheet(c.Key("dlg-glimit"), &d.groupLimit, 460, func() {
-			kit.SheetHeader(c, T("group.limit.title"), nil)
-			ui.Column(c).Gap(12).Children(func() {
-				ui.Text(c, T("group.limit.body")).FontSize(design.FontBody).TextColor(p.TextSecondary).LineHeight(1.45)
-				ui.Row(c).Gap(8).Justify(ui.End).Margin(8, 0, 0, 0).Children(func() {
-					if kit.Button(c.Key("later"), T("license.limit.later"), kit.ButtonOpts{Variant: kit.Ghost}).Clicked() {
-						d.groupLimit = false
-					}
-					if kit.Button(c.Key("enter"), T("license.limit.enter"), kit.ButtonOpts{Variant: kit.Primary}).Clicked() {
-						d.groupLimit = false
-						a.nav(secSettings)
-					}
-				})
-			})
-		})
-	}
-
-	// Deactivate license.
-	if d.deactivateLicense.open {
-		u := &d.deactivateLicense
-		kit.Sheet(c.Key("dlg-deact"), &u.open, 440, func() {
-			kit.SheetHeader(c, T("license.deactivate.title"), nil)
-			ui.Column(c).Gap(12).Children(func() {
-				ui.Text(c, T("license.deactivate.body")).FontSize(design.FontBody).TextColor(p.TextSecondary).LineHeight(1.45)
-				ok, cancel := kit.SheetFooter(c, T("common.cancel"), T("license.deactivate"), kit.Primary, u.busy, false)
-				if cancel {
-					u.open = false
-				}
-				if ok {
-					u.busy = true
-					a.do(func(ctx context.Context) error { return a.svc.DeactivateLicense(ctx, "gui") }, func(err error) {
-						u.busy, u.open = false, false
-						if err != nil {
-							a.toastErr(err)
-							return
-						}
-						a.reload("license")
-						a.toast(T("license.deactivated"), "", 1)
-					})
-				}
-			})
-		})
-	}
 
 	// Install conflict.
 	if d.installConflict {

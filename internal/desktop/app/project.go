@@ -46,7 +46,7 @@ func (a *App) projectView(c *ui.Context) {
 	pr := a.project(a.projectID)
 	if pr == nil {
 		if a.loaded {
-			page(c, design.ContentNarrow, func() {
+			page(c, func() {
 				kit.EmptyState(c, icons.Inbox, T("project.missing.title"), T("project.missing.body"), func() {
 					if kit.Button(c, T("nav.library"), kit.ButtonOpts{}).Clicked() {
 						a.nav(secLibrary)
@@ -61,7 +61,7 @@ func (a *App) projectView(c *ui.Context) {
 		a.projectSettingsView(c, pr)
 		return
 	}
-	page(c, 880, func() {
+	page(c, func() {
 		// Header (the build panel shows the icon itself while it is up).
 		var watched *domain.BuildJob
 		if id, ok := a.watch[pr.ID]; ok {

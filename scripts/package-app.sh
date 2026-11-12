@@ -15,6 +15,8 @@ cp bin/mypack "$APP/Contents/MacOS/mypack"
 [ -x bin/mypack-native-host ] && cp bin/mypack-native-host "$APP/Contents/MacOS/mypack-native-host"
 go run ./scripts/macicon assets/AppIcon-1024.png assets/AppIcon-macOS-1024.png
 go run ./scripts/mkicns assets/AppIcon-macOS-1024.png "$APP/Contents/Resources/AppIcon.icns"
+mkdir -p "$APP/Contents/Resources/licenses"
+cp LICENSE NOTICE "$APP/Contents/Resources/licenses/"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

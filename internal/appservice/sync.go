@@ -64,10 +64,6 @@ func (s *Impl) SyncLibrary(ctx context.Context) (res SyncResult, err error) {
 	if strings.TrimSpace(set.SyncFolder) == "" {
 		return res, newErr(CodeInvalidInput, "Library sync is off.", "Turn on Sync in Settings and choose a folder.")
 	}
-	if st, _ := s.License(ctx); !st.Valid {
-		return res, newErr(CodeLicenseLimit, "Library sync is part of mypack Pro.",
-			"Enter a license key, or move apps between computers with File > Export Library.")
-	}
 	folder := expandHome(set.SyncFolder)
 	dir := filepath.Join(folder, "apps")
 	if err := os.MkdirAll(dir, 0o755); err != nil {

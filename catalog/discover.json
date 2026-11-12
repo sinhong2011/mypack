@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "apps": [
+    { "name": "GitHub", "url": "https://github.com/", "category": "dev" },
+    { "name": "Notion", "url": "https://www.notion.so/", "category": "work" },
+    { "name": "ChatGPT", "url": "https://chatgpt.com/", "category": "ai" },
+    { "name": "Figma", "url": "https://www.figma.com/", "category": "design" },
+    { "name": "Linear", "url": "https://linear.app/", "category": "work" },
+    { "name": "YouTube Music", "url": "https://music.youtube.com/", "category": "media" },
+
+    { "name": "Gmail", "url": "https://mail.google.com/", "category": "work" },
+    { "name": "Google Calendar", "url": "https://calendar.google.com/", "category": "work" },
+    { "name": "Google Docs", "url": "https://docs.google.com/", "category": "work" },
+    { "name": "Outlook", "url": "https://outlook.live.com/", "category": "work" },
+    { "name": "Trello", "url": "https://trello.com/", "category": "work" },
+    { "name": "Asana", "url": "https://app.asana.com/", "category": "work" },
+    { "name": "Todoist", "url": "https://app.todoist.com/", "category": "work" },
+    { "name": "Airtable", "url": "https://airtable.com/", "category": "work" },
+    { "name": "ClickUp", "url": "https://app.clickup.com/", "category": "work" },
+    { "name": "TraderMemos", "url": "https://tradermemos.netlify.app/", "category": "work" },
+
+    { "name": "GitLab", "url": "https://gitlab.com/", "category": "dev" },
+    { "name": "Vercel", "url": "https://vercel.com/dashboard", "category": "dev" },
+    { "name": "Cloudflare", "url": "https://dash.cloudflare.com/", "category": "dev" },
+    { "name": "Stack Overflow", "url": "https://stackoverflow.com/", "category": "dev" },
+    { "name": "CodeSandbox", "url": "https://codesandbox.io/dashboard", "category": "dev" },
+
+    { "name": "WhatsApp", "url": "https://web.whatsapp.com/", "category": "chat" },
+    { "name": "Slack", "url": "https://app.slack.com/", "category": "chat" },
+    { "name": "Discord", "url": "https://discord.com/app", "category": "chat" },
+    { "name": "Telegram", "url": "https://web.telegram.org/", "category": "chat" },
+    { "name": "Messenger", "url": "https://www.messenger.com/", "category": "chat" },
+    { "name": "Microsoft Teams", "url": "https://teams.microsoft.com/", "category": "chat" },
+    { "name": "Google Chat", "url": "https://chat.google.com/", "category": "chat" },
+
+    { "name": "Claude", "url": "https://claude.ai/", "category": "ai" },
+    { "name": "Gemini", "url": "https://gemini.google.com/", "category": "ai" },
+    { "name": "Perplexity", "url": "https://www.perplexity.ai/", "category": "ai" },
+    { "name": "Copilot", "url": "https://copilot.microsoft.com/", "category": "ai" },
+
+    { "name": "Canva", "url": "https://www.canva.com/", "category": "design" },
+    { "name": "Excalidraw", "url": "https://excalidraw.com/", "category": "design" },
+    { "name": "Miro", "url": "https://miro.com/app/dashboard/", "category": "design" },
+    { "name": "Photopea", "url": "https://www.photopea.com/", "category": "design" },
+
+    { "name": "Spotify", "url": "https://open.spotify.com/", "category": "media" },
+    { "name": "Apple Music", "url": "https://music.apple.com/", "category": "media" },
+    { "name": "SoundCloud", "url": "https://soundcloud.com/", "category": "media" }
+  ]
+}

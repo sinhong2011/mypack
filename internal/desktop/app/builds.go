@@ -22,7 +22,7 @@ func (a *App) buildsView(c *ui.Context) {
 	if b.expanded == nil {
 		b.expanded = map[string]bool{}
 	}
-	page(c, design.ContentMaxW, func() {
+	page(c, func() {
 		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 			kit.Segmented(c.Key("filter"), &b.filter, []string{T("builds.filter.all"), T("builds.filter.active"), T("builds.filter.failed")}, false).Label(T("builds.filter.label"))
 		})

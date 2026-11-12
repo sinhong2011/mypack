@@ -270,11 +270,6 @@ func (s *Impl) applyLibraryApp(ctx context.Context, app LibraryApp, ex *domain.P
 	if verr := cfg.Validate(); verr != nil {
 		return domain.Project{}, nil, asDomainErr(verr, CodeInvalidConfig)
 	}
-	if ex == nil && cfg.IsGroup() {
-		if qerr := s.checkGroupQuota(ctx); qerr != nil {
-			return domain.Project{}, nil, qerr
-		}
-	}
 	var warn []string
 	switch cfg.App.Source.Type {
 	case config.SourceDir, config.SourceFile:

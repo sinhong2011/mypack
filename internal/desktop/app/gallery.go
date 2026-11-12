@@ -52,7 +52,7 @@ func (a *App) galleryView(c *ui.Context) {
 		a.sceneBeat(c, beat)
 		return
 	}
-	page(c, 820, func() {
+	page(c, func() {
 		kit.LargeTitle(c, "Kit")
 		kit.Group(c, "Motion", func() {
 			kit.SettingRow(c, "Speed", "Slows every spring and tween", func() {

@@ -15,7 +15,7 @@ import (
 
 func (a *App) runtimesView(c *ui.Context) {
 	p := design.Of(c)
-	page(c, design.ContentMaxW, func() {
+	page(c, func() {
 		kit.Secondary(c, T("runtimes.intro")).LineHeight(1.45)
 
 		// Storage, as macOS's Storage settings: a total over a segmented bar.

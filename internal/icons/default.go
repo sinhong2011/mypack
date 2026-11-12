@@ -53,9 +53,13 @@ var palette = []gradient{
 
 var (
 	faceOnce sync.Once
-	face     font.Face
-	faceErr  error
-	otFont   *opentype.Font
+	// faceMu serializes drawing with face: an opentype face keeps a scratch
+	// buffer and is not safe for concurrent use (builds, metadata fetches
+	// and Discover tiles can all ask for a default icon at once).
+	faceMu  sync.Mutex
+	face    font.Face
+	faceErr error
+	otFont  *opentype.Font
 )
 
 func letterFace() (font.Face, error) {
@@ -106,7 +110,9 @@ func Default(name string) []byte {
 	if f, err := letterFace(); err == nil && letter != 0 {
 		var sb sfnt.Buffer
 		if idx, _ := otFont.GlyphIndex(&sb, letter); idx != 0 {
+			faceMu.Lock()
 			drawn = drawLetter(dst, f, string(letter))
+			faceMu.Unlock()
 		}
 	}
 	if !drawn {

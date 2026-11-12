@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and ideas
+    url: https://github.com/sinhong2011/mypack/discussions
+    about: Ask a question or discuss an idea before opening an issue.
+  - name: Security problem
+    url: https://github.com/sinhong2011/mypack/security/advisories/new
+    about: Please report security issues privately, not as a public issue.

@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -396,11 +395,6 @@ func (a *App) createAndBuild() {
 		return nil
 	}, func(err error) {
 		s.busy = false
-		var de *domain.Error
-		if errors.As(err, &de) && de.Code == appservice.CodeLicenseLimit && group {
-			a.dlg.groupLimit = true
-			return
-		}
 		if err != nil {
 			a.toastErr(err)
 			if projectID == "" {

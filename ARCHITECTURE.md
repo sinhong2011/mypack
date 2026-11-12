@@ -1,6 +1,6 @@
 # mypack — Implementation Architecture
 
-Implements `mypack_product_technical_spec_v1.7.html`. Stack per spec: **Go + MyGo**
+Stack: **Go + MyGo**
 (github.com/egoist/mygo v0.8.3, pure Go, no cgo). Native UI Builder, prebuilt
 MyGo WebView runtime + configuration injection, SQLite state, CLI + MCP stdio.
 MyGo API reference for contributors: `docs/mygo-api-digest.md`.
@@ -83,7 +83,7 @@ See `docs/gui-handoff-window-modes.md`.
 `app.group.members` makes one app of several websites (`runtime/app/group.go`): a native window with a rail and one
 embedded web view per member, each in session `<profileId>.<memberId>`. Links route between members by host; split
 view shows two. The service's `CreateGroup` (`internal/appservice/group.go`) makes groups from Library projects or
-addresses, keeps member icons beside the DB and enforces the Free edition's one-group limit. See
+addresses and keeps member icons beside the DB. See
 `docs/gui-handoff-window-modes.md`.
 
 ## Content blocking (1.0.7)
@@ -118,7 +118,7 @@ points at (the icon, the image beneath an Icon Studio style, a group's site icon
 already in the Library unless asked to replace them (a replaced app keeps its local project id, so builds and installs
 stay linked). GUI: File > Export Library… / Import Apps…, a project's Export…; CLI: `mypack export`, `mypack import`.
 
-Library sync (Pro, `internal/appservice/sync.go`) keeps one `.mypack` file per app under `<SyncFolder>/apps/` in a
+Library sync (`internal/appservice/sync.go`) keeps one `.mypack` file per app under `<SyncFolder>/apps/` in a
 folder a sync service shares (iCloud Drive by default). Each sync compares every app here, its file there and the hash
 both had at the last sync (settings key `sync.state`): the side that changed wins, the later edit when both did.
 Moving an app to the Trash writes a tombstone that moves it to the Trash elsewhere; restoring brings it back. A sync

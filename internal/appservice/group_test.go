@@ -2,13 +2,11 @@ package appservice
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"mypack.dev/mypack/internal/domain"
 	"mypack.dev/mypack/pkg/config"
 )
 
@@ -90,38 +88,6 @@ func TestCreateGroupFromAddresses(t *testing.T) {
 	}
 	if _, err := e.svc.CreateGroup(ctx, GroupRequest{Name: "X", Sites: []GroupSite{{URL: "not a url"}, {URL: "a.example.com"}}}); err == nil {
 		t.Fatal("a bad address was accepted")
-	}
-}
-
-func TestGroupQuota(t *testing.T) {
-	e, priv := licEnv(t)
-	t.Setenv("MYPACK_LICENSE", "")
-	ctx := context.Background()
-	var ids []string
-	for _, n := range []string{"Slack", "Gmail"} {
-		p, err := e.svc.CreateProject(ctx, CreateRequest{Input: strings.ToLower(n) + ".example.com", Name: n, Actor: "cli"})
-		if err != nil {
-			t.Fatal(err)
-		}
-		ids = append(ids, p.ID)
-	}
-	if _, err := e.svc.CreateGroup(ctx, GroupRequest{Name: "One", Sites: sites(ids...)}); err != nil {
-		t.Fatalf("the free edition's first group: %v", err)
-	}
-	st, _ := e.svc.License(ctx)
-	if st.Groups != 1 || st.FreeGroups != FreeGroups {
-		t.Fatalf("status: %+v", st)
-	}
-	_, err := e.svc.CreateGroup(ctx, GroupRequest{Name: "Two", Sites: sites(ids...)})
-	var de *domain.Error
-	if !errors.As(err, &de) || de.Code != CodeLicenseLimit {
-		t.Fatalf("a second free group: %v", err)
-	}
-	if _, err := e.svc.ActivateLicense(ctx, token(t, priv), "cli"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := e.svc.CreateGroup(ctx, GroupRequest{Name: "Two", Sites: sites(ids...)}); err != nil {
-		t.Fatalf("pro has unlimited groups: %v", err)
 	}
 }
 
