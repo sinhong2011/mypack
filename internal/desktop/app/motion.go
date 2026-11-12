@@ -139,8 +139,6 @@ func sectionRank(s section) int {
 		return 6
 	case secRuntimes:
 		return 8
-	case secSettings:
-		return 9
 	}
 	return 10
 }

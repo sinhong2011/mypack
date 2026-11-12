@@ -32,7 +32,6 @@ const (
 	secDiscover section = "discover"
 	secBuilds   section = "builds"
 	secRuntimes section = "runtimes"
-	secSettings section = "settings"
 	secCreate   section = "create"
 	secProject  section = "project"
 	secGallery  section = "gallery" // MYPACK_KIT_GALLERY=1
@@ -90,6 +89,7 @@ type App struct {
 	palette   paletteState
 
 	flyout    *mygo.Window
+	setWin    *mygo.Window // Settings, once opened
 	flyoutURL string
 
 	lib     libState
@@ -129,7 +129,7 @@ func Run(svc appservice.Service) error {
 	}
 	a.section = section(a.ui.Section)
 	switch a.section {
-	case secLibrary, secDiscover, secBuilds, secRuntimes, secSettings:
+	case secLibrary, secDiscover, secBuilds, secRuntimes:
 	case secProject:
 		a.projectID = a.ui.ProjectID
 		if a.projectID == "" {
@@ -138,6 +138,7 @@ func Run(svc appservice.Service) error {
 	default:
 		a.section = secLibrary
 	}
+	a.set.pane = settingsPane(a.ui.SettingsPane)
 	a.create.reset(a.host)
 	if galleryEnabled() {
 		a.section = secGallery
@@ -199,6 +200,7 @@ func Run(svc appservice.Service) error {
 			if a.win != nil {
 				a.win.Invalidate()
 			}
+			a.redrawSettings()
 		}
 		svc.Subscribe(a.onEvent)
 		a.reload("projects", "installs", "jobs", "runtimes", "storage")
@@ -301,6 +303,7 @@ func (a *App) toast(title, desc string, kind int) {
 	if a.win != nil {
 		a.win.Invalidate()
 	}
+	a.redrawSettings()
 }
 
 func (a *App) toastAction(title, action string, fn func()) {

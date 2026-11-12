@@ -14,6 +14,7 @@ type uiState struct {
 	ProjectID    string          `json:"projectId,omitempty"`
 	LibraryTab   int             `json:"libraryTab"` // 0 My Apps, 1 Projects
 	SettingsOpen map[string]bool `json:"advancedOpen,omitempty"`
+	SettingsPane string          `json:"settingsPane,omitempty"` // Settings' category on show
 	// AutoInstall is, per project, whether a successful build for this
 	// device is installed and opened at once; AutoInstallDefault (nil =
 	// on) seeds new projects.
