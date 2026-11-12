@@ -744,6 +744,7 @@ func (a *App) appMenu(m *ui.Menu, in domain.Installation) {
 	} else if m.Item(T("action.open")).Chosen() {
 		a.openInstall(in.ID)
 	}
+	a.pinMenuItem(m, installPinKey(&in))
 	if managed && in.UpdateReason != "" {
 		if m.Item(T("action.reviewUpdate")).Chosen() {
 			a.dlg.openUpdate(&in)

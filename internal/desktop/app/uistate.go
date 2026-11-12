@@ -15,7 +15,10 @@ type uiState struct {
 	ProjectID  string `json:"projectId,omitempty"`
 	LibraryTab int    `json:"libraryTab"` // 0 My Apps, 1 Projects
 	// LibrarySort is the Library's order: name, modified or status.
-	LibrarySort  string          `json:"librarySort,omitempty"`
+	LibrarySort string `json:"librarySort,omitempty"`
+	// Pinned is the apps pinned to the sidebar, in pin order: project IDs,
+	// or installation IDs for apps with no project (pins.go).
+	Pinned       []string        `json:"pinned,omitempty"`
 	SettingsOpen map[string]bool `json:"advancedOpen,omitempty"`
 	SettingsPane string          `json:"settingsPane,omitempty"` // Settings' category on show
 	// AutoInstall is, per project, whether a successful build for this

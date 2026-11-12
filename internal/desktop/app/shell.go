@@ -155,14 +155,23 @@ func (a *App) sidebar(c *ui.Context) {
 			}
 			a.navItem(c, secBuilds, icons.Builds, T("nav.builds"), running)
 		})
-		// Recent projects.
-		if len(a.projects) > 0 {
+		// Pinned apps, then recent projects (those not pinned).
+		pinned := a.pinnedItems()
+		if len(pinned) > 0 {
+			a.sidebarPinned(c, pinned)
+		}
+		// Recent gives room to the pins: 6 rows, down to 3.
+		var recent []domain.Project
+		limit := max(3, 6-len(pinned))
+		for _, pr := range a.projects {
+			if len(recent) < limit && !a.ui.isPinned(pr.ID) {
+				recent = append(recent, pr)
+			}
+		}
+		if len(recent) > 0 {
 			kit.Eyebrow(c, T("nav.recent")).Padding(20, 10, 8, 10)
 			ui.Column(c).Gap(1).Children(func() {
-				for i, pr := range a.projects {
-					if i >= 6 {
-						break
-					}
+				for _, pr := range recent {
 					pr := pr
 					active := a.section == secProject && a.projectID == pr.ID
 					row := ui.ButtonBase(c.Key(pr.ID)).Label(pr.Config.App.Name).Row().Justify(ui.Start).Height(30).PaddingX(8).Gap(9).
