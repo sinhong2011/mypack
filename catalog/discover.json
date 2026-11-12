@@ -17,6 +17,7 @@
     { "name": "Todoist", "url": "https://app.todoist.com/", "category": "work" },
     { "name": "Airtable", "url": "https://airtable.com/", "category": "work" },
     { "name": "ClickUp", "url": "https://app.clickup.com/", "category": "work" },
+    { "name": "Wikipedia", "url": "https://en.wikipedia.org/", "category": "work" },
     { "name": "TraderMemos", "url": "https://tradermemos.netlify.app/", "category": "work" },
     { "name": "飞书", "url": "https://www.feishu.cn/", "category": "work" },
     { "name": "钉钉", "url": "https://www.dingtalk.com/", "category": "work" },
