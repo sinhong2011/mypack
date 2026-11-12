@@ -18,12 +18,21 @@
     { "name": "Airtable", "url": "https://airtable.com/", "category": "work" },
     { "name": "ClickUp", "url": "https://app.clickup.com/", "category": "work" },
     { "name": "TraderMemos", "url": "https://tradermemos.netlify.app/", "category": "work" },
+    { "name": "飞书", "url": "https://www.feishu.cn/", "category": "work" },
+    { "name": "钉钉", "url": "https://www.dingtalk.com/", "category": "work" },
+    { "name": "语雀", "url": "https://www.yuque.com/", "category": "work" },
+    { "name": "腾讯文档", "url": "https://docs.qq.com/", "category": "work" },
+    { "name": "QQ 邮箱", "url": "https://mail.qq.com/", "category": "work" },
 
     { "name": "GitLab", "url": "https://gitlab.com/", "category": "dev" },
     { "name": "Vercel", "url": "https://vercel.com/dashboard", "category": "dev" },
     { "name": "Cloudflare", "url": "https://dash.cloudflare.com/", "category": "dev" },
     { "name": "Stack Overflow", "url": "https://stackoverflow.com/", "category": "dev" },
     { "name": "CodeSandbox", "url": "https://codesandbox.io/dashboard", "category": "dev" },
+    { "name": "Gitee", "url": "https://gitee.com/", "category": "dev" },
+    { "name": "掘金", "url": "https://juejin.cn/", "category": "dev" },
+    { "name": "V2EX", "url": "https://www.v2ex.com/", "category": "dev" },
+    { "name": "LINUX DO", "url": "https://linux.do/", "category": "dev" },
 
     { "name": "WhatsApp", "url": "https://web.whatsapp.com/", "category": "chat" },
     { "name": "Slack", "url": "https://app.slack.com/", "category": "chat" },
@@ -32,19 +41,29 @@
     { "name": "Messenger", "url": "https://www.messenger.com/", "category": "chat" },
     { "name": "Microsoft Teams", "url": "https://teams.microsoft.com/", "category": "chat" },
     { "name": "Google Chat", "url": "https://chat.google.com/", "category": "chat" },
+    { "name": "企业微信", "url": "https://work.weixin.qq.com/", "category": "chat" },
 
     { "name": "Claude", "url": "https://claude.ai/", "category": "ai" },
     { "name": "Gemini", "url": "https://gemini.google.com/", "category": "ai" },
     { "name": "Perplexity", "url": "https://www.perplexity.ai/", "category": "ai" },
     { "name": "Copilot", "url": "https://copilot.microsoft.com/", "category": "ai" },
+    { "name": "DeepSeek", "url": "https://chat.deepseek.com/", "category": "ai" },
+    { "name": "Kimi", "url": "https://www.kimi.com/", "category": "ai" },
+    { "name": "豆包", "url": "https://www.doubao.com/chat/", "category": "ai" },
+    { "name": "通义千问", "url": "https://www.qianwen.com/", "category": "ai" },
+    { "name": "腾讯元宝", "url": "https://yuanbao.tencent.com/", "category": "ai" },
 
     { "name": "Canva", "url": "https://www.canva.com/", "category": "design" },
     { "name": "Excalidraw", "url": "https://excalidraw.com/", "category": "design" },
     { "name": "Miro", "url": "https://miro.com/app/dashboard/", "category": "design" },
     { "name": "Photopea", "url": "https://www.photopea.com/", "category": "design" },
+    { "name": "MasterGo", "url": "https://mastergo.com/", "category": "design" },
+    { "name": "即时设计", "url": "https://js.design/", "category": "design" },
 
     { "name": "Spotify", "url": "https://open.spotify.com/", "category": "media" },
     { "name": "Apple Music", "url": "https://music.apple.com/", "category": "media" },
-    { "name": "SoundCloud", "url": "https://soundcloud.com/", "category": "media" }
+    { "name": "SoundCloud", "url": "https://soundcloud.com/", "category": "media" },
+    { "name": "网易云音乐", "url": "https://music.163.com/", "category": "media" },
+    { "name": "QQ 音乐", "url": "https://y.qq.com/", "category": "media" }
   ]
 }
