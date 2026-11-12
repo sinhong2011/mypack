@@ -7,3 +7,8 @@
 
 # mygo build output (installers)
 /build/
+
+# Staged runtime archives for mygo build (scripts/bundle-runtime.sh)
+/resources/runtimes/*.tar.gz
+/resources/runtimes/registry.json
+/resources/runtimes/registry.json.sig

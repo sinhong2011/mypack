@@ -147,7 +147,7 @@ func TestExpiredManifestRejected(t *testing.T) {
 
 func TestRollbackRejected(t *testing.T) {
 	reg, m := newReg(t, testregistry.Options{Sequence: 5})
-	if _, err := m.List(context.Background()); err != nil {
+	if _, err := m.Ensure(context.Background(), "1.0.0", "darwin-arm64", nil); err != nil {
 		t.Fatal(err)
 	}
 	// registry now serves sequence 3 (older, validly signed)
@@ -159,7 +159,7 @@ func TestRollbackRejected(t *testing.T) {
 	m.mu.Lock()
 	m.memo = nil
 	m.mu.Unlock()
-	_, err := m.Ensure(context.Background(), "1.0.0", "darwin-arm64", nil)
+	_, err := m.Refresh(context.Background())
 	wantCode(t, err, "RUNTIME_VERIFY_FAILED")
 	if !strings.Contains(err.Error(), "rollback") {
 		t.Fatal(err)
@@ -167,6 +167,9 @@ func TestRollbackRejected(t *testing.T) {
 	// equal or higher is fine
 	mf.Sequence = 6
 	reg.Write(mf)
+	if _, err := m.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := m.Ensure(context.Background(), "1.0.0", "darwin-arm64", nil); err != nil {
 		t.Fatal(err)
 	}
@@ -335,8 +338,8 @@ func TestMaliciousArchiveViaRegistryKeepsOldCache(t *testing.T) {
 	m.memo = nil
 	m.mu.Unlock()
 	// Ensure serves the verified cache without network while the cached manifest agrees;
-	// refreshing the manifest (e.g. List) makes the cache stale and forces a re-download.
-	if _, err = m.List(context.Background()); err != nil {
+	// Refresh makes the cache stale against the new manifest and forces a re-download.
+	if _, err = m.Refresh(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	_, err = m.Ensure(context.Background(), "1.0.0", "darwin-arm64", nil)
