@@ -82,7 +82,7 @@ release:
     {{ .TagBody }}
   footer: |
     ---
-    Unsigned binaries for the Mypack app and CLI. macOS builds are not notarized and there is no Homebrew formula yet. Details: https://github.com/sinhong2011/mypack/blob/main/docs/releasing.md
+    Unsigned binaries for the Mypack app and CLI; macOS builds are not notarized. Install with Homebrew, winget, Scoop, Chocolatey, APT, DNF or the AUR: https://github.com/sinhong2011/mypack#install. Details: https://github.com/sinhong2011/mypack/blob/main/docs/releasing.md
 
 snapshot:
   version_template: "{{ incpatch .Version }}-snapshot"
