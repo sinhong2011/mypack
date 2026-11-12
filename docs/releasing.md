@@ -177,20 +177,21 @@ When rotating, keep the old key in that comma-separated list. Never commit `dist
 
 ## Code signing and notarization
 
-These need Apple setup that this repository does not have. The workflows do not invent certificates or API keys. The tag publishes the unsigned archives above.
+The workflows do not invent certificates or API keys. Without the secrets below, the tag publishes the unsigned archives above.
 
 ### Notarized macOS disk image
 
-`mygo build` signs and notarizes the DMG when `mygo.json` says how:
+On a tag push, the macOS installer job signs the app with a Developer ID and notarizes the DMG when these repository secrets are set:
 
-```json
-"macos": {
-  "signingIdentity": "Developer ID Application: Name (TEAMID)",
-  "notarize": { "keychainProfile": "notary" }
-}
+```sh
+base64 -i certificate.p12 | gh secret set MACOS_CERTIFICATE   # "Developer ID Application" cert + private key
+gh secret set MACOS_CERTIFICATE_PASSWORD                       # the .p12 password
+gh secret set APPLE_ID                                         # the developer account's Apple ID
+gh secret set APPLE_TEAM_ID                                    # the (TEAMID) in the identity
+gh secret set APPLE_APP_PASSWORD                               # app-specific password, account.apple.com
 ```
 
-On GitHub Actions, the macOS installer job also needs the certificate and notary credentials in a temporary keychain. MyGo's [GitHub Actions guide](https://github.com/egoist/mygo/blob/main/docs/github-actions.md#signing-and-notarizing-macos-apps) has the step and the secrets it reads (`MACOS_CERTIFICATE`, `MACOS_CERTIFICATE_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD`). Add that step before **Build** in the macOS row. Do not commit the certificate or passwords. The Windows setup can be signed the same way with `windows.certificate` or `windows.signCommand`.
+The step **Import the certificate and the notary credentials** puts them in a keychain that lasts as long as the job, reads the identity from the certificate, and adds `macos.signingIdentity` and `macos.notarize` to `mygo.json` for that build only, so local and pull request builds stay ad hoc. With `MACOS_CERTIFICATE` unset it warns and builds ad hoc; with it set but another secret missing it fails. To sign locally, add the same keys to `mygo.json` by hand (`"notarize": { "keychainProfile": "notary" }`, after `xcrun notarytool store-credentials notary`) and do not commit them. The Windows setup can be signed the same way with `windows.certificate` or `windows.signCommand`.
 
 If the repository later enables immutable releases, a published Release cannot take more assets, and re-running the workflow cannot replace them. Set GoReleaser `release.draft: true` and publish the draft once the archives are on it.
 
