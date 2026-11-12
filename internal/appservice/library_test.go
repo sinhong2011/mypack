@@ -55,6 +55,21 @@ func TestLibraryExportImport(t *testing.T) {
 	if _, err := b.svc.ImportLibrary(ctx, filepath.Join(t.TempDir(), "x.mypack"), ImportOptions{}); err == nil {
 		t.Fatal("a missing file imports")
 	}
+	// The same document named .json is a Library file too; a config is not.
+	asJSON := filepath.Join(t.TempDir(), "lib.json")
+	raw, _ := os.ReadFile(file)
+	os.WriteFile(asJSON, raw, 0o644)
+	if !IsLibraryFile(asJSON) || !IsLibraryFile(file) {
+		t.Fatal("a Library file is not recognised")
+	}
+	if res, err := b.svc.ImportLibrary(ctx, asJSON, ImportOptions{}); err != nil || len(res.Skipped) != 1 {
+		t.Fatalf("import .json: %+v %v", res, err)
+	}
+	cfgFile := filepath.Join(t.TempDir(), "mypack.json")
+	os.WriteFile(cfgFile, []byte(`{"schemaVersion":1,"app":{"name":"X"}}`), 0o644)
+	if IsLibraryFile(cfgFile) || IsLibraryFile(filepath.Join(t.TempDir(), "missing.json")) {
+		t.Fatal("a config or missing .json counts as a Library file")
+	}
 	bad := filepath.Join(t.TempDir(), "bad.mypack")
 	os.WriteFile(bad, []byte(`{"format":"other"}`), 0o644)
 	if _, err := b.svc.ImportLibrary(ctx, bad, ImportOptions{}); err == nil {

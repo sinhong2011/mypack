@@ -139,7 +139,7 @@ Usage:
   mypack runtime list|download [key] [--version V]|verify [key]|clean [--all]
   mypack import-config <mypack.json|pake.json> [--out mypack.json]
   mypack export [<project-id>...] -o <file.mypack>   (all apps when no id)
-  mypack import <file.mypack> [--replace]
+  mypack import <file.mypack|file.json> [--replace]
   mypack sync                                        (sync with the sync folder)
   mypack install <artifact-id> [--open] [--replace]
   mypack apps list | apps locate <id> <path>
