@@ -337,9 +337,16 @@ func (a *App) tile(c *ui.Context, d tileData) (open bool) {
 			if d.run != nil && (hov || focused) {
 				a.launchButton(c, d, size)
 			}
-			if d.menu != nil && (hov || focused) {
+			if d.menu != nil {
+				// Built every frame, only shown on hover or focus: the menu
+				// hands its chosen item back to this button in the frame
+				// after, when the pointer is over the menu, not the tile.
+				// A button built only on hover would drop every choice.
 				more := ui.ButtonBase(c.Key("more")).Label(T("common.more")).Absolute().Top(-6).Left(-6).Size(24, 24).Radius(12).Center().
 					Background(p.Overlay).Border(0.5, p.BorderStrong).Cursor(ui.CursorPointer).Menu(d.menu)
+				if !hov && !focused && !more.Focused() {
+					more.Opacity(0)
+				}
 				design.Elevate(c, more, design.Floating)
 				more.Children(func() { kit.Glyph(c, icons.More, 13, p.Text) })
 			}

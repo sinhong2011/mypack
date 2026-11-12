@@ -418,15 +418,26 @@ func Segmented(c *ui.Context, selected *int, labels []string, small bool) ui.Ele
 		for i, l := range labels {
 			seg := parts.Segment(i).Height(h).PaddingX(pad).Radius(design.RadiusControl - 1).FontSize(fs).
 				FontWeight(design.WeightMedium).Cursor(ui.CursorPointer)
+			on := i == *selected
 			fg := p.TextSecondary
-			if i == *selected || seg.Hovered() {
+			if on {
 				fg = p.Text
+				seg.FontWeight(design.WeightSemibold)
+			} else if seg.Hovered() {
+				// Hover lifts the label a little, never to the selected look.
+				seg.Background(p.Hover)
 			}
 			seg.TextColor(fg)
 			seg.Children(func() {
-				if i == *selected {
+				if on {
+					// The pill must stand clear of the track: Raised is no
+					// lighter than the dark track, so dark lifts it a few steps.
+					pill := p.Raised
+					if p.Dark {
+						pill = design.Ink[7]
+					}
 					ind := ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Radius(design.RadiusControl - 1).ZIndex(-1).
-						Background(p.Raised)
+						Background(pill).Border(0.5, p.ButtonStroke).Shadow(0, 1, 2, 0, p.Shadow)
 					design.RaisedControl(c, ind)
 					Glide(ind, segMatch{selected})
 				}
