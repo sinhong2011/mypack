@@ -42,3 +42,13 @@ func TestLookDefaultsRoundTrip(t *testing.T) {
 		t.Fatal("nil defaults changed cfg")
 	}
 }
+
+func TestTitleBarKind(t *testing.T) {
+	for style, want := range map[string]string{
+		"": tbStandard, "default": tbStandard, "hidden": tbSeamless, "overlay": tbSeamless, "glass": tbGlass,
+	} {
+		if got := titleBarKind(style); got != want {
+			t.Errorf("%q: got %s, want %s", style, got, want)
+		}
+	}
+}

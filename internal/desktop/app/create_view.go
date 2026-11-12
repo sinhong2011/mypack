@@ -185,7 +185,7 @@ func (a *App) mockup(c *ui.Context, key *ui.Context, cfg *config.Config, icon []
 		tint = kit.IconTint(rail[0].Icon, rail[0].Name)
 	}
 	kit.AppMockup(key, kit.MockupOpts{Icon: icon, Name: name,
-		Tint: tint, Seamless: w.TitleBarStyle == "overlay" || w.TitleBarStyle == "hidden",
+		Tint: tint, Seamless: titleBarKind(w.TitleBarStyle) != tbStandard, Glass: titleBarKind(w.TitleBarStyle) == tbGlass,
 		Dark: dark, W: w.Width, H: w.Height, Fill: w.Maximized, Tray: cfg.Native.Tray, Height: h, Launched: launched,
 		Mode: w.EffectiveMode(), Edge: w.EffectiveSidebarEdge(), Rail: rail})
 }

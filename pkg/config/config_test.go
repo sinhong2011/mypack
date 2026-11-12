@@ -376,3 +376,25 @@ func TestTabs(t *testing.T) {
 		t.Fatalf("tabs in a group: %v", err)
 	}
 }
+
+func TestGlassTitleBar(t *testing.T) {
+	host := Target{OS: "darwin", Arch: "arm64"}
+	c := New("Docs", Source{Type: SourceURL, Value: "https://docs.example.com"}, host)
+	c.Runtime.Version = "1.0.8"
+	c.Window.TitleBarStyle = "glass"
+	c.ApplyDefaults(host)
+	if err := c.Validate(); err != nil {
+		t.Fatalf("glass must validate: %v", err)
+	}
+	if c.Runtime.Version != "1.0.9" {
+		t.Fatalf("glass needs 1.0.9, got %s", c.Runtime.Version)
+	}
+	c.Window.TitleBarStyle = "frosted"
+	if err := c.Validate(); err == nil {
+		t.Fatal("an unknown title bar style must be refused")
+	}
+	c.Window.TitleBarStyle = "overlay"
+	if got := c.MinRuntime(); got != "" {
+		t.Fatalf("seamless needs no newer runtime, got %q", got)
+	}
+}
