@@ -14,7 +14,7 @@ LDFLAGS    = -s -w -X github.com/egoist/mygo.production=1 \
              -X mypack.dev/mypack/internal/appservice.DefaultRegistryURL=$(REGISTRY) \
              -X mypack.dev/mypack/internal/runtimemanager.trustedKeysB64=$(PUBKEY)
 
-.PHONY: all test vet runtimes cli gui app dmg release run run-fake clean
+.PHONY: all test vet runtimes cli gui app dmg release installers run run-fake clean
 
 all: runtimes app
 
@@ -44,6 +44,19 @@ dmg: app
 release: gui
 	SIGN_IDENTITY="$(SIGN_IDENTITY)" NOTARY_PROFILE="$(NOTARY_PROFILE)" scripts/package-app.sh $(VERSION) dmg
 
+# Installers with mygo build (mygo.json): a .dmg on macOS, a setup .exe
+# (needs NSIS) and .deb/.rpm packages. VERSION here is the release's, with
+# or without a v; build/ holds the results. The Release workflow runs this.
+#   make installers PLATFORM=darwin/universal VERSION=v0.2.0
+PLATFORM ?= $(shell go env GOOS)/$(shell go env GOARCH)
+MYGO      = go run github.com/egoist/mygo/cmd/mygo@$(shell go list -m -f '{{.Version}}' github.com/egoist/mygo)
+installers:
+	mkdir -p build
+	go run ./scripts/mkicns assets/AppIcon-macOS-1024.png build/AppIcon.icns
+	cp mygo.json build/mygo.json.orig
+	go run ./scripts/setversion mygo.json $(VERSION)
+	$(MYGO) build -platform $(PLATFORM); s=$$?; mv build/mygo.json.orig mygo.json; exit $$s
+
 run:
 	MYPACK_REGISTRY=$(REGISTRY) MYPACK_DEV_TRUST=1 go run ./cmd/mypack
 
@@ -51,4 +64,4 @@ run-fake:
 	MYPACK_FAKE=1 go run ./cmd/mypack
 
 clean:
-	rm -rf bin dist/Mypack.app dist/Mypack-*.dmg dist/mypack.app dist/mypack-*.dmg
+	rm -rf bin build dist/Mypack.app dist/Mypack-*.dmg dist/mypack.app dist/mypack-*.dmg

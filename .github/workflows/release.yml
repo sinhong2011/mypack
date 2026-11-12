@@ -13,6 +13,8 @@ on:
       - ".goreleaser.yaml"
       - ".github/workflows/release.yml"
       - "scripts/release.sh"
+      - "mygo.json"
+      - "cmd/mypack/**"
 
 permissions:
   contents: read
@@ -92,3 +94,50 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Installers, built by mygo build (mygo.json) and uploaded to the Release
+  # GoReleaser just published: a disk image for macOS (universal), setup
+  # programs for Windows, and Debian and RPM packages for Linux. macOS
+  # needs a macOS runner (signing, disk images); Ubuntu builds the rest.
+  # On a pull request they are built and not uploaded.
+  installers:
+    needs: publish
+    if: always() && (github.event_name == 'pull_request' || needs.publish.result == 'success')
+    name: installers (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    permissions:
+      contents: write # upload to the Release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macOS, os: macos-latest, platform: "darwin/universal" }
+          - { name: Windows, os: ubuntu-latest, platform: "windows/amd64,windows/arm64" }
+          - { name: Linux, os: ubuntu-latest, platform: "linux/amd64,linux/arm64" }
+    env:
+      CGO_ENABLED: "0"
+      GOTOOLCHAIN: auto
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install NSIS, for the Windows installers
+        if: matrix.name == 'Windows'
+        run: sudo apt-get update && sudo apt-get install -y nsis
+      - name: Build
+        run: make installers PLATFORM="${{ matrix.platform }}" VERSION="${{ github.event_name == 'push' && github.ref_name || 'v0.0.0-check' }}"
+      - name: Upload to the Release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+          files=(build/*/*.dmg build/*/*-setup-*.exe build/*/*.deb build/*/*.rpm)
+          if (( ${#files[@]} == 0 )); then
+            echo "::error::mygo build made no installers"
+            exit 1
+          fi
+          printf '%s\n' "${files[@]}"
+          gh release upload "$GITHUB_REF_NAME" "${files[@]}" --clobber
