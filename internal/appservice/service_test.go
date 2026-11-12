@@ -646,6 +646,18 @@ func TestRestartRecoversInterruptedJobs(t *testing.T) {
 	p := e.project(t)
 	job, _ := e.svc.StartBuild(ctx, BuildRequest{ProjectID: p.ID})
 	waitJob(t, e.svc, job.ID, domain.JobRunning)
+	// Wait until the database has the job's last write before the build
+	// blocks, its first stage: one saved after the second service has
+	// marked the job interrupted would undo that, and a crashed process
+	// writes nothing more.
+	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(time.Millisecond) {
+		if j, _ := e.svc.store.GetJob(ctx, job.ID); j.Stage == domain.StageResolving {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the build never reached its first stage")
+		}
+	}
 	// Simulate a crash: open the same DB from a second service while the first "died".
 	e2, err := New(e.opts)
 	if err != nil {
