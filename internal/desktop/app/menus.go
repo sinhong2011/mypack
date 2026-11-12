@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"mypack.dev/mypack/internal/desktop/kit"
 	"mypack.dev/mypack/internal/desktop/kit/icons"
 	"mypack.dev/mypack/internal/domain"
+	"mypack.dev/mypack/pkg/config"
 )
 
 // installMenu (re)builds the application menu in the current language.
@@ -190,7 +192,7 @@ func (a *App) toggleFlyout() {
 	}
 	a.flyout = mygo.NewFlyout(mygo.FlyoutOptions{
 		Tray: opts.Tray, Parent: opts.Parent, Anchor: opts.Anchor, Placement: opts.Placement, Gap: 4,
-		Width: 340, Height: 360, FitContent: true, MinWidth: 340, MaxWidth: 340,
+		Width: flyoutWidth, Height: 360, FitContent: true, MinWidth: flyoutWidth, MaxWidth: flyoutWidth,
 		Focusable: true, Shadow: true, Popover: true,
 		Content: ui.View(a.flyoutView),
 	})
@@ -209,115 +211,92 @@ func (a *App) closeFlyoutAnd(fn func()) {
 	}
 }
 
-// flyoutView is the menu bar popover: paste a URL, jump to a recent app,
-// watch builds.
+// flyoutView is the menu bar popover, laid out as a native menu: a title
+// line with the status, the address field, builds in progress as rows with
+// a bar, recent apps as rows, and a footer. Quit sits in the footer's menu.
 func (a *App) flyoutView(c *ui.Context) {
 	design.Apply(c)
 	p := design.Of(c)
 	c.Root().Background(ui.Transparent)
-	box := ui.Column(c).Width(340).Padding(16).Gap(14).Background(p.Overlay)
+	box := ui.Column(c).Width(flyoutWidth).Padding(12, 6, 6, 6).Background(p.Overlay)
 	if !c.Vibrancy() {
 		box.Radius(14).Border(0.5, p.BorderStrong)
 	}
 	active := a.activeJobs()
 	box.Children(func() {
-		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-			kit.BrandMark(c, 30)
-			ui.Column(c).Grow(1).MinWidth(0).Children(func() {
-				kit.Headline(c, "Mypack")
-				status := T("tray.ready")
-				if len(active) > 0 {
-					status = T("tray.building", "count", len(active))
-				}
-				kit.Caption(c, status)
-			})
+		// Title line: the app's name, its status, Settings.
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(0, 4, 8, 10).Children(func() {
+			kit.BrandMark(c, 18)
+			kit.Headline(c, "Mypack").Grow(1).MinWidth(0)
+			if len(active) > 0 {
+				kit.StatusDot(c, T("tray.building", "count", len(active)), kit.ToneAccent)
+			} else {
+				kit.StatusDot(c, T("tray.ready"), kit.ToneSuccess)
+			}
 			if kit.IconButton(c.Key("settings"), icons.Settings, T("menu.settings")).Clicked() {
 				a.closeFlyoutAnd(func() { a.nav(secSettings) })
 			}
 		})
-		r := kit.URLField(c.Key("url"), &a.flyoutURL, kit.URLFieldOpts{
-			Placeholder: T("flyout.placeholder"), Label: T("create.url.label"), Height: 40, AutoFocus: true,
-			Paste: T("create.paste"), Action: T("flyout.make"), ActionOff: strings.TrimSpace(a.flyoutURL) == "",
-		})
-		if r.Paste {
-			a.flyoutURL = strings.TrimSpace(c.ReadClipboard())
-		}
-		if (r.Action || r.Submitted) && strings.TrimSpace(a.flyoutURL) != "" {
-			u := a.flyoutURL
-			a.flyoutURL = ""
-			a.closeFlyoutAnd(func() {
-				a.create.reset(a.host)
-				a.create.setInput(u)
-				a.nav(secCreate)
+		ui.Column(c).Padding(0, 6, 4, 6).Children(func() {
+			r := kit.URLField(c.Key("url"), &a.flyoutURL, kit.URLFieldOpts{
+				Placeholder: T("flyout.placeholder"), Label: T("create.url.label"), Height: 36, AutoFocus: true, Compact: true,
+				Paste: T("create.paste"), Action: T("flyout.make"), ActionOff: strings.TrimSpace(a.flyoutURL) == "",
 			})
-		}
-		if len(active) > 0 {
-			ui.Column(c).Gap(8).Children(func() {
-				flyoutHeader(c, T("tray.activity"))
-				for _, j := range active {
-					j := j
-					var png []byte
-					if pr := a.project(j.ProjectID); pr != nil {
-						png = pr.IconPNG
-					}
-					row := ui.ButtonBase(c.Key(j.ID)).Label(j.Snapshot.App.Name).Row().Justify(ui.Start).Gap(10).Padding(6, 8).Radius(10).AlignItems(ui.Center).Cursor(ui.CursorPointer)
-					if row.Hovered() {
-						row.Background(p.Hover)
-					}
-					row.Children(func() {
-						kit.AppIconOpts(c, png, j.Snapshot.App.Name, 30, kit.IconOpts{})
-						ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
-							ui.Row(c).Children(func() {
-								ui.Text(c, j.Snapshot.App.Name).FontSize(design.FontBody).FontWeight(design.WeightMedium).TextColor(p.Text).SingleLine().Grow(1).MinWidth(0)
-								ui.Text(c, stageLabel(j)).FontSize(design.FontCaption).TextColor(p.TextSecondary).SingleLine()
-							})
-						})
-					})
-					if row.Clicked() {
-						a.closeFlyoutAnd(func() { a.openProject(j.ProjectID, 0) })
-					}
-					// Its steps, compact, under it.
-					ui.Column(c.Key(j.ID+"-steps")).Padding(0, 8, 4, 48).Children(func() {
-						a.buildSteps(c, a.project(j.ProjectID), &j, true, false)
-					})
-				}
-			})
-		}
-		if len(a.projects) > 0 {
-			ui.Column(c).Gap(8).Children(func() {
-				flyoutHeader(c, T("tray.recent"))
-				ui.Row(c).Gap(4).Children(func() {
-					for i, pr := range a.projects {
-						if i >= 5 {
-							break
-						}
-						id, name := pr.ID, pr.Config.App.Name
-						b := ui.ButtonBase(c.Key(id)).Label(name).Column().Width(58).AlignItems(ui.Center).Gap(5).Padding(6, 0).Radius(10).Cursor(ui.CursorPointer)
-						if b.Hovered() {
-							b.Background(p.Hover)
-						}
-						b.Children(func() {
-							kit.AppIconOpts(c, pr.IconPNG, name, 40, kit.IconOpts{Shadow: true})
-							ui.Text(c, name).FontSize(10).TextColor(p.TextSecondary).SingleLine().MaxWidth(56).TextAlign(ui.Center)
-						})
-						if b.Clicked() {
-							a.closeFlyoutAnd(func() { a.openProject(id, 0) })
-						}
-					}
+			if r.Paste {
+				a.flyoutURL = strings.TrimSpace(c.ReadClipboard())
+			}
+			if (r.Action || r.Submitted) && strings.TrimSpace(a.flyoutURL) != "" {
+				u := a.flyoutURL
+				a.flyoutURL = ""
+				a.closeFlyoutAnd(func() {
+					a.create.reset(a.host)
+					a.create.setInput(u)
+					a.nav(secCreate)
 				})
-			})
+			}
+		})
+		if len(active) > 0 {
+			flyoutSection(c, T("tray.activity"))
+			for _, j := range active {
+				j := j
+				var png []byte
+				if pr := a.project(j.ProjectID); pr != nil {
+					png = pr.IconPNG
+				}
+				// A bar only while it runs: a queued build, or one that
+				// waits for approval, has its words and nothing to fill.
+				f := -2.0
+				if j.Status == domain.JobRunning {
+					var definite bool
+					if f, definite = overallProgress(j, jobBuildsProject(j)); !definite {
+						f = -1
+					}
+				}
+				if flyoutRow(c.Key(j.ID), png, j.Snapshot.App.Name, stageLabel(j), f) {
+					a.closeFlyoutAnd(func() { a.openProject(j.ProjectID, 0) })
+				}
+			}
 		}
-		kit.Hairline(c)
-		ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
-			if kit.Button(c.Key("open"), T("tray.open"), kit.ButtonOpts{Variant: kit.Ghost, Size: design.ControlSM, Icon: icons.Library}).Clicked() {
+		if recent := a.flyoutRecent(active); len(recent) > 0 {
+			flyoutSection(c, T("tray.recent"))
+			for _, pr := range recent {
+				id := pr.ID
+				if flyoutRow(c.Key(id), pr.IconPNG, pr.Config.App.Name, projectHost(pr), -2) {
+					a.closeFlyoutAnd(func() { a.openProject(id, 0) })
+				}
+			}
+		}
+		ui.Box(c).Height(0.5).Background(p.Divider).Margin(6, 10).Shrink(0)
+		ui.Row(c).Gap(2).AlignItems(ui.Center).Padding(0, 4).Children(func() {
+			if kit.Button(c.Key("open"), T("tray.open"), kit.ButtonOpts{Variant: kit.Ghost, Size: design.ControlSM + 4, Icon: icons.Library}).Clicked() {
 				a.closeFlyoutAnd(func() { a.nav(secLibrary) })
 			}
-			if kit.Button(c.Key("builds"), T("tray.viewBuilds"), kit.ButtonOpts{Variant: kit.Ghost, Size: design.ControlSM, Icon: icons.Builds}).Clicked() {
+			ui.Spacer(c)
+			if kit.IconButton(c.Key("builds"), icons.Builds, T("tray.viewBuilds")).Clicked() {
 				a.closeFlyoutAnd(func() { a.nav(secBuilds) })
 			}
-			ui.Spacer(c)
-			// A footer menu: the notch HUD toggle (the same as Settings ›
-			// Builds), and Quit.
+			// The footer menu: the notch HUD toggle (the same as Settings ›
+			// Builds), and Quit, where a menu bar app keeps it.
 			kit.IconButton(c.Key("more"), icons.More, T("common.more")).Menu(func(m *ui.Menu) {
 				on := a.ui.ShowHUD == nil || *a.ui.ShowHUD
 				if m.Item(T("hud.setting")).Checked(on).Chosen() {
@@ -326,16 +305,87 @@ func (a *App) flyoutView(c *ui.Context) {
 					a.ui.save()
 					a.syncHUD()
 				}
+				m.Separator()
+				if m.Item(T("menu.quit")).Shortcut(ui.Cmd, ui.KeyQ).Chosen() {
+					mygo.App.Quit()
+				}
 			})
-			if kit.IconButton(c.Key("quit"), icons.Power, T("menu.quit")).Clicked() {
-				mygo.App.Quit()
-			}
 		})
 	})
 }
 
-func flyoutHeader(c *ui.Context, s string) {
-	kit.Eyebrow(c, s).Padding(0, 2)
+const flyoutWidth = 320
+
+// flyoutRecent is the flyout's recent apps: the five most recent projects,
+// one per name (a rebuilt copy of an app is not a second app here), less
+// those Activity already lists.
+func (a *App) flyoutRecent(active []domain.BuildJob) []domain.Project {
+	var out []domain.Project
+	seen := map[string]bool{}
+	busy := map[string]bool{}
+	for _, j := range active {
+		busy[j.ProjectID] = true
+	}
+	for _, pr := range a.projects {
+		if busy[pr.ID] {
+			continue
+		}
+		k := strings.ToLower(pr.Config.App.Name)
+		if seen[k] {
+			continue
+		}
+		seen[k] = true
+		out = append(out, pr)
+		if len(out) == 5 {
+			break
+		}
+	}
+	return out
+}
+
+// projectHost is the site a project wraps, or its folder's name.
+func projectHost(pr domain.Project) string {
+	src := pr.Config.App.Source
+	if src.Type == config.SourceURL {
+		return strings.TrimPrefix(hostOf(src.Value), "www.")
+	}
+	return filepath.Base(src.Value)
+}
+
+// flyoutSection is a section's small heading, aligned with the rows' text.
+func flyoutSection(c *ui.Context, s string) {
+	kit.Eyebrow(c, s).Padding(10, 10, 4, 10)
+}
+
+// flyoutRow is one row of the flyout, as a menu item: the icon, the name,
+// a quiet detail on the right, and under the name a bar when progress is
+// at least -1 (-1 is indeterminate; -2 shows none). It reports a click.
+func flyoutRow(c *ui.Context, png []byte, name, detail string, progress float64) bool {
+	p := design.Of(c)
+	row := ui.ButtonBase(c).Label(name).Row().Justify(ui.Start).Gap(10).Padding(5, 10).Radius(8).AlignItems(ui.Center).
+		FocusRing(false).Transition(design.Transition(c))
+	hov := row.Hovered() || row.FocusVisible()
+	if hov {
+		row.Background(p.Hover)
+	}
+	row.Children(func() {
+		kit.AppIconOpts(c, png, name, 26, kit.IconOpts{})
+		ui.Column(c).Grow(1).MinWidth(0).Gap(5).Children(func() {
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, name).FontSize(design.FontBody).FontWeight(design.WeightMedium).TextColor(p.Text).SingleLine().Grow(1).MinWidth(0)
+				ui.Text(c, detail).FontSize(design.FontSmall).TextColor(p.TextTertiary).SingleLine().TruncateMiddle().MaxWidth(150)
+			})
+			if progress >= -1 {
+				kit.ProgressBar(c, progress).Height(4)
+			}
+		})
+		col := p.TextTertiary
+		if !hov {
+			col = ui.Transparent
+		}
+		kit.Glyph(c, icons.ChevronRt, 13, col)
+	})
+	return row.Clicked()
 }
 
 func (a *App) trayMenu(active []domain.BuildJob) *mygo.Menu {

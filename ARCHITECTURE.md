@@ -1,7 +1,7 @@
 # mypack — Implementation Architecture
 
 Stack: **Go + MyGo**
-(github.com/egoist/mygo v0.8.3, pure Go, no cgo). Native UI Builder, prebuilt
+(github.com/egoist/mygo v0.9.0, pure Go, no cgo). Native UI Builder, prebuilt
 MyGo WebView runtime + configuration injection, SQLite state, CLI + MCP stdio.
 MyGo API reference for contributors: `docs/mygo-api-digest.md`.
 

@@ -88,6 +88,41 @@ Mypack gives each site a proper app of its own, and then keeps looking after it:
   Codex and other agents can create and build apps for you. Mypack itself has
   no built-in chat or LLM.
 
+## A look around
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/readme-create.png" alt="New App: paste an address, check the name and icon, pick how the app looks"></td>
+    <td width="50%"><img src="docs/screenshots/readme-building.png" alt="A build in progress, step by step"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>New App</b>: paste an address, check the name and icon, choose a window style</td>
+    <td align="center"><b>Build</b>: a few seconds, every step shown</td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/readme-installed.png" alt="The app is built, installed and opened"></td>
+    <td><img src="docs/screenshots/readme-app-settings.png" alt="An app's settings with a Dock preview"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Done</b>: installed and opened in one click</td>
+    <td align="center"><b>App settings</b>: window mode, title bar, appearance, and how it looks in your Dock</td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/readme-discover.png" alt="Discover: popular websites, one click to start"></td>
+    <td><img src="docs/screenshots/readme-builds.png" alt="Builds: every build with its status, platform and duration"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Discover</b>: popular sites, one click to start</td>
+    <td align="center"><b>Builds</b>: every build, from the app, the CLI or an agent</td>
+  </tr>
+</table>
+
+<p align="center">
+  <img src="docs/screenshots/readme-menubar-dark.png" width="320" alt="The menu bar flyout: paste an address, open a recent app, follow builds">
+  <br>
+  <b>Menu bar</b>: paste an address, jump to a recent app, follow builds without opening the window
+</p>
+
 ## How it works
 
 ```
@@ -186,7 +221,7 @@ apps/         the browser extension (WXT + SolidJS)
 
 ## Releases
 
-Version releases are for the app and CLI. [release-please](docs/releasing.md) opens one release pull request and tags `vX.Y.Z` when that pull request is merged. GoReleaser then publishes unsigned binaries, archives, and checksums to that GitHub Release. Discover catalog edits do not cut a release. Signed macOS builds and Homebrew are not part of this pipeline yet; [docs/releasing.md](docs/releasing.md) lists what they need.
+A release is a `vX.Y.Z` tag pushed on `main`. The Release workflow tests that commit, then GoReleaser builds unsigned binaries for macOS, Linux and Windows and publishes them, with checksums, to a GitHub Release whose notes list the pull requests merged since the last one. Discover catalog edits reach users without a release. Signed macOS builds and Homebrew are not part of this pipeline yet; [docs/releasing.md](docs/releasing.md) lists what they need.
 
 ## Contributing
 

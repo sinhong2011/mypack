@@ -10,7 +10,6 @@ make that core flow faster, clearer or more reliable are the most welcome.
   add `name`, an `https://` `url` and a `category` (`work`, `dev`, `chat`,
   `ai`, `design` or `media`), then run `go test ./catalog`. Once merged, the
   site shows up in everyone's Discover page within a day, no release needed.
-  release-please ignores commits that only touch `catalog/`.
   Entries only fill in an address; they can't carry scripts or settings.
 - **Website compatibility reports.** A site that doesn't log in, loses its
   session, opens links in the wrong place or looks broken in a generated app.
@@ -51,16 +50,15 @@ Read [ARCHITECTURE.md](ARCHITECTURE.md) before larger changes. In short:
 
 ## Releases
 
-App and CLI versions are cut from `main` with [release-please](docs/releasing.md).
-Use [Conventional Commits](https://www.conventionalcommits.org/): `feat:` bumps
-the minor version, `fix:` bumps the patch, and `feat!:` or a `BREAKING CHANGE`
-footer bumps the major. Merging the release pull request creates the `vX.Y.Z`
-tag. Do not push that tag yourself.
+A release is a `vX.Y.Z` tag on `main`, pushed by a maintainer with
+`scripts/release.sh` ([docs/releasing.md](docs/releasing.md)). Its notes are
+the titles of the pull requests merged since the last release, so write the
+title for someone reading the release notes.
 
 ## Pull requests
 
 - Keep each pull request to one change, with tests where it is practical.
-- Start the title with a Conventional Commit type, for example `docs: update the library screenshot`. Every commit subject on the pull request uses that same form. Merge commits are skipped. The preferred branch name is the same type and a short slug, for example `docs/update-library-screenshot`. When the branch starts with `feat/`, `fix/`, `docs/`, `style/`, `refactor/`, `perf/`, `test/`, `build/`, `chore/`, `ci/`, or `revert/`, that type must match the title. A `fix:` commit may still sit on a `feat/` branch. `cursor/`, `dependabot/`, `renovate/`, and `release-please--` branches are left alone.
+- Start the title with a Conventional Commit type, for example `docs: update the library screenshot`. Every commit subject on the pull request uses that same form. Merge commits are skipped. The preferred branch name is the same type and a short slug, for example `docs/update-library-screenshot`. When the branch starts with `feat/`, `fix/`, `docs/`, `style/`, `refactor/`, `perf/`, `test/`, `build/`, `chore/`, `ci/`, or `revert/`, that type must match the title. A `fix:` commit may still sit on a `feat/` branch. `cursor/`, `dependabot/`, and `renovate/` branches are left alone.
 - Run `make test` and `make vet` before you push.
 - New user-facing text goes in `en.json`. Translations for other languages are
   welcome but not required.

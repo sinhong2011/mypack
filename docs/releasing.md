@@ -1,8 +1,8 @@
 # Releasing Mypack
 
-Mypack has one version line: the app and CLI. [release-please](https://github.com/googleapis/release-please) opens a release pull request, writes `CHANGELOG.md`, and creates the `vX.Y.Z` tag when that pull request is merged. [GoReleaser](https://goreleaser.com/) builds the binaries and uploads archives to that GitHub Release. release-please does not build artifacts.
+Mypack has one version line: the app and CLI. A release is a `vX.Y.Z` tag on `main`, as in [MyGo](https://github.com/egoist/mygo). There is no release pull request, no version file to bump, and no `CHANGELOG.md`. Pushing the tag starts [`.github/workflows/release.yml`](../.github/workflows/release.yml), which tests the tagged commit and runs [GoReleaser](https://goreleaser.com/) to build the archives and create the GitHub Release.
 
-There is one package, configured at the repository root in [`release-please-config.json`](../release-please-config.json). Tags look like `v0.1.0`. They do not look like `mypack-v0.1.0`, and this repo does not keep a moving `latest` git tag. GitHub marks the newest `vX.Y.Z` Release as Latest on its own.
+Tags look like `v0.1.0`, or `v0.2.0-beta.1` for a pre-release. They do not look like `mypack-v0.1.0`, and this repo does not keep a moving `latest` git tag. GitHub marks the newest stable `vX.Y.Z` Release as Latest on its own.
 
 ## What a release is
 
@@ -29,7 +29,7 @@ The source defaults stay `0.1.0-dev` (`internal/cli.Version` and `internal/deskt
 
 These are not part of the GitHub Release:
 
-- **Discover catalog.** Commits that only touch `catalog/` are excluded in `release-please-config.json`. Merging a catalog edit does not open a release pull request. A commit that also changes the app still counts.
+- **Discover catalog.** The app reads `catalog/discover.json` from `main`, so a catalog edit reaches users without a release.
 - **Generated-app runtimes.** `make runtimes` / `scripts/release-runtimes.sh` writes a signed registry under `dist/registry/`. That version is the Makefile `VERSION` (default `1.0.0`), which is also what `make app` writes into `dist/Mypack-1.0.0.dmg`. It is a different number from the git tag. Release builds do not run `release-runtimes.sh`.
 - **Browser companion.** `apps/browser-companion` is built with pnpm and is not in the archives.
 - **Dev signing keys.** `dist/keys/` is gitignored. The release workflows never read it. GoReleaser writes to `dist/goreleaser/` so `release --clean` cannot delete `dist/keys/` or `dist/registry/`.
@@ -38,46 +38,54 @@ These are not part of the GitHub Release:
 
 ## How a release is cut
 
-1. Land conventional commits on `main`.
-   - `feat:` minor (`0.1.0` → `0.2.0`)
-   - `fix:` patch (`0.1.0` → `0.1.1`)
-   - `feat!:` or a `BREAKING CHANGE:` footer: major (`0.1.0` → `1.0.0`), including before 1.0.0
-2. `.github/workflows/release-please.yml` opens or updates one pull request titled `chore(main): release X.Y.Z`. The pull request updates `CHANGELOG.md` and `.release-please-manifest.json`. It does not upload binaries.
-3. Review that pull request and merge it. Merging creates git tag `vX.Y.Z` and a GitHub Release whose body is the changelog.
-4. The same workflow then runs GoReleaser, which uploads archives and `checksums.txt` onto that Release and leaves the notes in place.
+On an up-to-date `main` with a clean tree:
 
-`.github/workflows/release.yml` also runs on a pushed `vX.Y.Z` tag. release-please uses the workflow's `GITHUB_TOKEN`. GitHub does not start a new workflow from events that token creates, so a tag created by release-please does not start `release.yml` on its own. The publish job is chained in `release-please.yml` for that reason. Pushing a tag yourself, or re-running the Release workflow on that tag, publishes again. Re-runs replace archives that are already there (`replace_existing_artifacts`); they keep the existing release notes (`mode: keep-existing`).
-
-Repository setting required once: **Settings → Actions → General → Allow GitHub Actions to create and approve pull requests.** Without it, release-please cannot open the release pull request.
-
-The release pull request is opened by `GITHUB_TOKEN`, so the test workflow does not start on it. The pull request should only change `CHANGELOG.md` and `.release-please-manifest.json`. To run CI on it later, pass a fine-scoped personal access token or GitHub App token as the `token` input of `googleapis/release-please-action`. Do not commit that token. Leave the input unset until the secret exists; an empty token fails the action.
-
-## First release
-
-There are no tags yet. The first release pull request is the initial version, not a bump of an already-tagged release.
-
-- `initial-version` is `0.1.0`, from the `0.1.0-dev` constants in `internal/cli/cli.go` and `internal/desktop/app/app.go`. Commits included in that pull request are the contents of 0.1.0. They do not bump it to 0.2.0.
-- `bootstrap-sha` is `c1d0dd36510548f910f44224950c2c82984a1ac5`, the commit that opened the public history. The first changelog starts after that commit. After the first release pull request has been merged, release-please ignores `bootstrap-sha` and the field can be deleted.
-- `.release-please-manifest.json` is `{}` until the release pull request records the version it is cutting. Do not put `0.1.0` in the manifest yourself. A version written there is treated as already released, and the next pull request bumps past it.
-
-After this change is on `main`, the next `feat:` or `fix:` (including the commit that added this pipeline, once it is merged) makes release-please open the release pull request. Before merging that pull request, check:
-
-- The title is `chore(main): release 0.1.0`.
-- The tag it will create is `v0.1.0`.
-- The diff is `CHANGELOG.md` and `.release-please-manifest.json` (the manifest becomes `{ ".": "0.1.0" }`).
-- No git tag is created by hand, and no second package path is added.
-
-Local `make app` still defaults `VERSION` to `1.0.0`, so `dist/Mypack-1.0.0.dmg` and the dev runtime registry stay on that number. That default is not the git tag. Pass `VERSION=0.1.0` when you want a local bundle to match the first release.
-
-To cut the first release as a different version, add a commit on `main` before merging the release pull request:
-
-```
-chore: set the first release version
-
-Release-As: 1.0.0
+```sh
+scripts/release.sh 0.1.0          # or 0.2.0-beta.1 for a pre-release
 ```
 
-release-please updates the open pull request to that version. Do not set `release-as` in `release-please-config.json`. That setting would force every later release to the same number.
+The script checks that you are on `main`, that `main` matches GitHub's, and that the tag is new. It opens your git editor to write the release notes (the commits since the last tag are listed there as `;` comments to work from), shows the notes, asks once, then creates the annotated tag `v0.1.0` with the notes as its message and pushes only that tag. `--notes notes.md` takes the notes from a file instead. It finds the GitHub remote by its URL, so it works when `origin` is another server.
+
+The Release workflow then:
+
+1. **verify**: checks that the tag is `vX.Y.Z` or `vX.Y.Z-pre` (`scripts/release.sh --check-tag`) and that its commit is on `main`, then runs `go vet ./...` and `go test ./...` on it. A tag pushed by hand, or before CI on `main` finished, cannot publish a broken build.
+2. **publish**: runs `goreleaser release --clean`. It builds the six archives, writes `checksums.txt`, and creates the GitHub Release named `Mypack X.Y.Z`. A tag with `-` in it is marked as a pre-release (`prerelease: auto`).
+
+On pull requests that touch the release files, the same workflow runs `goreleaser check` and the script's `--self-test`, and publishes nothing.
+
+### Choosing the version
+
+You choose it; nothing computes it from commit messages. Before 1.0.0, use the minor version (`0.2.0`) for new features or anything that breaks, and the patch version (`0.1.1`) for fixes only.
+
+### Release notes
+
+A Release page has three parts, top to bottom:
+
+1. **Your notes**, from the annotated tag's message (GoReleaser `release.header: "{{ .TagBody }}"`). Write them as MyGo and Pake do: sections such as `## Highlights`, `## Breaking changes` and `## Fixes`, one bullet per change a user would notice, leading with a bold phrase. Lines starting with `#` stay (they are headings); lines starting with `;` are dropped. Mention contributors as `@name` and GitHub adds their avatars under the notes.
+2. **The generated list** (`changelog.use: github-native`): GitHub's *Generate release notes*, the titles of the pull requests merged since the previous tag, new contributors, and the Full Changelog link. Pull request titles are checked as Conventional Commits (`.github/workflows/conventional-title.yml`) so the list reads well.
+3. **A footer** saying the binaries are unsigned, with a link to this page.
+
+Leave the notes empty to publish the generated list alone. To change notes after publishing, edit the Release on GitHub; the tag keeps what you wrote first. Do not re-tag to fix notes.
+
+To group the generated list (Features, Fixes, Catalog), add [`.github/release.yml`](https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes) with label-based categories. Discover catalog pull requests then fall under their own heading, or can be excluded by label.
+
+The publish job fetches tags again after checkout, because `actions/checkout` can leave the tag without its message. Without that step the notes would be empty.
+
+### Publishing again
+
+Re-running the Release workflow on the same tag rebuilds the archives and replaces them on the existing Release (`replace_existing_artifacts`). Notes that are already there are kept (`mode: keep-existing`). Do not move a tag that has been published; cut the next patch version instead.
+
+### Trying it locally
+
+```sh
+goreleaser release --snapshot --clean --skip=publish
+```
+
+builds every archive into `dist/goreleaser/` with a `-snapshot` version, without a tag and without touching GitHub.
+
+### Local bundles
+
+Local `make app` still defaults `VERSION` to `1.0.0`, so `dist/Mypack-1.0.0.dmg` and the dev runtime registry stay on that number. That default is not the git tag. Pass `VERSION=0.1.0` when you want a local bundle to match a release.
 
 ## Archives
 
@@ -93,7 +101,6 @@ Each archive unpacks to a single directory containing:
 - `mypack-cli` (`mypack-cli.exe`)
 - `mypack-native-host` (`mypack-native-host.exe`)
 - `LICENSE`, `NOTICE`, `README.md`
-- `CHANGELOG.md`, once the release pull request has added it
 
 `make release` on a Mac still builds `dist/Mypack-<version>.app` and `dist/Mypack-<version>.dmg`. The GitHub Release does not include that disk image. See below.
 
@@ -133,4 +140,4 @@ GoReleaser's open-source distribution can update a formula from the archives abo
 2. A token that can write to that repository, stored as an Actions secret. The default `GITHUB_TOKEN` can only write to this repository.
 3. A `brews` section in `.goreleaser.yaml` that points at the tap and installs the same `vX.Y.Z` archives. Do not give the formula its own tag or a second GitHub Release.
 
-If the repository later enables immutable releases, assets cannot be added after the Release is published. Switch release-please to `"draft": true` with `"force-tag-creation": true`, and set GoReleaser `use_existing_draft: true`, so binaries are uploaded before the Release is published. That is only needed once immutability is turned on.
+If the repository later enables immutable releases, a published Release cannot take more assets, and re-running the workflow cannot replace them. Set GoReleaser `release.draft: true` and publish the draft once the archives are on it.
