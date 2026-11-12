@@ -26,7 +26,7 @@ func (a *App) lookAndBehaviour(c *ui.Context, cfg *config.Config, changed func()
 func (a *App) lookAndBehaviourOpts(c *ui.Context, cfg *config.Config, changed func(), account *string, compact bool) {
 	p := design.Of(c)
 	w := &cfg.Window
-	a.compactPickers(c, p, w, changed) // one family of single-row pickers everywhere
+	a.compactPickers(c, p, cfg, changed) // one family of single-row pickers everywhere
 	signedInDesc := T("look.signedIn.on")
 	if cfg.WebView.Incognito {
 		signedInDesc = T("look.signedIn.off")
@@ -270,7 +270,8 @@ func modeThumb(c *ui.Context, p *design.Palette, mode string, w, h float32) {
 // compactPickers are the inspector's pickers: three single rows of small
 // tiles of one size (up to 80×56), a caption under each; the selected window
 // size's dimensions in one line under its row.
-func (a *App) compactPickers(c *ui.Context, p *design.Palette, w *config.WindowConfig, changed func()) {
+func (a *App) compactPickers(c *ui.Context, p *design.Palette, cfg *config.Config, changed func()) {
+	w := &cfg.Window
 	// One grid for all three rows: four slots across the inspector's
 	// inner width, 10 pt apart; tiles keep a 0.7 aspect and never clip.
 	const gap, aspect = 10, 0.7
@@ -297,8 +298,7 @@ func (a *App) compactPickers(c *ui.Context, p *design.Palette, w *config.WindowC
 		if w.EffectiveMode() != config.ModeWindow && a.settingHit(T("look.mode")) {
 			ui.Text(c, map[string]string{config.ModeCompact: T("look.mode.compact.desc"), config.ModeSidebar: T("look.mode.sidebar.desc"), config.ModeMenuBar: T("look.mode.menubar.desc")}[w.EffectiveMode()]).FontSize(design.FontCaption).TextColor(p.TextSecondary).Padding(0, 2)
 		}
-		menuBar := w.EffectiveMode() == config.ModeMenuBar
-		if !menuBar {
+		if titleBarApplies(cfg) {
 			a.pickerRowIf(c, T("look.titleBar"), func() {
 				seamless := w.TitleBarStyle == "overlay" || w.TitleBarStyle == "hidden"
 				tw, th := slot-6, (slot-6)*aspect
@@ -398,4 +398,11 @@ func pickerRow(c *ui.Context, title string, body func()) {
 		ui.Text(c, title).FontSize(design.FontBody).FontWeight(design.WeightSemibold).TextColor(p.Text).Padding(0, 2).Role(ui.RoleHeading)
 		ui.Row(c).Gap(10).Role(ui.RoleRadioGroup).Label(title).Children(body)
 	})
+}
+
+// titleBarApplies reports whether the Title bar choice changes anything:
+// a menu-bar panel has no title bar, and the tab bar or a group's rail
+// takes the title bar's place.
+func titleBarApplies(cfg *config.Config) bool {
+	return cfg.Window.EffectiveMode() != config.ModeMenuBar && !cfg.IsGroup() && !cfg.Window.Tabs
 }
