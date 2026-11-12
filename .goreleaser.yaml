@@ -76,7 +76,12 @@ release:
   mode: keep-existing
   replace_existing_artifacts: true
   prerelease: auto
+  # The notes written into the annotated tag (scripts/release.sh), above
+  # the generated list of pull requests.
   header: |
+    {{ .TagBody }}
+  footer: |
+    ---
     Unsigned binaries for the Mypack app and CLI. macOS builds are not notarized and there is no Homebrew formula yet. Details: https://github.com/sinhong2011/mypack/blob/main/docs/releasing.md
 
 snapshot:

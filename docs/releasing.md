@@ -44,7 +44,7 @@ On an up-to-date `main` with a clean tree:
 scripts/release.sh 0.1.0          # or 0.2.0-beta.1 for a pre-release
 ```
 
-The script checks that you are on `main`, that `main` matches GitHub's, and that the tag is new. It lists the commits since the last tag, asks once, then creates the annotated tag `v0.1.0` and pushes only that tag. It finds the GitHub remote by its URL, so it works when `origin` is another server.
+The script checks that you are on `main`, that `main` matches GitHub's, and that the tag is new. It opens your git editor to write the release notes (the commits since the last tag are listed there as `;` comments to work from), shows the notes, asks once, then creates the annotated tag `v0.1.0` with the notes as its message and pushes only that tag. `--notes notes.md` takes the notes from a file instead. It finds the GitHub remote by its URL, so it works when `origin` is another server.
 
 The Release workflow then:
 
@@ -59,9 +59,17 @@ You choose it; nothing computes it from commit messages. Before 1.0.0, use the m
 
 ### Release notes
 
-GoReleaser uses `changelog.use: github-native`: the notes are what GitHub's *Generate release notes* writes, the titles of the pull requests merged since the previous tag, plus new contributors. Pull request titles are checked as Conventional Commits (`.github/workflows/conventional-title.yml`) so the list reads well. Edit the notes on GitHub after publishing if a release needs a summary at the top.
+A Release page has three parts, top to bottom:
 
-To group the notes (Features, Fixes, Catalog), add [`.github/release.yml`](https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes) with label-based categories. Discover catalog pull requests then fall under their own heading, or can be excluded by label.
+1. **Your notes**, from the annotated tag's message (GoReleaser `release.header: "{{ .TagBody }}"`). Write them as MyGo and Pake do: sections such as `## Highlights`, `## Breaking changes` and `## Fixes`, one bullet per change a user would notice, leading with a bold phrase. Lines starting with `#` stay (they are headings); lines starting with `;` are dropped. Mention contributors as `@name` and GitHub adds their avatars under the notes.
+2. **The generated list** (`changelog.use: github-native`): GitHub's *Generate release notes*, the titles of the pull requests merged since the previous tag, new contributors, and the Full Changelog link. Pull request titles are checked as Conventional Commits (`.github/workflows/conventional-title.yml`) so the list reads well.
+3. **A footer** saying the binaries are unsigned, with a link to this page.
+
+Leave the notes empty to publish the generated list alone. To change notes after publishing, edit the Release on GitHub; the tag keeps what you wrote first. Do not re-tag to fix notes.
+
+To group the generated list (Features, Fixes, Catalog), add [`.github/release.yml`](https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes) with label-based categories. Discover catalog pull requests then fall under their own heading, or can be excluded by label.
+
+The publish job fetches tags again after checkout, because `actions/checkout` can leave the tag without its message. Without that step the notes would be empty.
 
 ### Publishing again
 

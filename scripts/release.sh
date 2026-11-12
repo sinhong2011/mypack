@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # Cuts a Mypack release by pushing its tag, as MyGo does: no release pull
-# request and no version in the source. The Release workflow tests the
-# tagged commit and publishes. See docs/releasing.md.
+# request and no version in the source. The release notes are written into
+# the annotated tag, and the Release workflow puts them at the top of the
+# GitHub Release, above the generated list of pull requests. See
+# docs/releasing.md.
 #
-#   scripts/release.sh 0.2.0          # tag main as v0.2.0 and push the tag
-#   scripts/release.sh 0.2.0-beta.1   # a pre-release (anything after "-")
+#   scripts/release.sh 0.2.0                 # write the notes in $EDITOR
+#   scripts/release.sh 0.2.0 --notes n.md    # take them from a file
+#   scripts/release.sh 0.2.0-beta.1          # a pre-release (anything after "-")
 #   scripts/release.sh --check-tag v0.2.0
 #   scripts/release.sh --self-test
 set -euo pipefail
@@ -50,13 +53,18 @@ case "${1:-}" in
     echo "tag ${2} is a release tag"
     exit ;;
   ""|-h|--help)
-    sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
     exit 2 ;;
 esac
 
 version="${1#v}"
 tag="v$version"
 check_version "$version" || { echo "'$1' is not X.Y.Z or X.Y.Z-pre" >&2; exit 2; }
+notes_file=""
+if [[ "${2:-}" == --notes ]]; then
+  notes_file="${3:?--notes needs a file}"
+  [[ -f "$notes_file" ]] || { echo "no file $notes_file" >&2; exit 2; }
+fi
 
 remote="$(github_remote)"
 git fetch --quiet --tags "$remote" main
@@ -70,11 +78,53 @@ if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
 fi
 
 last="$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)"
-echo "Releasing $tag from $(git rev-parse --short HEAD)${last:+, after $last}:"
-git log --oneline --no-merges ${last:+"$last"..HEAD} | sed 's/^/  /' | head -40
+commits="$(git log --format='%s' --no-merges ${last:+"$last"..HEAD})"
+
+# The tag's message is "Mypack X.Y.Z", a blank line, then the notes in
+# Markdown. Lines starting with ";" are dropped, so "#" headings stay.
+msg="$(mktemp -t mypack-release)"
+trap 'rm -f "$msg"' EXIT
+{
+  echo "Mypack $version"
+  echo
+  if [[ -n "$notes_file" ]]; then
+    cat "$notes_file"
+  else
+    cat <<NOTES
+; Write the release notes for $tag below, in Markdown. They go at the top
+; of the GitHub Release, above GitHub's list of merged pull requests.
+; Lines starting with ";" are dropped. Leave it empty for the list alone.
+; Save and close to continue.
+;
+; A shape that reads well (drop what is empty):
+;
+; ## Highlights
+; - **Bold lead.** One sentence on what a user can do now.
+; ## Breaking changes
+; ## Fixes
+;
+; Commits since ${last:-the first commit}:
+$(printf '%s\n' "$commits" | sed 's/^/;   /')
+
+NOTES
+  fi
+} > "$msg"
+if [[ -z "$notes_file" ]]; then
+  "$(git var GIT_EDITOR)" "$msg"
+fi
+# Keep what git will keep, to show it.
+notes="$(grep -v '^;' "$msg" | tail -n +3)"
+
+echo "Releasing $tag from $(git rev-parse --short HEAD)${last:+, after $last}."
+if [[ -n "$(printf '%s' "$notes" | tr -d '[:space:]')" ]]; then
+  echo "Notes:"
+  printf '%s\n' "$notes" | sed 's/^/  | /'
+else
+  echo "No notes: the Release lists the merged pull requests only."
+fi
 read -r -p "Push $tag to $remote? [y/N] " yes
 [[ "$yes" == [yY] ]] || { echo "nothing pushed"; exit 1; }
 
-git tag -a "$tag" -m "Mypack $version"
+git -c core.commentChar=';' tag -a "$tag" --cleanup=strip -F "$msg"
 git push "$remote" "refs/tags/$tag"
 echo "pushed $tag: https://github.com/sinhong2011/mypack/actions/workflows/release.yml"
