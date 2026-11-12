@@ -24,6 +24,8 @@
     }
   },
   "linux": {
+    "comment": "Turn any website or local HTML project into a native desktop app",
+    "command": "mypack",
     "categories": [
       "Development",
       "Utility"
