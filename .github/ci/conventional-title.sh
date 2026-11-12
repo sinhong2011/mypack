@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Conventional Commits title, and a matching branch name when the branch
-# starts with a type. https://www.conventionalcommits.org/en/v1.0.0/
+# Conventional Commits for the pull request title, the branch name, and
+# each commit subject. https://www.conventionalcommits.org/en/v1.0.0/
 set -euo pipefail
 
 types='feat|fix|docs|style|refactor|perf|test|build|chore|ci|revert'
@@ -19,6 +19,8 @@ title_type() {
 
 # A type/slug branch must use the same type as the title.
 # cursor/, dependabot/, renovate/, and release-please-- branches are left alone.
+# Commit subjects use the same title pattern. They do not have to share the
+# branch type: a feature pull request may contain a fix.
 check_branch() {
   local branch="$1" ttype="$2"
   local first="${branch%%/*}"
@@ -33,6 +35,27 @@ check_branch() {
     return
   fi
   return 0
+}
+
+# Subjects, one per line. Blank lines are ignored.
+check_subjects() {
+  local bad=0 subject saw=false
+  while IFS= read -r subject || [[ -n "$subject" ]]; do
+    [[ -z "$subject" ]] && continue
+    saw=true
+    if check_title "$subject"; then
+      echo "commit ok: $subject"
+    else
+      echo "Commit subject is not a Conventional Commit:" >&2
+      echo "  $subject" >&2
+      bad=1
+    fi
+  done
+  if [[ "$saw" == false ]]; then
+    echo "No commit subjects to check." >&2
+    return 1
+  fi
+  return "$bad"
 }
 
 self_test() {
@@ -81,6 +104,18 @@ self_test() {
   expect_bad_title 'Feature: add a thing'
   expect_bad_branch 'feat: add release publishing' 'docs/update-library-screenshot'
   expect_bad_branch 'docs: update the library screenshot' 'fix/windows-paths'
+  if printf '%s\n' 'ci: check pull request titles' 'fix: accept Windows paths' | check_subjects >/dev/null; then
+    echo "ok  commit subjects"
+  else
+    echo "FAIL (should pass subjects)" >&2
+    fail=1
+  fi
+  if printf '%s\n' 'ci: check pull request titles' 'Update the README' | check_subjects >/dev/null; then
+    echo "FAIL (should reject a non-conventional subject)" >&2
+    fail=1
+  else
+    echo "ok  rejected commit subject"
+  fi
   return "$fail"
 }
 
@@ -108,4 +143,6 @@ if ! check_branch "$branch" "$ttype"; then
 fi
 echo "title ok: $title"
 echo "branch ok: $branch"
-exit 0
+if [[ -n "${RANGE_BASE:-}" && -n "${RANGE_HEAD:-}" ]]; then
+  git log --no-merges --format=%s "${RANGE_BASE}..${RANGE_HEAD}" | check_subjects
+fi
