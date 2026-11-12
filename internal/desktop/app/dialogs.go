@@ -378,6 +378,17 @@ func (a *App) detailsModal(c *ui.Context, u *detailsDialog, in *domain.Installat
 					u.open = false
 					a.forgetApp(in.ID, in.Name)
 				}
+				if managed && in.ProjectID != "" && in.State != domain.InstallMissing {
+					// Rebuild from the project as it is now; the build panel
+					// takes over, so the sheet closes. While one is already
+					// running the button shows it instead of queueing another.
+					j := a.latestJob(in.ProjectID)
+					busy := j != nil && (j.Status == domain.JobRunning || j.Status == domain.JobQueued)
+					if kit.Button(c.Key("rebuild"), T("action.rebuild"), kit.ButtonOpts{Icon: icons.Retry, Loading: busy, Disabled: busy}).Clicked() {
+						u.open = false
+						a.startBuild(in.ProjectID, nil)
+					}
+				}
 				if managed && in.ProjectID != "" && kit.Button(c.Key("repair"), T("action.repair"), kit.ButtonOpts{}).Clicked() {
 					u.open = false
 					a.dlg.repair = installDialog{open: true, id: in.ID}
