@@ -154,25 +154,48 @@ func pageLines(c *ui.Context, ink ui.Color, n int) {
 	})
 }
 
-// windowThumb is a little window with a standard or seamless title bar.
-func windowThumb(c *ui.Context, p *design.Palette, seamless bool, w, h float32) {
+// windowThumb is a little window with a standard, seamless or glass title bar.
+func windowThumb(c *ui.Context, p *design.Palette, kind string, w, h float32) {
 	desktop(c, p.Dark)
+	head := p.Accent.Mix(ui.RGB(255, 255, 255), 0.15)
 	ui.Column(c).Absolute().Left(10).Top(10).Right(10).Bottom(-6).Radius(7).Clip().Background(ui.RGB(255, 255, 255)).
 		Shadow(0, 2, 6, 0, ui.RGBA(0, 0, 0, 0.18)).Children(func() {
 		bar := ui.Row(c).Height(13).PaddingX(5).AlignItems(ui.Center)
-		if seamless {
-			bar.Background(p.Accent.Mix(ui.RGB(255, 255, 255), 0.15))
-		} else {
+		switch kind {
+		case tbSeamless:
+			bar.Background(head)
+		case tbGlass:
+			// Frosted glass over the page's colour, lit along its rim.
+			bar.Background(head.Mix(ui.RGB(255, 255, 255), 0.5)).BorderWidth(0, 0, 0.5, 0).BorderColor(ui.RGBA(255, 255, 255, 0.9))
+		default:
 			bar.Background(ui.RGB(236, 236, 238)).BorderWidth(0, 0, 0.5, 0).BorderColor(ui.RGBA(0, 0, 0, 0.12))
 		}
 		bar.Children(func() { dots(c) })
-		if seamless {
-			ui.Column(c).Background(p.Accent.Mix(ui.RGB(255, 255, 255), 0.15)).Padding(0, 8, 6, 8).Children(func() {
+		if kind != tbStandard {
+			ui.Column(c).Background(head).Padding(0, 8, 6, 8).Children(func() {
 				ui.Box(c).Height(5).WidthPercent(55).Radius(2.5).Background(ui.RGBA(255, 255, 255, 0.85))
 			})
 		}
 		pageLines(c, ui.RGBA(0, 0, 0, 0.1), 3)
 	})
+}
+
+// The title bar kinds the picker offers.
+const (
+	tbStandard = "standard"
+	tbSeamless = "seamless"
+	tbGlass    = "glass"
+)
+
+// titleBarKind is the picker's kind of a window.titleBarStyle.
+func titleBarKind(style string) string {
+	switch style {
+	case "overlay", "hidden":
+		return tbSeamless
+	case "glass":
+		return tbGlass
+	}
+	return tbStandard
 }
 
 // appearanceThumb previews light, dark or both (System: a diagonal split).
@@ -300,15 +323,18 @@ func (a *App) compactPickers(c *ui.Context, p *design.Palette, cfg *config.Confi
 		}
 		if titleBarApplies(cfg) {
 			a.pickerRowIf(c, T("look.titleBar"), func() {
-				seamless := w.TitleBarStyle == "overlay" || w.TitleBarStyle == "hidden"
+				cur := titleBarKind(w.TitleBarStyle)
 				tw, th := slot-6, (slot-6)*aspect
-				if kit.ChoiceTileSmall(c.Key("tb-std"), T("look.titleBar.standard"), "", !seamless, slot, aspect, func() { windowThumb(c, p, false, tw, th) }) {
-					w.TitleBarStyle = "default"
-					changed()
-				}
-				if kit.ChoiceTileSmall(c.Key("tb-seam"), T("look.titleBar.seamless"), "", seamless, slot, aspect, func() { windowThumb(c, p, true, tw, th) }) {
-					w.TitleBarStyle = "overlay"
-					changed()
+				for _, k := range []struct{ kind, style, label string }{
+					{tbStandard, "default", T("look.titleBar.standard")},
+					{tbSeamless, "overlay", T("look.titleBar.seamless")},
+					{tbGlass, "glass", T("look.titleBar.glass")},
+				} {
+					k := k
+					if kit.ChoiceTileSmall(c.Key("tb-"+k.kind), k.label, "", cur == k.kind, slot, aspect, func() { windowThumb(c, p, k.kind, tw, th) }) {
+						w.TitleBarStyle = k.style
+						changed()
+					}
 				}
 			})
 		}

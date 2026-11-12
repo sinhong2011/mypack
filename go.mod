@@ -3,6 +3,7 @@ module mypack.dev/mypack
 go 1.27.3
 
 require (
+	github.com/ebitengine/purego v0.11.1
 	github.com/egoist/mygo v0.9.0
 	github.com/tc-hib/winres v0.3.1
 	golang.org/x/image v0.48.0
@@ -12,7 +13,6 @@ require (
 
 require (
 	github.com/dustin/go-humanize v1.1.0 // indirect
-	github.com/ebitengine/purego v0.11.1 // indirect
 	github.com/go-text/typesetting v0.3.5 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
