@@ -1,0 +1,32 @@
+# The pull request title, a type/slug branch, and each commit subject must
+# be Conventional Commits. Nothing else runs here.
+name: Conventional title
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: conventional-title-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  title:
+    name: conventional title
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Examples
+        run: bash .github/ci/conventional-title.sh --self-test
+      - name: Title, branch, and commit subjects
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          BRANCH: ${{ github.head_ref }}
+          RANGE_BASE: ${{ github.event.pull_request.base.sha }}
+          RANGE_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: bash .github/ci/conventional-title.sh
