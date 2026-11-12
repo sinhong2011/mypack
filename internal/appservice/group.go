@@ -21,11 +21,12 @@ type GroupRequest struct {
 	Actor string
 }
 
-// GroupSite is one website of a new group: a Library project, or an
-// address (its name and icon are fetched).
+// GroupSite is one website of a new group: a Library project, an address
+// (its name and icon are fetched), or a local folder or HTML file (Path).
 type GroupSite struct {
 	ProjectID string
 	URL       string
+	Path      string
 }
 
 // CreateGroup creates a group project: one app whose window shows the
@@ -57,17 +58,46 @@ func (s *Impl) CreateGroup(ctx context.Context, req GroupRequest) (p domain.Proj
 			m   config.GroupMember
 			png []byte
 		)
+		if site.Path != "" {
+			lm, lerr := s.localMember(site.Path)
+			if lerr != nil {
+				return p, lerr
+			}
+			m, png = lm, s.icons.Default(lm.Name)
+			if seen[m.Local] {
+				continue
+			}
+			seen[m.Local] = true
+			m.ID = config.MemberID(m.Name, taken)
+			taken[m.ID] = true
+			members = append(members, m)
+			pngs = append(pngs, png)
+			continue
+		}
 		if site.ProjectID != "" {
 			mp, gerr := s.store.GetProject(ctx, site.ProjectID)
 			if gerr != nil {
 				return p, gerr
 			}
 			c := mp.Config
-			if c == nil || c.App.Source.Type != config.SourceURL || c.IsGroup() {
+			if c == nil || c.IsGroup() {
 				return p, &domain.Error{Code: CodeInvalidInput, Field: "sites",
-					Message: fmt.Sprintf("%s can't join a group: only website apps can.", projectName(mp))}
+					Message: fmt.Sprintf("%s can't join a group: it is a group itself.", projectName(mp))}
 			}
-			m = config.GroupMember{Name: c.App.Name, URL: c.App.Source.Value, ProjectID: mp.ID}
+			if c.App.Source.Type == config.SourceURL {
+				m = config.GroupMember{Name: c.App.Name, URL: c.App.Source.Value, ProjectID: mp.ID}
+			} else {
+				// A local app joins with its folder (a project's built output).
+				lm, lerr := s.localMember(c.App.Source.Value)
+				if lerr != nil {
+					return p, lerr
+				}
+				if c.App.Source.Type == config.SourceDir && c.App.Source.Entry != "" {
+					lm.Entry = c.App.Source.Entry
+				}
+				lm.Name, lm.ProjectID = c.App.Name, mp.ID
+				m = lm
+			}
 			png = mp.IconPNG
 		} else {
 			u, nerr := config.NormalizeURL(strings.TrimSpace(site.URL))
@@ -84,10 +114,10 @@ func (s *Impl) CreateGroup(ctx context.Context, req GroupRequest) (p domain.Proj
 			}
 			m = config.GroupMember{Name: firstNonEmpty(cleanName(title), cleanName(titleFromHost(u))), URL: u}
 		}
-		if seen[m.URL] {
+		if seen[m.URL+m.Local] {
 			continue
 		}
-		seen[m.URL] = true
+		seen[m.URL+m.Local] = true
 		m.ID = config.MemberID(m.Name, taken)
 		taken[m.ID] = true
 		members = append(members, m)
@@ -97,8 +127,19 @@ func (s *Impl) CreateGroup(ctx context.Context, req GroupRequest) (p domain.Proj
 		return p, &domain.Error{Code: CodeInvalidInput, Field: "projectIds",
 			Message: fmt.Sprintf("Add at least %d different websites.", config.MinGroupMembers)}
 	}
-	md := &Metadata{URL: members[0].URL, Title: name, IconPNG: icons.Group(pngs)}
-	p, err = s.CreateProject(ctx, CreateRequest{Input: members[0].URL, Name: name, Metadata: md, Actor: actor})
+	// The project's source: its first website, else its first folder.
+	input := ""
+	for _, m := range members {
+		if !m.IsLocal() {
+			input = m.URL
+			break
+		}
+	}
+	if input == "" {
+		input = members[0].Local
+	}
+	md := &Metadata{URL: input, Title: name, IconPNG: icons.Group(pngs)}
+	p, err = s.CreateProject(ctx, CreateRequest{Input: input, Name: name, Metadata: md, Actor: actor})
 	if err != nil {
 		return p, err
 	}
@@ -107,6 +148,10 @@ func (s *Impl) CreateGroup(ctx context.Context, req GroupRequest) (p domain.Proj
 	}
 	cfg := p.Config.Clone()
 	cfg.App.Group = &config.GroupConfig{Members: members}
+	cfg.App.Source.Project, cfg.App.Source.Build = "", nil // a group never runs a project build
+	if cfg.App.Icon.Source == "default" && len(md.IconPNG) > 0 {
+		cfg.App.Icon.Source = "auto"
+	}
 	return s.UpdateProject(ctx, UpdateRequest{ID: p.ID, ExpectedRevision: p.Revision, Config: cfg, Actor: actor})
 }
 
@@ -171,3 +216,43 @@ func (s *Impl) fillGroupIcons(ctx context.Context, projectID string, cfg *config
 }
 
 func name0(n string) string { return strings.TrimSpace(n) }
+
+// localMember makes a group member of a local folder or HTML file. A
+// JavaScript project joins with its built output: building it is up to
+// its own app (a group never runs build scripts).
+func (s *Impl) localMember(path string) (config.GroupMember, error) {
+	p := expandHome(strings.TrimSpace(path))
+	if abs, err := filepath.Abs(p); err == nil {
+		p = abs
+	}
+	st, err := os.Stat(p)
+	if err != nil {
+		return config.GroupMember{}, &domain.Error{Code: CodeInvalidInput, Field: "sites", Message: "That folder or file doesn't exist: " + path}
+	}
+	if !st.IsDir() {
+		low := strings.ToLower(p)
+		if !strings.HasSuffix(low, ".html") && !strings.HasSuffix(low, ".htm") {
+			return config.GroupMember{}, &domain.Error{Code: CodeInvalidInput, Field: "sites", Message: "Choose a folder or an HTML file."}
+		}
+		return config.GroupMember{Name: cleanName(strings.TrimSuffix(filepath.Base(p), filepath.Ext(p))), Local: p}, nil
+	}
+	site, proj, isProject, perr := resolveWebProject(p)
+	if perr != nil {
+		return config.GroupMember{}, perr
+	}
+	name := filepath.Base(p)
+	if isProject {
+		if proj.Name != "" {
+			name = proj.Name
+		}
+		if !fileExists(filepath.Join(site, "index.html")) {
+			return config.GroupMember{}, &domain.Error{Code: CodeInvalidInput, Field: "sites",
+				Message:     name + " isn't built yet, so it can't join a group.",
+				Remediation: "Build it once (" + firstNonEmpty(proj.BuildCmd, "npm run build") + "), or make it an app of its own first."}
+		}
+	} else if !fileExists(filepath.Join(site, "index.html")) {
+		return config.GroupMember{}, &domain.Error{Code: CodeInvalidInput, Field: "sites", Message: name + " has no index.html.",
+			Remediation: "Choose the folder that holds index.html, or the HTML file itself."}
+	}
+	return config.GroupMember{Name: cleanName(name), Local: site, Entry: "index.html"}, nil
+}

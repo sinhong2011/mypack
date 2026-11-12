@@ -328,6 +328,19 @@ func (j *job) validate() error {
 		}
 		icon = n
 	}
+	// The icon studio's style is drawn over the icon's own image (or, with
+	// no image, over the name's letter).
+	if st := c.App.Icon.Style; st != nil {
+		if st.Glyph == config.GlyphEmoji && !icons.EmojiAvailable() {
+			j.warn("Emoji icons can only be drawn on a Mac; the app's initial is used instead")
+		}
+		styled, err := icons.Styled(j.req.IconPNG, *st, c.App.Name, icons.CanvasSize)
+		if err != nil {
+			j.warn("The icon style could not be drawn (%v); using the plain icon", err)
+		} else {
+			icon = styled
+		}
+	}
 	j.iconPNG = icon
 	return nil
 }

@@ -474,6 +474,13 @@ func (s *Impl) CreateProject(ctx context.Context, req CreateRequest) (p domain.P
 	if err != nil {
 		return p, err
 	}
+	if cfg.App.Icon.Style != nil {
+		// A config that arrives with a style: show it styled from the start.
+		s.restyle(&p, icon)
+		if up, uerr := s.store.UpdateProject(ctx, p, p.Revision); uerr == nil {
+			p = up
+		}
+	}
 	s.emit(Event{Kind: EventProjectChanged, ProjectID: p.ID})
 	return p, nil
 }
@@ -586,6 +593,11 @@ func (s *Impl) UpdateProject(ctx context.Context, req UpdateRequest) (p domain.P
 	if verr := next.Validate(); verr != nil {
 		return p, asDomainErr(verr, CodeInvalidConfig)
 	}
+	if styleChanged(cur.Config, next) {
+		base := s.iconBase(cur)
+		cur.Config = next
+		s.restyle(&cur, base)
+	}
 	cur.Config = next
 	p, err = s.store.UpdateProject(ctx, cur, req.ExpectedRevision)
 	if err != nil {
@@ -609,6 +621,9 @@ func (s *Impl) SetProjectIcon(ctx context.Context, id string, png []byte, actor 
 			return p, gerr
 		}
 		cur.IconPNG = norm
+		if cur.Config.App.Icon.Style != nil {
+			s.restyle(&cur, norm) // a new image beneath the same style
+		}
 		p, err = s.store.UpdateProject(ctx, cur, cur.Revision)
 		var de *domain.Error
 		if errors.As(err, &de) && de.Code == CodeRevisionConflict && attempt < 3 {
@@ -655,6 +670,9 @@ func (s *Impl) DuplicateProject(ctx context.Context, id, actor string) (p domain
 	p, err = s.store.InsertProject(ctx, domain.Project{
 		Config: cfg, IconPNG: src.IconPNG, IconURL: src.IconURL, Draft: true, Origin: originOf(actor),
 	})
+	if err == nil && cfg.App.Icon.Style != nil {
+		s.saveIconBase(p.ID, s.iconBase(src))
+	}
 	if err == nil {
 		s.emit(Event{Kind: EventProjectChanged, ProjectID: p.ID})
 	}

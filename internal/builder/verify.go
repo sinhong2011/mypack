@@ -48,6 +48,9 @@ func (j *job) checkConfigFile() error {
 			if m.Icon != "" && !strings.HasPrefix(m.Icon, "members/") {
 				return fmt.Errorf("group member %d icon still references a path", i)
 			}
+			if m.IsLocal() && !strings.HasPrefix(m.Local, "members/") {
+				return fmt.Errorf("group member %d still references a local path", i)
+			}
 		}
 	}
 	for i, inj := range c.WebView.Injections {

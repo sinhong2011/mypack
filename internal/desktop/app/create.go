@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,6 +15,7 @@ import (
 
 	"mypack.dev/mypack/internal/appservice"
 	"mypack.dev/mypack/internal/domain"
+	mpicons "mypack.dev/mypack/internal/icons"
 	"mypack.dev/mypack/pkg/config"
 )
 
@@ -37,6 +39,9 @@ type createState struct {
 
 	iconPNG    []byte
 	iconCustom bool
+	iconStyle  *config.IconStyle // from the Icon Studio
+	styledKey  string
+	styled     []byte
 
 	targets   map[string]config.Target
 	otherOpen bool
@@ -66,11 +71,15 @@ type createState struct {
 type createSite struct {
 	url       string
 	projectID string
+	local     string // a folder or HTML file
 	name      string
 }
 
+// key identifies the site in the list.
+func (x createSite) key() string { return x.url + x.local }
+
 // isGroup reports whether the app being created is a group of sites.
-func (s *createState) isGroup() bool { return len(s.more) > 0 && s.local == "" }
+func (s *createState) isGroup() bool { return len(s.more) > 0 }
 
 func (s *createState) reset(host config.Target) {
 	*s = createState{}
@@ -137,7 +146,29 @@ func (s *createState) displayName() string {
 	return ""
 }
 
+// createIcon is the new app's icon as it will look (with the Icon
+// Studio's style).
 func (a *App) createIcon() []byte {
+	base := a.createBaseIcon()
+	st := a.create.iconStyle
+	if st == nil {
+		return base
+	}
+	b, _ := json.Marshal(st)
+	key := fmt.Sprintf("%p|%s|%s", firstByte(base), a.create.displayName(), b)
+	if a.create.styledKey != key {
+		out, err := mpicons.Styled(base, *st, a.create.displayName(), 512)
+		if err != nil {
+			return base
+		}
+		a.create.styledKey, a.create.styled = key, out
+	}
+	return a.create.styled
+}
+
+// createBaseIcon is the image beneath the style: a chosen image, the
+// group's grid or the website's icon.
+func (a *App) createBaseIcon() []byte {
 	s := &a.create
 	if s.iconPNG != nil {
 		return s.iconPNG
@@ -301,6 +332,7 @@ func (a *App) createAndBuild() {
 	if s.iconCustom {
 		icon = s.iconPNG
 	}
+	style := s.iconStyle
 	var targets []config.Target
 	for _, t := range s.targets {
 		targets = append(targets, t)
@@ -347,6 +379,7 @@ func (a *App) createAndBuild() {
 				cfg.App.Title = keep.Title
 			}
 		}
+		cfg.App.Icon.Style = style // the Icon Studio's
 		cfg.Build.Targets = targets
 		if pr, err = a.svc.UpdateProject(ctx, appservice.UpdateRequest{ID: pr.ID, ExpectedRevision: pr.Revision, Config: cfg, Actor: "gui"}); err != nil {
 			return err

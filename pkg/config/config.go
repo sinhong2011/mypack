@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // SchemaVersion is the current mypack.json schema version.
@@ -46,8 +47,9 @@ type AppConfig struct {
 	Icon       Icon   `json:"icon"`
 	// Group makes the app a group of websites (runtime 1.0.6+): one window
 	// with a rail of the members' icons, each member in its own session.
-	// Source stays a url source (the first member's), so identifiers,
-	// installs and icons work as for any app.
+	// Source is the first website member's url (or, with only local
+	// members, the first one's folder), so identifiers, installs and icons
+	// work as for any app; the runtime opens the members, not Source.
 	Group *GroupConfig `json:"group,omitempty"`
 }
 
@@ -62,7 +64,12 @@ type GroupMember struct {
 	// logins) is keyed by it, so renaming a member keeps them.
 	ID   string `json:"id"`
 	Name string `json:"name"`
-	URL  string `json:"url"`
+	// URL is a website member's address; Local a local one's folder or HTML
+	// file (absolute in a project; "members/<id>/site" in a built app, with
+	// Entry the page to open). Exactly one is set.
+	URL   string `json:"url,omitempty"`
+	Local string `json:"local,omitempty"`
+	Entry string `json:"entry,omitempty"`
 	// Icon is a PNG: a path in a project (the Builder bundles it as
 	// members/<id>.png) or relative to the resources dir in a built app.
 	// Empty draws the member's initial.
@@ -78,6 +85,9 @@ const (
 )
 
 var memberIDRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
+
+// IsLocal reports whether the member is a local folder or file.
+func (m GroupMember) IsLocal() bool { return m.Local != "" }
 
 // IsGroup reports whether the app is a group of websites.
 func (c *Config) IsGroup() bool { return c.App.Group != nil && len(c.App.Group.Members) > 0 }
@@ -151,6 +161,120 @@ type Icon struct {
 	// Source is "auto" (website favicon), "file" (Path) or "default".
 	Source string `json:"source"`
 	Path   string `json:"path,omitempty"`
+	// Style dresses the icon up at build time (the icon studio): a new
+	// background, letters or an emoji instead of the image, a tint, a
+	// badge. Nil keeps the icon as it is.
+	Style *IconStyle `json:"style,omitempty"`
+}
+
+// IconStyle is how the icon studio draws an app icon. Every field is
+// optional; the zero value draws the icon's image on its own colours.
+type IconStyle struct {
+	// Glyph is what sits in the middle: "image" (the icon's own image, the
+	// default), "text" (Text as letters) or "emoji" (Text as one emoji).
+	Glyph string `json:"glyph,omitempty"`
+	Text  string `json:"text,omitempty"`
+	// Font of letters: "bold" (default), "regular", "mono" or "rounded"
+	// (the system's rounded face where there is one, else bold).
+	Font string `json:"font,omitempty"`
+	// Background: "auto" (colours taken from the image, the default),
+	// "solid", "gradient", "glass" or "none" (the image as it is, only the
+	// tint and badge are added).
+	Background string `json:"background,omitempty"`
+	// Colors are one or two "#rrggbb" colours of the background (top, then
+	// bottom); empty means picked from the image or the name.
+	Colors []string `json:"colors,omitempty"`
+	// Scale is the glyph's size in percent of the icon (20–100; 0 means the
+	// usual 64).
+	Scale int `json:"scale,omitempty"`
+	// Tint recolours the glyph: "" (as it is), "white", "black" or "color"
+	// (TintColor).
+	Tint      string `json:"tint,omitempty"`
+	TintColor string `json:"tintColor,omitempty"`
+	// Badge is a short label on a ribbon at the bottom ("Work", "Beta"), in
+	// BadgeColor (default red).
+	Badge      string `json:"badge,omitempty"`
+	BadgeColor string `json:"badgeColor,omitempty"`
+}
+
+// Icon style values.
+const (
+	GlyphImage = "image"
+	GlyphText  = "text"
+	GlyphEmoji = "emoji"
+
+	BackgroundAuto     = "auto"
+	BackgroundSolid    = "solid"
+	BackgroundGradient = "gradient"
+	BackgroundGlass    = "glass"
+	BackgroundNone     = "none"
+
+	TintWhite = "white"
+	TintBlack = "black"
+	TintColor = "color"
+
+	MaxIconText  = 3
+	MaxIconBadge = 12
+)
+
+var hexColorRe = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
+
+// IsHexColor reports whether s is a "#rrggbb" colour.
+func IsHexColor(s string) bool { return hexColorRe.MatchString(s) }
+
+func (st *IconStyle) validate(add func(field, code, msg string)) {
+	const f = "app.icon.style."
+	switch st.Glyph {
+	case "", GlyphImage:
+	case GlyphText, GlyphEmoji:
+		n := utf8.RuneCountInString(strings.TrimSpace(st.Text))
+		if n == 0 {
+			add(f+"text", "REQUIRED", "letters or an emoji are required")
+		} else if st.Glyph == GlyphText && n > MaxIconText {
+			add(f+"text", "INVALID_ICON", "use up to 3 letters")
+		} else if st.Glyph == GlyphEmoji && n > 8 {
+			add(f+"text", "INVALID_ICON", "use a single emoji")
+		}
+	default:
+		add(f+"glyph", "INVALID_ICON", "glyph must be image, text or emoji")
+	}
+	switch st.Font {
+	case "", "bold", "regular", "mono", "rounded":
+	default:
+		add(f+"font", "INVALID_ICON", "font must be bold, regular, mono or rounded")
+	}
+	switch st.Background {
+	case "", BackgroundAuto, BackgroundSolid, BackgroundGradient, BackgroundGlass, BackgroundNone:
+	default:
+		add(f+"background", "INVALID_ICON", "background must be auto, solid, gradient, glass or none")
+	}
+	if len(st.Colors) > 2 {
+		add(f+"colors", "INVALID_ICON", "use one or two colours")
+	}
+	for _, c := range st.Colors {
+		if !IsHexColor(c) {
+			add(f+"colors", "INVALID_COLOR", "colours must look like #3366ff")
+			break
+		}
+	}
+	if st.Scale != 0 && (st.Scale < 20 || st.Scale > 100) {
+		add(f+"scale", "INVALID_ICON", "scale must be between 20 and 100")
+	}
+	switch st.Tint {
+	case "", TintWhite, TintBlack:
+	case TintColor:
+		if !IsHexColor(st.TintColor) {
+			add(f+"tintColor", "INVALID_COLOR", "the tint colour must look like #3366ff")
+		}
+	default:
+		add(f+"tint", "INVALID_ICON", "tint must be white, black or color")
+	}
+	if utf8.RuneCountInString(st.Badge) > MaxIconBadge {
+		add(f+"badge", "INVALID_ICON", "the badge can have up to 12 characters")
+	}
+	if st.BadgeColor != "" && !IsHexColor(st.BadgeColor) {
+		add(f+"badgeColor", "INVALID_COLOR", "the badge colour must look like #3366ff")
+	}
 }
 
 type RuntimeConfig struct {
@@ -579,6 +703,9 @@ func (c *Config) Validate() error {
 	default:
 		add("app.icon.source", "INVALID_ICON", "icon source must be auto, file or default")
 	}
+	if st := c.App.Icon.Style; st != nil {
+		st.validate(add)
+	}
 	if !versionRe.MatchString(c.Runtime.Version) {
 		add("runtime.version", "INVALID_VERSION", "runtime version must look like 1.0.0")
 	}
@@ -882,9 +1009,7 @@ func (c *Config) validateGroup(add func(f, code, msg string)) {
 	if g == nil {
 		return
 	}
-	if c.App.Source.Type != SourceURL {
-		add("app.source.type", "INVALID_SOURCE", "a group app has a url source (its first website)")
-	}
+
 	if n := len(g.Members); n < MinGroupMembers || n > MaxGroupMembers {
 		add("app.group.members", "INVALID_GROUP", fmt.Sprintf("a group has %d to %d websites", MinGroupMembers, MaxGroupMembers))
 	}
@@ -903,8 +1028,17 @@ func (c *Config) validateGroup(add func(f, code, msg string)) {
 		} else if len(m.Name) > 64 {
 			add(f+".name", "TOO_LONG", "member name must be at most 64 characters")
 		}
-		if _, err := NormalizeURL(m.URL); err != nil {
-			add(f+".url", "INVALID_URL", err.Error())
+		switch {
+		case m.URL != "" && m.Local != "":
+			add(f, "INVALID_MEMBER", "a member is a website (url) or a local folder (local), not both")
+		case m.Local != "":
+			if strings.Contains(filepath.ToSlash(m.Local), "..") && !filepath.IsAbs(m.Local) {
+				add(f+".local", "INVALID_PATH", "a relative member path cannot leave the app")
+			}
+		default:
+			if _, err := NormalizeURL(m.URL); err != nil {
+				add(f+".url", "INVALID_URL", err.Error())
+			}
 		}
 	}
 }

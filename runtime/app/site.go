@@ -12,6 +12,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/egoist/mygo"
 	"mypack.dev/mypack/pkg/config"
@@ -112,6 +113,56 @@ func entryURLPath(entry string) string {
 // processes guessing the URL and against DNS rebinding).
 // $MYPACK_SITE_MODE=http|protocol forces a mode (testing).
 func StartSite(root, entry, goos, forceMode string) (*Site, error) {
+	return StartSiteAt(siteMainHost, root, entry, goos, forceMode)
+}
+
+// siteMainHost is the host of the app's own local site; a group's local
+// members are served at their member ids (mypack://<id>/), which keeps
+// each in an origin of its own.
+const siteMainHost = "localhost"
+
+// siteHosts routes the scheme's requests to the site of their host.
+var siteHosts struct {
+	sync.Mutex
+	m          map[string]http.Handler
+	registered bool
+}
+
+// serveSiteHost serves h at siteScheme://host/, registering the scheme
+// once.
+func serveSiteHost(host string, h http.Handler) error {
+	siteHosts.Lock()
+	defer siteHosts.Unlock()
+	if siteHosts.m == nil {
+		siteHosts.m = map[string]http.Handler{}
+	}
+	siteHosts.m[strings.ToLower(host)] = h
+	if siteHosts.registered {
+		return nil
+	}
+	err := mygo.Protocol.Handle(siteScheme, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		host := strings.ToLower(r.URL.Hostname())
+		if host == "" {
+			host = strings.ToLower(r.Host)
+		}
+		siteHosts.Lock()
+		hh := siteHosts.m[host]
+		siteHosts.Unlock()
+		if hh == nil {
+			http.NotFound(w, r)
+			return
+		}
+		hh.ServeHTTP(w, r)
+	}))
+	if err == nil {
+		siteHosts.registered = true
+	}
+	return err
+}
+
+// StartSiteAt is StartSite serving root at host (protocol mode); in
+// loopback mode every site gets a server of its own.
+func StartSiteAt(host, root, entry, goos, forceMode string) (*Site, error) {
 	mode := "protocol"
 	if goos == "linux" {
 		mode = "http"
@@ -121,10 +172,10 @@ func StartSite(root, entry, goos, forceMode string) (*Site, error) {
 	}
 	fsys := os.DirFS(root)
 	if mode == "protocol" {
-		if err := mygo.Protocol.Handle(siteScheme, siteHandler(fsys)); err != nil {
+		if err := serveSiteHost(host, siteHandler(fsys)); err != nil {
 			return nil, err
 		}
-		return &Site{Scheme: siteScheme, StartURL: siteScheme + "://localhost/" + entryURLPath(entry)}, nil
+		return &Site{Scheme: siteScheme, StartURL: siteScheme + "://" + host + "/" + entryURLPath(entry)}, nil
 	}
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

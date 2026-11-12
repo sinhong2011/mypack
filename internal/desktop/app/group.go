@@ -25,6 +25,7 @@ type groupDialog struct {
 	name   string
 	picked []string // "p:<project id>" or "u:<address>", in rail order
 	urls   []string // addresses pasted into the sheet (stay listed when unticked)
+	locals []string // folders and HTML files chosen in the sheet
 	addr   string   // the address field
 	busy   bool
 	err    string
@@ -87,7 +88,7 @@ func (a *App) groupCandidates() []*domain.Project {
 	var out []*domain.Project
 	for i := range a.projects {
 		pr := &a.projects[i]
-		if pr.Config != nil && pr.Config.App.Source.Type == config.SourceURL && !pr.Config.IsGroup() && pr.TrashedAt == nil {
+		if pr.Config != nil && !pr.Config.IsGroup() && pr.TrashedAt == nil {
 			out = append(out, pr)
 		}
 	}
@@ -113,10 +114,50 @@ func (a *App) groupSheet(c *ui.Context) {
 				if kit.Button(c.Key("g-addr-add"), T("group.addr.add"), kit.ButtonOpts{Size: design.ControlSM, Disabled: strings.TrimSpace(d.addr) == ""}).Clicked() {
 					d.addURL(d.addr)
 				}
+				folder := ui.ButtonBase(c.Key("g-local")).Label(T("create.addSite.local")).Size(30, 30).Center().Radius(8).Border(1, p.Divider).Cursor(ui.CursorPointer).Tooltip(T("create.addSite.local"))
+				folder.Children(func() { kit.Glyph(c, icons.Folder, 14, p.TextSecondary) })
+				folder.Menu(func(m *ui.Menu) {
+					add := func(path string) {
+						if !slices.Contains(d.locals, path) {
+							d.locals = append(d.locals, path)
+						}
+						if !d.has("l:"+path) && len(d.picked) < config.MaxGroupMembers {
+							d.picked = append(d.picked, "l:"+path)
+						}
+					}
+					if m.Item(T("create.addSite.folder")).Chosen() {
+						a.pickLocalSite(true, add)
+					}
+					if m.Item(T("create.addSite.file")).Chosen() {
+						a.pickLocalSite(false, add)
+					}
+				})
 			})
 			cands := a.groupCandidates()
 			ui.Scroll(c).MaxHeight(300).Children(func() {
 				ui.Column(c).Gap(2).Children(func() {
+					for _, l := range d.locals {
+						key := "l:" + l
+						on := d.has(key)
+						row := ui.Row(c.Key("g-"+key)).Gap(10).AlignItems(ui.Center).Padding(6, 8).Radius(design.RadiusControl).
+							Role(ui.RoleCheckBox).Label(localName(l)).Checked(on)
+						if on {
+							row.Background(p.Accent.Mix(p.Surface, 0.88))
+						}
+						row.Children(func() {
+							kit.AppIcon(c, a.letterIcon(localName(l)), localName(l), 28)
+							ui.Column(c).Grow(1).Gap(1).Children(func() {
+								ui.Text(c, localName(l)).FontSize(design.FontBody).FontWeight(design.WeightSemibold).TextColor(p.Text).SingleLine()
+								ui.Text(c, shortPath(l)).FontSize(design.FontCaption).TextColor(p.TextSecondary).SingleLine()
+							})
+							if on {
+								ui.Text(c, itoa(indexOf(d.picked, key)+1)).FontSize(design.FontCaption).Bold().TextColor(p.Accent).Padding(0, 10, 0, 0)
+							}
+						})
+						if row.Clicked() && !d.busy && (on || len(d.picked) < config.MaxGroupMembers) {
+							d.toggle(key)
+						}
+					}
 					for _, u := range d.urls {
 						key := "u:" + u
 						on := d.has(key)
@@ -195,6 +236,8 @@ func (a *App) createGroup() {
 			req.Sites = append(req.Sites, appservice.GroupSite{ProjectID: id})
 		} else if u, ok := strings.CutPrefix(k, "u:"); ok {
 			req.Sites = append(req.Sites, appservice.GroupSite{URL: u})
+		} else if l, ok := strings.CutPrefix(k, "l:"); ok {
+			req.Sites = append(req.Sites, appservice.GroupSite{Path: l})
 		}
 	}
 	go func() {
@@ -265,6 +308,8 @@ func (a *App) siteRow(c *ui.Context, cfg *config.Config, i int, changed func()) 
 	var icon []byte
 	if pr := a.project(m.ProjectID); pr != nil {
 		icon = pr.IconPNG
+	} else if m.IsLocal() {
+		icon = a.letterIcon(m.Name)
 	}
 	row := ui.Row(c).MinHeight(design.Row+4).Padding(8, 14).Gap(12).AlignItems(ui.Center)
 	show := row.Hovered() || row.FocusWithin()
@@ -272,7 +317,7 @@ func (a *App) siteRow(c *ui.Context, cfg *config.Config, i int, changed func()) 
 		kit.AppIcon(c, icon, m.Name, 28)
 		ui.Column(c).Grow(1).Basis(0).MinWidth(0).Gap(1).Children(func() {
 			ui.Text(c, m.Name).FontSize(design.FontBody).FontWeight(design.WeightMedium).TextColor(p.Text).SingleLine()
-			ui.Text(c, hostLabel(m.URL)).FontSize(design.FontSmall).TextColor(p.TextSecondary).SingleLine()
+			ui.Text(c, memberLabel(m)).FontSize(design.FontSmall).TextColor(p.TextSecondary).SingleLine()
 		})
 		ui.Row(c).Gap(0).Shrink(0).Opacity(map[bool]float32{true: 1, false: 0}[show]).Children(func() {
 			if i > 0 && kit.IconButton(c.Key("up"), icons.ArrowUp, T("sites.up")).Clicked() {
@@ -300,7 +345,7 @@ func (a *App) addSiteRow(c *ui.Context, cfg *config.Config, changed func()) {
 	in := map[string]bool{}
 	taken := map[string]bool{}
 	for _, m := range g.Members {
-		in[m.URL], taken[m.ID] = true, true
+		in[m.URL], in[m.Local], taken[m.ID] = true, true, true
 	}
 	var cands []*domain.Project
 	for _, pr := range a.groupCandidates() {
@@ -309,7 +354,7 @@ func (a *App) addSiteRow(c *ui.Context, cfg *config.Config, changed func()) {
 		}
 	}
 	btn := ui.ButtonBase(c).Label(T("sites.add")).Row().MinHeight(design.Row+4).Padding(8, 14).Gap(12).AlignItems(ui.Center).
-		Justify(ui.Start).Cursor(ui.CursorPointer).FocusRing(false).Disabled(len(cands) == 0)
+		Justify(ui.Start).Cursor(ui.CursorPointer).FocusRing(false)
 	if btn.Hovered() || btn.FocusVisible() {
 		btn.Background(p.Hover)
 	}
@@ -317,11 +362,29 @@ func (a *App) addSiteRow(c *ui.Context, cfg *config.Config, changed func()) {
 		ui.Row(c).Size(28, 28).Center().Shrink(0).Radius(8).Border(1, p.Divider).Children(func() { kit.Glyph(c, icons.Plus, 14, p.Accent) })
 		ui.Text(c, T("sites.add")).FontSize(design.FontBody).FontWeight(design.WeightMedium).TextColor(p.Accent)
 	})
+	addLocal := func(path string) {
+		for _, m := range g.Members {
+			if m.Local == path {
+				return
+			}
+		}
+		name := localName(path)
+		g.Members = append(g.Members, config.GroupMember{ID: config.MemberID(name, taken), Name: name, Local: path})
+		changed()
+	}
 	btn.Menu(func(m *ui.Menu) {
+		if m.Item(T("create.addSite.folder")).Chosen() {
+			a.pickLocalSite(true, addLocal)
+		}
+		if m.Item(T("create.addSite.file")).Chosen() {
+			a.pickLocalSite(false, addLocal)
+		}
+		if len(cands) > 0 {
+			m.Separator()
+		}
 		for _, pr := range cands {
 			if m.Item(pr.Config.App.Name).Chosen() {
-				g.Members = append(g.Members, config.GroupMember{ID: config.MemberID(pr.Config.App.Name, taken),
-					Name: pr.Config.App.Name, URL: pr.Config.App.Source.Value, ProjectID: pr.ID})
+				g.Members = append(g.Members, memberOfProject(pr, taken))
 				changed()
 			}
 		}
@@ -335,6 +398,27 @@ func syncGroupSource(cfg *config.Config) {
 	}
 }
 
+// memberLabel is a member's address, or its folder.
+func memberLabel(m config.GroupMember) string {
+	if m.IsLocal() {
+		return shortPath(m.Local)
+	}
+	return hostLabel(m.URL)
+}
+
 func hostLabel(raw string) string {
 	return addressLabel(config.Source{Type: config.SourceURL, Value: raw}, "")
+}
+
+// memberOfProject is the group member a Library app becomes: its address,
+// or its folder.
+func memberOfProject(pr *domain.Project, taken map[string]bool) config.GroupMember {
+	c := pr.Config
+	m := config.GroupMember{ID: config.MemberID(c.App.Name, taken), Name: c.App.Name, ProjectID: pr.ID}
+	if c.App.Source.Type == config.SourceURL {
+		m.URL = c.App.Source.Value
+	} else {
+		m.Local, m.Entry = c.App.Source.Value, c.App.Source.Entry
+	}
+	return m
 }

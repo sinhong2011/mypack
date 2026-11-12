@@ -107,6 +107,10 @@ func (a *App) projectIcon(c *ui.Context, pr *domain.Project, size float32) {
 	p := design.Of(c)
 	b := ui.ButtonBase(c.Key("icon")).Label(T("create.icon.change")).Size(size, size).Radius(design.AppIconRadius(size)).Cursor(ui.CursorPointer).Shrink(0)
 	b.Menu(func(m *ui.Menu) {
+		if m.Item(T("studio.open")).Chosen() {
+			a.openIconStudio(pr.ID)
+		}
+		m.Separator()
 		if m.Item(T("create.icon.choose")).Chosen() {
 			id := pr.ID
 			a.chooseIcon(func(b []byte) {

@@ -475,11 +475,15 @@ func (a *App) iconPicker(c *ui.Context, png []byte, name string, size float32) u
 	b := ui.ButtonBase(c).Label(T("create.icon.change")).Size(size, size).Radius(design.AppIconRadius(size)).Cursor(ui.CursorPointer).Shrink(0)
 	s := &a.create
 	b.Menu(func(m *ui.Menu) {
+		if m.Item(T("studio.open")).Chosen() {
+			a.openIconStudio("")
+		}
+		m.Separator()
 		if m.Item(T("create.icon.choose")).Chosen() {
 			a.chooseIcon(func(bb []byte) { s.iconPNG, s.iconCustom = bb, true })
 		}
-		if m.Item(T("create.icon.reset")).Disabled(!s.iconCustom).Chosen() {
-			s.iconPNG, s.iconCustom = nil, false
+		if m.Item(T("create.icon.reset")).Disabled(!s.iconCustom && s.iconStyle == nil).Chosen() {
+			s.iconPNG, s.iconCustom, s.iconStyle = nil, false, nil
 		}
 	})
 	hov := b.Hovered()

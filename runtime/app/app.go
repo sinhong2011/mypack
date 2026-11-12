@@ -227,11 +227,21 @@ func (a *App) prepareSource() error {
 	safe := append([]string(nil), nav.SafeDomains...)
 
 	if cfg.IsGroup() {
-		a.group = a.newGroup()
-		safe = append(safe, a.group.safeDomains()...)
+		// A group opens its members, not Source: each website member's
+		// site is internal; each local member is served at its own host.
+		g, err := a.newGroup()
+		if err != nil {
+			return err
+		}
+		a.group = g
+		safe = append(safe, g.safeDomains()...)
+		localSchemes = append(localSchemes, g.localSchemes...)
+		localOrigins = append(localOrigins, g.localOrigins...)
+		a.home, a.startURL = g.members[0].home, g.members[0].home
 	}
-	switch cfg.App.Source.Type {
-	case config.SourceURL:
+	switch {
+	case cfg.IsGroup():
+	case cfg.App.Source.Type == config.SourceURL:
 		u, err := config.NormalizeURL(cfg.App.Source.Value)
 		if err != nil {
 			return err
@@ -244,7 +254,7 @@ func (a *App) prepareSource() error {
 		if cfg.WebView.RestoreLastURL && !cfg.WebView.Incognito {
 			a.startURL = ChooseStartURL(u, a.state.Get().LastURL, true)
 		}
-	default:
+	default: // a local folder or file
 		root, entry, err := ResolveLocal(a.cfgDir, cfg.App.Source)
 		if err != nil {
 			return err

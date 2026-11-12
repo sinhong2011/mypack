@@ -1,6 +1,10 @@
 package app
 
 import (
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/egoist/mygo"
@@ -17,7 +21,11 @@ func testGroup(t *testing.T, urls ...string) *group {
 	}
 	a, _ := New(cfg, t.TempDir())
 	a.state = OpenStore(t.TempDir())
-	return a.newGroup()
+	g, err := a.newGroup()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return g
 }
 
 func TestGroupOwnerOf(t *testing.T) {
@@ -87,5 +95,67 @@ func TestBadgeSum(t *testing.T) {
 	c.setTitle(p2, "Chat (4)")
 	if got != "7" || c.pageLabel(p1) != "3" || c.pageLabel(p2) != "4" {
 		t.Fatalf("sum = %q, labels %q %q", got, c.pageLabel(p1), c.pageLabel(p2))
+	}
+}
+
+func TestGroupLocalMembers(t *testing.T) {
+	dir := t.TempDir()
+	docs := filepath.Join(dir, "docs")
+	if err := os.MkdirAll(docs, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	_ = os.WriteFile(filepath.Join(docs, "index.html"), []byte("<title>Docs</title>docs home"), 0o644)
+	_ = os.WriteFile(filepath.Join(dir, "board.html"), []byte("board page"), 0o644)
+	cfg := config.New("G", config.Source{Type: config.SourceURL, Value: "https://a.example"}, config.Target{OS: "darwin", Arch: "arm64"})
+	cfg.App.Group = &config.GroupConfig{Members: []config.GroupMember{
+		{ID: "web", Name: "Web", URL: "https://a.example"},
+		{ID: "docs", Name: "Docs", Local: docs},
+		{ID: "board", Name: "Board", Local: "board.html"}, // relative to the config dir
+	}}
+	a, _ := New(cfg, dir)
+	a.state = OpenStore(t.TempDir())
+	t.Setenv("MYPACK_SITE_MODE", "protocol")
+	g, err := a.newGroup()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g.members[1].home != "mypack://docs/" || g.members[2].home != "mypack://board/board.html" {
+		t.Fatalf("homes: %q %q", g.members[1].home, g.members[2].home)
+	}
+	if len(g.localSchemes) != 1 || g.localSchemes[0] != siteScheme {
+		t.Fatalf("schemes: %v", g.localSchemes)
+	}
+	// Each host serves its own member's files.
+	for _, tc := range []struct{ host, path, want string }{
+		{"docs", "/", "docs home"}, {"board", "/board.html", "board page"},
+	} {
+		siteHosts.Lock()
+		h := siteHosts.m[tc.host]
+		siteHosts.Unlock()
+		if h == nil {
+			t.Fatalf("no site for %s", tc.host)
+		}
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest("GET", "mypack://"+tc.host+tc.path, nil))
+		if !strings.Contains(rec.Body.String(), tc.want) {
+			t.Fatalf("%s%s = %d %q", tc.host, tc.path, rec.Code, rec.Body.String())
+		}
+	}
+	// Local members are never link-routing targets.
+	if g.ownerOf("mypack://docs/x", g.members[0]) != nil {
+		t.Fatal("a local member claimed a link")
+	}
+	// Loopback mode (Linux): a server per member, its origin internal.
+	t.Setenv("MYPACK_SITE_MODE", "http")
+	g2, err := a.newGroup()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(g2.localOrigins) != 2 || !strings.HasPrefix(g2.members[1].home, "http://127.0.0.1:") {
+		t.Fatalf("loopback: %v %q", g2.localOrigins, g2.members[1].home)
+	}
+	cfg.App.Group.Members[1].Local = filepath.Join(dir, "gone")
+	if _, err := a.newGroup(); err == nil {
+		t.Fatal("a missing folder must fail")
 	}
 }

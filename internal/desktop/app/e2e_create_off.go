@@ -3,3 +3,5 @@
 package app
 
 func (a *App) e2eCreateHook() {}
+
+func (a *App) e2eStudioHook() {}

@@ -738,3 +738,61 @@ func TestInfoPlistMenuBarMode(t *testing.T) {
 		t.Fatal("an older runtime must keep the Dock icon")
 	}
 }
+
+func TestGroupLocalMembersBundled(t *testing.T) {
+	e := newEnv(t, []string{"linux-amd64"}, nil)
+	docs, board := t.TempDir(), t.TempDir()
+	os.WriteFile(filepath.Join(docs, "index.html"), []byte("<h1>docs</h1>"), 0o644)
+	os.MkdirAll(filepath.Join(docs, "img"), 0o755)
+	os.WriteFile(filepath.Join(docs, "img", "a.png"), []byte("png"), 0o644)
+	os.WriteFile(filepath.Join(board, "board.html"), []byte("board"), 0o644)
+	tgt := config.Target{OS: "linux", Arch: "amd64", Format: "portable"}
+	cfg := testConfig("Local Group", tgt)
+	cfg.App.Source = config.Source{Type: config.SourceDir, Value: docs}
+	cfg.App.Group = &config.GroupConfig{Members: []config.GroupMember{
+		{ID: "docs", Name: "Docs", Local: docs},
+		{ID: "board", Name: "Board", Local: filepath.Join(board, "board.html")},
+	}}
+	arts, err := (&Engine{Runtimes: e.mgr}).Build(context.Background(), Request{Config: cfg, Targets: []config.Target{tgt}, OutputDir: e.out, AllowDownload: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res := filepath.Join(arts[0].Path, "resources")
+	for _, f := range []string{"members/docs/site/img/a.png", "members/board/site/board.html"} {
+		if _, err := os.Stat(filepath.Join(res, filepath.FromSlash(f))); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(res, "site")); err == nil {
+		t.Fatal("a group's source must not be bundled a second time")
+	}
+	b, _ := os.ReadFile(filepath.Join(res, "mypack.json"))
+	var c config.Config
+	json.Unmarshal(b, &c)
+	m := c.App.Group.Members
+	if m[0].Local != "members/docs/site" || m[1].Local != "members/board/site" || m[1].Entry != "board.html" {
+		t.Fatalf("members: %+v", m)
+	}
+	if c.App.Source.Value != "members/docs/site" {
+		t.Fatalf("source: %+v", c.App.Source)
+	}
+}
+
+func TestValidateDrawsIconStyle(t *testing.T) {
+	host := HostTarget()
+	cfg := config.New("Notes", config.Source{Type: config.SourceURL, Value: "https://notes.example.com"}, host)
+	base := icons.Default("Notes")
+	plain := &job{ctx: context.Background(), cfg: cfg, target: host, req: Request{IconPNG: base}}
+	if err := plain.validate(); err != nil {
+		t.Fatal(err)
+	}
+	styledCfg := cfg.Clone()
+	styledCfg.App.Icon.Style = &config.IconStyle{Glyph: config.GlyphText, Text: "N", Background: config.BackgroundGlass, Badge: "Work"}
+	styled := &job{ctx: context.Background(), cfg: styledCfg, target: host, req: Request{IconPNG: base}}
+	if err := styled.validate(); err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Equal(plain.iconPNG, styled.iconPNG) || len(styled.iconPNG) == 0 {
+		t.Fatal("the build did not draw app.icon.style")
+	}
+}

@@ -70,6 +70,7 @@ type App struct {
 	// fetched with their metadata.
 	siteIcons map[string][]byte
 	e2eSeeded bool // test builds: Create's extra sites were added
+	e2eStudio bool
 	installs  []domain.Installation
 	jobs      []domain.BuildJob
 	runtimes  []domain.RuntimeInfo
@@ -98,6 +99,7 @@ type App struct {
 	builds  buildsState
 	set     settingsState
 	dlg     dialogs
+	studio  iconStudio
 
 	toasts []toastReq
 

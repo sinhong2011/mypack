@@ -339,6 +339,8 @@ func (a *App) dialogs(c *ui.Context) {
 		})
 	}
 
+	a.iconStudioSheet(c)
+
 	// Free edition: one group app; Pro makes as many as you like.
 	if d.groupLimit {
 		kit.Sheet(c.Key("dlg-glimit"), &d.groupLimit, 460, func() {

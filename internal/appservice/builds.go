@@ -391,7 +391,7 @@ func (s *Impl) runJob(ctx context.Context, st *jobState) {
 	}
 	var icon []byte
 	if p, perr := s.store.GetProject(bg, cur.ProjectID); perr == nil {
-		icon = p.IconPNG
+		icon = s.iconBase(p) // the Builder draws app.icon.style over it
 	}
 
 	now := time.Now().UTC()

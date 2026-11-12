@@ -49,17 +49,18 @@ Helpers: `WindowConfig.EffectiveMode()`, `WindowConfig.PanelSize()`, `config.Run
 One app made of several websites, like a workspace in Zen: a rail of the sites' icons, each site in its own session, with separate logins.
 
 ## Config
-- `app.group.members[]`: `{id, name, url, icon?, projectId?}`, from 2 to 12 members. `id` is stable (`[a-z0-9-]`, at most 32 characters) and keys the member's session (`<profileId>.<id>`), so renaming a member keeps its logins. Helpers: `Config.IsGroup()`, `config.MemberID(name, taken)`.
-- `app.source` stays a `url` source pointing at the first member, so identifiers, installs, routes and metadata work as for any app.
+- `app.group.members[]`: `{id, name, url | local (+entry), icon?, projectId?}`, from 2 to 12 members. A member is a website (`url`) or a local folder or HTML file (`local`), never both. `id` is stable (`[a-z0-9-]`, at most 32 characters) and keys the member's session (`<profileId>.<id>`), so renaming a member keeps its logins. Helpers: `Config.IsGroup()`, `config.MemberID(name, taken)`.
+- `app.source` is the first website member (or, with only local members, the first folder), so identifiers, installs, routes and metadata work as for any app. The runtime opens the members, never Source.
+- Local members: the Builder copies each folder (or the HTML file's folder) to `members/<id>/site` and rewrites `local`/`entry`. The group's Source is not bundled a second time.
 - `icon` is a PNG path in a project. The Builder bundles it as `members/<id>.png`. With no icon, the rail draws the member's initial. Before a build, the service fills in missing icons from the member's Library project (`fillGroupIcons`).
 
 ## Service
-- `CreateGroup(GroupRequest{Name, Sites: []GroupSite{ProjectID | URL}})` keeps the site order. Addresses get their name and icon fetched, and a repeated address is dropped. The group icon is a 2×2 grid of the first four member icons (`icons.Group`). Member icons are stored beside the database in `groups/<project>/`.
+- `CreateGroup(GroupRequest{Name, Sites: []GroupSite{ProjectID | URL | Path}})` keeps the site order. Addresses get their name and icon fetched, and a repeated site is dropped. A `Path` is a folder with index.html or an HTML file. A JavaScript project joins with its built output and is refused while unbuilt, because a group never runs build scripts. Library apps built from local folders join as local members. The group icon is a 2×2 grid of the first four member icons (`icons.Group`). Member icons are stored beside the database in `groups/<project>/`.
 - Pro limit: the Free edition can have **one** group app in the Library (`FreeGroups`), and Pro is unlimited. Creating another returns `LICENSE_LIMIT`. Editing, building and installing a group are never gated. `LicenseStatus` reports `groups` and `freeGroups`.
 - Routes: an installed group claims every member's site, so links from other Mypack apps open in it.
 
 ## Runtime
-- Every member loads at start (so each can notify and badge) and is kept alive while hidden. The rail shows each member's unread count, and the Dock (or the menu-bar title) shows the **sum**.
+- Every member loads at start (so each can notify and badge) and is kept alive while hidden. A local member is served at `mypack://<member id>/` (a private loopback server per member on Linux), which gives each one its own origin and storage. The rail shows each member's unread count, and the Dock (or the menu-bar title) shows the **sum**.
 - Rail position: down the left in a window, compact or right-docked sidebar; down the right in a left-docked sidebar; as a row along the top in the menu-bar panel.
 - A user's click on a link to another member's site opens it in that member. An exact host wins. A domain shared by two members (Gmail and Calendar on google.com) goes to the member whose exact host matches, otherwise the link stays put. Sign-in pages on a member's own domain stay in that member.
 - **Split view**: ⌘\ toggles it, or use the rail's context menu (Open in Split View). The divider can be dragged, and a double-click resets it to 50/50. Clicking the split member swaps the sides.
@@ -67,11 +68,10 @@ One app made of several websites, like a workspace in Zen: a rail of the sites' 
 - Notification clicks show the member that sent them. Links handed to the app open in the member they belong to.
 
 ## GUI
-- **Create (New App)**: after the first address, "Add another site" (paste an address, or pick a Library app) turns the app into a group. The name defaults to "Workspace", the icon becomes the grid, a chip per site can be removed, and the preview draws the rail in the chosen Show as mode. The toolbar above the inspector holds the settings search and Build.
+- **Create (New App)**: after the first address or folder, "Add another site" (paste an address, choose a folder or HTML file, or pick a Library app) turns the app into a group. The name defaults to "Workspace", the icon becomes the grid, a chip per site can be removed, and the preview draws the rail in the chosen Show as mode. The toolbar above the inspector holds the settings search and Build.
 - **New Group…** (⌘⇧N, the Library header, the command palette) opens a sheet for grouping existing Library apps or pasted addresses.
 - **Group settings**: a Sites card at the top (icons; move up or down and remove on hover; "Add a site" from the Library).
 - The Free-edition limit shows its own sheet ("Unlimited groups with Pro") and a hint under the site chips when the one free group is already used.
 
 ## Not done
-- Local folders and files as group members.
 - Choosing which members load at start (all load today).

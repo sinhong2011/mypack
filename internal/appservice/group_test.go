@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"mypack.dev/mypack/internal/domain"
+	"mypack.dev/mypack/pkg/config"
 )
 
 func TestCreateGroup(t *testing.T) {
@@ -120,5 +122,42 @@ func TestGroupQuota(t *testing.T) {
 	}
 	if _, err := e.svc.CreateGroup(ctx, GroupRequest{Name: "Two", Sites: sites(ids...)}); err != nil {
 		t.Fatalf("pro has unlimited groups: %v", err)
+	}
+}
+
+func TestCreateGroupWithLocalSites(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	root := t.TempDir()
+	docs := filepath.Join(root, "Docs")
+	os.MkdirAll(docs, 0o755)
+	os.WriteFile(filepath.Join(docs, "index.html"), []byte("docs"), 0o644)
+	board := filepath.Join(root, "board.html")
+	os.WriteFile(board, []byte("board"), 0o644)
+	g, err := e.svc.CreateGroup(ctx, GroupRequest{Name: "Local", Sites: []GroupSite{{Path: docs}, {Path: board}, {URL: "chat.example.com"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := g.Config.App.Group.Members
+	if !m[0].IsLocal() || m[0].Local != docs || m[0].Name != "Docs" || m[1].Local != board || m[1].Name != "board" || m[2].IsLocal() {
+		t.Fatalf("members: %+v", m)
+	}
+	if g.Config.App.Source.Type != config.SourceURL || g.Config.App.Source.Value != m[2].URL {
+		t.Fatalf("a group's source is its first website: %+v", g.Config.App.Source)
+	}
+	if err := g.Config.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	// An unbuilt JavaScript project can't join; a folder without index.html neither.
+	proj := filepath.Join(root, "proj")
+	os.MkdirAll(proj, 0o755)
+	os.WriteFile(filepath.Join(proj, "package.json"), []byte(`{"name":"proj","scripts":{"build":"vite build"},"devDependencies":{"vite":"5"}}`), 0o644)
+	empty := filepath.Join(root, "empty")
+	os.MkdirAll(empty, 0o755)
+	for _, bad := range []string{proj, empty, filepath.Join(root, "nope")} {
+		e2 := newEnv(t)
+		if _, err := e2.svc.CreateGroup(ctx, GroupRequest{Name: "X", Sites: []GroupSite{{Path: bad}, {URL: "a.example.com"}}}); err == nil {
+			t.Fatalf("%s joined a group", bad)
+		}
 	}
 }

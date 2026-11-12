@@ -26,3 +26,20 @@ func (a *App) e2eCreateHook() {
 	}
 	a.syncCreateGroup()
 }
+
+// Test builds only: MYPACK_E2E_STUDIO="prj_0009" opens the Icon Studio for
+// that project at launch ("new" for New App).
+func (a *App) e2eStudioHook() {
+	v := os.Getenv("MYPACK_E2E_STUDIO")
+	if v == "" || a.e2eStudio {
+		return
+	}
+	if v != "new" && a.project(v) == nil {
+		return
+	}
+	a.e2eStudio = true
+	if v == "new" {
+		v = ""
+	}
+	a.openIconStudio(v)
+}

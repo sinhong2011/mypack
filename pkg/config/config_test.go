@@ -223,10 +223,18 @@ func TestGroupConfig(t *testing.T) {
 	if err := one.Validate(); err == nil || !strings.Contains(err.Error(), "app.group.members") {
 		t.Fatalf("one member accepted: %v", err)
 	}
-	dir := c.Clone()
-	dir.App.Source = Source{Type: SourceDir, Value: "/tmp/site"}
-	if err := dir.Validate(); err == nil || !strings.Contains(err.Error(), "group app has a url source") {
-		t.Fatalf("dir group accepted: %v", err)
+	local := c.Clone()
+	local.App.Group.Members[1] = GroupMember{ID: "docs", Name: "Docs", Local: "/tmp/docs", Entry: "index.html"}
+	if err := local.Validate(); err != nil || !local.App.Group.Members[1].IsLocal() {
+		t.Fatalf("local member: %v", err)
+	}
+	local.App.Group.Members[1].URL = "https://x.example"
+	if err := local.Validate(); err == nil || !strings.Contains(err.Error(), "not both") {
+		t.Fatalf("url and local accepted: %v", err)
+	}
+	local.App.Group.Members[1] = GroupMember{ID: "docs", Name: "Docs", Local: "../../etc"}
+	if err := local.Validate(); err == nil || !strings.Contains(err.Error(), "cannot leave") {
+		t.Fatalf("escaping path accepted: %v", err)
 	}
 }
 
@@ -240,5 +248,46 @@ func TestMemberID(t *testing.T) {
 			t.Errorf("MemberID(%q) = %q, want %q", tc.in, got, tc.want)
 		}
 		taken[got] = true
+	}
+}
+
+func TestIconStyleValidation(t *testing.T) {
+	c := New("Chat", Source{Type: SourceURL, Value: "https://chat.example.com"}, Target{OS: "darwin", Arch: "arm64"})
+	b, _ := c.Marshal()
+	if strings.Contains(string(b), `"style"`) {
+		t.Fatal("no style written by default")
+	}
+	ok := []IconStyle{
+		{},
+		{Glyph: GlyphText, Text: "GM", Font: "mono", Background: BackgroundGlass, Colors: []string{"#112233", "#AABBCC"}},
+		{Glyph: GlyphEmoji, Text: "🚀", Background: BackgroundSolid, Colors: []string{"#000000"}, Scale: 80},
+		{Background: BackgroundNone, Tint: TintColor, TintColor: "#ff0000", Badge: "Work", BadgeColor: "#2563eb"},
+	}
+	for i, st := range ok {
+		st := st
+		c.App.Icon.Style = &st
+		if err := c.Validate(); err != nil {
+			t.Fatalf("ok[%d]: %v", i, err)
+		}
+	}
+	bad := map[string]IconStyle{
+		"text":       {Glyph: GlyphText},
+		"toolong":    {Glyph: GlyphText, Text: "ABCD"},
+		"glyph":      {Glyph: "svg"},
+		"font":       {Font: "comic"},
+		"background": {Background: "plaid"},
+		"color":      {Colors: []string{"red"}},
+		"colors":     {Colors: []string{"#000000", "#000000", "#000000"}},
+		"scale":      {Scale: 5},
+		"tint":       {Tint: TintColor},
+		"badge":      {Badge: "A very long badge"},
+		"badgeColor": {Badge: "x", BadgeColor: "blue"},
+	}
+	for name, st := range bad {
+		st := st
+		c.App.Icon.Style = &st
+		if err := c.Validate(); err == nil {
+			t.Errorf("%s: want an error", name)
+		}
 	}
 }

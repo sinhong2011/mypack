@@ -2,9 +2,11 @@ package app
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
 	"mypack.dev/mypack/internal/appservice"
@@ -26,8 +28,8 @@ import (
 // site and the Add button.
 func (a *App) createSites(c *ui.Context) {
 	s := &a.create
-	if s.local != "" || s.normalized == "" {
-		return // a local project is a single app
+	if s.normalized == "" && s.local == "" {
+		return
 	}
 	p := design.Of(c)
 	ui.Column(c.Key("sites")).AlignItems(ui.Center).Gap(8).Margin(10, 0, 0, 0).Children(func() {
@@ -37,7 +39,7 @@ func (a *App) createSites(c *ui.Context) {
 				for i := range s.more {
 					i := i
 					site := s.more[i]
-					a.siteChip(c.Key("m-"+site.url), a.siteIcon(site), site.name, func() {
+					a.siteChip(c.Key("m-"+site.key()), a.siteIcon(site), site.name, func() {
 						s.more = append(s.more[:i:i], s.more[i+1:]...)
 						a.syncCreateGroup()
 					})
@@ -109,9 +111,15 @@ func (a *App) addSiteButton(c *ui.Context, p *design.Palette) {
 		if m.Item(T("create.addSite.paste")).Chosen() {
 			s.addingAddr = true
 		}
-		have := map[string]bool{s.normalized: true}
+		if m.Item(T("create.addSite.folder")).Chosen() {
+			a.pickLocalSite(true, a.addCreateLocal)
+		}
+		if m.Item(T("create.addSite.file")).Chosen() {
+			a.pickLocalSite(false, a.addCreateLocal)
+		}
+		have := map[string]bool{s.normalized: true, s.local: true}
 		for _, x := range s.more {
-			have[x.url] = true
+			have[x.url], have[x.local] = true, true
 		}
 		var cands []*domain.Project
 		for _, pr := range a.groupCandidates() {
@@ -123,7 +131,13 @@ func (a *App) addSiteButton(c *ui.Context, p *design.Palette) {
 			m.Separator()
 			for _, pr := range cands {
 				if m.Item(pr.Config.App.Name).Chosen() {
-					s.more = append(s.more, createSite{url: pr.Config.App.Source.Value, projectID: pr.ID, name: pr.Config.App.Name})
+					x := createSite{projectID: pr.ID, name: pr.Config.App.Name}
+					if pr.Config.App.Source.Type == config.SourceURL {
+						x.url = pr.Config.App.Source.Value
+					} else {
+						x.local = pr.Config.App.Source.Value
+					}
+					s.more = append(s.more, x)
 					a.syncCreateGroup()
 				}
 			}
@@ -176,6 +190,41 @@ func (a *App) addCreateURL(raw string) {
 	}()
 }
 
+// addCreateLocal adds a local folder or HTML file to the app being made.
+func (a *App) addCreateLocal(path string) {
+	s := &a.create
+	if path == s.local {
+		return
+	}
+	for _, x := range s.more {
+		if x.local == path {
+			return
+		}
+	}
+	s.more = append(s.more, createSite{local: path, name: localName(path)})
+	a.syncCreateGroup()
+}
+
+// pickLocalSite asks for a folder (dir) or an HTML file, then calls add on
+// the main thread.
+func (a *App) pickLocalSite(dir bool, add func(path string)) {
+	go func() {
+		o := mygo.OpenDialogOptions{Parent: a.win, Title: T("create.addSite.choose"), ButtonLabel: T("group.addr.add"), Directory: dir}
+		if !dir {
+			o.Filters = []mygo.FileFilter{{Name: "HTML", Extensions: []string{"html", "htm"}}}
+		}
+		paths, err := mygo.Dialog.Open(o)
+		if err != nil || len(paths) == 0 {
+			return
+		}
+		a.win.Update(func() { add(paths[0]) })
+	}()
+}
+
+func localName(path string) string {
+	return strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+}
+
 func titleForURL(u string) string {
 	h := strings.TrimPrefix(config.RegistrableHost(u), "www.")
 	if i := strings.IndexByte(h, '.'); i > 0 {
@@ -191,20 +240,43 @@ func (a *App) siteIcon(site createSite) []byte {
 	if pr := a.project(site.projectID); pr != nil {
 		return pr.IconPNG
 	}
+	if site.local != "" {
+		return a.letterIcon(site.name)
+	}
 	return a.siteIcons[site.url]
 }
 
 // createMainIcon is the first site's own icon (not the group's grid).
 func (a *App) createMainIcon() []byte {
 	s := &a.create
+	if s.local != "" {
+		return a.letterIcon(s.mainName())
+	}
 	if s.meta != nil && s.metaFor == s.normalized {
 		return s.meta.IconPNG
 	}
 	return nil
 }
 
+// letterIcon is a site's letter tile (cached by name).
+func (a *App) letterIcon(name string) []byte {
+	if a.siteIcons == nil {
+		a.siteIcons = map[string][]byte{}
+	}
+	k := "letter:" + name
+	if b, ok := a.siteIcons[k]; ok {
+		return b
+	}
+	b := mpicons.Default(name)
+	a.siteIcons[k] = b
+	return b
+}
+
 // mainName is the first site's name.
 func (s *createState) mainName() string {
+	if s.local != "" {
+		return localName(s.local)
+	}
 	if s.meta != nil && s.meta.Title != "" {
 		return s.meta.Title
 	}
@@ -215,11 +287,11 @@ func (s *createState) mainName() string {
 func (a *App) createGroupIcon() []byte {
 	s := &a.create
 	pngs := [][]byte{a.createMainIcon()}
-	key := s.normalized
+	key := s.normalized + s.local
 	for _, x := range s.more {
 		ic := a.siteIcon(x)
 		pngs = append(pngs, ic)
-		key += "|" + x.url + ":" + itoa(len(ic))
+		key += "|" + x.key() + ":" + itoa(len(ic))
 	}
 	key += ":" + itoa(len(pngs[0]))
 	if key != s.groupKey {
@@ -239,11 +311,14 @@ func (a *App) syncCreateGroup() {
 	}
 	taken := map[string]bool{}
 	main := config.GroupMember{Name: s.mainName(), URL: s.normalized}
+	if s.local != "" {
+		main = config.GroupMember{Name: s.mainName(), Local: s.local}
+	}
 	main.ID = config.MemberID(main.Name, taken)
 	taken[main.ID] = true
 	g := &config.GroupConfig{Members: []config.GroupMember{main}}
 	for _, x := range s.more {
-		m := config.GroupMember{Name: x.name, URL: x.url, ProjectID: x.projectID}
+		m := config.GroupMember{Name: x.name, URL: x.url, Local: x.local, ProjectID: x.projectID}
 		m.ID = config.MemberID(m.Name, taken)
 		taken[m.ID] = true
 		g.Members = append(g.Members, m)
@@ -254,8 +329,11 @@ func (a *App) syncCreateGroup() {
 // groupSites is the request's site list: the first site, then the added.
 func (s *createState) groupSites() []appservice.GroupSite {
 	out := []appservice.GroupSite{{URL: s.normalized}}
+	if s.local != "" {
+		out[0] = appservice.GroupSite{Path: s.local}
+	}
 	for _, x := range s.more {
-		out = append(out, appservice.GroupSite{ProjectID: x.projectID, URL: x.url})
+		out = append(out, appservice.GroupSite{ProjectID: x.projectID, URL: x.url, Path: x.local})
 	}
 	return out
 }

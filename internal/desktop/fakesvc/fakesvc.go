@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"sort"
 	"strings"
@@ -47,7 +48,8 @@ type Service struct {
 	settings        appservice.Settings
 	activity        []domain.Activity
 	cancels         map[string]context.CancelFunc
-	projectApproved map[string]bool // projects whose own build was approved
+	projectApproved map[string]bool   // projects whose own build was approved
+	iconBases       map[string][]byte // image beneath a styled icon, by project
 	approvals       map[string]bool
 	nextID          int
 	host            config.Target
@@ -69,6 +71,7 @@ func New() *Service {
 		runtimes:        map[string]*domain.RuntimeInfo{},
 		cancels:         map[string]context.CancelFunc{},
 		projectApproved: map[string]bool{},
+		iconBases:       map[string][]byte{},
 		approvals:       map[string]bool{},
 		subs:            map[int]chan appservice.Event{},
 		host:            config.Target{OS: runtime.GOOS, Arch: runtime.GOARCH},
@@ -409,13 +412,40 @@ func (s *Service) UpdateProject(ctx context.Context, req appservice.UpdateReques
 		}
 		return domain.Project{}, err
 	}
-	p.Config = req.Config.Clone()
+	next := req.Config.Clone()
+	if !reflect.DeepEqual(p.Config.App.Icon.Style, next.App.Icon.Style) ||
+		(next.App.Icon.Style != nil && p.Config.App.Name != next.App.Name) {
+		base := p.IconPNG
+		if b, ok := s.iconBases[p.ID]; ok && p.Config.App.Icon.Style != nil {
+			base = b
+		}
+		p.Config = next
+		s.restyle(p, base)
+	}
+	p.Config = next
 	p.Revision++
 	p.UpdatedAt = time.Now()
 	out := clone(p)
 	s.mu.Unlock()
 	s.publish(appservice.Event{Kind: appservice.EventProjectChanged, ProjectID: p.ID})
 	return out, nil
+}
+
+// restyle mirrors the service: IconPNG is the styled icon, the image
+// beneath it is kept (s.mu held).
+func (s *Service) restyle(p *domain.Project, base []byte) {
+	st := p.Config.App.Icon.Style
+	if st == nil {
+		if len(base) > 0 {
+			p.IconPNG = base
+		}
+		delete(s.iconBases, p.ID)
+		return
+	}
+	s.iconBases[p.ID] = base
+	if out, err := icons.Styled(base, *st, p.Config.App.Name, icons.CanvasSize); err == nil {
+		p.IconPNG = out
+	}
 }
 
 func (s *Service) SetProjectIcon(ctx context.Context, id string, png []byte, actor string) (domain.Project, error) {
@@ -425,22 +455,39 @@ func (s *Service) SetProjectIcon(ctx context.Context, id string, png []byte, act
 		s.mu.Unlock()
 		return domain.Project{}, notFound("The project")
 	}
+	style := p.Config.App.Icon.Style
 	if png == nil {
 		png = icons.Default(p.Config.App.Name)
-		p.Config.App.Icon = config.Icon{Source: "auto"}
+		p.Config.App.Icon = config.Icon{Source: "auto", Style: style}
 	} else {
 		if n, err := icons.Normalize(png); err == nil {
 			png = n
 		}
-		p.Config.App.Icon = config.Icon{Source: "file", Path: "icon.png"}
+		p.Config.App.Icon = config.Icon{Source: "file", Path: "icon.png", Style: style}
 	}
 	p.IconPNG = png
+	if style != nil {
+		s.restyle(p, png)
+	}
 	p.Revision++
 	p.UpdatedAt = time.Now()
 	out := clone(p)
 	s.mu.Unlock()
 	s.publish(appservice.Event{Kind: appservice.EventProjectChanged, ProjectID: id})
 	return out, nil
+}
+
+func (s *Service) ProjectIconImage(ctx context.Context, id string) ([]byte, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p, ok := s.projects[id]
+	if !ok {
+		return nil, notFound("The project")
+	}
+	if b, ok := s.iconBases[id]; ok && p.Config.App.Icon.Style != nil {
+		return b, nil
+	}
+	return p.IconPNG, nil
 }
 
 func (s *Service) TrashProject(ctx context.Context, id, actor string) error {
@@ -485,6 +532,9 @@ func (s *Service) DuplicateProject(ctx context.Context, id, actor string) (domai
 	n.Config.App.ProfileID = n.Config.App.Identifier
 	n.Draft = true
 	n.LastBuild = nil
+	if b, ok := s.iconBases[p.ID]; ok {
+		s.iconBases[n.ID] = b
+	}
 	n.CreatedAt, n.UpdatedAt = time.Now(), time.Now()
 	s.projects[n.ID] = &n
 	out := clone(&n)
@@ -1442,16 +1492,25 @@ func (s *Service) CreateGroup(ctx context.Context, req appservice.GroupRequest) 
 	for _, site := range req.Sites {
 		var m config.GroupMember
 		var png []byte
-		if site.ProjectID != "" {
+		if site.Path != "" {
+			name := strings.TrimSuffix(filepath.Base(site.Path), filepath.Ext(site.Path))
+			m = config.GroupMember{Name: name, Local: site.Path, Entry: "index.html"}
+			png = demoIcon(name)
+		} else if site.ProjectID != "" {
 			mp, err := s.GetProject(ctx, site.ProjectID)
 			if err != nil {
 				return domain.Project{}, err
 			}
-			if mp.Config.App.Source.Type != config.SourceURL || mp.Config.IsGroup() {
+			if mp.Config.IsGroup() {
 				return domain.Project{}, &domain.Error{Code: appservice.CodeInvalidInput, Field: "sites",
-					Message: mp.Config.App.Name + " can't join a group: only website apps can."}
+					Message: mp.Config.App.Name + " can't join a group: it is a group itself."}
 			}
-			m = config.GroupMember{Name: mp.Config.App.Name, URL: mp.Config.App.Source.Value, ProjectID: mp.ID}
+			m = config.GroupMember{Name: mp.Config.App.Name, ProjectID: mp.ID}
+			if mp.Config.App.Source.Type == config.SourceURL {
+				m.URL = mp.Config.App.Source.Value
+			} else {
+				m.Local, m.Entry = mp.Config.App.Source.Value, mp.Config.App.Source.Entry
+			}
 			png = mp.IconPNG
 		} else {
 			u, err := config.NormalizeURL(site.URL)
@@ -1470,7 +1529,11 @@ func (s *Service) CreateGroup(ctx context.Context, req appservice.GroupRequest) 
 	if len(members) < config.MinGroupMembers || len(members) > config.MaxGroupMembers {
 		return domain.Project{}, &domain.Error{Code: appservice.CodeInvalidInput, Field: "projectIds", Message: "Pick 2 to 12 websites for a group."}
 	}
-	p, err := s.CreateProject(ctx, appservice.CreateRequest{Input: members[0].URL, Name: name,
+	input := members[0].URL
+	if input == "" {
+		input = "local.example.com" // demo: a group of folders only
+	}
+	p, err := s.CreateProject(ctx, appservice.CreateRequest{Input: input, Name: name,
 		Metadata: &appservice.Metadata{Title: name, IconPNG: icons.Group(pngs)}, Actor: req.Actor})
 	if err != nil {
 		return p, err

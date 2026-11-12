@@ -37,7 +37,11 @@ func (j *job) writeResources() error {
 	snap.App.Icon.Path = "" // the icon ships as icon.png/AppIcon.icns
 
 	// Local sources are bundled next to the config; paths become relative to the resources dir.
-	switch snap.App.Source.Type {
+	source := snap.App.Source.Type
+	if snap.IsGroup() {
+		source = "" // a group's members are bundled below; its Source is not opened
+	}
+	switch source {
 	case config.SourceDir:
 		dst := filepath.Join(j.resDir, "site")
 		if err := os.MkdirAll(dst, 0o755); err != nil {
@@ -80,6 +84,47 @@ func (j *job) writeResources() error {
 				continue
 			}
 			m.Icon = rel
+		}
+		// Local members: their folder (or the HTML file's folder) ships as
+		// members/<id>/site, served by the runtime at mypack://<id>/.
+		for i := range snap.App.Group.Members {
+			m := &snap.App.Group.Members[i]
+			if !m.IsLocal() || strings.HasPrefix(m.Local, "members/") {
+				continue
+			}
+			st, err := os.Stat(m.Local)
+			if err != nil {
+				return &domainErr{code: "INVALID_CONFIG", field: fmt.Sprintf("app.group.members[%d].local", i),
+					msg: "Cannot find the folder of " + m.Name, cause: err, rem: "Check that it still exists, or remove it from the group."}
+			}
+			src, entry := m.Local, m.Entry
+			if !st.IsDir() {
+				src, entry = filepath.Dir(m.Local), filepath.Base(m.Local)
+			}
+			rel := "members/" + m.ID + "/site"
+			dst := filepath.Join(j.resDir, filepath.FromSlash(rel))
+			if err := os.MkdirAll(dst, 0o755); err != nil {
+				return err
+			}
+			skipped, err := copyTreeNoLinks(j.ctx, src, dst)
+			if err != nil {
+				return &domainErr{code: "INVALID_CONFIG", field: fmt.Sprintf("app.group.members[%d].local", i),
+					msg: "Cannot copy the folder of " + m.Name, cause: err, rem: "Check that the folder is readable and not huge."}
+			}
+			if skipped > 0 {
+				j.warn("%d symbolic link(s) in the folder of %q were not included", skipped, m.Name)
+			}
+			m.Local, m.Entry = rel, entry
+		}
+		// With no website member, Source names the first local one (bundled
+		// above), so the snapshot never points at the build machine.
+		if snap.App.Source.Type != config.SourceURL {
+			for _, m := range snap.App.Group.Members {
+				if m.IsLocal() {
+					snap.App.Source = config.Source{Type: config.SourceDir, Value: m.Local, Entry: m.Entry}
+					break
+				}
+			}
 		}
 	}
 	if p := snap.Native.TrayIcon; p != "" && !strings.HasPrefix(p, "resources/") {

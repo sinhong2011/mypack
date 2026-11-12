@@ -1,11 +1,13 @@
 package app
 
 import (
+	"fmt"
 	"log"
 	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 
@@ -49,6 +51,11 @@ type group struct {
 	a       *App
 	members []*groupMember
 
+	// localSchemes and localOrigins serve the local members (the
+	// navigation policy keeps them in the app).
+	localSchemes []string
+	localOrigins []string
+
 	mu     sync.Mutex
 	win    *mygo.Window
 	active int
@@ -57,20 +64,36 @@ type group struct {
 	ratio  float32
 }
 
-// newGroup prepares the members of cfg's group (sessions are made later,
-// on the main thread).
-func (a *App) newGroup() *group {
+// newGroup prepares the members of cfg's group: a local member's site
+// starts serving here (sessions are made later, on the main thread).
+func (a *App) newGroup() (*group, error) {
 	g := &group{a: a, split: -1, prev: -1, ratio: 0.5}
 	for i, m := range a.cfg.App.Group.Members {
-		home, err := config.NormalizeURL(m.URL)
-		if err != nil {
-			continue // validated; never happens
+		gm := &groupMember{cfg: m, index: len(g.members)}
+		if m.IsLocal() {
+			site, err := g.startLocal(m)
+			if err != nil {
+				return nil, fmt.Errorf("%s: %w", m.Name, err)
+			}
+			gm.home = site.StartURL
+			if site.Scheme != "" && !slices.Contains(g.localSchemes, site.Scheme) {
+				g.localSchemes = append(g.localSchemes, site.Scheme)
+			}
+			if site.Origin != "" {
+				g.localOrigins = append(g.localOrigins, site.Origin)
+			}
+		} else {
+			home, err := config.NormalizeURL(m.URL)
+			if err != nil {
+				continue // validated; never happens
+			}
+			gm.home = home
+			if u, err := url.Parse(home); err == nil {
+				gm.host = strings.ToLower(u.Hostname())
+				gm.reg = siteOf(gm.host)
+			}
 		}
-		gm := &groupMember{cfg: m, home: home, index: i}
-		if u, err := url.Parse(home); err == nil {
-			gm.host = strings.ToLower(u.Hostname())
-			gm.reg = siteOf(gm.host)
-		}
+		_ = i
 		if m.Icon != "" {
 			p := m.Icon
 			if !filepath.IsAbs(p) {
@@ -84,7 +107,28 @@ func (a *App) newGroup() *group {
 		}
 		g.members = append(g.members, gm)
 	}
-	return g
+	if len(g.members) == 0 {
+		return nil, fmt.Errorf("the group has no websites")
+	}
+	return g, nil
+}
+
+// startLocal serves a local member (a folder, or an HTML file and its
+// folder) at mypack://<member id>/.
+func (g *group) startLocal(m config.GroupMember) (*Site, error) {
+	src := config.Source{Type: config.SourceDir, Value: m.Local, Entry: m.Entry}
+	p := m.Local
+	if !filepath.IsAbs(p) {
+		p = filepath.Join(g.a.cfgDir, filepath.FromSlash(p))
+	}
+	if st, err := os.Stat(p); err == nil && !st.IsDir() {
+		src.Type = config.SourceFile
+	}
+	root, entry, err := ResolveLocal(g.a.cfgDir, src)
+	if err != nil {
+		return nil, err
+	}
+	return StartSiteAt(m.ID, root, entry, runtime.GOOS, os.Getenv("MYPACK_SITE_MODE"))
 }
 
 // groupSafeDomains are the members' sites, all internal to the app.

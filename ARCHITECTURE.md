@@ -86,6 +86,20 @@ view shows two. The service's `CreateGroup` (`internal/appservice/group.go`) mak
 addresses, keeps member icons beside the DB and enforces the Free edition's one-group limit. See
 `docs/gui-handoff-window-modes.md`.
 
+## Icon studio
+
+`app.icon.style` (`config.IconStyle`) dresses an icon up: a glyph (the icon's image, up to 3 letters, or an emoji), a
+background (`auto` colours from the image, `solid`, `gradient`, `glass`, or `none` = the image as it is), the glyph's
+size and tint, and a badge ribbon. `icons.Styled` (`internal/icons/style.go`) draws it on the same squircle grid as
+`icons.Default`, so the later steps (MacAppIcon, ICO, Linux PNGs) need nothing new. Emoji come from Apple Color Emoji's
+`sbix` bitmaps (`internal/icons/emoji.go`), so they are drawn on macOS only; elsewhere the name's initial is used.
+
+Where the style is drawn: the Builder draws it over `Request.IconPNG` (so CLI builds of a mypack.json get it too). The
+service keeps a styled project's `IconPNG` as the finished icon, so the Library and installs show it, and keeps the
+image beneath in `icons/<projectId>.png` beside the DB (`internal/appservice/iconstyle.go`); builds are given that
+image, `UpdateProject` redraws when the style or name changes, and `ProjectIconImage` returns it to the GUI's studio
+(`internal/desktop/app/iconstudio.go`).
+
 ## Runtime registry
 
 `registry.json` (schemaVersion 1) + `registry.json.sig` (Ed25519 over the exact bytes).
