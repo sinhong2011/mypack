@@ -10,6 +10,7 @@ make that core flow faster, clearer or more reliable are the most welcome.
   add `name`, an `https://` `url` and a `category` (`work`, `dev`, `chat`,
   `ai`, `design` or `media`), then run `go test ./catalog`. Once merged, the
   site shows up in everyone's Discover page within a day, no release needed.
+  CI runs `go test ./catalog` for that file and does not rebuild the whole app.
   release-please ignores commits that only touch `catalog/`.
   Entries only fill in an address; they can't carry scripts or settings.
 - **Website compatibility reports.** A site that doesn't log in, loses its
@@ -18,9 +19,13 @@ make that core flow faster, clearer or more reliable are the most welcome.
 - **Platform testing.** Try builds on macOS, Windows and Linux and report what
   happens. Clear reproduction steps are worth as much as code.
 - **Bug fixes and runtime work.** See "Working on the code" below.
-- **Translations.** Strings live in `internal/i18n/catalogs/*.json`. English
-  (`en.json`) is the source; other languages fall back to it.
-- **Docs and troubleshooting.** Anything that helps the next person get unstuck.
+- **Translations of the app.** Strings live in `internal/i18n/catalogs/*.json`.
+  English (`en.json`) is the source; other languages fall back to it. These
+  files are part of the binary, so CI runs the app tests.
+- **Docs and troubleshooting.** README files, `docs/` (including screenshots),
+  and translations of the README do not run the app tests. Use a `docs:`
+  commit for a root `README*.md` change so it does not open a release.
+  The check table is in [docs/releasing.md](docs/releasing.md).
 
 For a new feature, open a discussion or an issue first so we can agree on the
 scope before you spend time on it. Small fixes can go straight to a pull

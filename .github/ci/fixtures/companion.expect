@@ -1,0 +1,5 @@
+need_go=false
+need_catalog=false
+need_companion=true
+need_docs=false
+need_release_check=false

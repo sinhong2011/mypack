@@ -9,7 +9,20 @@
       "include-v-in-tag": true,
       "include-v-in-release-name": true,
       "changelog-path": "CHANGELOG.md",
-      "exclude-paths": ["catalog"],
+      "exclude-paths": ["catalog", "docs"],
+      "changelog-sections": [
+        {"type": "feat", "section": "Features"},
+        {"type": "fix", "section": "Bug Fixes"},
+        {"type": "perf", "section": "Performance Improvements"},
+        {"type": "revert", "section": "Reverts"},
+        {"type": "docs", "section": "Documentation", "hidden": true},
+        {"type": "style", "section": "Styles", "hidden": true},
+        {"type": "chore", "section": "Miscellaneous Chores", "hidden": true},
+        {"type": "refactor", "section": "Code Refactoring", "hidden": true},
+        {"type": "test", "section": "Tests", "hidden": true},
+        {"type": "build", "section": "Build System", "hidden": true},
+        {"type": "ci", "section": "Continuous Integration", "hidden": true}
+      ],
       "pull-request-header": "Release of the Mypack app and CLI. The version is in the pull request title.",
       "pull-request-footer": "Merging this pull request creates the vX.Y.Z tag from the title and opens the GitHub Release with these notes. GoReleaser then uploads the binaries to that same release. Do not create the tag yourself, and do not add another release-please package. See docs/releasing.md before merging the first release."
     }

@@ -17,19 +17,10 @@ on:
   push:
     tags:
       - "v*.*.*"
-  pull_request:
-    paths:
-      - ".goreleaser.yaml"
-      - ".github/workflows/release.yml"
-      - ".github/workflows/release-please.yml"
-      - "go.mod"
-      - "go.sum"
-      - "cmd/**"
-      - "Makefile"
 
-# contents: write is required to upload Release assets. The check job
-# narrows itself to read. A called workflow cannot raise permissions
-# above this workflow level.
+# Publish only. Pull-request validation of this file lives in CI, so a
+# docs change does not start a release build. contents: write is required
+# to upload Release assets. This workflow does not run on pull_request.
 permissions:
   contents: write
 
@@ -38,21 +29,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  check:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - uses: goreleaser/goreleaser-action@v7
-        with:
-          distribution: goreleaser
-          version: v2.20.1
-          args: check
-
   publish:
-    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: write

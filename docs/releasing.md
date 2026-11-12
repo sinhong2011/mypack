@@ -29,12 +29,41 @@ The source defaults stay `0.1.0-dev` (`internal/cli.Version` and `internal/deskt
 
 These are not part of the GitHub Release:
 
-- **Discover catalog.** Commits that only touch `catalog/` are excluded in `release-please-config.json`. Merging a catalog edit does not open a release pull request. A commit that also changes the app still counts.
+- **Discover catalog.** `catalog/discover.json` is embedded with `go:embed` as the offline fallback (`catalog.Bundled`). Installed apps also fetch that file from the repository, which is why a catalog edit does not need a release. release-please ignores a commit whose files are all under `catalog/` or `docs/`. A commit that also changes the app still counts.
+- **Documentation.** The same directory rule ignores `docs/**`, including screenshots. Root `README*.md` files are not a directory, and release-please 17.6 only excludes directory prefixes, so a root README commit is ignored only when its type does not appear in the changelog (`docs:`, `chore:`, `ci:`, `test:`, `style:`, `build:`, `refactor:`). A `feat:` or `fix:` that touches only a root README still opens a release pull request; use `docs:` for those edits.
 - **Generated-app runtimes.** `make runtimes` / `scripts/release-runtimes.sh` writes a signed registry under `dist/registry/`. That version is the Makefile `VERSION` (default `1.0.0`), which is also what `make app` writes into `dist/Mypack-1.0.0.dmg`. It is a different number from the git tag. Release builds do not run `release-runtimes.sh`.
 - **Browser companion.** `apps/browser-companion` is built with pnpm and is not in the archives.
 - **Dev signing keys.** `dist/keys/` is gitignored. The release workflows never read it. GoReleaser writes to `dist/goreleaser/` so `release --clean` cannot delete `dist/keys/` or `dist/registry/`.
 
 `internal/companion.HostVersion` stays `0.1.0`. It is the native-messaging protocol constant, and Go `-X` cannot set a constant.
+
+## What CI runs
+
+CI always starts. It does not use a workflow `paths` filter, because a skipped workflow would leave the required check pending. A small job reads the diff and chooses the rest. The required branch-protection check is still named **`test (macos-latest)`**. That name is now the aggregate gate, not the macOS runner. The macOS, Ubuntu, and Windows test machines report as `app (macos-latest)`, `app (ubuntu-latest)`, and `app (windows-latest)`.
+
+No protection change is required to merge this. Keep requiring `test (macos-latest)`. Do not switch the requirement to `app (macos-latest)`: that job is skipped on purpose for docs-only pull requests, and a skipped required check never completes.
+
+If the required name is renamed later, do it in this order: add a second always-on job with the new name and wait until `main` reports it green, then change branch protection to the new name, then delete the old job. Do not delete `test (macos-latest)` first.
+
+The gate fails when the change detector fails, or when any selected job fails or is cancelled. A job that was not selected is skipped, and that is a pass. Unknown paths, an empty diff, a new branch with no parent, and a manual run all select the app tests.
+
+| Change | App vet and test (3 OS) | `go test ./catalog` | Companion `pnpm test` | Relative doc links | `goreleaser check` |
+| --- | --- | --- | --- | --- | --- |
+| `README*.md`, `docs/**` (including screenshots), `CONTRIBUTING.md`, `ARCHITECTURE.md`, and the other root policy docs | no | no | no | yes | no |
+| `catalog/discover.json` only | no | yes | no | no | no |
+| `internal/i18n/**` (UI strings, not README translations) | yes | included | no | no | no |
+| Other Go, `go.mod`, `Makefile`, `scripts/**`, embedded assets | yes | included | no | no | no |
+| `apps/browser-companion/**` only | no | no | yes | no | no |
+| `.github/workflows/**`, `.github/ci/**`, `.goreleaser.yaml`, release-please config | yes | included | no | no | yes |
+| Mixed docs and catalog | no | yes | no | yes | no |
+| Mixed docs and code, or a rename/delete of a Go file | yes | included | if the extension changed | if docs changed | if release config changed |
+| Any other path | yes | included | no | no | no |
+
+`catalog/discover.json` is the only catalog file that skips the app matrix. `go test ./catalog` parses the embedded file (`TestBundled`). `catalog/*.go` is app code and runs the full matrix. UI catalogs under `internal/i18n/catalogs/` are embedded into the binary and run the full matrix; they are not documentation. Companion locale JSON is part of the extension and runs Vitest, not `go test`.
+
+Pull requests diff the base commit against the head, including forks, with `contents: read`. The workflow does not use `pull_request_target`. A push to `main` diffs `github.event.before` against the new commit. Tags do not run this workflow. GoReleaser publishes only from a `vX.Y.Z` tag push or from the release-please job after that tag exists. A manual `workflow_dispatch` of CI runs the app tests. A new push to the same branch cancels the in-progress CI run. A release publish is not cancelled by a newer run.
+
+Classifier fixtures live in [`.github/ci/fixtures`](../.github/ci/fixtures) and include the file list from the docs-only pull request that added the localized READMEs and the Library screenshot. The change-detector job runs those fixtures, the gate fixtures, and the link-checker fixtures before it selects any other job.
 
 ## How a release is cut
 

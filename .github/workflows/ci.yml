@@ -1,15 +1,129 @@
+# Change-aware CI.
+#
+# Branch protection requires the check named "test (macos-latest)".
+# That name is the aggregate gate below, not the macOS test machine.
+# The gate always reports. Docs-only changes pass it without installing Go.
+# A failed, cancelled, or missing change detector fails the gate.
+# Do not switch this workflow to pull_request_target.
 name: CI
 
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      need_go: ${{ steps.scope.outputs.need_go }}
+      need_catalog: ${{ steps.scope.outputs.need_catalog }}
+      need_companion: ${{ steps.scope.outputs.need_companion }}
+      need_docs: ${{ steps.scope.outputs.need_docs }}
+      need_release_check: ${{ steps.scope.outputs.need_release_check }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: scope
+        run: |
+          set -euo pipefail
+          diff="$RUNNER_TEMP/diff-names.txt"
+          case "${GITHUB_EVENT_NAME}" in
+            pull_request)
+              git diff --name-status \
+                "${{ github.event.pull_request.base.sha }}" \
+                "${{ github.event.pull_request.head.sha }}" > "$diff"
+              ;;
+            push)
+              before="${{ github.event.before }}"
+              if [[ -z "$before" || "$before" =~ ^0+$ ]]; then
+                printf 'M\t.unknown-push-base\n' > "$diff"
+              else
+                git diff --name-status "$before" "${{ github.sha }}" > "$diff"
+              fi
+              ;;
+            *)
+              # workflow_dispatch and anything unexpected run the full suite.
+              printf 'M\t.manual-or-unknown-event\n' > "$diff"
+              ;;
+          esac
+          if [[ ! -s "$diff" ]]; then
+            printf 'M\t.empty-diff\n' > "$diff"
+          fi
+          bash .github/ci/classify.sh < "$diff" | tee -a "$GITHUB_OUTPUT"
+          cp "$diff" ci-diff-names.txt
+      - name: Classifier fixtures
+        run: bash .github/ci/classify.sh --self-test
+      - name: Gate fixtures
+        run: bash .github/ci/gate_test.sh
+      - name: Doc link fixtures
+        run: python3 .github/ci/doclinks_test.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ci-diff
+          path: ci-diff-names.txt
+          if-no-files-found: error
+
+  docs:
+    needs: changes
+    if: needs.changes.outputs.need_docs == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: ci-diff
+      - name: Relative links in changed Markdown
+        run: python3 .github/ci/doclinks.py --diff ci-diff-names.txt
+
+  catalog:
+    needs: changes
+    if: needs.changes.outputs.need_catalog == 'true' && needs.changes.outputs.need_go != 'true'
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: "0"
+      GOTOOLCHAIN: auto
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Test bundled catalog
+        run: go test ./catalog
+
+  companion:
+    needs: changes
+    if: needs.changes.outputs.need_companion == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/browser-companion
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/browser-companion/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+
+  app:
+    name: app (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.need_go == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -27,3 +141,33 @@ jobs:
         run: go vet ./...
       - name: Test
         run: go test ./...
+
+  release-check:
+    needs: changes
+    if: needs.changes.outputs.need_release_check == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: v2.20.1
+          args: check
+
+  # Required branch-protection context. Always reported.
+  gate:
+    name: test (macos-latest)
+    needs: [changes, docs, catalog, companion, app, release-check]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fail unless every selected check succeeded
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          DOCS: ${{ needs.docs.result }}
+          CATALOG: ${{ needs.catalog.result }}
+          COMPANION: ${{ needs.companion.result }}
+          APP: ${{ needs.app.result }}
+          RELEASE: ${{ needs.release-check.result }}
+        run: bash .github/ci/gate.sh
