@@ -64,6 +64,7 @@
     { "name": "Canva", "url": "https://www.canva.com/", "category": "design" },
     { "name": "Excalidraw", "url": "https://excalidraw.com/", "category": "design" },
     { "name": "Miro", "url": "https://miro.com/app/dashboard/", "category": "design" },
+    { "name": "Dribbble", "url": "https://dribbble.com/", "category": "design" },
     { "name": "Photopea", "url": "https://www.photopea.com/", "category": "design" },
     { "name": "MasterGo", "url": "https://mastergo.com/", "category": "design" },
     { "name": "即时设计", "url": "https://js.design/", "category": "design" },
