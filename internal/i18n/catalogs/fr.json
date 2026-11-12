@@ -620,6 +620,13 @@
   "sync.last": "Synchronisé {when} · {count, plural, one {# app} other {# apps}}",
   "sync.status": "État",
   "sync.now": "Synchroniser",
+  "sync.file.title": "Exporter et importer",
+  "sync.export": "Exporter la bibliothèque",
+  "sync.export.desc": "Enregistrez toutes vos apps dans un fichier .mypack, comme sauvegarde ou pour l’ouvrir sur un autre ordinateur.",
+  "sync.export.button": "Exporter…",
+  "sync.import": "Importer des apps",
+  "sync.import.desc": "Ajoutez des apps depuis un fichier .mypack. Les apps déjà dans votre bibliothèque restent telles quelles, sauf si vous choisissez de les remplacer.",
+  "sync.import.button": "Importer…",
   "menu.checkUpdates": "Rechercher des mises à jour…",
   "update.group": "Mises à jour",
   "update.idle": "Rechercher une version plus récente de Mypack",
@@ -648,5 +655,8 @@
   "update.prereleases.desc": "Propose aussi les versions bêta et candidates.",
   "update.toast": "Mypack {version} est disponible",
   "update.toast.view": "Voir",
-  "update.manager.linux": "votre gestionnaire de paquets"
+  "update.manager.linux": "votre gestionnaire de paquets",
+  "window.minimize": "Réduire",
+  "window.maximize": "Agrandir",
+  "window.restore": "Restaurer"
 }

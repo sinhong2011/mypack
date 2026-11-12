@@ -259,6 +259,24 @@ func (a *App) syncGroup(c *ui.Context) {
 	})
 }
 
+// transferGroup is Settings' Export & Import group: the File menu's
+// Export Library… and Import Apps…, a file to keep or carry over, with or
+// without Library sync.
+func (a *App) transferGroup(c *ui.Context) {
+	kit.Group(c, T("sync.file.title"), func() {
+		kit.SettingIconRow(c.Key("export"), icons.Download, ui.Color{}, T("sync.export"), T("sync.export.desc"), func() {
+			if kit.Button(c.Key("exp"), T("sync.export.button"), kit.ButtonOpts{Size: design.ControlSM}).Clicked() {
+				a.exportLibrary(nil, T("library.export.name"))
+			}
+		})
+		kit.SettingIconRow(c.Key("import"), icons.Import, ui.Color{}, T("sync.import"), T("sync.import.desc"), func() {
+			if kit.Button(c.Key("imp"), T("sync.import.button"), kit.ButtonOpts{Size: design.ControlSM}).Clicked() {
+				a.importApps()
+			}
+		})
+	})
+}
+
 // syncFolderLabel names the sync folder as Finder does ("iCloud Drive ›
 // Mypack"), else as a short path.
 func syncFolderLabel(path string) string {
