@@ -6,7 +6,7 @@ Tags look like `v0.1.0`, or `v0.2.0-beta.1` for a pre-release. They do not look 
 
 ## What a release is
 
-The release is the three programs `make gui` and `make cli` already build:
+A release has archives and installers. The archives hold the three programs `make gui` and `make cli` already build:
 
 | Binary | Package | Role |
 | --- | --- | --- |
@@ -50,8 +50,9 @@ The Release workflow then:
 
 1. **verify**: checks that the tag is `vX.Y.Z` or `vX.Y.Z-pre` (`scripts/release.sh --check-tag`) and that its commit is on `main`, then runs `go vet ./...` and `go test ./...` on it. A tag pushed by hand, or before CI on `main` finished, cannot publish a broken build.
 2. **publish**: runs `goreleaser release --clean`. It builds the six archives, writes `checksums.txt`, and creates the GitHub Release named `Mypack X.Y.Z`. A tag with `-` in it is marked as a pre-release (`prerelease: auto`).
+3. **installers**: three jobs at once, after publish, run `make installers` (see [Installers](#installers)) and upload the results to that Release with `gh release upload --clobber`: macOS on a macOS runner, Windows and Linux on Ubuntu.
 
-On pull requests that touch the release files, the same workflow runs `goreleaser check` and the script's `--self-test`, and publishes nothing.
+On pull requests that touch the release files, the same workflow runs `goreleaser check` and the script's `--self-test`, and builds the installers without uploading them, so a broken installer build shows on the pull request.
 
 ### Choosing the version
 
@@ -73,7 +74,7 @@ The publish job fetches tags again after checkout, because `actions/checkout` ca
 
 ### Publishing again
 
-Re-running the Release workflow on the same tag rebuilds the archives and replaces them on the existing Release (`replace_existing_artifacts`). Notes that are already there are kept (`mode: keep-existing`). Do not move a tag that has been published; cut the next patch version instead.
+Re-running the Release workflow on the same tag rebuilds the archives and installers and replaces them on the existing Release (`replace_existing_artifacts`, `--clobber`). "Re-run failed jobs" on one installer job rebuilds that platform alone. Notes that are already there are kept (`mode: keep-existing`). Do not move a tag that has been published; cut the next patch version instead.
 
 ### Trying it locally
 
@@ -102,7 +103,32 @@ Each archive unpacks to a single directory containing:
 - `mypack-native-host` (`mypack-native-host.exe`)
 - `LICENSE`, `NOTICE`, `README.md`
 
-`make release` on a Mac still builds `dist/Mypack-<version>.app` and `dist/Mypack-<version>.dmg`. The GitHub Release does not include that disk image. See below.
+## Installers
+
+[`mygo build`](https://github.com/egoist/mygo/blob/main/docs/distribution.md), configured by [`mygo.json`](../mygo.json), makes them from `./cmd/mypack`:
+
+| Platform | Files | Built on |
+| --- | --- | --- |
+| macOS | `mypack-<version>.dmg`, one universal (Apple silicon and Intel) app | macOS |
+| Windows | `mypack-setup-<version>-amd64.exe`, `…-arm64.exe`: installs for the current user, no administrator needed | Ubuntu, with NSIS |
+| Linux | `mypack_<version>_amd64.deb`, `…_arm64.deb`, `mypack-<version>-1.x86_64.rpm`, `…aarch64.rpm` (Debian and RPM write a pre-release as `0.1.0~beta.1`) | Ubuntu |
+
+```sh
+make installers                                    # this machine's platform, version 0.1.0-dev
+make installers PLATFORM=darwin/universal VERSION=v0.2.0
+make installers PLATFORM=windows/amd64,linux/amd64 # the setup program needs makensis (brew install makensis)
+```
+
+Results go to `build/<os>-<arch>/` (gitignored). The target writes the version into `mygo.json` for the build and puts the file back afterwards. It runs the `mygo` CLI of the version `go.mod` requires.
+
+How the installed app differs from the archives:
+
+- **Version.** `mygo build` takes no `-ldflags` of ours, so it links the `mygo.json` version and `cmd/mypack` reads it (`mygo.App.Version()`) when nothing stamped one. `mypack version` reports the release.
+- **Windows.** `Mypack.exe` is a windowed program, so the CLI prints nothing in a terminal there. Use `mypack.exe` or `mypack-cli.exe` from the zip archive for the CLI on Windows.
+- **No browser companion host.** `mypack-native-host` is only in the archives.
+- **Signing.** The DMG is signed ad hoc, so Gatekeeper blocks it on other Macs until it is signed with a Developer ID and notarized ([below](#notarized-macos-disk-image)): right-click Mypack.app › Open, or `xattr -dr com.apple.quarantine /Applications/Mypack.app`. The Windows setup has no signature, so SmartScreen warns ("More info › Run anyway").
+
+`make app` / `make dmg` (`scripts/package-app.sh`) still build `dist/Mypack.app` for local development. The Release does not use them.
 
 ## Registry key
 
@@ -123,14 +149,16 @@ These need Apple and Homebrew setup that this repository does not have. The work
 
 ### Notarized macOS disk image
 
-`scripts/package-app.sh` already signs and notarizes when it is given real credentials. `make release SIGN_IDENTITY="Developer ID Application: …" NOTARY_PROFILE=mypack` builds `dist/Mypack-<version>.dmg`. The default `SIGN_IDENTITY` is `-` (ad-hoc). An ad-hoc signature does not satisfy Gatekeeper for an app downloaded from GitHub, so the release does not upload an ad-hoc DMG.
+`mygo build` signs and notarizes the DMG when `mygo.json` says how:
 
-To do this from GitHub Actions later:
+```json
+"macos": {
+  "signingIdentity": "Developer ID Application: Name (TEAMID)",
+  "notarize": { "keychainProfile": "notary" }
+}
+```
 
-1. A Developer ID Application certificate, exported as a password-protected `.p12`.
-2. An App Store Connect API key (`.p8`, key id, issuer id) for `notarytool`. A `NOTARY_PROFILE` keychain entry exists only on the machine that stored it, not on a GitHub-hosted runner.
-3. GitHub Actions secrets for the certificate, its password, and the API key. Do not commit them.
-4. A `macos-latest` job that imports the certificate into a temporary keychain, runs `scripts/package-app.sh <version> dmg` with `SIGN_IDENTITY` set, submits the DMG with `xcrun notarytool submit --key … --key-id … --issuer … --wait`, staples it, and uploads `dist/Mypack-<version>.dmg` with `gh release upload <tag>`.
+On GitHub Actions, the macOS installer job also needs the certificate and notary credentials in a temporary keychain. MyGo's [GitHub Actions guide](https://github.com/egoist/mygo/blob/main/docs/github-actions.md#signing-and-notarizing-macos-apps) has the step and the secrets it reads (`MACOS_CERTIFICATE`, `MACOS_CERTIFICATE_PASSWORD`, `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD`). Add that step before **Build** in the macOS row. Do not commit the certificate or passwords. The Windows setup can be signed the same way with `windows.certificate` or `windows.signCommand`.
 
 ### Homebrew
 

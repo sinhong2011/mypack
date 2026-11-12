@@ -221,7 +221,7 @@ apps/         the browser extension (WXT + SolidJS)
 
 ## Releases
 
-A release is a `vX.Y.Z` tag pushed on `main`. The Release workflow tests that commit, then GoReleaser builds unsigned binaries for macOS, Linux and Windows and publishes them, with checksums, to a GitHub Release whose notes list the pull requests merged since the last one. Discover catalog edits reach users without a release. Signed macOS builds and Homebrew are not part of this pipeline yet; [docs/releasing.md](docs/releasing.md) lists what they need.
+A release is a `vX.Y.Z` tag pushed on `main`. The Release workflow tests that commit, then GoReleaser builds unsigned binaries for macOS, Linux and Windows and publishes them, with checksums, to a GitHub Release whose notes list the pull requests merged since the last one. `mygo build` adds installers to the same Release: a macOS disk image, Windows setup programs, and Debian and RPM packages. Discover catalog edits reach users without a release. Signed macOS builds and Homebrew are not part of this pipeline yet; [docs/releasing.md](docs/releasing.md) lists what they need.
 
 ## Contributing
 
