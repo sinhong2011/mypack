@@ -44,6 +44,8 @@ type editorState struct {
 	headers  map[string]*ui.Handle // accordion rows, for ↑/↓
 	moveDown string
 	newDom   string
+	newAllow string
+	newHide  string
 	cssBuf   string
 	jsBuf    string
 	nums     map[string]string // number fields' text while being edited
@@ -133,9 +135,12 @@ func validationText(err error) string {
 	return err.Error()
 }
 
-func (a *App) saveIndicator(c *ui.Context, ed *editorState) {
+// saveIndicator is the quiet save-state pill under the app's name.
+func (a *App) saveIndicator(c *ui.Context, ed *editorState) ui.Element {
 	p := design.Of(c)
-	ui.Row(c).Gap(6).AlignItems(ui.Center).Role(ui.RoleStatus).Children(func() {
+	pill := ui.Row(c).Height(24).Padding(0, 11, 0, 9).Gap(6).AlignItems(ui.Center).Radius(12).
+		Background(p.Fill).Border(0.5, p.Border).Role(ui.RoleStatus)
+	return pill.Children(func() {
 		switch {
 		case ed.saveErr != "":
 			kit.Glyph(c, icons.Warning, 13, p.Warning)
@@ -702,6 +707,31 @@ func (a *App) settingGroups(c *ui.Context, ed *editorState, pr *domain.Project) 
 		{label: T("set.basicAuth"), desc: T("set.basicAuth.desc"), control: func() {
 			text("bau", &cfg.Network.BasicAuthUser, T("set.basicAuth"), T("set.basicAuth.placeholder"), 200)
 		}},
+		{label: T("set.blockTrackers"), desc: T("set.blockTrackers.desc"), control: func() {
+			on := cfg.WebView.Blocking != nil && cfg.WebView.Blocking.Trackers
+			old := on
+			kit.Switch(k("bt"), &on, T("set.blockTrackers"))
+			if on != old {
+				ensureBlocking(cfg).Trackers = on
+				tidyBlocking(cfg)
+				ed.changed()
+			}
+		}},
+		{label: T("set.blockBanners"), desc: T("set.blockBanners.desc"), control: func() {
+			on := cfg.WebView.Blocking != nil && cfg.WebView.Blocking.CookieBanners
+			old := on
+			kit.Switch(k("bb"), &on, T("set.blockBanners"))
+			if on != old {
+				ensureBlocking(cfg).CookieBanners = on
+				tidyBlocking(cfg)
+				ed.changed()
+			}
+		}},
+		{label: T("set.blockAllow"), desc: T("set.blockAllow.desc"), wide: true, hidden: cfg.WebView.Blocking == nil || !(cfg.WebView.Blocking.Trackers || cfg.WebView.Blocking.CookieBanners), control: func() {
+			b := ensureBlocking(cfg)
+			chipList(k("allow"), &b.Allow, &ed.newAllow, T("set.blockAllow.add"), false, config.NormalizeAllowDomain, func() { tidyBlocking(cfg); ed.changed() })
+			tidyBlocking(cfg)
+		}},
 		{label: T("set.downloads"), desc: T("set.downloads.desc"), control: func() {
 			text("dl", &cfg.Network.DownloadDirectory, T("set.downloads"), "~/Downloads", 200)
 			if kit.Button(k("dlc"), T("common.choose"), kit.ButtonOpts{Size: design.ControlSM}).Clicked() {
@@ -723,6 +753,11 @@ func (a *App) settingGroups(c *ui.Context, ed *editorState, pr *domain.Project) 
 				setInjection(cfg, "css", ed.cssBuf)
 				ed.changed()
 			}
+		}},
+		{label: T("set.hide"), desc: T("set.hide.desc"), wide: true, control: func() {
+			b := ensureBlocking(cfg)
+			chipList(k("hide"), &b.Hide, &ed.newHide, T("set.hide.add"), true, cssSelector, func() { tidyBlocking(cfg); ed.changed() })
+			tidyBlocking(cfg)
 		}},
 		{label: T("set.js"), desc: T("set.js.desc"), wide: true, control: func() {
 			ui.Text(c, T("set.js.risk")).FontSize(design.FontCaption).TextColor(p.TextTertiary)

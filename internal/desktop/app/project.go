@@ -412,11 +412,11 @@ func (a *App) projectSettingsView(c *ui.Context, pr *domain.Project) {
 		ui.Column(c).AlignItems(ui.Center).Gap(0).Padding(32, 0, 24, 0).Children(func() {
 			a.projectIcon(c, pr, heroIcon)
 			kit.PageTitle(c, ed.cfg.App.Name).Margin(16, 0, 2, 0).SingleLine()
-			ui.Row(c).Gap(5).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Height(20).Gap(5).AlignItems(ui.Center).Children(func() {
 				kit.Glyph(c, icons.Link, 12, p.TextTertiary)
 				ui.Text(c, domainOf(pr.Config.App.Source)).FontSize(design.FontSmall).TextColor(p.TextSecondary).SingleLine()
 			})
-			a.saveIndicator(c, ed)
+			a.saveIndicator(c, ed).Margin(10, 0, 0, 0)
 			// Actions under the preview: Build, and Open when installed.
 			busy := false
 			if j := a.latestJob(pr.ID); j != nil && (j.Status == domain.JobRunning || j.Status == domain.JobQueued || j.Status == domain.JobAwaitingApproval) {

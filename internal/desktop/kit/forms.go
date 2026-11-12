@@ -364,6 +364,9 @@ func TextField(c *ui.Context, value *string, label string, o FieldOpts) ui.Eleme
 		in.Font(MonoFont).FontSize(design.FontSmall)
 	}
 	fieldChrome(c, in, in.Focused(), o.Invalid, design.RadiusField)
+	if in.Focused() {
+		MarkTyping()
+	}
 	return in
 }
 
@@ -440,6 +443,9 @@ func SearchField(c *ui.Context, query *string, placeholder string, h *ui.Handle,
 		}
 	})
 	focused := in.Focused()
+	if focused {
+		MarkTyping()
+	}
 	fieldChrome(c, box, focused, false, design.RadiusField)
 	if !focused {
 		design.Well(c, box)

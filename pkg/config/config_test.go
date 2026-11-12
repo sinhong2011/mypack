@@ -61,7 +61,7 @@ func TestProjectBuildValidation(t *testing.T) {
 
 func TestNativeAndUAPresetDefaults(t *testing.T) {
 	c := New("Mail", Source{Type: SourceURL, Value: "https://mail.example.com"}, Target{OS: "darwin", Arch: "arm64"})
-	if c.Runtime.Version != DefaultRuntimeVersion || DefaultRuntimeVersion != "1.0.6" {
+	if c.Runtime.Version != DefaultRuntimeVersion || DefaultRuntimeVersion != "1.0.7" {
 		t.Fatalf("runtime version = %q", c.Runtime.Version)
 	}
 	if c.Native.NotificationsMode() != "allow" || c.Native.BadgeMode() != "auto" || !c.Native.LinkRoutingEnabled() {
@@ -289,5 +289,61 @@ func TestIconStyleValidation(t *testing.T) {
 		if err := c.Validate(); err == nil {
 			t.Errorf("%s: want an error", name)
 		}
+	}
+}
+
+func TestBlockingConfig(t *testing.T) {
+	c := New("Mail", Source{Type: SourceURL, Value: "https://mail.example.com"}, Target{OS: "darwin", Arch: "arm64"})
+	b, _ := c.Marshal()
+	if strings.Contains(string(b), `"blocking"`) {
+		t.Fatal("no blocking section by default")
+	}
+	for in, want := range map[string]string{
+		"example.com": "example.com", "https://www.Example.com/a?b": "example.com", "*.example.co.uk": "example.co.uk",
+		"example.com:8443": "example.com", "localhost": "", "not a domain": "", "": "",
+	} {
+		if got := NormalizeAllowDomain(in); got != want {
+			t.Errorf("NormalizeAllowDomain(%q) = %q, want %q", in, got, want)
+		}
+	}
+	c.WebView.Blocking = &BlockingConfig{Trackers: true, Allow: []string{"bank.example"}, Hide: []string{".promo"}}
+	if err := c.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	for name, bc := range map[string]BlockingConfig{
+		"allow": {Allow: []string{"https://x.com"}},
+		"hide":  {Hide: []string{".a { color: red }"}},
+		"empty": {Hide: []string{"  "}},
+	} {
+		bc := bc
+		c.WebView.Blocking = &bc
+		if err := c.Validate(); err == nil {
+			t.Errorf("%s: want an error", name)
+		}
+	}
+}
+
+func TestMinRuntimeRaisesPin(t *testing.T) {
+	host := Target{OS: "darwin", Arch: "arm64"}
+	c := New("Mail", Source{Type: SourceURL, Value: "https://mail.example.com"}, host)
+	c.Runtime.Version = "1.0.5"
+	c.ApplyDefaults(host)
+	if c.Runtime.Version != "1.0.5" {
+		t.Fatalf("a plain app keeps its pin, got %s", c.Runtime.Version)
+	}
+	c.Window.Mode = ModeSidebar
+	c.ApplyDefaults(host)
+	if c.Runtime.Version != "1.0.6" {
+		t.Fatalf("sidebar mode needs 1.0.6, got %s", c.Runtime.Version)
+	}
+	c.WebView.Blocking = &BlockingConfig{CookieBanners: true}
+	c.ApplyDefaults(host)
+	if c.Runtime.Version != "1.0.7" {
+		t.Fatalf("blocking needs 1.0.7, got %s", c.Runtime.Version)
+	}
+	c.Runtime.Version = "1.2.0"
+	c.ApplyDefaults(host)
+	if c.Runtime.Version != "1.2.0" {
+		t.Fatal("a newer pin is never lowered")
 	}
 }

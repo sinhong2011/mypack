@@ -47,7 +47,7 @@ func (a *App) resultBar(c *ui.Context, pr *domain.Project, j *domain.BuildJob) {
 			ui.Box(c).Width(1).Height(24).Background(p.Divider).Shrink(0)
 			ui.Row(c).Gap(4).AlignItems(ui.Center).Shrink(0).Children(func() {
 				if failed {
-					if kit.Button(c.Key("retry"), T("action.retry"), kit.ButtonOpts{Variant: kit.Primary, Size: 36}).Clicked() || c.Shortcut(0, ui.KeyEnter) {
+					if kit.Button(c.Key("retry"), T("action.retry"), kit.ButtonOpts{Variant: kit.Primary, Size: 36}).Clicked() || (!kit.Typing() && c.Shortcut(0, ui.KeyEnter)) {
 						a.startBuild(pr.ID, j.Targets)
 					}
 					a.resultIcon(c, "log", icons.Log, T("build.viewLog"), func() { a.logOpen[j.ID] = !a.logOpen[j.ID] })
@@ -129,7 +129,7 @@ func (a *App) resultOpen(c *ui.Context, si successInfo) {
 				ui.Text(c, T("result.opened")).FontSize(design.FontBody).TextColor(p.TextSecondary).SingleLine()
 			}
 		})
-		if chip.Clicked() || c.Shortcut(0, ui.KeyEnter) {
+		if chip.Clicked() || (!kit.Typing() && c.Shortcut(0, ui.KeyEnter)) {
 			open()
 		}
 		return
@@ -138,7 +138,7 @@ func (a *App) resultOpen(c *ui.Context, si successInfo) {
 		return
 	}
 	if kit.Button(c.Key("open"), T("action.open"), kit.ButtonOpts{Variant: kit.Primary, Size: 36, Loading: si.installing}).Clicked() ||
-		c.Shortcut(0, ui.KeyEnter) {
+		(!kit.Typing() && c.Shortcut(0, ui.KeyEnter)) {
 		open()
 	}
 }

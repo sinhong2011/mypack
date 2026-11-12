@@ -22,7 +22,7 @@ import (
 const SchemaVersion = 1
 
 // DefaultRuntimeVersion is the runtime version new projects pin (ADR-005).
-const DefaultRuntimeVersion = "1.0.6"
+const DefaultRuntimeVersion = "1.0.7"
 
 // Config is the full mypack.json document.
 type Config struct {
@@ -382,6 +382,93 @@ type WebViewConfig struct {
 	IgnoreCertErrs  bool             `json:"ignoreCertificateErrors,omitempty"` // dangerous, debug only
 	DisabledKeys    []string         `json:"disabledShortcuts,omitempty"`
 	DevTools        bool             `json:"devTools,omitempty"`
+	// Blocking is content blocking (runtime 1.0.7+); nil blocks nothing.
+	Blocking *BlockingConfig `json:"blocking,omitempty"`
+}
+
+// BlockingConfig blocks ads and trackers and hides page clutter with the
+// web engine's content rules (WebKit content blockers; MyGo matches loads
+// itself on Windows).
+type BlockingConfig struct {
+	// Trackers blocks common ad and tracker domains when a page loads them
+	// from another site.
+	Trackers bool `json:"trackers,omitempty"`
+	// CookieBanners hides the cookie-consent banners of common consent
+	// tools.
+	CookieBanners bool `json:"cookieBanners,omitempty"`
+	// Allow lists sites ("example.com", which takes its subdomains too)
+	// where nothing is blocked or hidden, for a site that breaks.
+	Allow []string `json:"allow,omitempty"`
+	// Hide lists CSS selectors of elements hidden on every page of the app
+	// (a promo bar, a sidebar ad).
+	Hide []string `json:"hide,omitempty"`
+}
+
+// Active reports whether b blocks or hides anything.
+func (b *BlockingConfig) Active() bool {
+	return b != nil && (b.Trackers || b.CookieBanners || len(b.Hide) > 0)
+}
+
+// Blocking limits.
+const (
+	MaxBlockingAllow = 100
+	MaxBlockingHide  = 50
+)
+
+var allowDomainRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$`)
+
+// NormalizeAllowDomain turns what a user types ("https://www.Example.com/x",
+// "*.example.com") into the domain an allow entry holds ("example.com"),
+// or "" when it is not a domain.
+func NormalizeAllowDomain(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	if i := strings.Index(s, "://"); i >= 0 {
+		s = s[i+3:]
+	}
+	if i := strings.IndexAny(s, "/?#"); i >= 0 {
+		s = s[:i]
+	}
+	if i := strings.LastIndex(s, ":"); i >= 0 {
+		s = s[:i]
+	}
+	s = strings.TrimPrefix(strings.TrimPrefix(s, "*."), "www.")
+	if !allowDomainRe.MatchString(s) {
+		return ""
+	}
+	return s
+}
+
+func (b *BlockingConfig) validate(add func(field, code, msg string)) {
+	const f = "webview.blocking."
+	if len(b.Allow) > MaxBlockingAllow {
+		add(f+"allow", "TOO_MANY", "list up to 100 sites")
+	}
+	for _, d := range b.Allow {
+		if NormalizeAllowDomain(d) != d {
+			add(f+"allow", "INVALID_DOMAIN", fmt.Sprintf("%q is not a domain like example.com", d))
+			break
+		}
+	}
+	if len(b.Hide) > MaxBlockingHide {
+		add(f+"hide", "TOO_MANY", "list up to 50 selectors")
+	}
+	for _, sel := range b.Hide {
+		if t := strings.TrimSpace(sel); t == "" || len(t) > 300 || strings.ContainsAny(t, "{}") {
+			add(f+"hide", "INVALID_SELECTOR", fmt.Sprintf("%q is not a CSS selector", sel))
+			break
+		}
+	}
+}
+
+// MinRuntime is the earliest runtime that has every feature c turns on.
+func (c *Config) MinRuntime() string {
+	switch {
+	case c.WebView.Blocking.Active():
+		return "1.0.7"
+	case c.IsGroup() || c.Window.EffectiveMode() != ModeWindow:
+		return "1.0.6"
+	}
+	return ""
 }
 
 type NavigationConfig struct {
@@ -514,6 +601,11 @@ func (c *Config) ApplyDefaults(host Target) {
 	}
 	if c.Runtime.Version == "" {
 		c.Runtime.Version = DefaultRuntimeVersion
+	}
+	// A feature turned on in a project pinned to an older runtime raises the
+	// pin, or the built app would quietly lack it. Pins are never lowered.
+	if min := c.MinRuntime(); min != "" && versionRe.MatchString(c.Runtime.Version) && !RuntimeAtLeast(c.Runtime.Version, min) {
+		c.Runtime.Version = min
 	}
 	w := &c.Window
 	if w.Width == 0 {
@@ -694,6 +786,9 @@ func (c *Config) Validate() error {
 		add("app.source.type", "INVALID_SOURCE", "source type must be url, file or dir")
 	}
 	c.validateProjectBuild(add)
+	if b := c.WebView.Blocking; b != nil {
+		b.validate(add)
+	}
 	switch c.App.Icon.Source {
 	case "auto", "default":
 	case "file":

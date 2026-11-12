@@ -31,8 +31,9 @@ type App struct {
 
 	session  *mygo.Session
 	site     *Site
-	home     string // URL "Home" and new windows load
-	startURL string // URL the first window loads
+	blocking *mygo.ContentRules // webview.blocking, compiled at launch (nil = none)
+	home     string             // URL "Home" and new windows load
+	startURL string             // URL the first window loads
 	preload  string
 
 	disabled map[string]bool // normalized disabled accelerators
@@ -205,7 +206,10 @@ func (a *App) Run() error {
 	})
 	a.menu = a.buildMenu()
 	mygo.App.SetMenu(a.menu)
-	mygo.App.WhenReady(a.start)
+	mygo.App.WhenReady(func() {
+		a.compileBlocking() // before the first page, so it loads blocked
+		a.start()
+	})
 	return mygo.App.Run()
 }
 
@@ -338,6 +342,11 @@ func (a *App) pageOptionsIn(s *mygo.Session) mygo.PageOptions {
 	if a.cfg.WebView.DevTools {
 		p.DevTools = mygo.DevToolsEnabled
 	}
+	a.mu.Lock()
+	if a.blocking != nil {
+		p.ContentRules = []*mygo.ContentRules{a.blocking}
+	}
+	a.mu.Unlock()
 	// A chat or mail app hidden in the tray must keep running to notify.
 	if a.cfg.Native.NotificationsMode() != "deny" && (a.cfg.Native.Tray || a.cfg.Window.HideOnClose) {
 		p.BackgroundThrottling = mygo.ThrottlingOff

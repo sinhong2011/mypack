@@ -80,6 +80,16 @@ var modalAt time.Time
 // behind it blurs in (ModalOpen).
 func MarkModal() { modalAt = time.Now() }
 
+var typingAt time.Time
+
+// MarkTyping records that a text field has the keyboard focus.
+func MarkTyping() { typingAt = time.Now() }
+
+// Typing reports whether a text field had the focus a moment ago: Return
+// then belongs to the field, and window-wide Return shortcuts (Open,
+// Retry) must leave it alone.
+func Typing() bool { return time.Since(typingAt) < 150*time.Millisecond }
+
 // ModalOpen reports whether a modal surface was open a moment ago.
 func ModalOpen() bool { return time.Since(modalAt) < 120*time.Millisecond }
 

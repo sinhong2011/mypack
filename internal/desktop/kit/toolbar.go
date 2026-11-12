@@ -57,6 +57,9 @@ func ToolbarSearch(c *ui.Context, o ToolbarSearchOpts) ui.Element {
 				in.Bind(o.Handle)
 			}
 			focused = in.Focused()
+			if focused {
+				MarkTyping()
+			}
 		}
 		if o.Query != nil && *o.Query != "" {
 			x := ui.ButtonBase(c.Key("clear")).Label(o.Placeholder).Size(16, 16).Radius(8).Center().Background(p.TextTertiary).Cursor(ui.CursorPointer)

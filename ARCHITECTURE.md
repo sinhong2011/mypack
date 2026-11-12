@@ -86,6 +86,19 @@ view shows two. The service's `CreateGroup` (`internal/appservice/group.go`) mak
 addresses, keeps member icons beside the DB and enforces the Free edition's one-group limit. See
 `docs/gui-handoff-window-modes.md`.
 
+## Content blocking (1.0.7)
+
+`webview.blocking` (`config.BlockingConfig`): `trackers` blocks mypack's own list of well-known ad and tracker hosts
+(and a few tracker endpoints) when a page loads them from another site; `cookieBanners` hides the banners of common
+consent tools; `allow` lists sites where neither applies; `hide` is CSS selectors hidden on every page. The runtime
+(`runtime/app/blocking.go`) turns it into WebKit content-blocker JSON and compiles it with `mygo.CompileContentRules`
+before the first page loads (the engine caches the compiled list across launches); every page and group member gets
+it through `pageOptionsIn`. The list is not EasyList, whose licence would carry over to generated apps.
+
+Feature pins: `Config.MinRuntime()` is the earliest runtime a config's features need (window modes and groups 1.0.6,
+blocking 1.0.7), and `ApplyDefaults` raises a lower `runtime.version` to it, so turning a feature on in an existing
+project never builds an app that quietly lacks it. Pins are never lowered.
+
 ## Icon studio
 
 `app.icon.style` (`config.IconStyle`) dresses an icon up: a glyph (the icon's image, up to 3 letters, or an emoji), a

@@ -33,7 +33,7 @@ func (a *App) lookAndBehaviourOpts(c *ui.Context, cfg *config.Config, changed fu
 	}
 	anyRow := a.settingMatch(T("look.signedIn"), signedInDesc) || a.settingMatch(T("look.links"), T("look.links.desc")) ||
 		a.settingMatch(T("look.notifications"), T("look.notifications.desc")) || a.settingMatch(T("look.badge"), T("look.badge.desc")) ||
-		a.settingMatch(T("look.tray"), T("look.tray.desc")) || (account != nil && a.settingMatch(T("look.account"), T("look.account.desc")))
+		a.settingMatch(T("look.tray"), T("look.tray.desc")) || a.settingMatch(T("look.blocking"), T("look.blocking.desc")) || (account != nil && a.settingMatch(T("look.account"), T("look.account.desc")))
 	if !anyRow {
 		return
 	}
@@ -82,6 +82,7 @@ func (a *App) lookAndBehaviourOpts(c *ui.Context, cfg *config.Config, changed fu
 					changed()
 				}
 			})
+			a.blockingRow(c, cfg, changed)
 			badge := cfg.Native.BadgeMode() != "off"
 			a.lookRow(c.Key("bd"), icons.Message, ui.Color{}, T("look.badge"), T("look.badge.desc"), func() {
 				on := badge

@@ -298,16 +298,16 @@ func (a *App) toolbarTitle(c *ui.Context) {
 	case secCreate:
 		title = T("create.toolbar")
 	case secProject:
-		if pr := a.project(a.projectID); pr != nil {
-			title = pr.Config.App.Name
-			sub = domainOf(pr.Config.App.Source)
-		}
+		// The page shows the app's name and site large; the bar keeps only Back.
 	}
 	ui.Row(c).Gap(10).AlignItems(ui.Center).MinWidth(0).Shrink(1).Children(func() {
 		if a.section == secProject || a.section == secCreate {
 			if kit.ToolbarIcon(c.Key("back"), icons.ChevronLeft, T("nav.back")).Clicked() {
 				a.nav(secLibrary)
 			}
+		}
+		if title == "" {
+			return
 		}
 		ui.Column(c).Gap(0).MinWidth(0).Padding(0, 4).Children(func() {
 			ui.Text(c, title).FontSize(design.FontTitle3).FontWeight(design.WeightBold).TextColor(p.Text).SingleLine().Role(ui.RoleHeading).
