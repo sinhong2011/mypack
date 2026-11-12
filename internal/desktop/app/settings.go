@@ -227,6 +227,7 @@ func (a *App) settingsView(c *ui.Context) {
 				a.settingsAppearance(c)
 			case paneSync:
 				a.syncGroup(c)
+				a.transferGroup(c)
 			case paneBuilds:
 				a.settingsBuilds(c)
 			case paneAgents:
