@@ -100,6 +100,7 @@ type App struct {
 	dlg     dialogs
 	studio  iconStudio
 	sync    librarySync
+	upd     updateState
 
 	toasts []toastReq
 
@@ -206,6 +207,7 @@ func Run(svc appservice.Service) error {
 		a.loadCatalog()
 		a.watchFront()
 		a.syncTray()
+		a.startUpdates()
 		if isFake() && os.Getenv("MYPACK_FAKE_FLYOUT") == "1" {
 			// Demo/screenshots: open the menu bar flyout once loaded.
 			time.AfterFunc(7*time.Second, func() { mygo.RunOnMain(a.toggleFlyout) })

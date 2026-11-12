@@ -185,7 +185,7 @@ func (a *App) sidebar(c *ui.Context) {
 		ui.Spacer(c)
 		ui.Column(c).Gap(1).Children(func() {
 			a.navItem(c, secRuntimes, icons.Runtimes, T("nav.runtimes"), "")
-			a.navItem(c, secSettings, icons.Settings, T("nav.settings"), "")
+			a.navItem(c, secSettings, icons.Settings, T("nav.settings"), a.updateBadge())
 		})
 	})
 }
@@ -226,7 +226,7 @@ func (a *App) navItem(c *ui.Context, s section, ic *ui.SVG, label, badge string)
 				kit.NavCount(c, n, false)
 			}
 		default:
-			kit.NavCount(c, badge, s == secLibrary) // Library counts updates
+			kit.NavCount(c, badge, s == secLibrary || s == secSettings) // app updates; Mypack's own
 		}
 	})
 	if row.Clicked() {

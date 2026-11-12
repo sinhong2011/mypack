@@ -215,7 +215,9 @@ type Settings struct {
 	RegistryURL     string `json:"registryUrl"`
 	ShowMenuBarIcon bool   `json:"showMenuBarIcon"`
 	CheckUpdates    bool   `json:"checkUpdates"`
-	LibraryView     string `json:"libraryView"` // "grid" | "list"
+	// UpdatePrereleases offers prereleases of Mypack too.
+	UpdatePrereleases bool   `json:"updatePrereleases,omitempty"`
+	LibraryView       string `json:"libraryView"` // "grid" | "list"
 	// SyncFolder is where Library sync keeps the Library (Pro); empty = off.
 	SyncFolder string `json:"syncFolder,omitempty"`
 }

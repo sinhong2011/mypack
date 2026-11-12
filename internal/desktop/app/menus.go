@@ -32,6 +32,7 @@ func (a *App) installMenu() {
 	menu := mygo.NewMenu([]*mygo.MenuItem{
 		{Label: "Mypack", Submenu: []*mygo.MenuItem{
 			{Label: T("menu.about"), Click: on(func() { a.nav(secSettings); a.set.scrollAbout = true })},
+			{Label: T("menu.checkUpdates"), Click: on(a.checkForUpdatesMenu)},
 			mygo.Separator(),
 			{Label: T("menu.settings"), Accelerator: "CmdOrCtrl+,", Click: on(func() { a.showWindow(); a.nav(secSettings) })},
 			mygo.Separator(),

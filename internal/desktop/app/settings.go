@@ -72,15 +72,9 @@ func (a *App) settingsView(c *ui.Context) {
 					a.saveSettings()
 				}
 			})
-			kit.SettingIconRow(c, icons.Download, ui.Color{}, T("settings.updates"), T("settings.updates.desc"), func() {
-				v := a.settings.CheckUpdates
-				kit.Switch(c.Key("cu"), &v, T("settings.updates"))
-				if v != a.settings.CheckUpdates {
-					a.settings.CheckUpdates = v
-					a.saveSettings()
-				}
-			})
 		})
+
+		a.updatesGroup(c)
 
 		a.syncGroup(c)
 
