@@ -1,0 +1,83 @@
+# Publish the Mypack app and CLI. release-please owns the version, changelog,
+# release pull request, tag, and GitHub Release notes. This file only builds
+# and uploads archives. See docs/releasing.md.
+version: 2
+
+project_name: mypack
+
+# Keep GoReleaser's output away from dist/keys and dist/registry.
+# `release --clean` deletes this directory.
+dist: dist/goreleaser
+
+builds:
+  - &build
+    id: mypack
+    main: ./cmd/mypack
+    binary: mypack
+    env:
+      - CGO_ENABLED=0
+      - GOTOOLCHAIN=auto
+    flags:
+      - -trimpath
+    tags:
+      - mygo_noinspector
+    ldflags:
+      - -s -w
+      - -X github.com/egoist/mygo.production=1
+      - -X mypack.dev/mypack/internal/cli.Version={{ .Version }}
+      - -X mypack.dev/mypack/internal/desktop/app.Version={{ .Version }}
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    mod_timestamp: "{{ .CommitTimestamp }}"
+  - <<: *build
+    id: mypack-cli
+    main: ./cmd/mypack-cli
+    binary: mypack-cli
+    tags: []
+  - <<: *build
+    id: mypack-native-host
+    main: ./cmd/mypack-native-host
+    binary: mypack-native-host
+    tags: []
+
+archives:
+  - id: mypack
+    ids:
+      - mypack
+      - mypack-cli
+      - mypack-native-host
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    wrap_in_directory: true
+    files:
+      - LICENSE
+      - NOTICE
+      - README.md
+      - CHANGELOG*
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  use: git
+
+release:
+  name_template: "v{{ .Version }}"
+  mode: keep-existing
+  replace_existing_artifacts: true
+  prerelease: auto
+  header: |
+    Unsigned binaries for the Mypack app and CLI. macOS builds are not notarized and there is no Homebrew formula yet. Details: https://github.com/sinhong2011/mypack/blob/main/docs/releasing.md
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-snapshot"

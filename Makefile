@@ -2,12 +2,15 @@
 export GOTOOLCHAIN ?= auto
 export CGO_ENABLED = 0
 
+# Local bundle and dev-runtime version. GitHub releases take their version
+# from the vX.Y.Z tag; see docs/releasing.md.
 VERSION   ?= 1.0.0
 DIST      := $(CURDIR)/dist
 REGISTRY  ?= file://$(DIST)/registry/registry.json
 PUBKEY     = $(shell cat $(DIST)/keys/registry.pub 2>/dev/null)
 LDFLAGS    = -s -w -X github.com/egoist/mygo.production=1 \
              -X mypack.dev/mypack/internal/cli.Version=$(VERSION) \
+             -X mypack.dev/mypack/internal/desktop/app.Version=$(VERSION) \
              -X mypack.dev/mypack/internal/appservice.DefaultRegistryURL=$(REGISTRY) \
              -X mypack.dev/mypack/internal/runtimemanager.trustedKeysB64=$(PUBKEY)
 

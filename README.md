@@ -52,6 +52,10 @@ A production release needs a hosted registry and a real signing key.
 Forks that distribute builds should host their own registry and sign it with their own key;
 official Mypack builds only trust the project's registry key.
 
+## Releases
+
+Version releases are for the app and CLI. [release-please](docs/releasing.md) opens one release pull request and tags `vX.Y.Z` when that pull request is merged. GoReleaser then publishes unsigned binaries, archives, and checksums to that GitHub Release. Discover catalog edits do not cut a release. Signed macOS builds and Homebrew are not part of this pipeline yet; [docs/releasing.md](docs/releasing.md) lists what they need.
+
 ## Contributing
 
 Bug reports, website compatibility reports, platform testing, translations and
