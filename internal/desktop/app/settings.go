@@ -18,6 +18,7 @@ type settingsState struct {
 	agentTab int
 	registry string
 	regInit  bool
+	login    loginState
 
 	pane settingsPane // the category on show
 	scrl ui.ScrollState
@@ -94,6 +95,8 @@ func (a *App) openSettings(pane settingsPane) {
 			HideWindowButtons:    ownWindowButtons,
 			Content:              ui.View(a.settingsWindowView),
 		})
+		// Coming forward re-reads what the system does at login.
+		a.setWin.OnFocus(a.refreshLogin)
 		watchWindowChrome(a.setWin)
 		// Closing hides it, so it opens again where it was.
 		a.setWin.OnClose(func(e *mygo.CloseEvent) {
@@ -103,6 +106,7 @@ func (a *App) openSettings(pane settingsPane) {
 			}
 		})
 	}
+	a.refreshLogin()
 	a.setWin.SetTitle(T("nav.settings"))
 	a.setWin.Show()
 	a.setWin.Restore()
@@ -275,6 +279,7 @@ func (a *App) settingsGeneral(c *ui.Context) {
 				a.saveSettings()
 			}
 		})
+		a.openAtLoginRow(c)
 	})
 }
 

@@ -124,6 +124,11 @@ type Service interface {
 
 	Settings(ctx context.Context) (Settings, error)
 	SaveSettings(ctx context.Context, s Settings) error
+	// OpenAtLogin reports whether the system starts Mypack when the user
+	// logs in, read from the system each time. UNSUPPORTED outside the GUI.
+	OpenAtLogin(ctx context.Context) (bool, error)
+	// SetOpenAtLogin makes the system start Mypack at login, or not.
+	SetOpenAtLogin(ctx context.Context, on bool, actor string) error
 	Activity(ctx context.Context, limit int) ([]domain.Activity, error)
 
 	// Subscribe registers fn for events; the returned func unsubscribes.
