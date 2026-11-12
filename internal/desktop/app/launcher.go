@@ -285,7 +285,7 @@ func (a *App) launcherView(c *ui.Context) {
 					AlignItems(ui.Center).Radius(design.RadiusCard - 2).Cursor(ui.CursorPointer).Role(ui.RoleOption).Selected(on).
 					FocusRing(false).Description(it.sub)
 				if on {
-					row.Background(p.AccentSoft)
+					row.Background(p.Selected)
 				}
 				if row.Hovered() {
 					l.sel = i
@@ -308,7 +308,7 @@ func (a *App) launcherView(c *ui.Context) {
 						kit.Glyph(c, icons.Pin, 13, p.TextTertiary).AccessHidden(true)
 					}
 					if on {
-						ui.Text(c, "↩").FontSize(design.FontSmall).FontWeight(design.WeightSemibold).TextColor(p.AccentText)
+						selHint(c, T("action.open"))
 					}
 				})
 				if row.Clicked() {

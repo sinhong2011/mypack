@@ -304,7 +304,7 @@ func (a *App) paletteView(c *ui.Context) {
 		// The results, in sections; they scroll past ~9 rows.
 		q := strings.TrimSpace(ps.query)
 		ui.Scroll(c).MaxHeight(420).Children(func() {
-			ui.Column(c).Padding(6, 6, 8, 6).Gap(0).Role(ui.RoleListBox).Label(T("palette.placeholder")).Children(func() {
+			ui.Column(c).Padding(6, 8, 8, 8).Gap(2).Role(ui.RoleListBox).Label(T("palette.placeholder")).Children(func() {
 				if len(items) == 0 {
 					ui.Column(c).AlignItems(ui.Center).Gap(6).Padding(28, 16).Children(func() {
 						kit.Glyph(c, icons.Search, 20, p.TextTertiary)
@@ -318,19 +318,19 @@ func (a *App) paletteView(c *ui.Context) {
 					i, it := i, it
 					if it.section != section {
 						section = it.section
-						top := float32(8)
+						top := float32(12)
 						if i == 0 {
-							top = 4
+							top = 6
 						}
 						ui.Text(c.Key("sec-"+section), section).FontSize(design.FontCaption).FontWeight(design.WeightSemibold).
-							TextColor(p.TextTertiary).Padding(top, 12, 4, 12).Role(ui.RoleHeading)
+							TextColor(p.TextTertiary).Padding(top, 10, 6, 10).Role(ui.RoleHeading)
 					}
 					on := i == ps.sel
 					row := ui.ButtonBase(c.Key(it.key)).Label(it.title).Row().Justify(ui.Start).Height(44).PaddingX(10).Gap(12).
 						AlignItems(ui.Center).Radius(design.RadiusCard - 2).Cursor(ui.CursorPointer).Role(ui.RoleOption).Selected(on).
 						FocusRing(false).Description(it.sub)
 					if on {
-						row.Background(p.AccentSoft)
+						row.Background(p.Selected)
 						if ps.moved {
 							row.ScrollIntoView()
 						}
@@ -342,7 +342,7 @@ func (a *App) paletteView(c *ui.Context) {
 						if it.glyph != nil {
 							fg, bg := p.TextSecondary, p.Fill
 							if on {
-								fg = p.AccentText
+								fg, bg = p.Text, p.Raised
 							}
 							ui.Row(c).Size(28, 28).Center().Radius(8).Background(bg).Shrink(0).Children(func() {
 								kit.Glyph(c, it.glyph, 15, fg)
@@ -364,10 +364,7 @@ func (a *App) paletteView(c *ui.Context) {
 						})
 						switch {
 						case on:
-							ui.Row(c).Gap(6).AlignItems(ui.Center).Shrink(0).Children(func() {
-								ui.Text(c, it.runLabel).FontSize(design.FontSmall).FontWeight(design.WeightMedium).TextColor(p.AccentText)
-								kit.Glyph(c, icons.ArrowRight, 13, p.AccentText)
-							})
+							selHint(c, it.runLabel)
 						case it.hotkey != "":
 							kit.Kbd(c, it.hotkey)
 						}
@@ -431,4 +428,15 @@ func (a *App) togglePalette() {
 	if a.win != nil {
 		a.win.Invalidate()
 	}
+}
+
+// selHint is what Enter does to the chosen row, quietly at its right:
+// the word, then a ↩ key chip.
+func selHint(c *ui.Context, label string) {
+	p := design.Of(c)
+	ui.Row(c).Gap(8).AlignItems(ui.Center).Shrink(0).Children(func() {
+		ui.Text(c, label).FontSize(design.FontSmall).TextColor(p.TextSecondary).SingleLine()
+		ui.Text(c, "↩").FontSize(design.FontCaption).FontWeight(design.WeightSemibold).TextColor(p.TextSecondary).
+			Padding(1, 6).Radius(5).Background(p.Fill).Border(0.5, p.Border).AccessHidden(true)
+	})
 }
