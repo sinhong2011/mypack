@@ -110,6 +110,7 @@ func (a *App) galleryView(c *ui.Context) {
 				kit.StatusDot(c, "Verified", kit.ToneSuccess)
 				kit.StatusDot(c, "Missing", kit.ToneWarning)
 				kit.Spinner(c, 16, p.Accent)
+				kit.BuildingSpinner(c, 16, p.Accent)
 				kit.ProgressRing(c, 28, 3, g.progress, p.Accent, p.Fill)
 				ui.Box(c).Width(160).Children(func() { kit.ProgressBar(c, g.progress) })
 				kit.Shimmer(c, 80, 14, 7)

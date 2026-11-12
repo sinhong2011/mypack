@@ -174,7 +174,7 @@ func (a *App) sidebar(c *ui.Context) {
 						}
 						ui.Text(c, pr.Config.App.Name).FontSize(design.FontBody).TextColor(fg).SingleLine().MinWidth(0).Grow(1)
 						if j := a.latestJob(pr.ID); j != nil && (j.Status == domain.JobRunning || j.Status == domain.JobQueued) {
-							kit.Spinner(c, 12, p.Accent)
+							kit.BuildingSpinner(c, 12, p.Accent)
 						}
 					})
 					if row.Clicked() {
@@ -239,7 +239,7 @@ func (a *App) sideRow(c *ui.Context, key string, ic *ui.SVG, label, badge string
 		switch {
 		case badge == "":
 		case strings.HasPrefix(badge, "•"):
-			kit.Spinner(c, 12, p.Accent)
+			kit.BuildingSpinner(c, 12, p.Accent)
 			if n := strings.TrimPrefix(badge, "•"); n != "" {
 				kit.NavCount(c, n, false)
 			}
