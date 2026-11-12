@@ -11,9 +11,17 @@ import (
 // <UserConfigDir>/mypack/ui-state.json (owned by the desktop package; not
 // project data, so it doesn't go through the application service).
 type uiState struct {
-	Section      string          `json:"section"`
-	ProjectID    string          `json:"projectId,omitempty"`
-	LibraryTab   int             `json:"libraryTab"` // 0 My Apps, 1 Projects
+	Section    string `json:"section"`
+	ProjectID  string `json:"projectId,omitempty"`
+	LibraryTab int    `json:"libraryTab"` // 0 My Apps, 1 Projects
+	// LibrarySort is the Library's order: name, modified or status.
+	LibrarySort string `json:"librarySort,omitempty"`
+	// Pinned is the apps pinned to the sidebar, in pin order: project IDs,
+	// or installation IDs for apps with no project (pins.go).
+	Pinned []string `json:"pinned,omitempty"`
+	// LauncherOff turns off the quick launcher and its global shortcut
+	// (launcher.go).
+	LauncherOff  bool            `json:"launcherOff,omitempty"`
 	SettingsOpen map[string]bool `json:"advancedOpen,omitempty"`
 	SettingsPane string          `json:"settingsPane,omitempty"` // Settings' category on show
 	// AutoInstall is, per project, whether a successful build for this

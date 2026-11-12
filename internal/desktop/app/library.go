@@ -1,6 +1,7 @@
 package app
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -9,6 +10,7 @@ import (
 	"mypack.dev/mypack/internal/desktop/kit"
 	"mypack.dev/mypack/internal/desktop/kit/icons"
 	"mypack.dev/mypack/internal/domain"
+	"mypack.dev/mypack/pkg/config"
 )
 
 // viewGlide pairs the grid/list switch indicator across frames.
@@ -21,6 +23,11 @@ type libState struct {
 	viewInit    bool
 	focusSearch bool
 	searchH     ui.Handle
+	sort        libSort
+	filter      libFilter
+	nav         libNav                // the shelves as drawn, for the arrow keys
+	handles     map[string]*ui.Handle // tile and row focus, by app or project ID
+	updating    bool                  // Update All is starting its jobs
 }
 
 const (
@@ -53,6 +60,7 @@ func (a *App) libraryToolbar(c *ui.Context) {
 	if !a.loaded || len(a.projects)+len(a.installs) == 0 {
 		return
 	}
+	a.sortMenu(c)
 	ov := l.view
 	kit.PillSegmented(c.Key("view"), &l.view, []kit.PillSegment{{Icon: icons.Grid, Label: T("library.view.grid")}, {Icon: icons.List, Label: T("library.view.list")}},
 		T("library.view.label"), viewGlide{}, false)
@@ -67,6 +75,79 @@ func (a *App) libraryToolbar(c *ui.Context) {
 		l.focusSearch = false
 		l.searchH.Focus()
 	}
+	// Down from the search field moves to the first app.
+	if l.searchH.Focused(c) && c.Shortcut(0, ui.KeyDown) {
+		l.focusFirst()
+	}
+}
+
+// libraryEntries is the installed apps and the drafts, filtered by the
+// search and sorted, before the status filter.
+func (a *App) libraryEntries() (apps, groups, drafts []libEntry) {
+	for i := range a.installs {
+		in := &a.installs[i]
+		if !a.filter(in.Name, a.installDomain(in)) {
+			continue
+		}
+		_, tone := a.installStatus(in)
+		e := libEntry{id: in.ID, name: in.Name, tone: tone, modified: in.LastManagedAt,
+			update: in.State != domain.InstallExternal && in.UpdateReason != ""}
+		if a.installIsGroup(in) {
+			groups = append(groups, e)
+		} else {
+			apps = append(apps, e)
+		}
+	}
+	for i := range a.projects {
+		pr := &a.projects[i]
+		if a.installFor(pr.ID) != nil || !a.filter(pr.Config.App.Name, domainOf(pr.Config.App.Source)) {
+			continue
+		}
+		_, tone, _ := a.projectStatus(pr)
+		mod := pr.UpdatedAt
+		if pr.LastBuild != nil && pr.LastBuild.After(mod) {
+			mod = *pr.LastBuild
+		}
+		e := libEntry{id: pr.ID, name: pr.Config.App.Name, tone: tone, modified: mod, draft: true}
+		if pr.Config.IsGroup() {
+			groups = append(groups, e)
+		} else {
+			drafts = append(drafts, e)
+		}
+	}
+	sortEntries(apps, a.lib.sort)
+	sortEntries(groups, a.lib.sort)
+	sortEntries(drafts, a.lib.sort)
+	return apps, groups, drafts
+}
+
+// installIsGroup reports whether an installed app is a group of websites.
+func (a *App) installIsGroup(in *domain.Installation) bool {
+	pr := a.project(in.ProjectID)
+	return pr != nil && pr.Config.IsGroup()
+}
+
+// groupLine is a group's subtitle: how many websites it holds.
+func groupLine(cfg *config.Config) string {
+	return T("group.sites", "n", len(cfg.App.Group.Members))
+}
+
+func keep(es []libEntry, f libFilter) []libEntry {
+	var out []libEntry
+	for _, e := range es {
+		if e.matches(f) {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+func ids(es []libEntry) []string {
+	out := make([]string, len(es))
+	for i, e := range es {
+		out[i] = e.id
+	}
+	return out
 }
 
 func (a *App) libraryView(c *ui.Context) {
@@ -80,6 +161,12 @@ func (a *App) libraryView(c *ui.Context) {
 		l.viewInit = true
 		if a.settings.LibraryView == "list" {
 			l.view = 1
+		}
+	}
+	if l.sort == "" {
+		l.sort = sortName
+		if s := libSort(a.ui.LibrarySort); s.valid() {
+			l.sort = s
 		}
 	}
 	if !a.loaded {
@@ -104,14 +191,18 @@ func (a *App) libraryView(c *ui.Context) {
 		shown := 0
 		first := true
 		// The first section's header carries Import Existing App…, at its
-		// right, level with the title.
-		header := func(title, count string) {
+		// right, level with the title; New Group… sits on the Groups
+		// header when there is one, else on the first.
+		var showGroups bool
+		header := func(title, count string, groupsHeader bool) {
 			ui.Row(c).AlignItems(ui.Center).Gap(8).MinHeight(32).Children(func() {
 				kit.SectionHeader(c, title, count).Grow(1)
-				if first {
+				if groupsHeader || first && !showGroups {
 					if len(a.groupCandidates()) >= 2 && kit.Button(c.Key("grp2"), T("menu.newGroup"), kit.ButtonOpts{Variant: kit.Ghost, Size: design.ControlSM, Icon: icons.Layers}).Clicked() {
 						a.newGroup()
 					}
+				}
+				if first {
 					if kit.Button(c.Key("imp2"), T("menu.importApp"), kit.ButtonOpts{Variant: kit.Ghost, Size: design.ControlSM, Icon: icons.Import}).Clicked() {
 						a.importExistingApp()
 					}
@@ -119,47 +210,89 @@ func (a *App) libraryView(c *ui.Context) {
 			})
 			first = false
 		}
-		// Installed apps.
-		var apps []domain.Installation
+		allApps, allGroups, allDrafts := a.libraryEntries()
+		counts := filterCounts(slices.Concat(allApps, allGroups, allDrafts))
+		// A filter left with nothing (the last update installed) goes back to All.
+		if l.filter != filterAll && counts[l.filter] == 0 {
+			l.filter = filterAll
+		}
+		apps, groups, drafts := keep(allApps, l.filter), keep(allGroups, l.filter), keep(allDrafts, l.filter)
+		kinds := 0
+		for _, n := range []int{len(allApps), len(allGroups), len(allDrafts)} {
+			if n > 0 {
+				kinds++
+			}
+		}
+		if counts[filterUpdates]+counts[filterAttention] > 0 || kinds > 1 {
+			a.filterChips(c, counts)
+		}
+		if ups := a.updatable(); len(ups) > 0 && l.query == "" && (l.filter == filterAll || l.filter == filterUpdates) {
+			a.updatesBanner(c, ups)
+		}
+		// The ghost tile invites another website only on the whole Library.
+		ghost := l.filter == filterAll
+		// My Apps (single websites, installed), Groups (installed or not),
+		// then single websites not installed yet.
+		single := 0
 		for _, in := range a.installs {
-			if a.filter(in.Name, a.installDomain(&in)) {
-				apps = append(apps, in)
+			if !a.installIsGroup(&in) {
+				single++
 			}
 		}
-		var drafts []*domain.Project
-		for i := range a.projects {
-			pr := &a.projects[i]
-			if a.installFor(pr.ID) != nil {
-				continue
-			}
-			if a.filter(pr.Config.App.Name, domainOf(pr.Config.App.Source)) {
-				drafts = append(drafts, pr)
+		showApps := l.filter != filterDrafts && (single > 0 || len(drafts)+len(groups) == 0)
+		showGroups = len(groups) > 0
+		// The arrow keys are handled while the tiles are built, so the
+		// shelves they move through are known before any is drawn.
+		l.nav.secs = nil
+		if showApps {
+			l.nav.secs = append(l.nav.secs, ids(apps))
+		}
+		if showGroups {
+			l.nav.secs = append(l.nav.secs, ids(groups))
+		}
+		if len(drafts) > 0 {
+			l.nav.secs = append(l.nav.secs, ids(drafts))
+		}
+		item := func(e libEntry, grid bool, i int) {
+			if e.draft {
+				if pr := a.project(e.id); pr != nil {
+					a.projectItem(c.Key(pr.ID), pr, grid, i)
+				}
+			} else if in := a.install(e.id); in != nil {
+				a.appItem(c.Key(in.ID), *in, grid, i)
 			}
 		}
-		if len(a.installs) > 0 || len(drafts) == 0 {
+		if showApps {
 			ui.Column(c).Gap(14).Children(func() {
-				header(T("library.tab.myApps"), countLabel(len(apps)))
-				if len(apps) == 0 && a.lib.query == "" {
+				header(T("library.tab.myApps"), countLabel(len(apps)), false)
+				if len(apps) == 0 && l.query == "" && l.filter == filterAll && len(groups) == 0 {
 					a.noApps(c)
 					return
 				}
-				a.collection(c, len(apps), true, func(i int, grid bool) {
-					a.appItem(c.Key(apps[i].ID), apps[i], grid, i)
-				})
+				a.collection(c, len(apps), ghost, func(i int, grid bool) { item(apps[i], grid, i) })
 			})
 			shown += len(apps)
 		}
+		if showGroups {
+			ui.Column(c).Gap(14).Children(func() {
+				header(T("library.tab.groups"), countLabel(len(groups)), true)
+				a.collection(c, len(groups), false, func(i int, grid bool) { item(groups[i], grid, i) })
+			})
+			shown += len(groups)
+		}
 		if len(drafts) > 0 {
 			ui.Column(c).Gap(14).Children(func() {
-				header(T("library.tab.projects"), countLabel(len(drafts)))
-				a.collection(c, len(drafts), len(a.installs) == 0, func(i int, grid bool) {
-					a.projectItem(c.Key(drafts[i].ID), drafts[i], grid, i)
-				})
+				header(T("library.tab.projects"), countLabel(len(drafts)), false)
+				a.collection(c, len(drafts), ghost && !showApps, func(i int, grid bool) { item(drafts[i], grid, i) })
 			})
 			shown += len(drafts)
 		}
 		if shown == 0 {
-			kit.EmptyState(c, icons.Search, T("library.noMatches", "query", a.lib.query), "", nil)
+			if l.query != "" {
+				kit.EmptyState(c, icons.Search, T("library.noMatches", "query", l.query), "", nil)
+			} else {
+				kit.EmptyState(c, icons.Check, T("library.filter.empty"), "", nil)
+			}
 		}
 		if len(a.installs) > 0 {
 			a.libraryFooter(c)
@@ -201,6 +334,7 @@ func (a *App) noApps(c *ui.Context) {
 // another website.
 func (a *App) collection(c *ui.Context, n int, ghost bool, item func(i int, grid bool)) {
 	if a.lib.view == 1 {
+		a.lib.nav.cols = 1
 		design.Well(c, ui.Column(c).Radius(design.RadiusCard).Clip()).Children(func() {
 			kit.TableHeader(c, []kit.TableColumn{
 				{Title: T("list.col.name")}, {Title: T("list.col.status"), Width: listColSt},
@@ -219,6 +353,7 @@ func (a *App) collection(c *ui.Context, n int, ghost bool, item func(i int, grid
 	avail := w - design.SidebarWidth - 64
 	minW := size + 56
 	cols := max(2, int((avail+tileGap)/(minW+tileGap)))
+	a.lib.nav.cols = cols
 	rows := (n + cols - 1) / cols
 	if rows == 0 {
 		rows = 1
@@ -289,6 +424,7 @@ type tileData struct {
 	menu     func(m *ui.Menu)
 	idx      int
 	pid      string // the project, for the icon that flies to its page
+	key      string // the app or project ID, for the arrow keys
 	// The one-click action (Open the app, or Build a draft).
 	action     string
 	actionIcon *ui.SVG
@@ -306,6 +442,10 @@ func (a *App) tile(c *ui.Context, d tileData) (open bool) {
 		Radius(design.RadiusPanel).Cursor(ui.CursorPointer).Description(d.status)
 	kit.Arrive(b)
 	b.FocusRing(false)
+	if d.key != "" {
+		b.Bind(a.lib.handle(d.key))
+		a.lib.arrows(b, d.key, true)
+	}
 	hov, focused := b.Hovered(), b.FocusVisible()
 	if d.menu != nil {
 		b.ContextMenu(d.menu)
@@ -381,6 +521,10 @@ func (a *App) row(c *ui.Context, d tileData, i int) (open bool) {
 		Cursor(ui.CursorPointer).Description(d.status)
 	kit.TableRowBG(c, b, i, b.Hovered(), b.Focused())
 	kit.Arrive(b)
+	if d.key != "" {
+		b.Bind(a.lib.handle(d.key))
+		a.lib.arrows(b, d.key, false)
+	}
 	if d.menu != nil {
 		b.ContextMenu(d.menu)
 	}
@@ -500,8 +644,12 @@ func (a *App) projectItem(c *ui.Context, pr *domain.Project, grid bool, i int) {
 		meta = ago(*pr.LastBuild)
 	}
 	prc := *pr
-	d := tileData{icon: pr.IconPNG, name: pr.Config.App.Name, domain: domainOf(pr.Config.App.Source), status: st, tone: tone, busy: busy,
-		version: pr.Config.App.Version, modified: meta, menu: func(m *ui.Menu) { a.projectMenu(m, &prc) }, idx: i, pid: pr.ID}
+	site := domainOf(pr.Config.App.Source)
+	if pr.Config.IsGroup() {
+		site = groupLine(pr.Config)
+	}
+	d := tileData{icon: pr.IconPNG, name: pr.Config.App.Name, domain: site, status: st, tone: tone, busy: busy,
+		version: pr.Config.App.Version, modified: meta, menu: func(m *ui.Menu) { a.projectMenu(m, &prc) }, idx: i, pid: pr.ID, key: pr.ID}
 	if busy {
 		d.progress = -1
 		if j := a.latestJob(pr.ID); j != nil {
@@ -542,8 +690,12 @@ func (a *App) installStatus(in *domain.Installation) (string, kit.Tone) {
 
 func (a *App) appItem(c *ui.Context, in domain.Installation, grid bool, i int) {
 	st, tone := a.installStatus(&in)
-	d := tileData{icon: in.IconPNG, name: in.Name, domain: a.installDomain(&in), status: st, tone: tone,
-		version: in.Version, modified: ago(in.LastManagedAt), menu: func(m *ui.Menu) { a.appMenu(m, in) }, idx: i, pid: in.ProjectID}
+	site := a.installDomain(&in)
+	if pr := a.project(in.ProjectID); pr != nil && pr.Config.IsGroup() {
+		site = groupLine(pr.Config)
+	}
+	d := tileData{icon: in.IconPNG, name: in.Name, domain: site, status: st, tone: tone,
+		version: in.Version, modified: ago(in.LastManagedAt), menu: func(m *ui.Menu) { a.appMenu(m, in) }, idx: i, pid: in.ProjectID, key: in.ID}
 	switch {
 	case in.State == domain.InstallExternal:
 		d.badge = kit.BadgeLocked
@@ -592,6 +744,7 @@ func (a *App) appMenu(m *ui.Menu, in domain.Installation) {
 	} else if m.Item(T("action.open")).Chosen() {
 		a.openInstall(in.ID)
 	}
+	a.pinMenuItem(m, installPinKey(&in))
 	if managed && in.UpdateReason != "" {
 		if m.Item(T("action.reviewUpdate")).Chosen() {
 			a.dlg.openUpdate(&in)

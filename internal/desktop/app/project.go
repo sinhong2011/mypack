@@ -165,6 +165,7 @@ func (a *App) projectMenu(m *ui.Menu, pr *domain.Project) {
 			run()
 		}
 	}
+	a.pinMenuItem(m, id)
 	if m.Item(T("action.build")).Shortcut(ui.Cmd, ui.KeyB).Chosen() {
 		a.startBuild(id, nil)
 	}

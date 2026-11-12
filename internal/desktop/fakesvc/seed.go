@@ -90,6 +90,37 @@ func (s *Service) seed() {
 		s.projects[p.ID] = p
 	}
 
+	// Groups: one installed, one still a draft.
+	for _, g := range []struct {
+		name      string
+		installed bool
+		members   [][2]string
+	}{
+		{"Workspace", true, [][2]string{{"Linear", "https://linear.app/"}, {"Notion", "https://www.notion.so/"}, {"Figma", "https://www.figma.com/"}}},
+		{"Social", false, [][2]string{{"Discord", "https://discord.com/app"}, {"WhatsApp", "https://web.whatsapp.com/"}}},
+	} {
+		cfg := config.New(g.name, config.Source{Type: config.SourceURL, Value: g.members[0][1]}, s.host)
+		grp := &config.GroupConfig{}
+		taken := map[string]bool{}
+		for _, m := range g.members {
+			grp.Members = append(grp.Members, config.GroupMember{ID: config.MemberID(m[0], taken), Name: m[0], URL: m[1]})
+		}
+		cfg.App.Group = grp
+		p := &domain.Project{ID: s.id("prj"), Revision: 2, Config: cfg, IconPNG: demoIcon(g.name), Draft: !g.installed,
+			CreatedAt: ago(6 * 24 * time.Hour), UpdatedAt: ago(5 * time.Hour), Origin: "gui"}
+		s.projects[p.ID] = p
+		if g.installed {
+			t := ago(5 * time.Hour)
+			p.LastBuild = &t
+			name := config.ExecutableName(g.name)
+			s.installs = append(s.installs, &domain.Installation{ID: s.id("inst"), ProjectID: p.ID, Name: g.name,
+				Identifier: cfg.App.Identifier, SourceURL: g.members[0][1], Path: filepath.Join(s.settings.InstallDir, name+".app"),
+				Version: cfg.App.Version, RuntimeVersion: runtimeVersion,
+				ProfileDir: "~/Library/Application Support/mypack-apps/" + cfg.App.ProfileID,
+				State:      domain.InstallManaged, InstalledAt: t, LastManagedAt: t, IconPNG: p.IconPNG})
+		}
+	}
+
 	// A failed build in history.
 	if pid := ids["Figma"]; pid != "" {
 		start := ago(50 * time.Hour)

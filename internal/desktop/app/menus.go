@@ -419,6 +419,23 @@ func (a *App) trayMenu(active []domain.BuildJob) *mygo.Menu {
 			items = append(items, &mygo.MenuItem{Label: label, Click: on(func() { a.openProject(j.ProjectID, 0) })})
 		}
 	}
+	// Pinned apps open straight from the menu bar.
+	if pins := a.pinnedItems(); len(pins) > 0 {
+		items = append(items, mygo.Separator(), &mygo.MenuItem{Label: T("nav.pinned"), Disabled: true})
+		for _, it := range pins {
+			it := it
+			if it.install != nil && it.install.State != domain.InstallMissing {
+				id := it.install.ID
+				items = append(items, &mygo.MenuItem{Label: it.name(), Click: func(*mygo.MenuItem, *mygo.Window) { a.openInstall(id) }})
+			} else if it.project != nil {
+				id := it.project.ID
+				items = append(items, &mygo.MenuItem{Label: it.name(), Click: on(func() { a.openProject(id, 0) })})
+			}
+		}
+	}
+	if a.launcher.registered != "" {
+		items = append(items, &mygo.MenuItem{Label: T("tray.launcher", "keys", launcherKeys()), Click: func(*mygo.MenuItem, *mygo.Window) { a.toggleLauncher() }})
+	}
 	if len(a.projects) > 0 {
 		items = append(items, mygo.Separator(), &mygo.MenuItem{Label: T("tray.recent"), Disabled: true})
 		for i, p := range a.projects {

@@ -322,6 +322,20 @@ func (a *App) settingsBuilds(c *ui.Context) {
 				a.ui.save()
 			}
 		})
+		launchOn := a.launcherEnabled()
+		launchDesc := T("launcher.setting.desc", "keys", launcherKeys())
+		if launchOn && a.launcher.registered == "" {
+			launchDesc = T("launcher.setting.taken", "keys", launcherKeys())
+		}
+		kit.SettingIconRow(c.Key("launcher"), icons.Search, ui.Color{}, T("launcher.setting"), launchDesc, func() {
+			old := launchOn
+			kit.Switch(c.Key("sw-launcher"), &launchOn, T("launcher.setting"))
+			if launchOn != old {
+				a.ui.LauncherOff = !launchOn
+				a.ui.save()
+				a.syncLauncherShortcut()
+			}
+		})
 		hudOn := a.ui.ShowHUD == nil || *a.ui.ShowHUD
 		kit.SettingIconRow(c.Key("hud"), icons.Monitor, ui.Color{}, T("hud.setting"), T("hud.setting.desc"), func() {
 			old := hudOn

@@ -83,6 +83,7 @@ type App struct {
 	presets   presetIcons
 	gallery   galleryState
 	palette   paletteState
+	launcher  launcherState
 
 	flyout    *mygo.Window
 	setWin    *mygo.Window // Settings, once opened
@@ -208,6 +209,7 @@ func Run(svc appservice.Service) error {
 		a.loadCatalog()
 		a.watchFront()
 		a.syncTray()
+		a.syncLauncherShortcut()
 		a.startUpdates()
 		if isFake() && os.Getenv("MYPACK_FAKE_FLYOUT") == "1" {
 			// Demo/screenshots: open the menu bar flyout once loaded.
