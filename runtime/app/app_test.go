@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -20,8 +21,8 @@ func TestConfigCandidates(t *testing.T) {
 		"/x/App.app/Contents/MacOS/mypack.json",
 	}
 	for i := range want {
-		if filepath.Clean(c[i]) != want[i] {
-			t.Errorf("candidate %d = %q want %q", i, filepath.Clean(c[i]), want[i])
+		if filepath.Clean(c[i]) != filepath.Clean(want[i]) {
+			t.Errorf("candidate %d = %q want %q", i, filepath.Clean(c[i]), filepath.Clean(want[i]))
 		}
 	}
 	if got := ConfigCandidates("/x", "/etc/m.json"); len(got) != 1 || got[0] != "/etc/m.json" {
@@ -59,17 +60,21 @@ func TestFindConfigAndParse(t *testing.T) {
 func TestProfileDir(t *testing.T) {
 	env := map[string]string{"APPDATA": `C:\Users\u\AppData\Roaming`}
 	get := func(k string) string { return env[k] }
-	if got := ProfileDir("darwin", "app.x", get, "/Users/u"); got != "/Users/u/Library/Application Support/mypack-apps/app.x" {
+	if got := ProfileDir("darwin", "app.x", get, "/Users/u"); got != filepath.Join("/Users/u", "Library", "Application Support", "mypack-apps", "app.x") {
 		t.Error(got)
 	}
-	if got := ProfileDir("linux", "app.x", get, "/home/u"); got != "/home/u/.local/share/mypack-apps/app.x" {
+	if got := ProfileDir("linux", "app.x", get, "/home/u"); got != filepath.Join("/home/u", ".local", "share", "mypack-apps", "app.x") {
 		t.Error(got)
 	}
-	env["XDG_DATA_HOME"] = "/data"
-	if got := ProfileDir("linux", "app.x", get, "/home/u"); got != "/data/mypack-apps/app.x" {
+	xdg := "/data"
+	if runtime.GOOS == "windows" {
+		xdg = `C:\data` // "/data" is not an absolute path on Windows
+	}
+	env["XDG_DATA_HOME"] = xdg
+	if got := ProfileDir("linux", "app.x", get, "/home/u"); got != filepath.Join(xdg, "mypack-apps", "app.x") {
 		t.Error(got)
 	}
-	if got := ProfileDir("darwin", "../../etc", get, "/Users/u"); !strings.HasSuffix(got, "mypack-apps/etc") {
+	if got := ProfileDir("darwin", "../../etc", get, "/Users/u"); !strings.HasSuffix(got, filepath.Join("mypack-apps", "etc")) {
 		t.Errorf("traversal: %s", got)
 	}
 }

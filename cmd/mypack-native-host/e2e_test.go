@@ -17,6 +17,9 @@ import (
 func TestHostEndToEnd(t *testing.T) {
 	tmp := t.TempDir()
 	bin := filepath.Join(tmp, "mypack-native-host")
+	if runtime.GOOS == "windows" {
+		bin += ".exe"
+	}
 	build := exec.Command("go", "build", "-o", bin, ".")
 	build.Env = append(os.Environ(), "CGO_ENABLED=0")
 	if out, err := build.CombinedOutput(); err != nil {
