@@ -33,6 +33,7 @@ type bridgeService struct {
 	focus  func(page *mygo.Page)
 	click  func(page *mygo.Page, jsID string)
 	badges *badgeController
+	media  *mediaController // nil: no media keys
 	now    func() time.Time
 
 	mu    sync.Mutex
@@ -327,6 +328,7 @@ func (a *App) newBridge() *bridgeService {
 		now:    time.Now,
 		asked:  map[string]bool{},
 		badges: a.badges,
+		media:  a.media,
 	}
 	b.caller = func(ctx context.Context) (*mygo.Page, string) {
 		p := mygo.CallerPage(ctx)
@@ -414,4 +416,11 @@ func (a *App) focusPage(p *mygo.Page) {
 		w.Show()
 		w.Focus()
 	})
+}
+
+// dropMedia forgets the media of a closed page.
+func (a *App) dropMedia(p *mygo.Page) {
+	if a.media != nil {
+		a.media.drop(p)
+	}
 }
