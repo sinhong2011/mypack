@@ -60,6 +60,7 @@ tag. Do not push that tag yourself.
 ## Pull requests
 
 - Keep each pull request to one change, with tests where it is practical.
+- Start the title with a Conventional Commit type, for example `docs: update the library screenshot`. The title check accepts `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `chore`, `ci`, and `revert`.
 - Run `make test` and `make vet` before you push.
 - New user-facing text goes in `en.json`. Translations for other languages are
   welcome but not required.

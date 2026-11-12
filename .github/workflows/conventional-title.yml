@@ -1,0 +1,26 @@
+# The pull request title must be a Conventional Commit. Nothing else runs here.
+name: Conventional title
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: conventional-title-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  title:
+    name: conventional title
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Examples
+        run: bash .github/ci/conventional-title.sh --self-test
+      - name: Pull request title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: bash .github/ci/conventional-title.sh
