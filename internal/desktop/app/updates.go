@@ -47,6 +47,16 @@ type updateState struct {
 // this platform (yet), so the app cannot install it itself.
 var errNoUpdatePackage = errors.New("no update package for this platform")
 
+// missingUpdateManifest reports a 404 on this platform's update-*.json, as
+// when the macOS installer job failed to upload (v0.1.0-beta.4).
+func missingUpdateManifest(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := strings.ToLower(err.Error())
+	return strings.Contains(s, "404") && strings.Contains(s, "update-")
+}
+
 // startUpdates works out how this copy updates and schedules the
 // automatic checks: one shortly after launch, then hourly ticks that check
 // when the last check is a day old.
@@ -142,6 +152,9 @@ func (a *App) installUpdate() {
 	go func() {
 		up, err := mygo.Updater.Check(ctx)
 		if err == nil && up == nil {
+			err = errNoUpdatePackage
+		}
+		if missingUpdateManifest(err) {
 			err = errNoUpdatePackage
 		}
 		if err == nil {
@@ -325,6 +338,12 @@ func (a *App) updateActions(c *ui.Context) {
 			mygo.App.Relaunch()
 		}
 	case updFailed:
+		if u.rel != nil && u.err == T("update.err.noPackage") {
+			if kit.Button(c.Key("dl"), T("update.download"), kit.ButtonOpts{Variant: kit.Primary, Size: sm, Trailing: icons.External}).Clicked() {
+				a.openRelease()
+			}
+			return
+		}
 		if u.rel != nil && u.canSelf {
 			if kit.Button(c.Key("retry"), T("update.retry"), kit.ButtonOpts{Size: sm, Icon: icons.Retry}).Clicked() {
 				a.installUpdate()

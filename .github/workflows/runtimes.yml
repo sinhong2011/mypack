@@ -58,7 +58,10 @@ jobs:
               exit 1
             fi
           else
-            gh release create "$TAG" --title "Runtimes" --latest=false \
+            # Prerelease: GitHub's /releases/latest is the newest non-prerelease.
+            # This Release must not be that, or installed apps fetch
+            # update-*.json from here instead of the app (docs/releasing.md).
+            gh release create "$TAG" --title "Runtimes" --latest=false --prerelease \
               --notes "Runtimes for apps made with Mypack, and the signed registry (registry.json) that lists them. Mypack downloads these itself; you do not need them."
           fi
       - name: Build and sign
