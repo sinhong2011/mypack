@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
-# Stages the host-platform runtime into resources/runtimes/ so `mygo build`
-# ships it inside the installer. On first launch Mypack copies it into the
-# runtime cache; the remote registry.json is fetched only for a version or
-# platform that is not already there. macOS CI ships registry.json only:
-# unsigned Mach-O inside .tar.gz fails Apple notarization. See docs/releasing.md.
+# Stages the host-platform runtime so `mygo build` ships it inside the
+# installer. On first launch Mypack copies it into the runtime cache; the
+# remote registry.json is fetched only for a version or platform that is
+# not already there.
+#
+# Windows and Linux: resources/runtimes/*.tar.gz plus registry.json.
+# macOS: extract the archive into resources/darwin-<arch>/bin/mypack-runtime
+# (MyGo platform dirs). `mygo build` signs that Mach-O with the app, so
+# Apple notarization passes. The .tar.gz is not shipped: the notary service
+# unpacks gzip and would reject the unsigned nested binary.
 #
 #   scripts/bundle-runtime.sh darwin/universal
 #   scripts/bundle-runtime.sh windows/amd64
@@ -89,6 +94,61 @@ download_registry() {
   curl -fsSL -o "$DEST/registry.json.sig" "https://github.com/${REPO}/releases/download/${TAG}/registry.json.sig"
 }
 
+# Confirm archive bytes match registry.json before we extract them into the
+# app. python3 is on the macOS and Ubuntu runners and on developer Macs.
+verify_archive() {
+  local archive="$1" key="$2" version="$3" registry="$4"
+  python3 - "$archive" "$key" "$version" "$registry" <<'PY'
+import hashlib, json, os, sys
+
+archive, key, version, registry = sys.argv[1:]
+os_name, _, arch = key.partition("-")
+with open(registry, encoding="utf-8") as f:
+    man = json.load(f)
+want = None
+for e in man.get("runtimes") or []:
+    if e.get("version") == version and e.get("os") == os_name and e.get("arch") == arch:
+        want = e
+        break
+if want is None:
+    sys.exit(f"registry.json has no {version} {key}")
+h = hashlib.sha256()
+with open(archive, "rb") as f:
+    for chunk in iter(lambda: f.read(1 << 20), b""):
+        h.update(chunk)
+got, size = h.hexdigest(), os.path.getsize(archive)
+if got.lower() != str(want.get("sha256", "")).lower() or size != int(want["size"]):
+    sys.exit(
+        f"{os.path.basename(archive)} sha256/size {got} {size} "
+        f"!= registry {want.get('sha256')} {want.get('size')}"
+    )
+print(f"bundle-runtime: verified {os.path.basename(archive)}")
+PY
+}
+
+# Unpack mypack-runtime into the MyGo platform directory so `mygo build`
+# signs the Mach-O. Do not leave the .tar.gz in resources/: Apple's notary
+# service unpacks gzip and rejects the unsigned nested binary.
+extract_darwin() {
+  local archive="$1" key="$2"
+  local dest="$ROOT/resources/${key}/bin"
+  local tmp exe
+  mkdir -p "$dest"
+  tmp="$(mktemp -d "${TMPDIR:-/tmp}/mypack-runtime.XXXXXX")"
+  tar -xzf "$archive" -C "$tmp"
+  exe="$tmp/mypack-runtime"
+  if [ ! -f "$exe" ]; then
+    echo "bundle-runtime: $archive has no mypack-runtime" >&2
+    rm -rf "$tmp"
+    return 1
+  fi
+  mv "$exe" "$dest/mypack-runtime"
+  chmod 755 "$dest/mypack-runtime"
+  rm -rf "$tmp"
+  rm -f "$archive"
+  echo "bundle-runtime: $key → resources/${key}/bin/mypack-runtime"
+}
+
 self_test() {
   local fail=0
   want="darwin-arm64 darwin-amd64"
@@ -108,8 +168,8 @@ self_test() {
   if grep -E 'gh release download' "$ROOT/scripts/bundle-runtime.sh" | grep -v -- '--pattern' | grep -q .; then
     echo "gh release download must pass --pattern, not a filename argument"; fail=1
   fi
-  if ! grep -q 'BUNDLE_DARWIN_RUNTIME' "$ROOT/scripts/bundle-runtime.sh"; then
-    echo "darwin archive skip (notarization) is missing"; fail=1
+  if ! grep -q 'resources/${key}/bin' "$ROOT/scripts/bundle-runtime.sh"; then
+    echo "darwin helper extract (MyGo platform dir) is missing"; fail=1
   fi
   if [ "$fail" = 0 ]; then
     echo "bundle-runtime.sh: examples pass"
@@ -118,7 +178,7 @@ self_test() {
 }
 
 usage() {
-  sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 case "${1:-}" in
@@ -141,51 +201,39 @@ fi
 KEYS="$(keys_for_platform "$PLATFORM_ARG")"
 
 mkdir -p "$DEST"
-rm -f "$DEST"/mypack-runtime-*.tar.gz "$DEST"/registry.json "$DEST"/registry.json.sig
-
-# Apple's notary service unpacks .tar.gz and rejects unsigned Mach-O. The
-# runtimes Release ships unsigned darwin binaries, so a macOS installer that
-# embeds them fails notarization (v0.1.0-beta.4: no DMG, no
-# update-darwin-universal.json). CI therefore ships only registry.json on
-# darwin; the first build downloads the host archive. Set
-# BUNDLE_DARWIN_RUNTIME=1 once those archives are Developer ID signed.
-# Windows and Linux always bundle. Local builds still bundle darwin too.
-bundle_archives=1
-if [[ "$PLATFORM_ARG" == darwin/* ]] && [[ -n "${GITHUB_ACTIONS:-}" ]] && [[ "${BUNDLE_DARWIN_RUNTIME:-}" != 1 ]]; then
-  bundle_archives=0
-  echo "bundle-runtime: skipping darwin archives (unsigned Mach-O fails Apple notarization)"
+rm -f "$DEST"/mypack-runtime-*.tar.gz "$DEST"/registry.json "$DEST"/registry.json.sig "$DEST"/bundled.json
+if [[ "$PLATFORM_ARG" == darwin/* ]]; then
+  rm -rf "$ROOT/resources/darwin-arm64" "$ROOT/resources/darwin-amd64" "$ROOT/resources/darwin"
 fi
 
-if [ "$bundle_archives" = 1 ]; then
-  missing=""
-  for key in $KEYS; do
-    dest="$DEST/$(archive_name "$VERSION" "$key")"
-    if have_archive "$DIST/registry/$VERSION/$(archive_name "$VERSION" "$key")"; then
-      cp "$DIST/registry/$VERSION/$(archive_name "$VERSION" "$key")" "$dest"
-      echo "bundle-runtime: $key from dist/registry"
-      continue
-    fi
-    if download_github "$VERSION" "$key" "$dest" && have_archive "$dest"; then
-      echo "bundle-runtime: $key from GitHub Release $TAG"
-      continue
-    fi
-    rm -f "$dest"
-    missing="$missing $key"
-  done
-
-  if [ -n "$missing" ]; then
-    if [ -n "${GITHUB_ACTIONS:-}" ]; then
-      echo "bundle-runtime: missing$missing from GitHub Release $TAG (no local rebuild in CI; it would sign registry.json with a new key no build trusts)" >&2
-      exit 1
-    fi
-    echo "bundle-runtime: building$missing locally"
-    VERSION="$VERSION" TARGETS="$missing" DIST="$DIST" "$ROOT/scripts/release-runtimes.sh"
-    for key in $missing; do
-      src="$DIST/registry/$VERSION/$(archive_name "$VERSION" "$key")"
-      have_archive "$src" || { echo "bundle-runtime: failed to produce $src" >&2; exit 1; }
-      cp "$src" "$DEST/$(archive_name "$VERSION" "$key")"
-    done
+missing=""
+for key in $KEYS; do
+  dest="$DEST/$(archive_name "$VERSION" "$key")"
+  if have_archive "$DIST/registry/$VERSION/$(archive_name "$VERSION" "$key")"; then
+    cp "$DIST/registry/$VERSION/$(archive_name "$VERSION" "$key")" "$dest"
+    echo "bundle-runtime: $key from dist/registry"
+    continue
   fi
+  if download_github "$VERSION" "$key" "$dest" && have_archive "$dest"; then
+    echo "bundle-runtime: $key from GitHub Release $TAG"
+    continue
+  fi
+  rm -f "$dest"
+  missing="$missing $key"
+done
+
+if [ -n "$missing" ]; then
+  if [ -n "${GITHUB_ACTIONS:-}" ]; then
+    echo "bundle-runtime: missing$missing from GitHub Release $TAG (no local rebuild in CI; it would sign registry.json with a new key no build trusts)" >&2
+    exit 1
+  fi
+  echo "bundle-runtime: building$missing locally"
+  VERSION="$VERSION" TARGETS="$missing" DIST="$DIST" "$ROOT/scripts/release-runtimes.sh"
+  for key in $missing; do
+    src="$DIST/registry/$VERSION/$(archive_name "$VERSION" "$key")"
+    have_archive "$src" || { echo "bundle-runtime: failed to produce $src" >&2; exit 1; }
+    cp "$src" "$DEST/$(archive_name "$VERSION" "$key")"
+  done
 fi
 
 copy_registry "$DIST/registry" || download_registry || {
@@ -197,14 +245,28 @@ copy_registry "$DIST/registry" || download_registry || {
   exit 1
 }
 
-if [ "$bundle_archives" = 1 ]; then
+for key in $KEYS; do
+  have_archive "$DEST/$(archive_name "$VERSION" "$key")" || {
+    echo "bundle-runtime: missing $(archive_name "$VERSION" "$key")" >&2
+    exit 1
+  }
+done
+
+if [[ "$PLATFORM_ARG" == darwin/* ]]; then
   for key in $KEYS; do
-    have_archive "$DEST/$(archive_name "$VERSION" "$key")" || {
-      echo "bundle-runtime: missing $(archive_name "$VERSION" "$key")" >&2
-      exit 1
-    }
+    archive="$DEST/$(archive_name "$VERSION" "$key")"
+    verify_archive "$archive" "$key" "$VERSION" "$DEST/registry.json"
+    extract_darwin "$archive" "$key"
   done
-  echo "bundle-runtime: $PLATFORM_ARG →$KEYS ($VERSION) in $DEST"
+  # First launch seeds this Mach-O (MyGo-signed in the installer) into the cache.
+  printf '{"version":"%s","keys":[%s]}\n' "$VERSION" "$(
+    first=1
+    for key in $KEYS; do
+      if [ "$first" = 1 ]; then first=0; else printf ','; fi
+      printf '"%s"' "$key"
+    done
+  )" >"$DEST/bundled.json"
+  echo "bundle-runtime: $PLATFORM_ARG → helper $KEYS ($VERSION) + registry.json"
 else
-  echo "bundle-runtime: $PLATFORM_ARG → registry.json only ($VERSION) in $DEST"
+  echo "bundle-runtime: $PLATFORM_ARG →$KEYS ($VERSION) in $DEST"
 fi

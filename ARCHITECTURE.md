@@ -145,9 +145,10 @@ image, `UpdateProject` redraws when the style or name changes, and `ProjectIconI
 Root public key embedded in Builder (`internal/runtimemanager/trust.go`).
 Archive: `mypack-runtime-<version>-<os>-<arch>.tar.gz` containing the single binary.
 Windows and Linux installers ship the matching archive and a copy of the signed
-manifest in `Resources/runtimes`; first launch copies it into the cache
-(`SeedFromDir`). macOS CI ships only the manifest: unsigned Mach-O inside
-`.tar.gz` fails Apple notarization. The remote registry is fetched only for a
+manifest in `Resources/runtimes`. macOS ships `registry.json` and a Mach-O helper
+at `Contents/Resources/bin/mypack-runtime` (`resources/darwin-<arch>/bin`, which
+`mygo build` signs with the app so notarization passes). First launch copies
+those into the cache (`SeedFromDir`). The remote registry is fetched only for a
 version or platform that is not already cached. Verify: signature → sha256 + size → safe extract
 to temp → atomic rename into `<cache>/runtimes/<version>/<os-arch>/`, with a
 `.verified` marker.

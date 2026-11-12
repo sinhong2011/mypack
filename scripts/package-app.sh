@@ -18,8 +18,12 @@ go run ./scripts/mkicns assets/AppIcon-macOS-1024.png "$APP/Contents/Resources/A
 mkdir -p "$APP/Contents/Resources/licenses"
 cp LICENSE NOTICE "$APP/Contents/Resources/licenses/"
 if bash scripts/bundle-runtime.sh "darwin/$(go env GOARCH)"; then
-  mkdir -p "$APP/Contents/Resources/runtimes"
+  mkdir -p "$APP/Contents/Resources/runtimes" "$APP/Contents/Resources/bin"
   cp resources/runtimes/* "$APP/Contents/Resources/runtimes/"
+  helper="resources/darwin-$(go env GOARCH)/bin/mypack-runtime"
+  if [ -f "$helper" ]; then
+    cp "$helper" "$APP/Contents/Resources/bin/mypack-runtime"
+  fi
 else
   echo "warning: no bundled runtime; first build will download from the registry" >&2
 fi
@@ -55,10 +59,13 @@ PLIST
 # SIGN_IDENTITY: "-" (ad-hoc, default) or a Developer ID Application identity.
 SIGN_IDENTITY="${SIGN_IDENTITY:--}"
 if [ "$SIGN_IDENTITY" = "-" ]; then
+  if [ -f "$APP/Contents/Resources/bin/mypack-runtime" ]; then
+    codesign --force --sign - --timestamp=none "$APP/Contents/Resources/bin/mypack-runtime"
+  fi
   codesign --force --deep --sign - --timestamp=none "$APP"
 else
   # Inside-out: helper executables first, then the bundle; hardened runtime for notarization.
-  for bin in "$APP/Contents/MacOS/mypack-native-host" "$APP/Contents/MacOS/mypack"; do
+  for bin in "$APP/Contents/Resources/bin/mypack-runtime" "$APP/Contents/MacOS/mypack-native-host" "$APP/Contents/MacOS/mypack"; do
     [ -f "$bin" ] && codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$bin"
   done
   codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$APP"
