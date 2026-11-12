@@ -374,7 +374,12 @@ func TestGoZipPreservesSymlinksAndModes(t *testing.T) {
 	os.MkdirAll(filepath.Join(src, "Contents", "MacOS"), 0o755)
 	os.WriteFile(filepath.Join(src, "Contents", "MacOS", "App"), []byte("bin"), 0o755)
 	os.WriteFile(filepath.Join(src, "Contents", "data.txt"), []byte("d"), 0o644)
-	os.Symlink("MacOS/App", filepath.Join(src, "Contents", "link"))
+	if err := os.Symlink("MacOS/App", filepath.Join(src, "Contents", "link")); err != nil {
+		if runtime.GOOS == "windows" {
+			t.Skipf("symlinks: %v", err)
+		}
+		t.Fatal(err)
+	}
 	out := filepath.Join(t.TempDir(), "o.zip")
 	if err := zipTree(context.Background(), src, out); err != nil {
 		t.Fatal(err)
@@ -388,7 +393,7 @@ func TestGoZipPreservesSymlinksAndModes(t *testing.T) {
 	for _, f := range zr.File {
 		got[f.Name] = f.Mode()
 	}
-	if got["App.app/Contents/MacOS/App"]&0o111 == 0 {
+	if runtime.GOOS != "windows" && got["App.app/Contents/MacOS/App"]&0o111 == 0 {
 		t.Fatal("exec bit lost")
 	}
 	if got["App.app/Contents/link"]&os.ModeSymlink == 0 {
@@ -507,7 +512,7 @@ func TestLinuxPortableAndDeb(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if st, _ := os.Stat(filepath.Join(p, "cool-site")); st.Mode()&0o111 == 0 {
+	if st, _ := os.Stat(filepath.Join(p, "cool-site")); runtime.GOOS != "windows" && st.Mode()&0o111 == 0 {
 		t.Fatal("not executable")
 	}
 	deb := arts[1].Path

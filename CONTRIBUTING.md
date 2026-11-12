@@ -10,6 +10,7 @@ make that core flow faster, clearer or more reliable are the most welcome.
   add `name`, an `https://` `url` and a `category` (`work`, `dev`, `chat`,
   `ai`, `design` or `media`), then run `go test ./catalog`. Once merged, the
   site shows up in everyone's Discover page within a day, no release needed.
+  release-please ignores commits that only touch `catalog/`.
   Entries only fill in an address; they can't carry scripts or settings.
 - **Website compatibility reports.** A site that doesn't log in, loses its
   session, opens links in the wrong place or looks broken in a generated app.
@@ -47,6 +48,14 @@ Read [ARCHITECTURE.md](ARCHITECTURE.md) before larger changes. In short:
 - Errors are `*domain.Error` with a stable `Code`. The CLI maps codes to exit
   codes, so don't rename existing ones.
 - Generated apps (`runtime/`) must keep working when Mypack is uninstalled.
+
+## Releases
+
+App and CLI versions are cut from `main` with [release-please](docs/releasing.md).
+Use [Conventional Commits](https://www.conventionalcommits.org/): `feat:` bumps
+the minor version, `fix:` bumps the patch, and `feat!:` or a `BREAKING CHANGE`
+footer bumps the major. Merging the release pull request creates the `vX.Y.Z`
+tag. Do not push that tag yourself.
 
 ## Pull requests
 

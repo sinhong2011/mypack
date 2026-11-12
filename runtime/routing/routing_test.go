@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -87,8 +88,10 @@ func TestGuessExecutable(t *testing.T) {
 	_ = os.MkdirAll(filepath.Join(dir, "resources"), 0o755)
 	_ = os.WriteFile(filepath.Join(dir, "slack"), []byte("x"), 0o755)
 	_ = os.WriteFile(filepath.Join(dir, "slack.desktop"), []byte("x"), 0o644)
-	if got := GuessExecutable("linux", dir); got != filepath.Join(dir, "slack") {
-		t.Fatalf("linux: %q", got)
+	if runtime.GOOS != "windows" { // Windows does not store the Unix executable bit
+		if got := GuessExecutable("linux", dir); got != filepath.Join(dir, "slack") {
+			t.Fatalf("linux: %q", got)
+		}
 	}
 	_ = os.WriteFile(filepath.Join(dir, "Slack.exe"), []byte("x"), 0o755)
 	if got := GuessExecutable("windows", dir); got != filepath.Join(dir, "Slack.exe") {

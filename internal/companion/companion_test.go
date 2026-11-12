@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -355,12 +357,18 @@ func TestManifest(t *testing.T) {
 	if _, err := BuildManifest("/x/h", []string{"short"}); err == nil {
 		t.Fatal("bad id accepted")
 	}
-	m, err := BuildManifest("/x/h", []string{"abcdefghijklmnopabcdefghijklmnop"})
+	hostPath := "/x/h"
+	home := "/h"
+	if runtime.GOOS == "windows" {
+		hostPath = `C:\x\h`
+		home = `C:\h`
+	}
+	m, err := BuildManifest(hostPath, []string{"abcdefghijklmnopabcdefghijklmnop"})
 	if err != nil || m.AllowedOrigins[0] != "chrome-extension://abcdefghijklmnopabcdefghijklmnop/" || m.Type != "stdio" || m.Name != HostName {
 		t.Fatalf("%+v %v", m, err)
 	}
-	d, _ := ManifestDirs("darwin", "/h", "all")
-	if d["edge"] != "/h/Library/Application Support/Microsoft Edge/NativeMessagingHosts" {
+	d, _ := ManifestDirs("darwin", home, "all")
+	if d["edge"] != filepath.Join(home, "Library", "Application Support", "Microsoft Edge", "NativeMessagingHosts") {
 		t.Fatal(d)
 	}
 	dir := t.TempDir()
