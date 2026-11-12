@@ -1,0 +1,32 @@
+{
+  "name": "Mypack",
+  "slug": "mypack",
+  "identifier": "dev.mypack.builder",
+  "version": "0.1.0-dev",
+  "copyright": "© 2026 Mypack contributors",
+  "publisher": "Mypack",
+  "license": "Apache-2.0",
+  "icon": "assets/AppIcon-1024.png",
+  "main": "./cmd/mypack",
+  "out": "build",
+  "resources": [
+    "LICENSE",
+    "NOTICE"
+  ],
+  "urlSchemes": [
+    "mypack"
+  ],
+  "macos": {
+    "icon": "build/AppIcon.icns",
+    "minimumSystemVersion": "12.0",
+    "infoPlist": {
+      "LSApplicationCategoryType": "public.app-category.developer-tools"
+    }
+  },
+  "linux": {
+    "categories": [
+      "Development",
+      "Utility"
+    ]
+  }
+}

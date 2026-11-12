@@ -4,3 +4,6 @@
 .DS_Store
 /.mygo/
 .env
+
+# mygo build output (installers)
+/build/
