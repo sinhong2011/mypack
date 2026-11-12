@@ -4,3 +4,5 @@
 .DS_Store
 /.mygo/
 .env
+__pycache__/
+*.pyc
