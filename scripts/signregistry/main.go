@@ -2,7 +2,7 @@
 //
 //	signregistry keygen   -keys dist/keys
 //	signregistry pack     -bin <file> -key darwin-arm64 -out <archive.tar.gz>
-//	signregistry registry -dir dist/registry -keys dist/keys [-capabilities a,b] [-expires-days 365]
+//	signregistry registry -dir dist/registry -keys dist/keys [-capabilities a,b] [-expires-days 365] [-flat] [-merge]
 //
 // keygen creates an Ed25519 key pair on first use (dist/keys/registry.key,
 // registry.pub; base64) and prints the public key. pack writes a reproducible
@@ -10,6 +10,11 @@
 // <dir>/<version>/mypack-runtime-<version>-<os>-<arch>.tar.gz, writes
 // <dir>/registry.json (sequence = previous + 1) and the detached signature
 // registry.json.sig (base64 Ed25519 over the exact bytes).
+//
+// -flat writes each entry's url as the bare file name, for a registry whose
+// files sit side by side (a GitHub Release). -merge keeps the entries of the
+// previous <dir>/registry.json whose archives are not in <dir>, so a registry
+// that holds only the newest archives locally still lists the older ones.
 package main
 
 import (
@@ -156,6 +161,8 @@ func cmdRegistry(args []string) error {
 	keys := fs.String("keys", "dist/keys", "key directory")
 	caps := fs.String("capabilities", "tray,globalShortcut,media,dragDrop,proxy,injection", "capabilities to advertise (comma separated; overrides existing)")
 	days := fs.Int("expires-days", 365, "manifest validity in days")
+	flat := fs.Bool("flat", false, "write entry urls as bare file names (files side by side, e.g. a GitHub Release)")
+	merge := fs.Bool("merge", false, "keep previous entries whose archives are not in -dir")
 	fs.Parse(args)
 
 	priv, pub, err := loadOrCreateKey(*keys)
@@ -200,10 +207,24 @@ func cmdRegistry(args []string) error {
 			}
 			e := runtimemanager.Entry{Version: m[1], OS: m[2], Arch: m[3], Filename: f.Name(), URL: v.Name() + "/" + f.Name(),
 				SHA256: sum, Size: size, Capabilities: capList}
+			if *flat {
+				e.URL = f.Name()
+			}
 			if len(capList) == 0 {
 				e.Capabilities = prevCaps[e.Version+"/"+e.Key()]
 			}
 			entries = append(entries, e)
+		}
+	}
+	if *merge {
+		have := map[string]bool{}
+		for _, e := range entries {
+			have[e.Version+"/"+e.Key()] = true
+		}
+		for _, e := range prev.Runtimes {
+			if !have[e.Version+"/"+e.Key()] {
+				entries = append(entries, e)
+			}
 		}
 	}
 	if len(entries) == 0 {

@@ -1,0 +1,83 @@
+# Publishes generated-app runtimes to the "runtimes" GitHub Release, which is
+# the production registry every Mypack build reads:
+#   https://github.com/sinhong2011/mypack/releases/download/runtimes/registry.json
+# Run it by hand for each new runtime version (pkg/config DefaultRuntimeVersion)
+# before shipping an app that asks for that version. See docs/releasing.md.
+name: Runtimes
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Runtime version, e.g. 1.0.8 (pkg/config DefaultRuntimeVersion)"
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: runtimes
+  cancel-in-progress: false
+
+env:
+  TAG: runtimes
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  publish:
+    runs-on: macos-latest # lipo, for darwin-universal
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Check the version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          [[ "$VERSION" =~ ^[0-9]+(\.[0-9]+){0,3}$ ]] || { echo "::error::version must look like 1.0.8"; exit 1; }
+      - name: Write the signing key
+        env:
+          KEY: ${{ secrets.REGISTRY_SIGNING_KEY }}
+        run: |
+          # Without the secret signregistry would make a new key that no
+          # build trusts, so stop here instead.
+          if [ -z "$KEY" ]; then
+            echo "::error::REGISTRY_SIGNING_KEY is not set (docs/releasing.md › Runtime registry)"
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/keys"
+          (umask 077; printf '%s\n' "$KEY" > "$RUNNER_TEMP/keys/registry.key")
+      - name: Fetch the current registry
+        run: |
+          mkdir -p dist/registry
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release download "$TAG" --dir dist/registry --pattern registry.json
+            if gh release view "$TAG" --json assets --jq '.assets[].name' | grep -qx "mypack-runtime-${{ inputs.version }}-darwin-arm64.tar.gz"; then
+              echo "::error::runtime ${{ inputs.version }} is already published; runtimes are immutable, use a new version"
+              exit 1
+            fi
+          else
+            gh release create "$TAG" --title "Runtimes" --latest=false \
+              --notes "Runtimes for apps made with Mypack, and the signed registry (registry.json) that lists them. Mypack downloads these itself; you do not need them."
+          fi
+      - name: Build and sign
+        env:
+          VERSION: ${{ inputs.version }}
+          KEYS: ${{ runner.temp }}/keys
+          REGISTRY_FLAGS: -flat -merge
+        run: |
+          scripts/release-runtimes.sh
+          if ! diff -q "$KEYS/registry.pub" internal/runtimemanager/registry.pub; then
+            echo "::error::REGISTRY_SIGNING_KEY does not match internal/runtimemanager/registry.pub"
+            exit 1
+          fi
+      - name: Upload
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          # Archives first: the new registry.json must never list a file
+          # that is not there yet.
+          gh release upload "$TAG" dist/registry/"$VERSION"/*.tar.gz
+          gh release upload "$TAG" dist/registry/registry.json.sig dist/registry/registry.json --clobber
+          echo "Registry: https://github.com/${{ github.repository }}/releases/download/$TAG/registry.json" >> "$GITHUB_STEP_SUMMARY"

@@ -432,6 +432,11 @@ func TestCancelLeavesNoDamage(t *testing.T) {
 func TestTrustKeySources(t *testing.T) {
 	ResetTrustedKeys()
 	t.Cleanup(ResetTrustedKeys)
+	// Every build trusts the embedded production key.
+	base := len(parseKeys(productionKeyB64))
+	if base != 1 {
+		t.Fatalf("embedded production key: got %d keys, want 1", base)
+	}
 	reg, _ := newReg(t, testregistry.Options{})
 	m := New(t.TempDir(), reg.URL) // no per-manager keys
 	t.Setenv("MYPACK_DEV_TRUST", "")
@@ -446,7 +451,7 @@ func TestTrustKeySources(t *testing.T) {
 	ResetTrustedKeys()
 	// env var
 	t.Setenv("MYPACK_TRUSTED_KEY", encodeKey(reg.Public))
-	if len(TrustedKeys()) != 1 {
+	if len(TrustedKeys()) != base+1 {
 		t.Fatal("env key not used")
 	}
 	t.Setenv("MYPACK_TRUSTED_KEY", "")
@@ -454,17 +459,17 @@ func TestTrustKeySources(t *testing.T) {
 	f := filepath.Join(t.TempDir(), "registry.pub")
 	os.WriteFile(f, []byte(encodeKey(reg.Public)+"\n"), 0o644)
 	t.Setenv("MYPACK_DEV_PUBKEY_FILE", f)
-	if len(TrustedKeys()) != 0 {
+	if len(TrustedKeys()) != base+0 {
 		t.Fatal("dev key must require MYPACK_DEV_TRUST=1")
 	}
 	t.Setenv("MYPACK_DEV_TRUST", "1")
-	if len(TrustedKeys()) != 1 {
+	if len(TrustedKeys()) != base+1 {
 		t.Fatal("dev key not used")
 	}
 	// ldflags-style list with rotation
 	trustedKeysB64 = encodeKey(reg.Public) + "," + encodeKey(reg.Public)
 	defer func() { trustedKeysB64 = "" }()
-	if len(TrustedKeys()) != 3 {
+	if len(TrustedKeys()) != base+3 {
 		t.Fatalf("got %d keys", len(TrustedKeys()))
 	}
 }

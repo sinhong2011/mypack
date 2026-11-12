@@ -16,6 +16,9 @@
 #   CAPABILITIES   comma separated capabilities advertised in the manifest
 #   EXPIRES_DAYS   manifest validity (default 365)
 #   GOTOOLCHAIN    default "auto" (Go >= 1.27.3 is downloaded on demand)
+#   KEYS           signing key directory (default <DIST>/keys)
+#   REGISTRY_FLAGS extra signregistry registry flags; the Runtimes workflow
+#                  passes "-flat -merge" for the GitHub Release (docs/releasing.md)
 #
 # The dev signing key is generated on first run in dist/keys/ (never commit it).
 # To use the registry with a development Builder:
@@ -45,7 +48,7 @@ if [ ! -d "$RUNTIME_PKG" ] && [ ! -d "$ROOT/${RUNTIME_PKG#./}" ]; then
 fi
 
 REG="$DIST/registry"
-KEYS="$DIST/keys"
+KEYS="${KEYS:-$DIST/keys}"
 OUT="$REG/$VERSION"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/mypack-runtimes.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
@@ -87,7 +90,7 @@ else
 fi
 
 echo "==> signing registry"
-PUB="$("$SIGN" registry -dir "$REG" -keys "$KEYS" -capabilities "$CAPABILITIES" -expires-days "$EXPIRES_DAYS")"
+PUB="$("$SIGN" registry -dir "$REG" -keys "$KEYS" -capabilities "$CAPABILITIES" -expires-days "$EXPIRES_DAYS" ${REGISTRY_FLAGS:-})"
 
 echo
 echo "Registry:   $REG/registry.json"
