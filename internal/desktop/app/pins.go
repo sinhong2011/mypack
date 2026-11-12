@@ -42,6 +42,7 @@ func (a *App) pinMenuItem(m *ui.Menu, key string) {
 	}
 	if m.Item(label).Chosen() {
 		a.ui.togglePin(key)
+		a.syncTray() // its Pinned list
 	}
 }
 
