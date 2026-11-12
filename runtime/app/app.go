@@ -56,6 +56,7 @@ type App struct {
 	menu     *mygo.Menu  // the application menu
 	lay      layoutState // the main window's layout (layout.go)
 	group    *group      // app.group: the member websites (group.go), or nil
+	tabs     *tabSet     // window.tabs: the main window's tabs (tabs.go), or nil
 }
 
 type credEntry struct {
@@ -397,6 +398,9 @@ func (a *App) windowOptions(main, strip bool) mygo.WindowOptions {
 func (a *App) openWindow(main bool, url, stateKey string, hidden bool) (*mygo.Window, *mygo.Page) {
 	if main && a.group != nil {
 		return a.openGroupWindow(stateKey, hidden)
+	}
+	if main && a.tabsOn() {
+		return a.openTabsWindow(url, stateKey, hidden)
 	}
 	strip := a.useStrip()
 	o := a.windowOptions(main, strip)

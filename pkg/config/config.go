@@ -22,7 +22,7 @@ import (
 const SchemaVersion = 1
 
 // DefaultRuntimeVersion is the runtime version new projects pin (ADR-005).
-const DefaultRuntimeVersion = "1.0.7"
+const DefaultRuntimeVersion = "1.0.8"
 
 // Config is the full mypack.json document.
 type Config struct {
@@ -304,6 +304,11 @@ type WindowConfig struct {
 	// opens the page in a panel, no Dock icon) or "sidebar" (docked to an
 	// edge of the screen at full height, above other windows).
 	Mode string `json:"mode,omitempty"`
+	// Tabs gives the main window a tab bar (runtime 1.0.8+): links that
+	// open a new window open a tab instead, tabs can be pinned, and they
+	// come back on the next launch. Not for group apps, whose rail already
+	// switches sites.
+	Tabs bool `json:"tabs,omitempty"`
 	// SidebarEdge is the screen edge of a sidebar: "right" (default, empty)
 	// or "left".
 	SidebarEdge string `json:"sidebarEdge,omitempty"`
@@ -463,6 +468,8 @@ func (b *BlockingConfig) validate(add func(field, code, msg string)) {
 // MinRuntime is the earliest runtime that has every feature c turns on.
 func (c *Config) MinRuntime() string {
 	switch {
+	case c.Window.Tabs:
+		return "1.0.8"
 	case c.WebView.Blocking.Active():
 		return "1.0.7"
 	case c.IsGroup() || c.Window.EffectiveMode() != ModeWindow:
@@ -825,6 +832,9 @@ func (c *Config) Validate() error {
 		add("window.darkMode", "INVALID_ENUM", "must be system, light or dark")
 	}
 	c.validateGroup(add)
+	if c.Window.Tabs && c.IsGroup() {
+		add("window.tabs", "INVALID_TABS", "group apps switch sites with their rail and cannot have tabs")
+	}
 	switch w.Mode {
 	case "", ModeWindow, ModeCompact, ModeMenuBar, ModeSidebar:
 	default:

@@ -96,8 +96,19 @@ before the first page loads (the engine caches the compiled list across launches
 it through `pageOptionsIn`. The list is not EasyList, whose licence would carry over to generated apps.
 
 Feature pins: `Config.MinRuntime()` is the earliest runtime a config's features need (window modes and groups 1.0.6,
-blocking 1.0.7), and `ApplyDefaults` raises a lower `runtime.version` to it, so turning a feature on in an existing
+blocking 1.0.7, tabs 1.0.8), and `ApplyDefaults` raises a lower `runtime.version` to it, so turning a feature on in an existing
 project never builds an app that quietly lacks it. Pins are never lowered.
+
+## Tabs (1.0.8)
+
+`window.tabs` gives the main window a native tab bar (`runtime/app/tabs.go`) and one web view per tab, all in the
+app's session. A user-initiated popup with no size (a `target=_blank` link) opens a tab after the current one, or
+shows the tab that already has that page; popups that ask for a size stay windows, since sign-in flows need
+`window.opener`. Pinned tabs sit first, stay loaded (so they notify and badge) and are not closed by ⌘W. Tabs, pins
+and the shown tab are kept in state.json and restored at launch (never in incognito apps); unpinned tabs load when
+first shown. Favicons are fetched by the runtime from the page's `<link rel=icon>`. File: New Tab ⌘T, Reopen Closed
+Tab ⌘⇧T, Close Tab ⌘W, Close Window ⌘⇧W; View: ⌃Tab / ⌃⇧Tab, ⌘1…⌘9. Not in group apps (validation) or the menu-bar
+panel.
 
 ## Icon studio
 

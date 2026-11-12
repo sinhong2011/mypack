@@ -540,6 +540,8 @@
   "look.blocking.trackers": "广告和跟踪器",
   "look.blocking.all": "广告、跟踪器和 Cookie 横幅",
   "look.blocking.custom": "自定义",
+  "look.tabs": "标签页",
+  "look.tabs.desc": "在新窗口打开的链接改为在标签页打开。可固定常用页面。",
   "set.sidebarEdge": "侧边栏位置",
   "set.sidebarEdge.left": "左",
   "set.sidebarEdge.right": "右",

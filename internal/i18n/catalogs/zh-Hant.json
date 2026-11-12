@@ -540,6 +540,8 @@
   "look.blocking.trackers": "廣告和追蹤器",
   "look.blocking.all": "廣告、追蹤器和 Cookie 橫幅",
   "look.blocking.custom": "自訂",
+  "look.tabs": "標籤頁",
+  "look.tabs.desc": "在新視窗開啟的連結改為在標籤頁開啟。可釘選常用頁面。",
   "set.sidebarEdge": "側邊欄位置",
   "set.sidebarEdge.left": "左",
   "set.sidebarEdge.right": "右",

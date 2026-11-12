@@ -540,6 +540,8 @@
   "look.blocking.trackers": "広告とトラッカー",
   "look.blocking.all": "広告、トラッカー、Cookie バナー",
   "look.blocking.custom": "カスタム",
+  "look.tabs": "タブ",
+  "look.tabs.desc": "新しいウインドウで開くリンクをタブで開きます。よく使うページはピン留めできます。",
   "set.sidebarEdge": "サイドバーの位置",
   "set.sidebarEdge.left": "左",
   "set.sidebarEdge.right": "右",

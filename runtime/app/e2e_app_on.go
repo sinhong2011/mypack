@@ -104,6 +104,43 @@ func (a *App) e2eAppHook() {
 				out = a.e2eGroupInfo()
 			case "info":
 				out = a.e2eInfo()
+			case "tinfo":
+				out = a.e2eTabsInfo()
+			case "topen": // a target=_blank link clicked in the shown tab
+				t := a.tabs
+				t.mu.Lock()
+				from := t.list[t.active]
+				t.mu.Unlock()
+				t.onOpen(from, mygo.WindowOpenRequest{URL: arg, UserInitiated: true})
+				time.Sleep(1200 * time.Millisecond)
+				out = a.e2eTabsInfo()
+			case "tpopup": // window.open with a size (a sign-in popup)
+				opts := a.tabs.onOpen(nil, mygo.WindowOpenRequest{URL: arg, UserInitiated: true, Width: 500, Height: 600})
+				out = fmt.Sprintf("window=%v %s", opts != nil, a.e2eTabsInfo())
+			case "tnew":
+				mygo.RunOnMain(a.tabs.newTab)
+				time.Sleep(800 * time.Millisecond)
+				out = a.e2eTabsInfo()
+			case "tclose": // ⌘W
+				mygo.RunOnMain(func() { a.tabs.close(a.tabs.active, true) })
+				time.Sleep(500 * time.Millisecond)
+				out = a.e2eTabsInfo()
+			case "treopen":
+				mygo.RunOnMain(a.tabs.reopen)
+				time.Sleep(1000 * time.Millisecond)
+				out = a.e2eTabsInfo()
+			case "tpin":
+				var i int
+				fmt.Sscan(arg, &i)
+				mygo.RunOnMain(func() { a.tabs.togglePin(i) })
+				time.Sleep(300 * time.Millisecond)
+				out = a.e2eTabsInfo()
+			case "tshow":
+				var i int
+				fmt.Sscan(arg, &i)
+				mygo.RunOnMain(func() { a.tabs.show(i, true) })
+				time.Sleep(800 * time.Millisecond)
+				out = a.e2eTabsInfo()
 			case "shot":
 				a.mu.Lock()
 				w := a.main
@@ -155,4 +192,18 @@ func (c *badgeController) compute2() string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.compute()
+}
+
+func (a *App) e2eTabsInfo() string {
+	t := a.tabs
+	if t == nil {
+		return "tabs=nil"
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	out := fmt.Sprintf("active=%d n=%d closed=%d", t.active, len(t.list), len(t.closed))
+	for _, tb := range t.list {
+		out += fmt.Sprintf(" | pin=%v loaded=%v icon=%v title=%q url=%s", tb.pinned, tb.view != nil, tb.icon != nil, tb.title, tb.url)
+	}
+	return out
 }

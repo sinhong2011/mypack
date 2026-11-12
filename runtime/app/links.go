@@ -1,6 +1,7 @@
 package app
 
 import (
+	"github.com/egoist/mygo"
 	"log"
 	"net/url"
 	"runtime"
@@ -113,6 +114,14 @@ func (a *App) handleIncomingURL(raw string) {
 		}
 		a.mu.Unlock()
 		if started {
+			a.mu.Lock()
+			tabs := a.tabs
+			a.mu.Unlock()
+			if tabs != nil {
+				a.showMain()
+				mygo.RunOnMain(func() { tabs.open(raw, true) })
+				return
+			}
 			a.navigateMain(raw)
 		}
 	case navigation.External:

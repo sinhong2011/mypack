@@ -540,6 +540,8 @@
   "look.blocking.trackers": "Anuncios y rastreadores",
   "look.blocking.all": "Anuncios, rastreadores y avisos de cookies",
   "look.blocking.custom": "Personalizado",
+  "look.tabs": "Pestañas",
+  "look.tabs.desc": "Los enlaces que abren una ventana nueva abren una pestaña. Fija las páginas que siempre tienes abiertas.",
   "set.sidebarEdge": "Borde de la barra lateral",
   "set.sidebarEdge.left": "Izquierda",
   "set.sidebarEdge.right": "Derecha",

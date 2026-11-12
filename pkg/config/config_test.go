@@ -61,7 +61,7 @@ func TestProjectBuildValidation(t *testing.T) {
 
 func TestNativeAndUAPresetDefaults(t *testing.T) {
 	c := New("Mail", Source{Type: SourceURL, Value: "https://mail.example.com"}, Target{OS: "darwin", Arch: "arm64"})
-	if c.Runtime.Version != DefaultRuntimeVersion || DefaultRuntimeVersion != "1.0.7" {
+	if c.Runtime.Version != DefaultRuntimeVersion || DefaultRuntimeVersion != "1.0.8" {
 		t.Fatalf("runtime version = %q", c.Runtime.Version)
 	}
 	if c.Native.NotificationsMode() != "allow" || c.Native.BadgeMode() != "auto" || !c.Native.LinkRoutingEnabled() {
@@ -345,5 +345,23 @@ func TestMinRuntimeRaisesPin(t *testing.T) {
 	c.ApplyDefaults(host)
 	if c.Runtime.Version != "1.2.0" {
 		t.Fatal("a newer pin is never lowered")
+	}
+}
+
+func TestTabs(t *testing.T) {
+	host := Target{OS: "darwin", Arch: "arm64"}
+	c := New("Docs", Source{Type: SourceURL, Value: "https://docs.example.com"}, host)
+	c.Runtime.Version = "1.0.6"
+	c.Window.Tabs = true
+	c.ApplyDefaults(host)
+	if c.Runtime.Version != "1.0.8" {
+		t.Fatalf("tabs need 1.0.8, got %s", c.Runtime.Version)
+	}
+	if err := c.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	c.App.Group = &GroupConfig{Members: []GroupMember{{ID: "a", Name: "A", URL: "https://a.example.com"}, {ID: "b", Name: "B", URL: "https://b.example.com"}}}
+	if err := c.Validate(); err == nil || !strings.Contains(err.Error(), "window.tabs") {
+		t.Fatalf("tabs in a group: %v", err)
 	}
 }

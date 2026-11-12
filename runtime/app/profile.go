@@ -66,6 +66,10 @@ type State struct {
 	SidebarEdge   string  `json:"sidebarEdge,omitempty"`
 	// GroupActive is the group member shown last (its id).
 	GroupActive string `json:"groupActive,omitempty"`
+	// Tabs are the main window's tabs (window.tabs) and TabActive the one
+	// shown, restored on the next launch.
+	Tabs      []SavedTab `json:"tabs,omitempty"`
+	TabActive int        `json:"tabActive,omitempty"`
 }
 
 // Bounds is a window rectangle in screen coordinates.

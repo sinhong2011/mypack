@@ -648,6 +648,8 @@
   "look.blocking.trackers": "Ads & trackers",
   "look.blocking.all": "Ads, trackers & cookie banners",
   "look.blocking.custom": "Custom",
+  "look.tabs": "Tabs",
+  "look.tabs.desc": "Links that open a new window open a tab. Pin the pages you keep open.",
   "set.sidebarEdge": "Sidebar edge",
   "set.sidebarEdge.left": "Left",
   "set.sidebarEdge.right": "Right",

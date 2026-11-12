@@ -36,7 +36,11 @@ func (a *App) buildMenu() *mygo.Menu {
 			Click: func(*mygo.MenuItem, *mygo.Window) { a.newWindow() }})
 		file = append(file, mygo.Separator())
 	}
-	file = append(file, &mygo.MenuItem{Role: mygo.RoleClose})
+	if a.tabsOn() {
+		file = append(file, a.tabMenuItems()...)
+	} else {
+		file = append(file, &mygo.MenuItem{Role: mygo.RoleClose})
+	}
 	if runtime.GOOS != "darwin" { // macOS has Quit in the app menu
 		file = append(file, mygo.Separator(), &mygo.MenuItem{Role: mygo.RoleQuit})
 	}
@@ -75,6 +79,9 @@ func (a *App) buildMenu() *mygo.Menu {
 		{Role: mygo.RoleToggleFullScreen},
 	}
 	view = append(view, a.groupMenuItems()...)
+	if a.tabsOn() {
+		view = append(view, a.tabSwitchItems()...)
+	}
 	view = append(view, a.layoutMenuItems()...)
 	if a.cfg.WebView.DevTools {
 		// Not RoleToggleDevTools: in a window of native UI (strip layout) that

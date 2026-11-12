@@ -540,6 +540,8 @@
   "look.blocking.trackers": "Pubs et traqueurs",
   "look.blocking.all": "Pubs, traqueurs et bannières de cookies",
   "look.blocking.custom": "Personnalisé",
+  "look.tabs": "Onglets",
+  "look.tabs.desc": "Les liens qui ouvrent une nouvelle fenêtre ouvrent un onglet. Épinglez les pages que vous gardez ouvertes.",
   "set.sidebarEdge": "Bord de la barre latérale",
   "set.sidebarEdge.left": "Gauche",
   "set.sidebarEdge.right": "Droite",
