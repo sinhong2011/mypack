@@ -120,8 +120,7 @@ func (a *App) createPreview(c *ui.Context) {
 				kit.Shimmer(c, identityIcon, identityIcon, design.AppIconRadius(identityIcon))
 				return
 			}
-			icon := a.iconPicker(c.Key("icon:"+s.metaFor), a.createIcon(), s.displayName(), identityIcon)
-			a.iconAt["create"] = icon.Bounds()
+			a.iconPicker(c.Key("icon:"+s.metaFor), a.createIcon(), s.displayName(), identityIcon)
 		}).Margin(0, 0, 8, 0)
 		a.renameField(c, loading)
 		ui.Row(c).Gap(5).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
@@ -431,7 +430,7 @@ func (a *App) dockPreview(c *ui.Context, loading bool) {
 		if loading && s.iconPNG == nil {
 			kit.Shimmer(c, big, big, design.AppIconRadius(big))
 		} else {
-			a.iconAt["create"] = kit.AppIconOpts(c, a.createIcon(), s.displayName(), big, kit.IconOpts{Shadow: true}).Bounds()
+			kit.AppIconOpts(c, a.createIcon(), s.displayName(), big, kit.IconOpts{Shadow: true})
 		}
 	})
 }

@@ -92,8 +92,54 @@ Le runtime est un petit binaire par plateforme qui ne sait rien d’un site web 
 
 ## Pour commencer
 
+### Installer
+
+**macOS** avec [Homebrew](https://brew.sh) :
+
+```sh
+brew install --cask sinhong2011/tap/mypack
+```
+
+**Windows** avec winget, [Scoop](https://scoop.sh) ou [Chocolatey](https://chocolatey.org) :
+
+```powershell
+winget install Mypack.Mypack
+```
+
+```powershell
+scoop bucket add mypack https://github.com/sinhong2011/scoop-bucket
+scoop install mypack/mypack
+```
+
+```powershell
+choco install mypack
+```
+
+**Debian et Ubuntu** (APT) :
+
+```sh
+curl -fsSL https://sinhong2011.github.io/mypack/mypack.gpg | sudo tee /usr/share/keyrings/mypack.gpg >/dev/null
+echo "deb [signed-by=/usr/share/keyrings/mypack.gpg] https://sinhong2011.github.io/mypack/apt stable main" | sudo tee /etc/apt/sources.list.d/mypack.list
+sudo apt update && sudo apt install mypack
+```
+
+**Fedora, RHEL et openSUSE** (DNF, YUM, Zypper) :
+
+```sh
+sudo curl -fsSL -o /etc/yum.repos.d/mypack.repo https://sinhong2011.github.io/mypack/rpm/mypack.repo
+sudo dnf install mypack        # sudo zypper install mypack
+```
+
+**Arch Linux** depuis l’[AUR](https://aur.archlinux.org/packages/mypack-bin) :
+
+```sh
+yay -S mypack-bin
+```
+
+Chaque [Release](https://github.com/sinhong2011/mypack/releases/latest) propose aussi les installeurs à télécharger directement : un `.dmg` pour macOS, des programmes d’installation pour Windows et des paquets `.deb` et `.rpm` pour Linux. Avec un gestionnaire de paquets, la commande `mypack` est dans votre PATH et se met à jour avec la commande de mise à jour de ce gestionnaire.
+
 > [!NOTE]
-> Mypack est jeune, et des versions signées arrivent. En attendant, compilez-le depuis les sources. Cela prend environ une minute.
+> Les versions ne sont pas encore signées. Sur macOS, si Gatekeeper bloque le premier lancement, faites un clic droit sur Mypack.app puis **Ouvrir**. Sur Windows, SmartScreen peut demander une confirmation (**Informations complémentaires › Exécuter quand même**).
 
 ### Compiler depuis les sources
 
@@ -122,7 +168,7 @@ Vous pouvez aussi déposer un fichier HTML ou un dossier sur la fenêtre, ou cho
 Le binaire de l’application est aussi la CLI :
 
 ```sh
-alias mypack=/Applications/Mypack.app/Contents/MacOS/mypack
+alias mypack=/Applications/Mypack.app/Contents/MacOS/Mypack   # not needed after a package-manager install
 
 mypack create github.com --json          # a draft project; nothing is built yet
 mypack build <project-id> --yes --json   # build it (--yes allows the runtime download)
@@ -135,7 +181,7 @@ Avec `--json`, chaque commande affiche un objet JSON. Les codes de sortie sont s
 **Serveur MCP.** Connectez un agent avec :
 
 ```sh
-claude mcp add mypack -- /Applications/Mypack.app/Contents/MacOS/mypack mcp serve
+claude mcp add mypack -- mypack mcp serve
 ```
 
 **Réglages › Connexions d’agents** dans l’application propose des configurations prêtes à copier pour Claude Code, Codex et d’autres clients MCP. Les agents peuvent lister, créer et construire des projets, mais ils ne peuvent pas installer d’applications, et le script de compilation d’un projet ne s’exécute qu’après votre approbation.

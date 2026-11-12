@@ -20,7 +20,6 @@ type settingsState struct {
 	regInit  bool
 
 	pane settingsPane // the category on show
-	dir  float32      // +1 the last pane change went down the list, -1 up
 	scrl ui.ScrollState
 }
 
@@ -127,11 +126,6 @@ func (a *App) selectPane(id settingsPane) {
 		a.set.pane = id
 		return
 	}
-	if paneIndex(id) >= paneIndex(a.curPane()) {
-		a.set.dir = 1
-	} else {
-		a.set.dir = -1
-	}
 	a.set.scrl = ui.ScrollState{}
 	a.set.pane = id
 	a.ui.SettingsPane = string(id)
@@ -154,11 +148,8 @@ func (a *App) settingsWindowView(c *ui.Context) {
 		design.Tint(canvas, p.CanvasTop, p.CanvasBot)
 		design.Float(c, canvas)
 		canvas.Children(func() {
-			dir := a.set.dir
-			if dir == 0 {
-				dir = 1
-			}
-			kit.PageSwap(ui.Column(c.Key("pane/"+string(a.curPane()))).Absolute().Fill(), dir).Children(func() {
+			// Panes switch at once, as a settings window's categories do.
+			ui.Column(c.Key("pane/" + string(a.curPane()))).Absolute().Fill().Children(func() {
 				a.settingsView(c)
 			})
 			// The pane's title, over the content that scrolls under it.

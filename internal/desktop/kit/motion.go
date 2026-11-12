@@ -18,21 +18,12 @@ import (
 // Reduced reports whether the user asked for reduced motion.
 func Reduced(c *ui.Context) bool { return c.Preferences().ReduceMotion }
 
-// Stagger returns anim delayed for the i-th item of a group (reading
-// order), each step after the one before, capped so long lists don't
-// wait.
-func Stagger(anim ui.Animation, i int, step time.Duration) ui.Animation {
-	i = min(i, 12)
-	anim.Delay = design.Scaled(time.Duration(i) * step)
-	return anim
-}
-
-// Arrive makes e come in from a little below, fading up, and leave the
-// same way: list rows, cards, sections. i staggers it among its siblings.
-func Arrive(e ui.Element, i int, step time.Duration) ui.Element {
-	a := Stagger(design.SpringSoft, i, step)
-	return e.Transition(ui.ElementTransition{Animation: &a,
-		Enter: &ui.Motion{Y: 10}, Exit: &ui.Motion{Scale: 0.92, Collapse: true}})
+// Arrive lets e leave by folding its own space away (a removed row,
+// tile or card), so its neighbours close the gap instead of jumping. It
+// comes in at once: content showing up needs no announcement.
+func Arrive(e ui.Element) ui.Element {
+	return e.Transition(ui.ElementTransition{Animation: &design.SpringSoft,
+		Exit: &ui.Motion{Scale: 0.96, Collapse: true}})
 }
 
 // Roll makes a changing label roll: the new text comes up from below as
@@ -56,21 +47,12 @@ func Reveal(e ui.Element) ui.Element {
 		Enter: &ui.Motion{Collapse: true}, Exit: &ui.Motion{Collapse: true}})
 }
 
-// PageSwap moves between pages (key the element by the page): the page
-// going fades, slides 12 pt against the way of travel and settles back to
-// .985; the one coming slides in from the way of travel. dir is +1 going
-// deeper or down the sidebar, -1 coming back. An interruptible spring of
-// about 280 ms; the page's blocks stagger in after it (Block).
-func PageSwap(e ui.Element, dir float32) ui.Element {
-	return e.Transition(ui.ElementTransition{Animation: &design.SpringPage,
-		Enter: &ui.Motion{X: 28 * dir}, Exit: &ui.Motion{X: -12 * dir, Scale: 0.985}})
-}
-
-// Block staggers the i-th block of a page in after the page itself:
-// header first, then each content block, rising 10 pt.
-func Block(e ui.Element, i int) ui.Element {
-	a := Stagger(design.SpringPage, i+1, design.StaggerBlock)
-	return e.Transition(ui.ElementTransition{Animation: &a, Enter: &ui.Motion{Y: 10}})
+// PageSwap is the change between pages (key the element by the page): the
+// new page fades in quickly and the old one is gone at once, so nothing
+// slides and two pages never overlap.
+func PageSwap(e ui.Element) ui.Element {
+	fade := design.Tween(design.MotionFast, design.EaseStd)
+	return e.Transition(ui.ElementTransition{Animation: &fade, Enter: &ui.Motion{}})
 }
 
 // modalAt is when a sheet, palette or popover was last open.
