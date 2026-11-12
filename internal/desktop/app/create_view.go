@@ -82,7 +82,7 @@ func (a *App) createView(c *ui.Context) {
 				if a.settingHit(T("autoInstall.label")) {
 					a.autoInstallSetting(c)
 				}
-				a.lookAndBehaviourOpts(c, a.ensureCfg(), func() {}, &s.account, true)
+				a.lookAndBehaviourOpts(c, a.ensureCfg(), a.rememberLook, &s.account, true)
 			})
 			// Advanced Settings (collapsed; searching opens it to its matches).
 			ui.Column(c).Gap(10).Children(func() {

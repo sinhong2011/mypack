@@ -272,6 +272,7 @@ func (a *App) ensureCfg() *config.Config {
 			src = localSource(s.local)
 		}
 		s.cfg = config.New(nonEmpty(s.displayName(), "App"), src, a.host)
+		a.ui.LookDefaults.apply(s.cfg)
 		s.adv = &editorState{cfg: s.cfg, local: true}
 	}
 	return s.cfg
