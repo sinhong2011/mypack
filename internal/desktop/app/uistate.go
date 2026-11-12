@@ -23,6 +23,8 @@ type uiState struct {
 	// ShowHUD (nil = on) shows build progress near the notch while
 	// Mypack's window is not in front.
 	ShowHUD *bool `json:"showHud,omitempty"`
+	// Star is when to ask for a star on GitHub (starask.go).
+	Star starAsk `json:"star"`
 }
 
 // autoInstallDefault is the default for new projects (on unless turned off).

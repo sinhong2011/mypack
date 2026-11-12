@@ -95,6 +95,8 @@ func Toasts(c *ui.Context) {
 					ic, col = icons.Success, p.Success
 				case "error":
 					ic, col = icons.Alert, p.Danger
+				case "star":
+					ic, col = icons.Star, p.Warning
 				}
 				Glyph(c, ic, 16, col)
 				ui.Column(c).Gap(1).MinWidth(0).Shrink(1).Children(func() {

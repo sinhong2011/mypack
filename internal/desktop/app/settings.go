@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -377,21 +378,71 @@ func (a *App) settingsAdvanced(c *ui.Context) {
 	})
 }
 
+// The author shown in About, and where About's links go.
+const (
+	aboutAuthor    = "sinhong2011"
+	aboutAuthorURL = "https://github.com/sinhong2011"
+	aboutRepoURL   = "https://github.com/sinhong2011/mypack"
+)
+
 func (a *App) settingsAbout(c *ui.Context) {
 	p := design.Of(c)
-	// Header: the app, as System Settings' account card.
-	ui.Row(c).Gap(16).Padding(16, 18).Radius(design.RadiusPanel).Background(p.Group).Border(0.5, p.GroupBorder).AlignItems(ui.Center).Children(func() {
-		kit.BrandMark(c, 60)
-		ui.Column(c).Gap(2).Grow(1).MinWidth(0).Children(func() {
-			ui.Text(c, "Mypack").FontSize(design.FontTitle1).FontWeight(design.WeightBold).TextColor(p.Text)
-			kit.Secondary(c, T("settings.about.tagline"))
-			kit.Caption(c, T("settings.about.version", "v", Version)).TextColor(p.TextTertiary)
+	open := func(url string) {
+		a.do(func(ctx context.Context) error { return a.svc.OpenURL(ctx, url) }, a.toastErr)
+	}
+	// Header: the app, centred, as a Mac app's About window.
+	ui.Column(c).Gap(4).Padding(26, 18, 22, 18).Radius(design.RadiusPanel).Background(p.Group).Border(0.5, p.GroupBorder).
+		AlignItems(ui.Center).Children(func() {
+		kit.BrandMark(c, 76).Margin(0, 0, 10, 0)
+		ui.Text(c, "Mypack").FontSize(design.FontTitle1).FontWeight(design.WeightBold).TextColor(p.Text).LetterSpacing(design.TrackTitle)
+		kit.Secondary(c, T("settings.about.tagline")).TextAlign(ui.Center)
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Margin(8, 0, 0, 0).Children(func() {
+			ui.Row(c).Padding(2, 8).Radius(999).Background(p.Fill).Children(func() {
+				ui.Text(c, T("settings.about.version", "v", Version)).FontSize(design.FontCaption).FontWeight(design.WeightMedium).
+					TextColor(p.TextSecondary).Selectable()
+			})
+			ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
+				kit.Caption(c, T("settings.about.by")).TextColor(p.TextTertiary)
+				by := ui.ButtonBase(c.Key("author")).Label(aboutAuthor).Cursor(ui.CursorPointer).Tooltip(aboutAuthorURL)
+				by.Children(func() {
+					col := p.AccentText
+					if by.Hovered() {
+						col = p.Accent
+					}
+					kit.Caption(c, aboutAuthor).TextColor(col).FontWeight(design.WeightMedium)
+				})
+				if by.Clicked() {
+					open(aboutAuthorURL)
+				}
+			})
 		})
+	})
+	// The ask: a star helps others find it.
+	kit.Group(c, "", func() {
+		kit.SettingIconRow(c, icons.Star, ui.Color{}, T("settings.about.star"), T("settings.about.star.desc"), func() {
+			if kit.Button(c.Key("star"), T("settings.about.star.action"), kit.ButtonOpts{Variant: kit.Primary, Icon: icons.Star, Tooltip: aboutRepoURL}).Clicked() {
+				a.starRepo()
+			}
+		})
+	})
+	kit.Group(c, T("settings.about.links"), func() {
+		link := func(key string, ic *ui.SVG, label, desc, url string) {
+			kit.SettingIconRow(c, ic, ui.Color{}, label, desc, func() {
+				b := kit.Button(c.Key(key), "", kit.ButtonOpts{Variant: kit.Ghost, Icon: icons.External, Tooltip: url})
+				b.Label(label)
+				if b.Clicked() {
+					open(url)
+				}
+			})
+		}
+		link("src", icons.Code, T("settings.about.source"), "github.com/sinhong2011/mypack", aboutRepoURL)
+		link("issue", icons.Message, T("settings.about.issue"), T("settings.about.issue.desc"), aboutRepoURL+"/issues/new/choose")
+		link("notes", icons.Update, T("settings.about.releases"), T("settings.about.releases.desc"), aboutRepoURL+"/releases")
 	})
 	kit.Group(c, "", func() {
 		kit.SettingBlock(c, T("settings.licenses"), T("settings.licenses.desc"), func() {
 			ui.Text(c, licenseNotice).Font(kit.MonoFont).FontSize(10.5).TextColor(p.TextSecondary).LineHeight(1.5).Selectable().
-				Padding(10, 12).Radius(design.RadiusControl).Background(p.Well).Font(kit.MonoFont)
+				Padding(10, 12).Radius(design.RadiusControl).Background(p.Well)
 		})
 	})
 }
