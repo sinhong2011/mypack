@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"mypack.dev/mypack/internal/domain"
@@ -110,6 +111,7 @@ type job struct {
 	slug    string // lowercase slug for linux
 	staging string // per-target staging dir
 	runtime string // path of the runtime executable in the cache
+	rtKey   string // runtime cache key: target key, or its lite key (RuntimeKey)
 	entry   runtimemanager.Entry
 	hasEnt  bool
 	iconPNG []byte
@@ -349,8 +351,15 @@ func (j *job) resolve() error {
 	if j.e == nil || j.e.Runtimes == nil {
 		return berr("RUNTIME_NOT_FOUND", "No runtime manager is configured", nil, "Configure a runtime registry.")
 	}
-	version, key := j.cfg.Runtime.Version, j.target.Key()
-	j.log("info", "Runtime %s for %s", version, key)
+	j.rtKey = RuntimeKey(j.ctx, j.e.Runtimes, j.cfg, j.target)
+	version, key := j.cfg.Runtime.Version, j.rtKey
+	if runtimemanager.IsLiteKey(key) {
+		j.log("info", "Runtime %s for %s (Lite: no tabs, site groups, title-bar strip or find bar)", version, key)
+	} else if feats := j.cfg.FullRuntimeFeatures(); len(feats) > 0 {
+		j.log("info", "Runtime %s for %s (full, for %s)", version, key, strings.Join(feats, ", "))
+	} else {
+		j.log("info", "Runtime %s for %s", version, key)
+	}
 	if ent, ok := j.e.Runtimes.CachedEntry(version, key); ok {
 		j.entry, j.hasEnt = ent, true
 	} else if j.req.AllowDownload {
@@ -370,7 +379,11 @@ func (j *job) resolve() error {
 }
 
 func (j *job) download() error {
-	version, key := j.cfg.Runtime.Version, j.target.Key()
+	key := j.rtKey
+	if key == "" {
+		key = j.target.Key()
+	}
+	version := j.cfg.Runtime.Version
 	st, err := j.e.Runtimes.Status(j.ctx, version, key)
 	cached := err == nil && st.Cached && st.Verified
 	if !cached && !j.req.AllowDownload {

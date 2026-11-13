@@ -1,3 +1,5 @@
+//go:build !mypack_lite
+
 package app
 
 import (
@@ -607,7 +609,7 @@ func (a *App) openGroupWindow(stateKey string, hidden bool) (*mygo.Window, *mygo
 		o.TrafficLightPosition = &mygo.Point{X: 14, Y: 14}
 		o.TitleBarHeight = 32
 	}
-	o.Content = ui.View(a.group.viewFn)
+	o.Content = a.group.content()
 	w := safeNewWindow(o)
 	a.mu.Lock()
 	a.windows[w] = nil // marks it an app window before its pages exist
@@ -618,6 +620,9 @@ func (a *App) openGroupWindow(stateKey string, hidden bool) (*mygo.Window, *mygo
 	a.mu.Unlock()
 	return w, p
 }
+
+// content is the group's native UI: the rail and its members' web views.
+func (g *group) content() mygo.Content { return ui.View(g.viewFn) }
 
 // homeOf is the home page of page p: its member's in a group.
 func (a *App) homeOf(p *mygo.Page) string {
