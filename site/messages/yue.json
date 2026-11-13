@@ -4,7 +4,6 @@
   "meta_description": "MyPack 只需撳幾下，就可以將網站或者本機 HTML 專案變成 macOS、Windows 同 Linux 上獨立嘅桌面 App。唔使工具鏈。免費開源：冇 App 數量限制、唔使授權金鑰、唔使註冊帳戶。",
   "meta_og_image_alt": "鈷藍色背景上面嘅 MyPack 圖示，寫住：Any website. Any desktop.",
   "skip": "跳去內容",
-
   "nav_label": "主選單",
   "nav_language": "語言",
   "nav_how": "點樣運作",
@@ -12,7 +11,6 @@
   "nav_compare": "比較",
   "nav_developers": "開發者",
   "nav_download": "下載",
-
   "hero_title_1": "任何網站。",
   "hero_title_2": "任何桌面。",
   "hero_lede": "只需撳幾下，就可以將一個網站或者本機 HTML 專案，變成真正、獨立嘅桌面 App。唔使自己開 Go、Rust、Node 或者 Xcode 專案。",
@@ -20,12 +18,13 @@
   "download_for": "下載 {os} 版",
   "hero_more": "所有平台",
   "hero_note": "以 Apache-2.0 免費開源。所有功能都包晒喺內：冇 App 數量限制、唔使授權金鑰、亦唔使註冊帳戶。",
-  "demo_aria": "喺視窗度輸入網址，經過幾個步驟建立，再收入 Dock 變成圖示。",
-  "demo_step_validate": "驗證",
-  "demo_step_assemble": "組裝",
-  "demo_step_sign": "簽署",
-  "demo_step_verify": "檢查",
-
+  "demo_aria": "網站視窗變成佢嘅 App 圖示，加個驗證標記，再跌入 Dock。",
+  "scene_validating": "檢查緊個網站",
+  "scene_downloading": "攞緊 App 引擎",
+  "scene_assembling": "變緊做 App",
+  "scene_signing": "簽署緊",
+  "scene_verifying": "檢查緊所有嘢",
+  "scene_done": "你個 App 準備好喇。",
   "steps_title": "由網址到 App",
   "steps_lede": "貼上網址、確認名稱同圖示、建立，然後安裝並開啟。大部分建立都係幾秒鐘就搞掂。",
   "step1_t": "貼上網址",
@@ -40,7 +39,6 @@
   "step4_t": "好似其他 App 咁用",
   "step4_d": "一撳就安裝並開啟，有自己嘅名稱、圖示、視窗同登入狀態。就算你解除安裝 MyPack，佢都仲用得。",
   "step4_alt": "整好嘅 App：已安裝並開啟，顯示大細同建立時間",
-
   "why_title": "瀏覽器分頁唔係 App 理想嘅屋企",
   "why_lede": "分頁好易埋沒喺其他分頁之中，每個網站共用同一組 cookie，而且佢哋都冇自己嘅 Dock 圖示、通知或者視窗。MyPack 令每個網站都成為獨立嘅 App，仲會繼續幫你睇住。",
   "why1_t": "你部機唔使裝工具鏈",
@@ -49,7 +47,6 @@
   "why2_d": "每個 App 都有自己嘅名稱、圖示同獨立嘅登入狀態，用系統 WebView，就算你解除安裝 MyPack 都仲用得。",
   "why3_t": "唔只係整出嚟，仲會持續照顧",
   "why3_d": "一鍵更新 App，而且唔會搞丟登入狀態；如果更新失敗，會返返前一個版本。亦可以修復，或者搬去另一部電腦。",
-
   "gallery_title": "周圍睇吓",
   "gallery_lede": "而家呢個版本嘅真實畫面，用示範模式影。",
   "g_library_t": "資料庫",
@@ -62,7 +59,6 @@
   "g_palette_d": "⌘K 唔使離開鍵盤，就搵到任何 App、頁面或者動作。",
   "g_menubar_t": "選單列",
   "g_menubar_d": "選單列：貼上地址、跳去最近用過嘅 App、跟進建立進度，唔使打開主視窗。",
-
   "feat_title": "所有功能都包晒",
   "feat_lede": "冇 App 數量限制、唔使授權金鑰、唔使註冊帳戶。以下每個功能都喺免費下載嘅版本入面。",
   "feat_make": "整 App",
@@ -100,7 +96,6 @@
   "f_man3_d": "可選嘅擴充功能，將你而家睇緊嘅分頁變成 App。",
   "f_man4_t": "七種語言",
   "f_man4_d": "English、繁體中文、简体中文、粵語、Español、Français 同日本語。",
-
   "cmp_title": "MyPack 同其他工具比較",
   "cmp_lede": "將網站變成 App 嘅好工具都唔少。以下盡量直接講清楚 MyPack 有咩唔同。",
   "cmp_yes": "係",
@@ -122,7 +117,6 @@
   "cmp_thanks": "MyPack 好多謝 Pake，佢令大家睇到網站變成細細、專注嘅桌面 App 可以幾好用。MyPack 讀得 Pake 設定，你可以將原本嘅設定帶過嚟。",
   "cmp_note": "根據各個專案 2026 年 11 月嘅公開頁面整理。發現內容過時？",
   "cmp_note_link": "開個 issue 話我哋知。",
-
   "install_title": "安裝 MyPack",
   "install_lede": "下載安裝程式，或者用你已經用緊嘅套件管理工具。每一種都會喺 PATH 加上 mypack 指令，並且令 MyPack 保持最新。",
   "support_mac": "主要平台。支援 Apple silicon 同 Intel。App 用 WKWebView。",
@@ -138,7 +132,6 @@
   "install_unsigned": "發行版本暫時未簽署。喺 macOS，如果 Gatekeeper 擋住第一次啟動，喺 MyPack.app 撳右鍵再揀「打開」。喺 Windows，SmartScreen 可能會要你確認：撳「其他資訊」，再撳「仍要執行」。",
   "install_all": "每個發行版本都有 App 同 CLI 嘅一般封存檔。",
   "install_all_link": "睇最新版本",
-
   "dev_title": "俾開發者同 AI agent",
   "dev_p1": "App 嘅執行檔同時係 CLI。加上 --json，每個指令都只會輸出一個 JSON 物件，結束代碼亦保持穩定。",
   "dev_p2": "內置嘅 MCP 伺服器令 Claude Code、Codex 同其他 agent 可以幫你列出、建立同建置 App。佢哋冇得安裝 App，而專案嘅建置指令要你批准咗先會行。",
@@ -146,11 +139,9 @@
   "dev_term": "終端機例子",
   "dev_c_create": "建立草稿專案，跟住建置、安裝並開啟",
   "dev_c_mcp": "連接 agent",
-
   "close_title": "俾你嘅網頁 App 一個屋企。",
   "close_lede": "永久免費，支援 macOS、Windows 同 Linux。",
   "close_source": "喺 GitHub 睇",
-
   "foot_label": "專案連結",
   "foot_releases": "發行版本",
   "foot_contributing": "參與貢獻",

@@ -212,62 +212,10 @@ section { position: relative; }
 .hero__cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 36px; }
 .hero__note { margin: 22px 0 0; font-size: 14.5px; color: rgba(255,255,255,.72); max-width: 44ch; }
 
-/* The demo: an address typed into a window that packs itself into a Dock tile. */
-.demo { position: relative; width: min(100%, 520px); justify-self: center; aspect-ratio: 520 / 470; }
-.demo__win {
-  position: absolute; inset: 0 0 116px; border-radius: 22px;
-  background: rgba(255,255,255,.14);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,.32), inset 0 1px 0 rgba(255,255,255,.5), 0 40px 80px -30px rgba(2, 6, 40, .7);
-  backdrop-filter: blur(22px) saturate(1.4); -webkit-backdrop-filter: blur(22px) saturate(1.4);
-  display: grid; grid-template-rows: auto 1fr; overflow: hidden;
-  transform-origin: 50% 100%;
-}
-.demo__chrome { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-bottom: 1px solid rgba(255,255,255,.16); }
-.dots { display: flex; gap: 7px; flex: none; }
-.dots i { width: 11px; height: 11px; border-radius: 50%; background: #FF5F57; }
-.dots i:nth-child(2) { background: #FEBC2E; }
-.dots i:nth-child(3) { background: #28C840; }
-.demo__url {
-  flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px;
-  height: 34px; padding: 0 12px; border-radius: 10px;
-  background: rgba(3, 10, 50, .32); box-shadow: inset 0 0 0 1px rgba(255,255,255,.14);
-  font: 500 14.5px/1 var(--font-mono); color: #fff; white-space: nowrap; overflow: hidden;
-}
-.demo__url svg { opacity: .7; flex: none; }
-.caret { width: 1.5px; height: 17px; background: #fff; animation: blink 1s steps(1) infinite; }
-@keyframes blink { 50% { opacity: 0; } }
-.demo__body { position: relative; padding: 22px; display: grid; align-content: center; justify-items: center; gap: 14px; }
-.demo__icon {
-  width: 88px; height: 88px; border-radius: var(--tile);
-  display: grid; place-items: center;
-  font: 700 42px/1 var(--font-display); color: #fff;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.45), 0 16px 30px -12px rgba(2, 6, 40, .6);
-}
-.demo__name { font: 650 20px/1.1 var(--font-display); letter-spacing: -.01em; }
-.demo__steps { list-style: none; margin: 6px 0 0; padding: 0; display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
-.demo__steps li { font-size: 12.5px; padding: 5px 10px; border-radius: 999px; background: rgba(255,255,255,.1); color: rgba(255,255,255,.7); transition: background-color .25s, color .25s; }
-.demo__steps li.on { background: rgba(255,255,255,.92); color: var(--color-deep); }
-.demo__bar { width: min(260px, 80%); height: 5px; border-radius: 9px; background: rgba(255,255,255,.16); overflow: hidden; }
-.demo__bar i { display: block; height: 100%; width: 100%; transform-origin: left; transform: scaleX(0); background: #fff; border-radius: inherit; }
-.demo__dock {
-  position: absolute; left: 50%; bottom: 0; translate: -50% 0;
-  display: flex; gap: 12px; padding: 12px; height: 84px;
-  border-radius: 26px;
-  background: rgba(255,255,255,.16);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,.3), inset 0 1px 0 rgba(255,255,255,.45), 0 20px 50px -20px rgba(2, 6, 40, .7);
-  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-}
-.demo__slot { width: 60px; height: 60px; border-radius: var(--tile); background: rgba(255,255,255,.08); box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); position: relative; }
-.demo__slot .tile, .demo__fly { width: 60px; height: 60px; border-radius: var(--tile); display: grid; place-items: center; font: 700 28px/1 var(--font-display); color: #fff; box-shadow: inset 0 1px 0 rgba(255,255,255,.45), 0 10px 20px -8px rgba(2, 6, 40, .6); }
-.demo__slot .tile { position: absolute; inset: 0; }
-.demo__slot .tile::after { content: ""; position: absolute; left: 50%; bottom: -9px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: rgba(255,255,255,.85); }
-.demo__fly { position: absolute; z-index: 3; pointer-events: none; left: 0; top: 0; }
-@media (max-width: 420px) { .demo__slot, .demo__slot .tile, .demo__fly { width: 48px; height: 48px; font-size: 22px; } .demo__dock { height: 70px; gap: 10px; padding: 10px; } .demo__win { inset: 0 0 96px; } }
-
-.t-github { background: linear-gradient(160deg, #3A3F4B, #14161C); }
-.t-figma { background: linear-gradient(160deg, #FF7A59, #A259FF); }
-.t-music { background: linear-gradient(160deg, #FF4E4E, #C3002F); }
-.t-notion { background: linear-gradient(160deg, #F2F2F0, #CFCFCB); color: #191919 !important; }
+/* The build scene: the app's own animation (src/scripts/scene.ts), on the cobalt glass. */
+.scene { margin: 0; width: min(100%, 540px); justify-self: center; display: grid; gap: 4px; }
+.scene svg { display: block; width: 100%; height: auto; aspect-ratio: 260 / 240; overflow: visible; }
+.scene__caption { text-align: center; font: 600 16px/1.3 var(--font-sans); color: rgba(255,255,255,.9); min-height: 1.3em; font-variant-numeric: tabular-nums; }
 
 /* ───────── Steps (a real sequence: numbered) ───────── */
 .steps { display: grid; gap: 48px; }

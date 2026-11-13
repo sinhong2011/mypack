@@ -4,7 +4,6 @@
   "meta_description": "MyPack turns a website or a local HTML project into a standalone desktop app for macOS, Windows and Linux in a few clicks. No toolchain. Free and open source: no app limits, no license keys, no account.",
   "meta_og_image_alt": "The MyPack icon on a cobalt background, with the words: Any website. Any desktop.",
   "skip": "Skip to content",
-
   "nav_label": "Main",
   "nav_language": "Language",
   "nav_how": "How it works",
@@ -12,7 +11,6 @@
   "nav_compare": "Compare",
   "nav_developers": "Developers",
   "nav_download": "Download",
-
   "hero_title_1": "Any website.",
   "hero_title_2": "Any desktop.",
   "hero_lede": "Turn a website, or a local HTML project, into a real, standalone desktop app in a few clicks. No Go, Rust, Node or Xcode project required.",
@@ -20,12 +18,13 @@
   "download_for": "Download for {os}",
   "hero_more": "All platforms",
   "hero_note": "Free and open source under Apache-2.0. Every feature included: no app limits, no license keys, no account.",
-  "demo_aria": "An address is typed into a window, built in a few steps, and packed into a Dock icon.",
-  "demo_step_validate": "Validate",
-  "demo_step_assemble": "Assemble",
-  "demo_step_sign": "Sign",
-  "demo_step_verify": "Verify",
-
+  "demo_aria": "A website window turns into its app icon, gets a verified badge, and drops into the Dock.",
+  "scene_validating": "Checking the website",
+  "scene_downloading": "Getting the app engine",
+  "scene_assembling": "Making it an app",
+  "scene_signing": "Signing",
+  "scene_verifying": "Checking everything",
+  "scene_done": "Your app is ready.",
   "steps_title": "From address to app",
   "steps_lede": "Paste a URL, confirm the name and icon, build, then install and open. Most builds take seconds.",
   "step1_t": "Paste an address",
@@ -40,7 +39,6 @@
   "step4_t": "Use it like any other app",
   "step4_d": "The app is installed and opened in one click, with its own name, icon, window and sign-in. It keeps working even if you uninstall MyPack.",
   "step4_alt": "The finished app: installed and opened, with its size and build time",
-
   "why_title": "A browser tab is a poor home for an app",
   "why_lede": "Tabs get lost among other tabs, every site shares one set of cookies, and none of them get their own Dock icon, notifications or window. MyPack gives each site a proper app of its own, and then keeps looking after it.",
   "why1_t": "No toolchain on your machine",
@@ -49,7 +47,6 @@
   "why2_d": "Every app has its own name, icon and separate sign-in, uses the system WebView, and keeps working if you uninstall MyPack.",
   "why3_t": "Looked after, not just made",
   "why3_d": "Update an app in one click without losing your logins. If an update fails, the previous version comes back. Repair it, or move it to another computer.",
-
   "gallery_title": "A look around",
   "gallery_lede": "Real screens from the current app, in demo mode.",
   "g_library_t": "Library",
@@ -62,7 +59,6 @@
   "g_palette_d": "⌘K finds any app, page or action without leaving the keyboard.",
   "g_menubar_t": "Menu bar",
   "g_menubar_d": "The menu bar: paste an address, jump to a recent app and follow builds without opening the window.",
-
   "feat_title": "Everything is included",
   "feat_lede": "No app limits, no license keys, no account. Every feature below is in the free download.",
   "feat_make": "Making apps",
@@ -100,7 +96,6 @@
   "f_man3_d": "An optional extension turns the tab you're on into an app.",
   "f_man4_t": "Seven languages",
   "f_man4_d": "English, 繁體中文, 简体中文, 粵語, Español, Français and 日本語.",
-
   "cmp_title": "How MyPack compares",
   "cmp_lede": "Plenty of good tools turn websites into apps. Here's where MyPack differs, as plainly as we can put it.",
   "cmp_yes": "Yes",
@@ -122,7 +117,6 @@
   "cmp_thanks": "MyPack owes a lot to Pake, which showed how good a website can feel as a small, focused desktop app. MyPack reads Pake configs, so you can bring yours along.",
   "cmp_note": "Based on each project's public pages in November 2026. Something out of date?",
   "cmp_note_link": "Open an issue.",
-
   "install_title": "Install MyPack",
   "install_lede": "Download the installer, or use the package manager you already have. Each one puts a mypack command on your PATH and keeps MyPack updated.",
   "support_mac": "The main platform. Apple silicon and Intel. Apps use WKWebView.",
@@ -138,7 +132,6 @@
   "install_unsigned": "Releases aren't signed yet. On macOS, if Gatekeeper blocks the first launch, right-click MyPack.app and choose Open. On Windows, SmartScreen may ask you to confirm: More info, then Run anyway.",
   "install_all": "Plain archives of the app and the CLI are on every release too.",
   "install_all_link": "See the latest release",
-
   "dev_title": "For developers and AI agents",
   "dev_p1": "The app's binary is also the CLI. With --json, every command prints one JSON object, and exit codes are stable.",
   "dev_p2": "A built-in MCP server lets Claude Code, Codex and other agents list, create and build apps for you. They can't install apps, and a project's build script only runs after you approve it.",
@@ -146,11 +139,9 @@
   "dev_term": "Example terminal session",
   "dev_c_create": "a draft project, then build, install and open it",
   "dev_c_mcp": "connect an agent",
-
   "close_title": "Give your web apps a home.",
   "close_lede": "Free for good, on macOS, Windows and Linux.",
   "close_source": "View on GitHub",
-
   "foot_label": "Project links",
   "foot_releases": "Releases",
   "foot_contributing": "Contributing",

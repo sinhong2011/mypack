@@ -20,7 +20,7 @@ pnpm preview
 | `src/config.ts` | Repo links and the install commands (copied from the README; keep them in sync) |
 | `src/i18n.ts`, `project.inlang/`, `messages/*.json` | Languages. English is at `/`, the others at `/zh-hant/`, `/zh-hans/`, `/yue/`, `/es/`, `/fr/`, `/ja/` |
 | `src/scripts/shader.ts` | The three shader backdrops (hero, gallery, closing) |
-| `src/scripts/hero.ts` | The hero demo: an address typed, built and packed into the Dock |
+| `src/scripts/scene.ts` | The hero's build scene, ported from the app's `internal/desktop/assets/scene/scene.html` |
 | `src/styles/global.css` | Tokens and all styles |
 | `public/assets/` | Screenshots (WebP), icon, favicon, link-preview card |
 
@@ -62,7 +62,10 @@ path, such as an app's details. Then:
 pnpm shots path/to/captures   # resizes to WebP in public/assets/shots and updates src/shots.json
 ```
 
-The menu bar shot comes from `docs/screenshots/readme-menubar-*.png`.
+The menu bar shot comes from `docs/screenshots/readme-menubar-*.png`. The same command cuts the hero scene's
+site icons (Linear, Todoist, Trello, GitHub, as MyPack fetched them) from `light-discover.png`; if Discover's
+layout changes, update the tile origins in `SITE_ICONS`. The MyPack icon itself is copied from
+`internal/desktop/assets/brand-*.png`, the app's own squircle-cut artwork.
 
 ## Deploy
 

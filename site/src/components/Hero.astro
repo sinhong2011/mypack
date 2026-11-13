@@ -1,16 +1,20 @@
 ---
 import { m } from "../paraglide/messages.js";
 import { SITE } from "../config";
+import { versioned } from "../versioned";
 import Icon from "./Icon.astro";
 
-// The demo's sites. Monograms only: the tiles stand in for whatever icon MyPack fetches.
+// The build scene's sites: Discover entries, each with the icon MyPack fetched for it and its brand tint.
 const SITES = [
-  { url: "github.com", name: "GitHub", mark: "G", tone: "t-github" },
-  { url: "figma.com", name: "Figma", mark: "F", tone: "t-figma" },
-  { url: "music.youtube.com", name: "YouTube Music", mark: "Y", tone: "t-music" },
-  { url: "notion.so", name: "Notion", mark: "N", tone: "t-notion" },
+  { color: "#5E6AD2", name: "Linear", host: "linear.app", icon: versioned("assets/sites/linear.png") },
+  { color: "#E44332", name: "Todoist", host: "app.todoist.com", icon: versioned("assets/sites/todoist.png") },
+  { color: "#0C66E4", name: "Trello", host: "trello.com", icon: versioned("assets/sites/trello.png") },
+  { color: "#24292F", name: "GitHub", host: "github.com", icon: versioned("assets/sites/github.png") },
 ];
-const STEPS = [m.demo_step_validate(), m.demo_step_assemble(), m.demo_step_sign(), m.demo_step_verify()];
+const TITLES = {
+  validating: m.scene_validating(), downloading: m.scene_downloading(), assembling: m.scene_assembling(),
+  signing: m.scene_signing(), verifying: m.scene_verifying(), done: m.scene_done(),
+};
 ---
 <section class="hero" data-shader="hero" aria-labelledby="hero-title">
   <div class="wrap hero__grid">
@@ -30,22 +34,17 @@ const STEPS = [m.demo_step_validate(), m.demo_step_assemble(), m.demo_step_sign(
       <p class="hero__note">{m.hero_note()}</p>
     </div>
 
-    <div class="demo" data-demo role="img" aria-label={m.demo_aria()} data-sites={JSON.stringify(SITES)}>
-      <div class="demo__win" data-win>
-        <div class="demo__chrome">
-          <div class="dots" aria-hidden="true"><i></i><i></i><i></i></div>
-          <div class="demo__url"><Icon name="globe" size={15} /><span data-typed>github.com</span><i class="caret" aria-hidden="true"></i></div>
-        </div>
-        <div class="demo__body">
-          <div class="demo__icon t-github" data-icon>G</div>
-          <div class="demo__name" data-name>GitHub</div>
-          <div class="demo__bar"><i data-bar></i></div>
-          <ol class="demo__steps" data-steps>{STEPS.map((s) => <li>{s}</li>)}</ol>
-        </div>
-      </div>
-      <div class="demo__dock" data-dock aria-hidden="true">
-        {SITES.map((s, i) => <div class="demo__slot"><div class={`tile ${s.tone}`} data-tile={i}>{s.mark}</div></div>)}
-      </div>
-    </div>
+    <!-- The app's own build scene (internal/desktop/assets/scene/scene.html), drawn by src/scripts/scene.ts. -->
+    <figure class="scene" data-scene data-sites={JSON.stringify(SITES)} data-titles={JSON.stringify(TITLES)}>
+      <svg viewBox="70 36 260 240" preserveAspectRatio="xMidYMid meet" role="img" aria-label={m.demo_aria()}>
+        <defs>
+          <filter id="mp-lift" x="-40%" y="-40%" width="180%" height="190%"><feDropShadow dx="0" dy="12" stdDeviation="12" flood-color="#030a3a" flood-opacity=".35" /></filter>
+          <filter id="mp-dock-shadow" x="-20%" y="-60%" width="140%" height="260%"><feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#030a3a" flood-opacity=".3" /></filter>
+          <clipPath id="mp-win-clip"><rect data-clip /></clipPath>
+        </defs>
+        <g data-all></g>
+      </svg>
+      <figcaption class="scene__caption" data-caption aria-live="off">{TITLES.validating}</figcaption>
+    </figure>
   </div>
 </section>

@@ -4,7 +4,6 @@
   "meta_description": "MyPack transforme un site web ou un projet HTML local en application de bureau autonome pour macOS, Windows et Linux, en quelques clics. Aucune chaîne d’outils. Libre et gratuit : pas de limite d’apps, pas de clé de licence, pas de compte.",
   "meta_og_image_alt": "L’icône de MyPack sur un fond bleu cobalt, avec les mots : Any website. Any desktop.",
   "skip": "Aller au contenu",
-
   "nav_label": "Principal",
   "nav_language": "Langue",
   "nav_how": "Fonctionnement",
@@ -12,7 +11,6 @@
   "nav_compare": "Comparer",
   "nav_developers": "Développeurs",
   "nav_download": "Télécharger",
-
   "hero_title_1": "N’importe quel site.",
   "hero_title_2": "N’importe quel bureau.",
   "hero_lede": "Transformez un site web, ou un projet HTML local, en une véritable application de bureau autonome en quelques clics. Aucun projet Go, Rust, Node ou Xcode n’est requis.",
@@ -20,12 +18,13 @@
   "download_for": "Télécharger pour {os}",
   "hero_more": "Toutes les plateformes",
   "hero_note": "Libre et gratuit sous Apache-2.0. Toutes les fonctions sont incluses : pas de limite d’apps, pas de clé de licence, pas de compte.",
-  "demo_aria": "Une adresse est saisie dans une fenêtre, créée en quelques étapes, puis rangée dans le Dock sous forme d’icône.",
-  "demo_step_validate": "Valider",
-  "demo_step_assemble": "Assembler",
-  "demo_step_sign": "Signer",
-  "demo_step_verify": "Vérifier",
-
+  "demo_aria": "La fenêtre d’un site devient son icône d’application, reçoit un badge de vérification, puis rejoint le Dock.",
+  "scene_validating": "Vérification du site",
+  "scene_downloading": "Récupération du moteur d’application",
+  "scene_assembling": "Transformation en application",
+  "scene_signing": "Signature",
+  "scene_verifying": "Vérification finale",
+  "scene_done": "Votre application est prête.",
   "steps_title": "De l’adresse à l’application",
   "steps_lede": "Collez une URL, confirmez le nom et l’icône, créez, puis installez et ouvrez. La plupart des créations prennent quelques secondes.",
   "step1_t": "Collez une adresse",
@@ -40,7 +39,6 @@
   "step4_t": "Utilisez-la comme les autres",
   "step4_d": "L’application est installée et ouverte en un clic, avec son propre nom, son icône, sa fenêtre et sa session. Elle continue de fonctionner même si vous désinstallez MyPack.",
   "step4_alt": "L’application terminée : installée et ouverte, avec sa taille et sa durée de création",
-
   "why_title": "Un onglet est un mauvais foyer pour une application",
   "why_lede": "Les onglets se perdent parmi d’autres onglets, chaque site partage un même jeu de cookies, et aucun n’a sa propre icône dans le Dock, ses notifications ou sa fenêtre. MyPack donne à chaque site une véritable application à soi, puis continue de s’en occuper.",
   "why1_t": "Aucune chaîne d’outils sur votre machine",
@@ -49,7 +47,6 @@
   "why2_d": "Chaque application a son propre nom, sa propre icône et une session de connexion séparée, utilise le WebView du système, et continue de fonctionner si vous désinstallez MyPack.",
   "why3_t": "Entretenues, pas seulement créées",
   "why3_d": "Mettez une application à jour en un clic sans perdre vos connexions. Si une mise à jour échoue, la version précédente revient. Réparez-la, ou déplacez-la vers un autre ordinateur.",
-
   "gallery_title": "Faites le tour",
   "gallery_lede": "De vrais écrans de l’application actuelle, en mode démo.",
   "g_library_t": "Bibliothèque",
@@ -62,7 +59,6 @@
   "g_palette_d": "⌘K trouve n’importe quelle application, page ou action sans quitter le clavier.",
   "g_menubar_t": "Barre des menus",
   "g_menubar_d": "La barre des menus : collez une adresse, ouvrez une application récente et suivez les créations sans ouvrir la fenêtre.",
-
   "feat_title": "Tout est inclus",
   "feat_lede": "Pas de limite d’apps, pas de clé de licence, pas de compte. Chaque fonction ci-dessous est dans le téléchargement gratuit.",
   "feat_make": "Créer des applications",
@@ -100,7 +96,6 @@
   "f_man3_d": "Une extension facultative transforme l’onglet ouvert en application.",
   "f_man4_t": "Sept langues",
   "f_man4_d": "English, 繁體中文, 简体中文, 粵語, Español, Français et 日本語.",
-
   "cmp_title": "MyPack face aux autres",
   "cmp_lede": "Beaucoup de bons outils transforment des sites en applications. Voici ce qui distingue MyPack, aussi simplement que possible.",
   "cmp_yes": "Oui",
@@ -122,7 +117,6 @@
   "cmp_thanks": "MyPack doit beaucoup à Pake, qui a montré à quel point un site peut être agréable sous forme de petite application de bureau ciblée. MyPack lit les configurations Pake : apportez les vôtres.",
   "cmp_note": "D’après les pages publiques de chaque projet en novembre 2026. Une information dépassée ?",
   "cmp_note_link": "Ouvrez une issue.",
-
   "install_title": "Installer MyPack",
   "install_lede": "Téléchargez l’installateur, ou utilisez le gestionnaire de paquets que vous avez déjà. Chacun ajoute la commande mypack à votre PATH et garde MyPack à jour.",
   "support_mac": "La plateforme principale. Apple silicon et Intel. Les applications utilisent WKWebView.",
@@ -138,7 +132,6 @@
   "install_unsigned": "Les versions ne sont pas encore signées. Sur macOS, si Gatekeeper bloque le premier lancement, faites un clic droit sur MyPack.app et choisissez Ouvrir. Sur Windows, SmartScreen peut demander une confirmation : Informations complémentaires, puis Exécuter quand même.",
   "install_all": "Chaque version propose aussi des archives simples de l’application et de la CLI.",
   "install_all_link": "Voir la dernière version",
-
   "dev_title": "Pour les développeurs et les agents IA",
   "dev_p1": "Le binaire de l’application est aussi la CLI. Avec --json, chaque commande affiche un seul objet JSON, et les codes de sortie sont stables.",
   "dev_p2": "Un serveur MCP intégré permet à Claude Code, Codex et d’autres agents de lister, créer et générer des applications pour vous. Ils ne peuvent pas installer d’applications, et le script de compilation d’un projet ne s’exécute qu’après votre accord.",
@@ -146,11 +139,9 @@
   "dev_term": "Exemple de session de terminal",
   "dev_c_create": "un projet brouillon, puis le générer, l’installer et l’ouvrir",
   "dev_c_mcp": "connecter un agent",
-
   "close_title": "Donnez un foyer à vos applications web.",
   "close_lede": "Gratuit pour de bon, sur macOS, Windows et Linux.",
   "close_source": "Voir sur GitHub",
-
   "foot_label": "Liens du projet",
   "foot_releases": "Versions",
   "foot_contributing": "Contribuer",

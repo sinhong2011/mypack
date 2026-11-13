@@ -4,7 +4,6 @@
   "meta_description": "MyPack 只需点击几下，就能把网站或本地 HTML 项目变成 macOS、Windows 和 Linux 上独立的桌面应用。无需工具链。免费开源：没有应用数量限制、不需要许可证密钥、不必注册账户。",
   "meta_og_image_alt": "钴蓝色背景上的 MyPack 图标，写着：Any website. Any desktop.",
   "skip": "跳到内容",
-
   "nav_label": "主菜单",
   "nav_language": "语言",
   "nav_how": "工作原理",
@@ -12,7 +11,6 @@
   "nav_compare": "对比",
   "nav_developers": "开发者",
   "nav_download": "下载",
-
   "hero_title_1": "任何网站。",
   "hero_title_2": "任何桌面。",
   "hero_lede": "只需点击几下，就能把网站或本地 HTML 项目，变成真正、独立的桌面应用。无需准备 Go、Rust、Node 或 Xcode 项目。",
@@ -20,12 +18,13 @@
   "download_for": "下载 {os} 版",
   "hero_more": "所有平台",
   "hero_note": "以 Apache-2.0 免费开源。所有功能都包含在内：没有应用数量限制、不需要许可证密钥、不必注册账户。",
-  "demo_aria": "在窗口中输入网址，经过几个步骤构建，再收进 Dock 成为图标。",
-  "demo_step_validate": "校验",
-  "demo_step_assemble": "组装",
-  "demo_step_sign": "签名",
-  "demo_step_verify": "验证",
-
+  "demo_aria": "网站窗口变成它的应用图标，加上验证标记，再落进 Dock。",
+  "scene_validating": "正在检查网站",
+  "scene_downloading": "正在获取应用引擎",
+  "scene_assembling": "正在变成应用",
+  "scene_signing": "正在签名",
+  "scene_verifying": "正在检查所有项目",
+  "scene_done": "你的应用已就绪。",
   "steps_title": "从网址到应用",
   "steps_lede": "粘贴网址、确认名称与图标、构建，然后安装并打开。大多数构建只需几秒钟。",
   "step1_t": "粘贴网址",
@@ -40,7 +39,6 @@
   "step4_t": "像其他应用一样使用",
   "step4_d": "一键安装并打开，有自己的名称、图标、窗口和登录状态。即使卸载 MyPack，它也能继续使用。",
   "step4_alt": "完成的应用：已安装并打开，显示大小与构建时间",
-
   "why_title": "浏览器标签页不是应用理想的归宿",
   "why_lede": "标签页容易埋没在其他标签之中，每个网站共用同一组 cookie，而且它们都没有自己的 Dock 图标、通知或窗口。MyPack 让每个网站成为独立的应用，并持续帮你打理。",
   "why1_t": "你的电脑上不需要工具链",
@@ -49,7 +47,6 @@
   "why2_d": "每个应用都有自己的名称、图标和独立的登录状态，使用系统 WebView，即使你卸载 MyPack 也还能继续使用。",
   "why3_t": "不只是做出来，还会持续维护",
   "why3_d": "一键更新应用，并且不会丢失登录状态；如果更新失败，会回退到先前的版本。也可以修复，或迁移到另一台电脑。",
-
   "gallery_title": "四处看看",
   "gallery_lede": "当前版本的真实界面，以演示模式截取。",
   "g_library_t": "资源库",
@@ -62,7 +59,6 @@
   "g_palette_d": "⌘K 无需离开键盘，就能找到任何应用、页面或操作。",
   "g_menubar_t": "菜单栏",
   "g_menubar_d": "菜单栏：粘贴地址、跳到最近使用的应用、跟进构建进度，不必打开主窗口。",
-
   "feat_title": "所有功能都包含在内",
   "feat_lede": "没有应用数量限制、不需要许可证密钥、不必注册账户。以下每项功能都在免费下载的版本中。",
   "feat_make": "制作应用",
@@ -100,7 +96,6 @@
   "f_man3_d": "可选的扩展，把当前标签页变成应用。",
   "f_man4_t": "七种语言",
   "f_man4_d": "English、繁體中文、简体中文、粵語、Español、Français 和日本語。",
-
   "cmp_title": "MyPack 与其他工具的对比",
   "cmp_lede": "把网站变成应用的好工具不少。下面尽量直白地说明 MyPack 有什么不同。",
   "cmp_yes": "是",
@@ -122,7 +117,6 @@
   "cmp_thanks": "MyPack 非常感谢 Pake，它让大家看到网站变成小巧专注的桌面应用能有多好用。MyPack 可以读取 Pake 配置，你可以把原来的配置带过来。",
   "cmp_note": "根据各项目 2026 年 11 月的公开页面整理。发现内容过时了？",
   "cmp_note_link": "请提交 issue 告诉我们。",
-
   "install_title": "安装 MyPack",
   "install_lede": "下载安装程序，或使用你已经在用的包管理器。每一种都会在 PATH 中加入 mypack 命令，并让 MyPack 保持更新。",
   "support_mac": "主要平台。支持 Apple 芯片和 Intel。应用使用 WKWebView。",
@@ -138,7 +132,6 @@
   "install_unsigned": "发布版本目前尚未签名。在 macOS 上，如果 Gatekeeper 阻止首次启动，请右键点击 MyPack.app 并选择“打开”。在 Windows 上，SmartScreen 可能会要求确认：点“更多信息”，再点“仍要运行”。",
   "install_all": "每个发布版本也提供应用和 CLI 的普通压缩包。",
   "install_all_link": "查看最新版本",
-
   "dev_title": "面向开发者与 AI 智能体",
   "dev_p1": "应用的可执行文件同时也是 CLI。加上 --json 时，每个命令只输出一个 JSON 对象，退出码保持稳定。",
   "dev_p2": "内置的 MCP 服务器让 Claude Code、Codex 和其他智能体可以替你列出、创建和构建应用。它们无法安装应用，项目的构建脚本只会在你批准后才运行。",
@@ -146,11 +139,9 @@
   "dev_term": "终端示例",
   "dev_c_create": "创建草稿项目，然后构建、安装并打开",
   "dev_c_mcp": "连接智能体",
-
   "close_title": "给你的网页应用一个家。",
   "close_lede": "永久免费，支持 macOS、Windows 和 Linux。",
   "close_source": "在 GitHub 上查看",
-
   "foot_label": "项目链接",
   "foot_releases": "发布版本",
   "foot_contributing": "参与贡献",

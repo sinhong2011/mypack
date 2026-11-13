@@ -1,7 +1,7 @@
 /* Page behaviour: sticky nav, platform-aware download labels, the step frames, tabs and copy buttons. */
 import { ScrollTrigger, $, $$ } from "./motion";
 import "./shader";
-import "./hero";
+import "./scene";
 
 // Nav turns solid once the page leaves the hero.
 const nav = $("[data-nav]")!;
