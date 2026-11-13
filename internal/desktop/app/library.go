@@ -519,9 +519,13 @@ func (a *App) tile(c *ui.Context, d tileData) (open bool) {
 	}
 	b.Children(func() {
 		holder := ui.Box(c).Size(size, size).Shrink(0)
+		// Hover lifts the icon off the canvas; a press sinks it.
 		pose := ui.Pose{}
-		if b.Pressed() {
+		switch {
+		case b.Pressed():
 			pose = ui.Pose{Scale: 0.97}
+		case hov:
+			pose = ui.Pose{Y: -3, Scale: 1.03}
 		}
 		holder.AnimatePose(pose, design.Spring)
 		holder.Children(func() {
@@ -538,22 +542,7 @@ func (a *App) tile(c *ui.Context, d tileData) (open bool) {
 					Background(p.Accent).PassThrough().AccessHidden(true)
 			}
 			kit.IconBadge(c, d.badge, size)
-			if d.run != nil && (hov || focused) {
-				a.launchButton(c, d, size)
-			}
-			if d.menu != nil {
-				// Built every frame, only shown on hover or focus: the menu
-				// hands its chosen item back to this button in the frame
-				// after, when the pointer is over the menu, not the tile.
-				// A button built only on hover would drop every choice.
-				more := ui.ButtonBase(c.Key("more")).Label(T("common.more")).Absolute().Top(-6).Left(-6).Size(24, 24).Radius(12).Center().
-					Background(p.Overlay).Border(0.5, p.BorderStrong).Cursor(ui.CursorPointer).Menu(d.menu)
-				if !hov && !focused && !more.Focused() {
-					more.Opacity(0)
-				}
-				design.Elevate(c, more, design.Floating)
-				more.Children(func() { kit.Glyph(c, icons.More, 13, p.Text) })
-			}
+			a.tileActions(c, d, size, hov || focused)
 		})
 		nm := ui.Text(c, d.name).FontSize(design.FontBody).FontWeight(design.WeightSemibold).TextColor(p.Text).SingleLine().MaxWidthPercent(100).
 			TextAlign(ui.Center).Margin(12, 0, 0, 0)
@@ -849,21 +838,67 @@ func (a *App) appMenu(m *ui.Menu, in domain.Installation) {
 	}
 }
 
-// launchButton is the round one-click action on a hovered or focused tile.
-func (a *App) launchButton(c *ui.Context, d tileData, size float32) {
+// tileActions is a tile's quick actions: one floating capsule that rises
+// out of the icon's bottom edge while the tile is hovered or focused,
+// the one-click action (Open, Build, Locate) and, after a hairline, More.
+// One place for both keeps the icon's corners clear for its status badge.
+//
+// It is built every frame and only shown on hover or focus: the menu
+// hands its chosen item back to More in the frame after, when the
+// pointer is over the menu, not the tile, so a capsule built only on
+// hover would drop every choice.
+func (a *App) tileActions(c *ui.Context, d tileData, size float32, show bool) {
+	if d.run == nil && d.menu == nil {
+		return
+	}
 	p := design.Of(c)
-	s := max(30, size*0.3)
-	b := ui.ButtonBase(c.Key("launch")).Label(d.action+" "+d.name).Absolute().Right(-s*0.25).Bottom(-s*0.2).Size(s, s).Radius(s / 2).Center().
-		Cursor(ui.CursorPointer)
-	base := p.Accent
-	if b.Hovered() {
-		base = p.AccentHover
-	}
-	b.Background(base).Border(2, p.CanvasTop)
-	kit.Press(b, false, b.Pressed(), 0)
-	b.Children(func() { kit.Glyph(c, d.actionIcon, s*0.44, p.TextOnAccent) })
-	b.Tooltip(d.action)
-	if b.Clicked() {
-		d.run()
-	}
+	const h = 26
+	// Wider than the icon so a long label never squeezes More out.
+	bar := ui.Row(c.Key("actions")).Absolute().Left(-40).Right(-40).Bottom(-h / 3).Justify(ui.Center).PassThrough()
+	bar.Children(func() {
+		capsule := ui.Row(c.Key("capsule")).Height(h).Radius(h/2).Padding(2).Gap(1).Shrink(0).AlignItems(ui.Center).
+			Background(p.Overlay).Border(0.5, p.BorderStrong)
+		design.Elevate(c, capsule, design.Floating)
+		moreOpen := false
+		capsule.Children(func() {
+			if d.run != nil {
+				act := ui.ButtonBase(c.Key("launch")).Label(d.action + " " + d.name).Row().Height(h - 4).PaddingX(8).Gap(4).
+					AlignItems(ui.Center).Radius((h - 4) / 2).Cursor(ui.CursorPointer)
+				fg := p.AccentText
+				if act.Hovered() {
+					act.Background(p.AccentSoft)
+				}
+				kit.Press(act, false, act.Pressed(), 0)
+				act.Children(func() {
+					kit.Glyph(c, d.actionIcon, 12, fg)
+					ui.Text(c, d.action).FontSize(design.FontCaption).FontWeight(design.WeightSemibold).TextColor(fg).
+						SingleLine().MaxWidth(size)
+				})
+				if act.Clicked() {
+					d.run()
+				}
+			}
+			if d.run != nil && d.menu != nil {
+				ui.Box(c.Key("sep")).Width(0.5).Height(h-12).Background(p.Divider).Margin(0, 1, 0, 1).Shrink(0).AccessHidden(true)
+			}
+			if d.menu != nil {
+				more := ui.ButtonBase(c.Key("more")).Label(T("common.more")).Size(h-4, h-4).Radius((h - 4) / 2).Center().
+					Cursor(ui.CursorPointer).Tooltip(T("common.more")).Menu(d.menu)
+				if more.Hovered() {
+					more.Background(p.Hover)
+				}
+				kit.Press(more, false, more.Pressed(), 0)
+				more.Children(func() { kit.Glyph(c, icons.More, 13, p.TextSecondary) })
+				moreOpen = more.Focused()
+			}
+		})
+		// Keep it up while its own menu is open or a part has the focus.
+		show = show || moreOpen || capsule.Hovered()
+		pose := ui.Pose{}
+		if !show {
+			pose = ui.Pose{Y: 6, Scale: 0.9, Fade: 1}
+			capsule.PassThrough()
+		}
+		capsule.AnimatePose(pose, design.Spring)
+	})
 }
