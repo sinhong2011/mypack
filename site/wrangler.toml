@@ -1,11 +1,5 @@
-# Cloudflare deploy for mypack's website, the same setup as Triwarden's site: `wrangler deploy` runs the build
-# below and uploads ./dist as static assets. Build with SITE_URL set so canonical URLs and the sitemap are
-# absolute, e.g. `SITE_URL=https://mypack.dev npx wrangler deploy` (see README.md › Deploy).
+# Cloudflare Pages project for mypack's website. CI publishes it (.github/workflows/site.yml): every push to main
+# that touches site/ builds with SITE_URL set and runs `wrangler pages deploy`. See README.md › Deploy.
 name = "mypack"
 compatibility_date = "2026-10-08"
-
-[build]
-command = "pnpm build"
-
-[assets]
-directory = "./dist"
+pages_build_output_dir = "./dist"

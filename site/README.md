@@ -69,15 +69,21 @@ layout changes, update the tile origins in `SITE_ICONS`. The MyPack icon itself 
 
 ## Deploy
 
-Cloudflare, configured in `wrangler.toml` the same way as Triwarden's site (`pnpm build`, static assets from
-`./dist`). The first time:
+CI publishes the site to Cloudflare Pages: `.github/workflows/site.yml` builds `site/` on every pull request that
+touches it, and on each push to `main` builds and deploys it (the first run creates the Pages project).
+Actions › Site › Run workflow redeploys by hand.
 
-```sh
-npx wrangler login
-SITE_URL=https://mypack.dev npx wrangler deploy
-```
+It needs two repository secrets (Settings › Secrets and variables › Actions):
 
-Then attach the custom domain in the Cloudflare dashboard (Workers & Pages › mypack › Settings › Domains), once
-the domain is on the same Cloudflare account. `SITE_URL` must be the final origin: it sets the canonical URLs,
-hreflang links, Open Graph URLs, `robots.txt` and the sitemap. Without it the site still builds, minus the
-sitemap and with relative canonical links.
+- `CLOUDFLARE_API_TOKEN`: a Cloudflare API token with **Account › Cloudflare Pages › Edit**
+- `CLOUDFLARE_ACCOUNT_ID`: the account's ID (Cloudflare dashboard › Workers & Pages, right-hand column)
+
+Optional repository variables:
+
+- `CLOUDFLARE_PAGES_PROJECT`: the Pages project name, `mypack` by default
+- `SITE_URL`: the public origin, `https://<project>.pages.dev` by default. Once a custom domain is attached to the
+  project (Workers & Pages › mypack › Custom domains), set it to that domain: it drives canonical URLs, hreflang,
+  Open Graph URLs, `robots.txt` and the sitemap.
+
+To deploy from a machine instead: `npx wrangler login`, then
+`pnpm build && npx wrangler pages deploy` from `site/` with `SITE_URL` set.
