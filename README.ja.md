@@ -96,6 +96,14 @@ runtime はプラットフォームごとに1つの小さなバイナリで、�
 
 ### インストール
 
+<div align="center">
+
+[![macOS 版をダウンロード](https://img.shields.io/badge/macOS_%E7%89%88%E3%82%92-%E3%83%80%E3%82%A6%E3%83%B3%E3%83%AD%E3%83%BC%E3%83%89-555555?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/sinhong2011/mypack/releases/latest)
+[![Windows 版をダウンロード](https://img.shields.io/badge/Windows_%E7%89%88%E3%82%92-%E3%83%80%E3%82%A6%E3%83%B3%E3%83%AD%E3%83%BC%E3%83%89-0078D4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/sinhong2011/mypack/releases/latest)
+[![Linux 版をダウンロード](https://img.shields.io/badge/Linux_%E7%89%88%E3%82%92-%E3%83%80%E3%82%A6%E3%83%B3%E3%83%AD%E3%83%BC%E3%83%89-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://github.com/sinhong2011/mypack/releases/latest)
+
+</div>
+
 **macOS**（[Homebrew](https://brew.sh)）：
 
 ```sh

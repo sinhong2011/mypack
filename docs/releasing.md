@@ -53,7 +53,7 @@ The Release workflow then:
 3. **installers**: three jobs at once, after publish, run `make installers` (see [Installers](#installers)) and upload the results to that Release with `gh release upload --clobber`: macOS on a macOS runner, Windows and Linux on Ubuntu.
 4. **packages**: for a stable tag (no `-`), downloads those installers back from the Release, writes every package manager's manifest with [`scripts/packages.sh`](../scripts/packages.sh), and hands them to one job per package manager: **homebrew**, **scoop**, **winget**, **chocolatey**, **aur** and **linux-repo** (see [Package managers](#package-managers)). A job whose secret is not set skips with a notice, so the Release itself never fails on them.
 
-On pull requests that touch the release files, the same workflow runs `goreleaser check` and the `--self-test` of `scripts/release.sh`, `scripts/packages.sh`, `scripts/macos-notary-credentials.sh`, and `scripts/bundle-runtime.sh`, and builds the installers without uploading them, so a broken installer build shows on the pull request.
+On pull requests that touch the release files, the same workflow runs `goreleaser check` and the `--self-test` of `scripts/release.sh`, `scripts/packages.sh`, `scripts/macos-notary-credentials.sh`, `scripts/bundle-runtime.sh`, and `scripts/linux-repo.sh`, and builds the installers without uploading them, so a broken installer build shows on the pull request.
 
 ### Choosing the version
 
@@ -283,7 +283,7 @@ None of this is in the repository; each step is done once, by a maintainer.
    gpg --armor --export-secret-keys 'MyPack packages' > mypack-packages.key   # into LINUX_REPO_GPG_KEY, then delete
    ```
 
-   After the first release has run the linux-repo job, turn on GitHub Pages: *Settings › Pages › Deploy from a branch*, `gh-pages`, `/ (root)`. The job rewrites `gh-pages` as a single commit each release and keeps the newest five versions (`KEEP` in `scripts/linux-repo.sh`), so the branch does not grow with every release. Before the key expires, extend it (`gpg --quick-set-expire`), update the secret, and run the job again; users' copies of `mypack.gpg` need the new expiry, so mention it in the release notes. Rotating to a new key means every user re-downloads `mypack.gpg`.
+   After the first release has run the linux-repo job, turn on GitHub Pages: *Settings › Pages › Deploy from a branch*, `gh-pages`, `/ (root)`. The job rewrites `gh-pages` as a single commit each release and keeps the newest five versions (`KEEP` in `scripts/linux-repo.sh`), so the branch does not grow with every release. It checks that branch out into `linux-repo/` in the Actions workspace. `site/` is the marketing website, so the package repositories are not built there. Pages still serves the root of `gh-pages` (`apt/`, `rpm/`, `mypack.gpg`). Before the key expires, extend it (`gpg --quick-set-expire`), update the secret, and run the job again; users' copies of `mypack.gpg` need the new expiry, so mention it in the release notes. Rotating to a new key means every user re-downloads `mypack.gpg`.
 
 ### Publishing to one manager again
 

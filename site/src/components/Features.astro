@@ -1,0 +1,26 @@
+---
+// Every feature here is listed in README.md › Features.
+import { m } from "../paraglide/messages.js";
+const t = m as unknown as Record<string, () => string>;
+const GROUPS = [
+  { title: m.feat_make(), items: [1, 2, 3, 4, 5].map((n) => ({ b: t[`f_make${n}_t`](), d: t[`f_make${n}_d`]() })) },
+  { title: m.feat_inside(), items: [1, 2, 3, 4, 5, 6, 7].map((n) => ({ b: t[`f_in${n}_t`](), d: t[`f_in${n}_d`]() })) },
+  { title: m.feat_manage(), items: [1, 2, 3, 4].map((n) => ({ b: t[`f_man${n}_t`](), d: t[`f_man${n}_d`]() })) },
+];
+---
+<section id="features" class="section" aria-labelledby="feat-title">
+  <div class="wrap">
+    <div class="section-head">
+      <h2 id="feat-title" class="h2">{m.feat_title()}</h2>
+      <p class="lede">{m.feat_lede()}</p>
+    </div>
+    <div class="feat">
+      {GROUPS.map((g) => (
+        <div>
+          <h3 class="h3">{g.title}</h3>
+          <ul>{g.items.map((i) => <li><b>{i.b}</b>{i.d}</li>)}</ul>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

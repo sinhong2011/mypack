@@ -96,6 +96,14 @@ El runtime es un binario pequeño por plataforma que no sabe nada de ningún sit
 
 ### Instalar
 
+<div align="center">
+
+[![Descargar para macOS](https://img.shields.io/badge/Descargar_para-macOS-555555?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/sinhong2011/mypack/releases/latest)
+[![Descargar para Windows](https://img.shields.io/badge/Descargar_para-Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/sinhong2011/mypack/releases/latest)
+[![Descargar para Linux](https://img.shields.io/badge/Descargar_para-Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://github.com/sinhong2011/mypack/releases/latest)
+
+</div>
+
 **macOS** con [Homebrew](https://brew.sh):
 
 ```sh
