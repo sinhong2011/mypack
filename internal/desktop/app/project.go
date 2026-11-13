@@ -86,8 +86,7 @@ func (a *App) projectView(c *ui.Context) {
 			ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
 				kit.LargeTitle(c, pr.Config.App.Name).SingleLine().MinWidth(0)
 				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-					kit.Glyph(c, icons.Link, 12, p.TextTertiary)
-					kit.Secondary(c, domainOf(pr.Config.App.Source)).SingleLine().MinWidth(0)
+					a.projectSource(c, pr, design.FontBody)
 					if pr.LastBuild != nil {
 						ui.Text(c, "· "+T("project.lastBuilt", "when", ago(*pr.LastBuild))).FontSize(design.FontBody).TextColor(p.TextTertiary).SingleLine()
 					}
@@ -363,8 +362,7 @@ func (a *App) projectBento(c *ui.Context, pr *domain.Project) {
 				ui.Column(c).Grow(1).MinWidth(0).Gap(4).AlignItems(ui.Start).Children(func() {
 					kit.LargeTitle(c, pr.Config.App.Name).SingleLine().MinWidth(0)
 					ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-						kit.Glyph(c, icons.Link, 12, p.TextTertiary)
-						kit.Secondary(c, domainOf(pr.Config.App.Source)).SingleLine().MinWidth(0)
+						a.projectSource(c, pr, design.FontBody)
 					})
 				})
 			})
@@ -417,15 +415,13 @@ func (a *App) projectBento(c *ui.Context, pr *domain.Project) {
 // the left (icon, name, site, Dock), its settings in the inspector on the
 // right, saved as they change.
 func (a *App) projectSettingsView(c *ui.Context, pr *domain.Project) {
-	p := design.Of(c)
 	ed := a.editorFor(pr)
 	a.previewInspector(c, func() {
 		ui.Column(c).AlignItems(ui.Center).Gap(0).Padding(32, 0, 24, 0).Children(func() {
 			a.projectIcon(c, pr, heroIcon)
 			kit.PageTitle(c, ed.cfg.App.Name).Margin(16, 0, 2, 0).SingleLine()
 			ui.Row(c).Height(20).Gap(5).AlignItems(ui.Center).Children(func() {
-				kit.Glyph(c, icons.Link, 12, p.TextTertiary)
-				ui.Text(c, domainOf(pr.Config.App.Source)).FontSize(design.FontSmall).TextColor(p.TextSecondary).SingleLine()
+				a.projectSource(c, pr, design.FontSmall)
 			})
 			a.saveIndicator(c, ed).Margin(10, 0, 0, 0)
 			// Build is in the bar above; under the preview, Open the

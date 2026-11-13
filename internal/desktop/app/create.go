@@ -263,6 +263,18 @@ func (a *App) maybeFetchMetadata(c *ui.Context) {
 	}()
 }
 
+// siteUnreachable reports that the current site's lookup failed, so its
+// name and icon are placeholders.
+func (s *createState) siteUnreachable() bool {
+	return s.meta != nil && s.meta.Fallback && s.metaFor == s.normalized
+}
+
+// refetchMetadata forgets the current site's lookup so maybeFetchMetadata
+// runs it again on the next frame, without the typing debounce.
+func (s *createState) refetchMetadata() {
+	s.meta, s.metaFor, s.lastEdit = nil, "", time.Time{}
+}
+
 // ensureCfg returns the pending settings for the new app, made on first use.
 func (a *App) ensureCfg() *config.Config {
 	s := &a.create
