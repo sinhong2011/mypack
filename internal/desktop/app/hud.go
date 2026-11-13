@@ -15,7 +15,8 @@ import (
 
 // The build HUD: a small black pill at the top centre of the screen, just
 // under the menu bar (where the notch is on notched MacBooks), that shows
-// the active build while MyPack's own window is not in front. It never
+// the active build while MyPack's own window is hidden or minimised (a
+// window merely behind another app's does not count). It never
 // takes the focus (shown inactive, always on top, no shadow, no Dock or
 // taskbar entry). Hover opens it to the stage, % and Cancel; a success
 // says "<App> is ready" with Open for a few seconds, then it retracts; a
@@ -26,7 +27,8 @@ import (
 const (
 	hudW, hudH         = 380, 240 // the window: room for the open state
 	hudPillW, hudPillH = 220, 32
-	hudOpenW, hudOpenH = 360, 88
+	hudOpenW           = 360     // hovered while building (height follows the steps)
+	hudDoneW, hudDoneH = 344, 56 // a result: one row
 )
 
 type hudState struct {
@@ -37,7 +39,7 @@ type hudState struct {
 	failed  bool
 	gone    bool // dismissed (a failure) or retracted (a success)
 	ticking bool // a re-check is scheduled
-	front   bool // MyPack's window is in front (key and visible)
+	up      bool // MyPack's window is on screen (not hidden or minimised)
 	mem     hudMem
 }
 
@@ -49,10 +51,11 @@ func (a *App) hudEnabled() bool {
 // ---- visibility: a small state machine, tested on its own ----------------------------
 
 // hudIn is what decides the HUD: the setting, whether MyPack's window is
-// in front (key and visible), the build it follows and how that ended.
+// up (on screen, not hidden or minimised), the build it follows and how
+// that ended.
 type hudIn struct {
 	enabled bool
-	front   bool
+	up      bool
 	job     string // the most recent build ("" none)
 	running bool   // it is running (or waiting)
 	ended   string // "succeeded", "failed", "cancelled" once it ends
@@ -71,7 +74,7 @@ type hudMem struct {
 const hudShowFor = 6 * time.Second
 
 // hudNext decides whether the HUD shows: only while a build runs or just
-// ended, and only while MyPack's window is not in front. Coming back to
+// ended, and only while MyPack's window is hidden or minimised. Bringing back
 // the window hides it at once and counts as having seen a result; a
 // result waits ~6 s otherwise. A new build starts afresh.
 func hudNext(m hudMem, in hudIn) (hudMem, bool) {
@@ -84,39 +87,39 @@ func hudNext(m hudMem, in hudIn) (hudMem, bool) {
 			m.gone = true
 		}
 	}
-	if in.front && !m.endedAt.IsZero() {
+	if in.up && !m.endedAt.IsZero() {
 		m.gone = true // the result is seen in the window
 	}
 	if !m.endedAt.IsZero() && in.now.Sub(m.endedAt) > hudShowFor {
 		m.gone = true
 	}
-	show := in.enabled && !in.front && m.job != "" && !m.gone && (in.running || !m.endedAt.IsZero())
+	show := in.enabled && !in.up && m.job != "" && !m.gone && (in.running || !m.endedAt.IsZero())
 	return m, show
 }
 
-// watchFront follows the main window's focus, so the HUD hides the moment
-// MyPack comes to the front and shows when it goes behind.
-func (a *App) watchFront() {
+// watchWindow follows whether the main window is on screen, so the HUD
+// hides the moment it comes back and shows once it is hidden or
+// minimised. Focus does not count: a window behind another app's is
+// still up.
+func (a *App) watchWindow() {
 	if a.win == nil {
 		return
 	}
-	a.hud.front = true
-	set := func(front bool) func() {
-		return func() { a.win.Update(func() { a.hud.front = front; a.syncHUD() }) }
+	a.hud.up = true
+	set := func(up bool) func() {
+		return func() { a.win.Update(func() { a.hud.up = up; a.syncHUD() }) }
 	}
-	a.win.OnFocus(set(true))
 	a.win.OnShow(set(true))
 	a.win.OnRestore(set(true))
-	a.win.OnBlur(set(false))
 	a.win.OnHide(set(false))
 	a.win.OnMinimize(set(false))
 }
 
-// syncHUD applies hudNext to the HUD window; job events, focus changes and
+// syncHUD applies hudNext to the HUD window; job events, the window showing or hiding and
 // a ticker while something is on call it (main thread).
 func (a *App) syncHUD() {
 	h := &a.hud
-	in := hudIn{enabled: a.hudEnabled(), front: h.front, now: time.Now()}
+	in := hudIn{enabled: a.hudEnabled(), up: h.up, now: time.Now()}
 	active := a.activeJobs()
 	if len(active) > 0 {
 		in.job, in.running = active[0].ID, true
@@ -174,8 +177,19 @@ func (a *App) openHUD() {
 	h.shown = true
 }
 
+// The HUD's own colours: it floats over whatever is on screen, so it is
+// always the dark raised surface of the result bar, whatever the theme.
+var (
+	hudFill   = design.Dark.Raised
+	hudStroke = ui.RGBA(255, 255, 255, 0.09)
+	hudText   = ui.RGB(255, 255, 255)
+	hudDim    = ui.RGBA(255, 255, 255, 0.55)
+)
+
 // hudView draws the pill: collapsed (icon, name, a hairline of progress
 // along its foot) or, on hover, open (stage, %, Cancel); then the result.
+// The pill springs between its sizes while its content cross-fades, so a
+// finished build reads as the same object settling, not a new one.
 func (a *App) hudView(c *ui.Context) {
 	h := &a.hud
 	c.Root().Background(ui.Transparent)
@@ -190,86 +204,79 @@ func (a *App) hudView(c *ui.Context) {
 		icon, name = pr.IconPNG, pr.Config.App.Name
 	}
 	ended := !h.endedAt.IsZero()
-	ui.Row(c).Absolute().Fill().Justify(ui.Center).AlignItems(ui.Start).Children(func() {
+	reduce := c.Preferences().ReduceMotion
+	ui.Row(c).Absolute().Fill().Justify(ui.Center).AlignItems(ui.Start).Padding(6, 0, 0, 0).Children(func() {
 		pill := ui.ButtonBase(c.Key("pill")).Label(name).Column().Gap(6).Cursor(ui.CursorPointer).FocusRing(false).
-			Background(ui.RGB(0, 0, 0)).Clip()
-		open := pill.Hovered() || ended
+			Background(hudFill).Border(1, hudStroke).Clip()
+		pill.Shadow(0, 10, 28, -4, ui.RGBA(0, 0, 0, 0.45))
+		hovered := pill.Hovered()
+		open := hovered || ended
 		w, hh := float32(hudPillW), float32(hudPillH)
-		if open {
-			w, hh = hudOpenW, hudOpenH
-			if !ended {
-				// Room for the steps, compact.
-				_, states := a.jobSteps(pr, j)
-				rows := len(states) - foldAt(states, false)
-				if foldAt(states, false) > 0 {
-					rows++
-				}
-				hh = 32 + float32(rows)*22 + 36
+		switch {
+		case ended:
+			w, hh = hudDoneW, hudDoneH
+		case open:
+			// Room for the steps, compact.
+			_, states := a.jobSteps(pr, j)
+			rows := len(states) - foldAt(states, false)
+			if foldAt(states, false) > 0 {
+				rows++
 			}
+			w, hh = hudOpenW, 32+float32(rows)*22+36
 		}
-		anim := design.Spring
-		if c.Preferences().ReduceMotion {
+		anim := design.SpringHero
+		if reduce {
 			anim = design.Tween(design.MotionBase, design.EaseStd)
 		}
-		pill.Width(pill.AnimateTo("w", w, anim)).Height(pill.AnimateTo("h", hh, anim)).Radius(min(hh/2, 22)).
-			Padding(0, 14, 0, 14).Justify(ui.Center)
-		// It emerges from the top edge as it appears.
-		kit.Pop(pill)
-		white, dim := ui.RGB(255, 255, 255), ui.RGBA(255, 255, 255, 0.6)
+		pad := float32(14)
+		if ended {
+			pad = 12 // the icon sits as far from the edge as from the top
+		}
+		pill.Width(pill.AnimateTo("w", w, anim)).Height(pill.AnimateTo("h", hh, anim)).Radius(min(hh/2, 28)).
+			Padding(0, 10, 0, pad).Justify(ui.Center)
+		// It drops in from under the menu bar as it appears.
+		pill.Transition(ui.ElementTransition{Animation: &design.SpringPop,
+			Enter: &ui.Motion{Y: -14, Scale: 0.9, Opacity: 0}, Exit: &ui.Motion{Y: -8, Scale: 0.96, Opacity: 0}})
+		// A result waits while the pointer is on it; its countdown starts
+		// again once the pointer leaves.
+		if ended && !h.failed && hovered {
+			h.mem.endedAt = time.Now()
+		}
 		pill.Children(func() {
-			// The progress hairline along its foot.
-			if !ended && j.Progress >= 0 {
-				ui.Box(c.Key("bar")).Absolute().Left(0).Bottom(0).Height(2).WidthPercent(float32(j.Progress) * 100).
-					Background(design.LogoMid).PassThrough()
+			if ended {
+				a.hudResult(c, j.ProjectID, icon, name, reduce)
+				if !h.failed {
+					left := 1 - float32(time.Since(h.mem.endedAt))/float32(hudShowFor)
+					ui.Box(c.Key("countdown")).Absolute().Left(0).Bottom(0).Height(2).WidthPercent(max(0, left) * 100).
+						Background(ui.RGBA(255, 255, 255, 0.18)).PassThrough()
+				}
+				return
 			}
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			// The progress hairline along its foot.
+			if j.Progress >= 0 {
+				bar := ui.Box(c.Key("bar")).Absolute().Left(0).Bottom(0).Height(2).Background(design.LogoMid).PassThrough()
+				bar.WidthPercent(bar.AnimateTo("p", float32(j.Progress)*100, design.SpringSoft))
+			}
+			ui.Row(c.Key("building")).Gap(8).AlignItems(ui.Center).Transition(hudSwap(0, reduce)).Children(func() {
 				kit.AppIconOpts(c, icon, name, 16, kit.IconOpts{})
-				label := name
-				switch {
-				case ended && h.failed:
-					label = T("hud.failed", "name", name)
-				case ended:
-					label = T("hud.ready", "name", name)
-				}
-				ui.Text(c, label).FontSize(design.FontSmall).FontWeight(design.WeightSemibold).TextColor(white).SingleLine().Grow(1).MinWidth(0)
+				ui.Text(c, name).FontSize(design.FontSmall).FontWeight(design.WeightSemibold).TextColor(hudText).SingleLine().Grow(1).MinWidth(0)
 				if n := len(a.activeJobs()); n > 1 {
-					ui.Text(c, "+"+itoa(n-1)).FontSize(design.FontCaption).TextColor(dim)
+					ui.Text(c, "+"+itoa(n-1)).FontSize(design.FontCaption).TextColor(hudDim)
 				}
-				if !open && !ended && j.Progress >= 0 {
-					ui.Text(c, itoa(int(j.Progress*100))+"%").FontSize(design.FontCaption).TextColor(dim).FontFeatures("tnum")
+				if !open && j.Progress >= 0 {
+					ui.Text(c, itoa(int(j.Progress*100))+"%").FontSize(design.FontCaption).TextColor(hudDim).FontFeatures("tnum")
 				}
 			})
-			if open && !ended {
-				a.buildSteps(c, pr, j, true, true)
-			}
 			if open {
-				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-					switch {
-					case ended && h.failed:
-						ui.Text(c, T("hud.failed.sub")).FontSize(design.FontCaption).TextColor(dim).Grow(1)
-						if kit.Button(c.Key("view"), T("hud.view"), kit.ButtonOpts{Variant: kit.Ghost, Size: 24}).Clicked() {
-							a.hudFocus(j.ProjectID)
-						}
-						if kit.IconButton(c.Key("x"), icons.Close, T("common.close")).Clicked() {
-							h.mem.gone = true
-							a.syncHUD()
-						}
-					case ended:
-						ui.Spacer(c)
-						if kit.Button(c.Key("open"), T("action.open"), kit.ButtonOpts{Variant: kit.Primary, Size: 26}).Clicked() {
-							if in := a.installFor(j.ProjectID); in != nil {
-								a.openInstall(in.ID)
-							} else {
-								a.hudFocus(j.ProjectID)
-							}
-						}
-					default:
+				ui.Column(c.Key("steps")).Gap(6).Transition(hudSwap(60*time.Millisecond, reduce)).Children(func() {
+					a.buildSteps(c, pr, j, true, true)
+					ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 						ui.Spacer(c)
 						id := j.ID
-						if kit.Button(c.Key("cancel"), T("common.cancel"), kit.ButtonOpts{Variant: kit.Ghost, Size: 24}).TextColor(white).Clicked() {
+						if hudChip(c, "cancel", T("common.cancel"), false) {
 							a.cancelJob(id)
 						}
-					}
+					})
 				})
 			}
 		})
@@ -277,9 +284,107 @@ func (a *App) hudView(c *ui.Context) {
 			a.hudFocus(j.ProjectID)
 		}
 	})
-	if !ended || (ended && !h.failed) {
+	switch {
+	case ended && !h.failed:
+		c.After(33 * time.Millisecond) // the countdown runs smoothly
+	case !ended:
 		c.After(500 * time.Millisecond)
 	}
+}
+
+// hudSwap is how the pill's content comes in and goes: a short rise out
+// of a blur, after delay, so it lands as the pill finishes resizing.
+func hudSwap(delay time.Duration, reduce bool) ui.ElementTransition {
+	if reduce {
+		return ui.ElementTransition{Duration: -1}
+	}
+	in := design.SpringSoft
+	in.Delay = delay
+	return ui.ElementTransition{Animation: &in,
+		Enter: &ui.Motion{Opacity: 0, Y: 6, Blur: 4}, Exit: &ui.Motion{Opacity: 0, Blur: 4},
+		ExitDuration: 120 * time.Millisecond}
+}
+
+// hudResult draws a finished build as one row, in the result bar's
+// language: the app's icon with a check (or a cross) springing onto its
+// corner, the outcome over a quiet second line, a hairline, then the
+// action as a soft chip and a close button.
+func (a *App) hudResult(c *ui.Context, projectID string, icon []byte, name string, reduce bool) {
+	h := &a.hud
+	title, sub := T("hud.ready", "name", name), T("hud.ready.sub")
+	badge, glyph := design.Dark.Success, icons.Check
+	if h.failed {
+		title, sub = T("hud.failed", "name", name), T("hud.failed.sub")
+		badge, glyph = design.Dark.Danger, icons.Close
+	}
+	ui.Row(c.Key("result")).FillWidth().Gap(12).AlignItems(ui.Center).Transition(hudSwap(90*time.Millisecond, reduce)).Children(func() {
+		const is, bs = 32, 16
+		ui.Box(c).Size(is, is).Shrink(0).Children(func() {
+			kit.AppIconOpts(c, icon, name, is, kit.IconOpts{})
+			b := ui.Row(c.Key("badge")).Absolute().Right(-5).Bottom(-5).Size(bs, bs).Radius(bs/2).Center().
+				Background(badge).Border(2, hudFill).AccessHidden(true)
+			if !reduce {
+				pop := design.SpringPop
+				pop.Delay = 260 * time.Millisecond
+				b.Transition(ui.ElementTransition{Animation: &pop, Enter: &ui.Motion{Scale: 0.2, Opacity: 0}})
+			}
+			b.Children(func() { kit.Glyph(c, glyph, 9, hudText) })
+		})
+		ui.Column(c).Gap(1).Grow(1).MinWidth(0).Children(func() {
+			ui.Text(c, title).FontSize(design.FontSmall).FontWeight(design.WeightSemibold).TextColor(hudText).SingleLine()
+			ui.Text(c, sub).FontSize(design.FontCaption).TextColor(hudDim).SingleLine()
+		})
+		ui.Box(c).Width(1).Height(22).Background(ui.RGBA(255, 255, 255, 0.1)).Shrink(0)
+		ui.Row(c).Gap(2).AlignItems(ui.Center).Shrink(0).Children(func() {
+			if h.failed {
+				if hudChip(c, "view", T("hud.view"), true) {
+					a.hudFocus(projectID)
+				}
+			} else if hudChip(c, "open", T("action.open"), true) {
+				if in := a.installFor(projectID); in != nil {
+					a.openInstall(in.ID)
+				} else {
+					a.hudFocus(projectID)
+				}
+			}
+			x := ui.ButtonBase(c.Key("x")).Label(T("common.close")).Size(30, 30).Radius(15).Center().
+				Cursor(ui.CursorPointer).FocusRing(false).Transition(design.Transition(c))
+			col := hudDim
+			if x.Hovered() {
+				x.Background(ui.RGBA(255, 255, 255, 0.08))
+				col = hudText
+			}
+			x.Children(func() { kit.Glyph(c, icons.Close, 13, col) })
+			if x.Clicked() {
+				h.mem.gone = true
+				a.syncHUD()
+			}
+		})
+	})
+}
+
+// hudChip is the HUD's button: a soft white-on-dark pill, as the result
+// bar's "Open again" chip, filled when it is the main action.
+func hudChip(c *ui.Context, key, label string, main bool) bool {
+	b := ui.ButtonBase(c.Key(key)).Label(label).Row().Height(32).PaddingX(14).Radius(16).AlignItems(ui.Center).
+		Cursor(ui.CursorPointer).FocusRing(false).Transition(design.Transition(c))
+	fill := float32(0)
+	if main {
+		fill = 0.1
+	}
+	switch {
+	case b.Pressed():
+		fill += 0.1
+	case b.Hovered():
+		fill += 0.06
+	}
+	if fill > 0 {
+		b.Background(ui.RGBA(255, 255, 255, fill))
+	}
+	b.Children(func() {
+		ui.Text(c, label).FontSize(design.FontSmall).FontWeight(design.WeightMedium).TextColor(hudText).SingleLine()
+	})
+	return b.Clicked()
 }
 
 // hudFocus brings MyPack to the front on the build's project.
