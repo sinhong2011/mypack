@@ -2,7 +2,7 @@ package selfupdate
 
 import "time"
 
-// CheckInterval is how often Mypack looks for a new release on its own.
+// CheckInterval is how often MyPack looks for a new release on its own.
 const CheckInterval = 24 * time.Hour
 
 // Due reports whether an automatic check is due at now, the last one

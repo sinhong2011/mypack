@@ -11,7 +11,7 @@ import (
 	"mypack.dev/mypack/internal/desktop/kit/icons"
 )
 
-// LoginItem is this Mypack's entry in the system's login items, for
+// LoginItem is this MyPack's entry in the system's login items, for
 // appservice.Options.LoginItem: MyGo's login item (SMAppService, or a launch
 // agent before macOS 13), the user's Run key on Windows and an XDG autostart
 // entry on Linux. Call it only once the GUI runs (app.Run).
@@ -29,7 +29,7 @@ type loginState struct {
 	busy  bool // a change is on its way to the system
 }
 
-// refreshLogin reads whether the system opens Mypack at login. Settings
+// refreshLogin reads whether the system opens MyPack at login. Settings
 // reads it as it opens and comes forward, so a change made in System
 // Settings or Task Manager shows.
 func (a *App) refreshLogin() {

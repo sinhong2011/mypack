@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// The HUD shows only while Mypack's window is not in front, for a running
+// The HUD shows only while MyPack's window is not in front, for a running
 // or just-ended build; coming back hides it at once and counts as having
 // seen a result; a result waits about 6 s; the setting turns it off.
 func TestHUDVisibility(t *testing.T) {

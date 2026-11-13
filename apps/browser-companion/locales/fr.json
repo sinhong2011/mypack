@@ -1,6 +1,6 @@
 {
-  "appName": "mypack Companion",
-  "appDescription": "Assistant facultatif : transforme le site web actuel en brouillon d'application de bureau mypack. Rien n'est compilé sans votre accord dans mypack.",
+  "appName": "MyPack Companion",
+  "appDescription": "Assistant facultatif : transforme le site web actuel en brouillon d'application de bureau MyPack. Rien n'est compilé sans votre accord dans MyPack.",
   "actionTitle": "Créer une application de bureau",
   "contextMenuTitle": "Créer une application de bureau depuis cette page"
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Stages the host-platform runtime so `mygo build` ships it inside the
-# installer. On first launch Mypack copies it into the runtime cache; the
+# installer. On first launch MyPack copies it into the runtime cache; the
 # remote registry.json is fetched only for a version or platform that is
 # not already there.
 #

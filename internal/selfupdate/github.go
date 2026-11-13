@@ -12,10 +12,10 @@ import (
 	"time"
 )
 
-// Repo is where Mypack's releases are published.
+// Repo is where MyPack's releases are published.
 const Repo = "sinhong2011/mypack"
 
-// Release is a published Mypack release.
+// Release is a published MyPack release.
 type Release struct {
 	Version    string    // "1.2.3", without the tag's "v"
 	Tag        string    // "v1.2.3"
@@ -68,7 +68,7 @@ func (c Checker) Latest(ctx context.Context, prereleases bool) (*Release, error)
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 	ua := c.UserAgent
 	if ua == "" {
-		ua = "Mypack"
+		ua = "MyPack"
 	}
 	req.Header.Set("User-Agent", ua)
 	client := c.Client

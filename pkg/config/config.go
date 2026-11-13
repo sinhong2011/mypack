@@ -521,7 +521,7 @@ type NativeConfig struct {
 	// API plus an unread count read from the page title) or "off".
 	Badge string `json:"badge,omitempty"`
 	// LinkRouting (default true) opens links that belong to another
-	// installed Mypack app in that app instead of the default browser.
+	// installed MyPack app in that app instead of the default browser.
 	LinkRouting *bool `json:"linkRouting,omitempty"`
 }
 

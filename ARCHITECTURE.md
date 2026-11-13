@@ -64,7 +64,7 @@ badge. A title heuristic (`(3) Inbox`, `Inbox (12)`, `• Slack`) feeds the same
 
 Link routing: the Builder keeps `<UserConfigDir>/mypack-apps/routes.json` (`internal/appservice/routes.go`, schema in
 `runtime/routing`). When the navigation policy sends a clicked link to the browser, the runtime first looks for another
-installed Mypack app owning the host (`open -a <bundle> <url>` on macOS, `<app> <url>` on Windows/Linux) and the target
+installed MyPack app owning the host (`open -a <bundle> <url>` on macOS, `<app> <url>` on Windows/Linux) and the target
 app opens it if the URL is internal for it (else the browser; never re-routed). `native.linkRouting` (default true).
 
 `webview.userAgentPreset` (safari|chrome|edge|firefox|mobile-safari|custom) maps to per-OS user agent strings in

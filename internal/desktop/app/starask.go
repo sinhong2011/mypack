@@ -39,7 +39,7 @@ func (s starAsk) due(now time.Time) bool {
 
 // starAfterBuild counts a good build the user watched, and asks for a
 // star a moment later when it is due: after the build's own toast and
-// the app opening, and only while Mypack is in front to be seen.
+// the app opening, and only while MyPack is in front to be seen.
 func (a *App) starAfterBuild() {
 	a.ui.Star.Builds++
 	a.ui.save()

@@ -42,7 +42,9 @@ type syncState struct {
 var syncMu sync.Mutex // one sync at a time per process
 
 // DefaultSyncFolder is iCloud Drive's mypack folder on macOS, else a folder
-// in the home directory (point it at Dropbox, OneDrive, Syncthing…).
+// in the home directory (point it at Dropbox, OneDrive, Syncthing…). The
+// folder names keep the old "Mypack" spelling so existing libraries are
+// still found on case-sensitive file systems.
 func DefaultSyncFolder() string {
 	home, _ := os.UserHomeDir()
 	if runtime.GOOS == "darwin" {

@@ -30,7 +30,7 @@ func (a *App) installMenu() {
 		}
 	}
 	menu := mygo.NewMenu([]*mygo.MenuItem{
-		{Label: "Mypack", Submenu: []*mygo.MenuItem{
+		{Label: "MyPack", Submenu: []*mygo.MenuItem{
 			{Label: T("menu.about"), Click: on(func() { a.showWindow(); a.openSettings(paneAbout) })},
 			{Label: T("menu.checkUpdates"), Click: on(a.checkForUpdatesMenu)},
 			mygo.Separator(),
@@ -148,7 +148,7 @@ func (a *App) syncTray() {
 		icon = kit.TrayProgressPNG(pr, a.trayPhase)
 	}
 	if a.tray == nil {
-		t, err := mygo.NewTray(mygo.TrayOptions{ID: "mypack", Icon: icon, IconIsTemplate: true, ToolTip: "Mypack"})
+		t, err := mygo.NewTray(mygo.TrayOptions{ID: "mypack", Icon: icon, IconIsTemplate: true, ToolTip: "MyPack"})
 		if err != nil {
 			return
 		}
@@ -228,7 +228,7 @@ func (a *App) flyoutView(c *ui.Context) {
 		// Title line: the app's name, its status, Settings.
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(0, 4, 8, 10).Children(func() {
 			kit.BrandMark(c, 18)
-			kit.Headline(c, "Mypack").Grow(1).MinWidth(0)
+			kit.Headline(c, "MyPack").Grow(1).MinWidth(0)
 			if len(active) > 0 {
 				kit.StatusDot(c, T("tray.building", "count", len(active)), kit.ToneAccent)
 			} else {
@@ -404,7 +404,7 @@ func (a *App) trayMenu(active []domain.BuildJob) *mygo.Menu {
 		status = T("tray.building", "count", len(active))
 	}
 	items := []*mygo.MenuItem{
-		{Label: "Mypack — " + status, Disabled: true},
+		{Label: "MyPack — " + status, Disabled: true},
 		mygo.Separator(),
 		{Label: T("tray.pasteURL"), Click: on(a.pasteToBuild)},
 		{Label: T("menu.newApp"), Click: on(a.newApp)},
@@ -490,7 +490,7 @@ func (a *App) importExistingApp() {
 	}()
 }
 
-// importConfig opens an app config (a Mypack config or Pake's pake.json)
+// importConfig opens an app config (a MyPack config or Pake's pake.json)
 // in Create, to review before building.
 func (a *App) importConfig() {
 	a.showWindow()

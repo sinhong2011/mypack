@@ -236,7 +236,7 @@ func (a *app) cmdImportConfig(name string, args []string) int {
 		if perr == nil {
 			perr = c.Validate()
 		}
-		return a.fail(&domain.Error{Code: "INVALID_INPUT", Message: pos[0] + " is not a config Mypack can import.",
+		return a.fail(&domain.Error{Code: "INVALID_INPUT", Message: pos[0] + " is not a config MyPack can import.",
 			Cause: perr.Error(), Remediation: "Use a mypack.json, or a pake.json from Pake."}, asJSON, nil)
 	}
 	svc, err := a.service()

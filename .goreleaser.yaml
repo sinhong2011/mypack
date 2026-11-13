@@ -1,4 +1,4 @@
-# Publish the Mypack app and CLI from a pushed vX.Y.Z tag: build the
+# Publish the MyPack app and CLI from a pushed vX.Y.Z tag: build the
 # archives, and create the GitHub Release with notes GitHub generates from
 # the pull requests since the last tag. See docs/releasing.md.
 version: 2
@@ -72,7 +72,7 @@ changelog:
   use: github-native
 
 release:
-  name_template: "Mypack {{ .Version }}"
+  name_template: "MyPack {{ .Version }}"
   mode: keep-existing
   replace_existing_artifacts: true
   prerelease: auto
@@ -82,7 +82,7 @@ release:
     {{ .TagBody }}
   footer: |
     ---
-    Unsigned binaries for the Mypack app and CLI; macOS builds are not notarized. Install with Homebrew, winget, Scoop, Chocolatey, APT, DNF or the AUR: https://github.com/sinhong2011/mypack#install. Details: https://github.com/sinhong2011/mypack/blob/main/docs/releasing.md
+    Unsigned binaries for the MyPack app and CLI; macOS builds are not notarized. Install with Homebrew, winget, Scoop, Chocolatey, APT, DNF or the AUR: https://github.com/sinhong2011/mypack#install. Details: https://github.com/sinhong2011/mypack/blob/main/docs/releasing.md
 
 snapshot:
   version_template: "{{ incpatch .Version }}-snapshot"

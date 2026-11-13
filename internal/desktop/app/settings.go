@@ -191,7 +191,7 @@ func (a *App) settingsSidebar(c *ui.Context) {
 		ui.Row(c).Height(design.TitleBarH).Shrink(0).DragWindow().AlignItems(ui.Center).Padding(0, 0, 0, max(6, bar.Left)).Gap(8).Children(func() {
 			if bar.Left == 0 {
 				kit.BrandMark(c, 22)
-				ui.Text(c, "Mypack").FontSize(design.FontTitle3).FontWeight(design.WeightBold).TextColor(p.Text).LetterSpacing(design.TrackTitle)
+				ui.Text(c, "MyPack").FontSize(design.FontTitle3).FontWeight(design.WeightBold).TextColor(p.Text).LetterSpacing(design.TrackTitle)
 			}
 		})
 		kit.Eyebrow(c, T("nav.settings")).Padding(4, 10, 8, 10)
@@ -280,7 +280,7 @@ func (a *App) settingsGeneral(c *ui.Context) {
 	})
 }
 
-// themeRow is Mypack's own light/dark choice. It lives in General: a pane
+// themeRow is MyPack's own light/dark choice. It lives in General: a pane
 // with this one row was a whole page for a single control.
 func (a *App) themeRow(c *ui.Context) {
 	kit.SettingIconRow(c, icons.Appearance, ui.Color{}, T("settings.theme"), "", func() {
@@ -406,7 +406,7 @@ func (a *App) settingsAbout(c *ui.Context) {
 	ui.Column(c).Gap(4).Padding(26, 18, 22, 18).Radius(design.RadiusPanel).Background(p.Group).Border(0.5, p.GroupBorder).
 		AlignItems(ui.Center).Children(func() {
 		kit.BrandMark(c, 76).Margin(0, 0, 10, 0)
-		ui.Text(c, "Mypack").FontSize(design.FontTitle1).FontWeight(design.WeightBold).TextColor(p.Text).LetterSpacing(design.TrackTitle)
+		ui.Text(c, "MyPack").FontSize(design.FontTitle1).FontWeight(design.WeightBold).TextColor(p.Text).LetterSpacing(design.TrackTitle)
 		kit.Secondary(c, T("settings.about.tagline")).TextAlign(ui.Center)
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Margin(8, 0, 0, 0).Children(func() {
 			ui.Row(c).Padding(2, 8).Radius(999).Background(p.Fill).Children(func() {
@@ -473,7 +473,7 @@ func agentSnippet(tab int) string {
 	return fmt.Sprintf("{\n  \"mcpServers\": {\n    \"mypack\": {\n      \"command\": %q,\n      \"args\": [\"mcp\", \"serve\"]\n    }\n  }\n}", exe)
 }
 
-const licenseNotice = `Mypack — Apache License 2.0
+const licenseNotice = `MyPack — Apache License 2.0
 MyGo — github.com/egoist/mygo — MIT License (shader: Apache-2.0)
 Lucide icons — lucide.dev — ISC License (portions MIT, Feather)
 modernc.org/sqlite — BSD-3-Clause

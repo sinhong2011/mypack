@@ -1,4 +1,4 @@
-# Mypack build entry points. Requires Go >= 1.27.3 (GOTOOLCHAIN=auto fetches it).
+# MyPack build entry points. Requires Go >= 1.27.3 (GOTOOLCHAIN=auto fetches it).
 export GOTOOLCHAIN ?= auto
 export CGO_ENABLED = 0
 
@@ -81,4 +81,4 @@ run-fake:
 	MYPACK_FAKE=1 go run ./cmd/mypack
 
 clean:
-	rm -rf bin build dist/Mypack.app dist/Mypack-*.dmg dist/mypack.app dist/mypack-*.dmg
+	rm -rf bin build dist/MyPack.app dist/MyPack-*.dmg dist/mypack.app dist/mypack-*.dmg

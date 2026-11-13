@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Cuts a Mypack release by pushing its tag, as MyGo does: no release pull
+# Cuts a MyPack release by pushing its tag, as MyGo does: no release pull
 # request and no version in the source. The release notes are written into
 # the annotated tag, and the Release workflow puts them at the top of the
 # GitHub Release, above the generated list of pull requests. See
@@ -80,12 +80,12 @@ fi
 last="$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)"
 commits="$(git log --format='%s' --no-merges ${last:+"$last"..HEAD})"
 
-# The tag's message is "Mypack X.Y.Z", a blank line, then the notes in
+# The tag's message is "MyPack X.Y.Z", a blank line, then the notes in
 # Markdown. Lines starting with ";" are dropped, so "#" headings stay.
 msg="$(mktemp -t mypack-release)"
 trap 'rm -f "$msg"' EXIT
 {
-  echo "Mypack $version"
+  echo "MyPack $version"
   echo
   if [[ -n "$notes_file" ]]; then
     cat "$notes_file"

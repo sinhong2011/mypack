@@ -300,7 +300,7 @@ func (s *Server) initialize(req rpcRequest) {
 		"serverInfo":      map[string]any{"name": s.info.Name, "version": s.info.Version},
 		"instructions": "mypack turns websites into desktop apps. Typical flow: project_create (draft) -> " +
 			"project_validate / build_preflight -> build_start -> build_status -> artifact_list. " +
-			"Runtime downloads and other sensitive changes need the user's approval in the mypack app; " +
+			"Runtime downloads and other sensitive changes need the user's approval in the MyPack app; " +
 			"build_start then returns approval_required. Apps made from a JavaScript project folder need the project's build " +
 			"script run first; that always needs the user's approval and is never run on an agent's request.",
 	})

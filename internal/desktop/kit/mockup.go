@@ -114,7 +114,7 @@ func AppMockup(c *ui.Context, o MockupOpts) ui.Element {
 		desk := roundRect(r.X, r.Y, r.W, r.H, 16)
 		base := p.Group
 		// A colourless site (black, white, grey) would make a grey slab:
-		// its wallpaper takes Mypack's accent instead.
+		// its wallpaper takes MyPack's accent instead.
 		hue := tint
 		if chroma(tint) < 40 {
 			hue = p.Accent

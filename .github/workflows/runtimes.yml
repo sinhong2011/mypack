@@ -1,5 +1,5 @@
 # Publishes generated-app runtimes to the "runtimes" GitHub Release, which is
-# the production registry every Mypack build reads:
+# the production registry every MyPack build reads:
 #   https://github.com/sinhong2011/mypack/releases/download/runtimes/registry.json
 # Run it by hand for each new runtime version (pkg/config DefaultRuntimeVersion)
 # before shipping an app that asks for that version. See docs/releasing.md.
@@ -62,7 +62,7 @@ jobs:
             # This Release must not be that, or installed apps fetch
             # update-*.json from here instead of the app (docs/releasing.md).
             gh release create "$TAG" --title "Runtimes" --latest=false --prerelease \
-              --notes "Runtimes for apps made with Mypack, and the signed registry (registry.json) that lists them. Mypack downloads these itself; you do not need them."
+              --notes "Runtimes for apps made with MyPack, and the signed registry (registry.json) that lists them. MyPack downloads these itself; you do not need them."
           fi
       - name: Build and sign
         env:

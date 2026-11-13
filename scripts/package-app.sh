@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Assemble dist/Mypack.app from bin/mypack (built by `make gui`) and, with
+# Assemble dist/MyPack.app from bin/mypack (built by `make gui`) and, with
 # "dmg" as second argument, a drag-to-Applications disk image.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 VERSION="${1:-1.0.0}"
-APP="dist/Mypack.app"
+APP="dist/MyPack.app"
 export GOTOOLCHAIN="${GOTOOLCHAIN:-auto}"
 
 [ -x bin/mypack ] || { echo "bin/mypack missing; run make gui" >&2; exit 1; }
@@ -33,8 +33,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleName</key><string>Mypack</string>
-  <key>CFBundleDisplayName</key><string>Mypack</string>
+  <key>CFBundleName</key><string>MyPack</string>
+  <key>CFBundleDisplayName</key><string>MyPack</string>
   <key>CFBundleIdentifier</key><string>dev.mypack.builder</string>
   <key>CFBundleExecutable</key><string>mypack</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
@@ -52,7 +52,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleURLName</key><string>dev.mypack.builder</string>
     <key>CFBundleURLSchemes</key><array><string>mypack</string></array>
   </dict></array>
-  <key>NSHumanReadableCopyright</key><string>© 2026 Mypack. All rights reserved.</string>
+  <key>NSHumanReadableCopyright</key><string>© 2026 MyPack. All rights reserved.</string>
 </dict>
 </plist>
 PLIST
@@ -77,18 +77,18 @@ if [ "${2:-}" = "dmg" ]; then
   STAGE="$(mktemp -d "$ROOT/dist/.dmg.XXXX")"
   cp -R "$APP" "$STAGE/"
   ln -s /Applications "$STAGE/Applications"
-  rm -f "dist/Mypack-$VERSION.dmg"
-  hdiutil create -volname "Mypack" -srcfolder "$STAGE" -ov -format UDZO "dist/Mypack-$VERSION.dmg" >/dev/null
+  rm -f "dist/MyPack-$VERSION.dmg"
+  hdiutil create -volname "MyPack" -srcfolder "$STAGE" -ov -format UDZO "dist/MyPack-$VERSION.dmg" >/dev/null
   rm -rf "$STAGE"
   if [ "$SIGN_IDENTITY" != "-" ]; then
-    codesign --force --timestamp --sign "$SIGN_IDENTITY" "dist/Mypack-$VERSION.dmg"
+    codesign --force --timestamp --sign "$SIGN_IDENTITY" "dist/MyPack-$VERSION.dmg"
   fi
-  echo "built dist/Mypack-$VERSION.dmg"
+  echo "built dist/MyPack-$VERSION.dmg"
   # NOTARY_PROFILE: a profile stored with `xcrun notarytool store-credentials`.
   if [ -n "${NOTARY_PROFILE:-}" ]; then
-    xcrun notarytool submit "dist/Mypack-$VERSION.dmg" --keychain-profile "$NOTARY_PROFILE" --wait
-    xcrun stapler staple "dist/Mypack-$VERSION.dmg"
-    xcrun stapler validate "dist/Mypack-$VERSION.dmg"
-    spctl --assess --type open --context context:primary-signature -v "dist/Mypack-$VERSION.dmg"
+    xcrun notarytool submit "dist/MyPack-$VERSION.dmg" --keychain-profile "$NOTARY_PROFILE" --wait
+    xcrun stapler staple "dist/MyPack-$VERSION.dmg"
+    xcrun stapler validate "dist/MyPack-$VERSION.dmg"
+    spctl --assess --type open --context context:primary-signature -v "dist/MyPack-$VERSION.dmg"
   fi
 fi

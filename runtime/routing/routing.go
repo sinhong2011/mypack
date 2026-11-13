@@ -1,8 +1,8 @@
 // Package routing implements "open links in the right app": the Builder keeps
-// a routes file listing the hosts every installed Mypack app owns, and a
+// a routes file listing the hosts every installed MyPack app owns, and a
 // generated app consults it when the user clicks a link that leaves the app,
-// handing the URL to the Mypack app that owns the host instead of the default
-// browser. Only Mypack apps are targets; the system browser registration is
+// handing the URL to the MyPack app that owns the host instead of the default
+// browser. Only MyPack apps are targets; the system browser registration is
 // never touched.
 package routing
 
@@ -26,7 +26,7 @@ import (
 // EnvFile overrides the routes file location (tests, portable setups).
 const EnvFile = "MYPACK_ROUTES_FILE"
 
-// Entry is one installed Mypack app.
+// Entry is one installed MyPack app.
 type Entry struct {
 	// Identifier is the app's bundle id (config app.identifier).
 	Identifier string `json:"identifier"`
@@ -274,7 +274,7 @@ func (t *Table) Entries() []Entry {
 	return es
 }
 
-// Lookup finds the Mypack app owning host (never selfID).
+// Lookup finds the MyPack app owning host (never selfID).
 func (t *Table) Lookup(host, selfID string) (Entry, bool) {
 	ex := t.Exists
 	if ex == nil {

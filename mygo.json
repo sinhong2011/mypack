@@ -1,10 +1,10 @@
 {
-  "name": "Mypack",
+  "name": "MyPack",
   "slug": "mypack",
   "identifier": "dev.mypack.builder",
   "version": "0.1.0-dev",
-  "copyright": "© 2026 Mypack contributors",
-  "publisher": "Mypack",
+  "copyright": "© 2026 MyPack contributors",
+  "publisher": "MyPack",
   "license": "Apache-2.0",
   "icon": "assets/AppIcon-1024.png",
   "main": "./cmd/mypack",

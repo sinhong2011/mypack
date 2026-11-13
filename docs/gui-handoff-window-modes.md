@@ -56,7 +56,7 @@ One app made of several websites, like a workspace in Zen: a rail of the sites' 
 
 ## Service
 - `CreateGroup(GroupRequest{Name, Sites: []GroupSite{ProjectID | URL | Path}})` keeps the site order. Addresses get their name and icon fetched, and a repeated site is dropped. A `Path` is a folder with index.html or an HTML file. A JavaScript project joins with its built output and is refused while unbuilt, because a group never runs build scripts. Library apps built from local folders join as local members. The group icon is a 2×2 grid of the first four member icons (`icons.Group`). Member icons are stored beside the database in `groups/<project>/`.
-- Routes: an installed group claims every member's site, so links from other Mypack apps open in it.
+- Routes: an installed group claims every member's site, so links from other MyPack apps open in it.
 
 ## Runtime
 - Every member loads at start (so each can notify and badge) and is kept alive while hidden. A local member is served at `mypack://<member id>/` (a private loopback server per member on Linux), which gives each one its own origin and storage. The rail shows each member's unread count, and the Dock (or the menu-bar title) shows the **sum**.

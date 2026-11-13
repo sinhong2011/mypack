@@ -32,7 +32,7 @@ func BrandMark(c *ui.Context, size float32) ui.Element {
 	if size > 32 {
 		src = assets.Brand256
 	}
-	return AppIconOpts(c, src, "Mypack", size, IconOpts{Shadow: size >= 40})
+	return AppIconOpts(c, src, "MyPack", size, IconOpts{Shadow: size >= 40})
 }
 
 // TrayIconPNG renders the monochrome template cube for the status item at

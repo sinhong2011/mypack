@@ -694,7 +694,7 @@ func (s *Service) StartBuild(ctx context.Context, req appservice.BuildRequest) (
 		}
 		job.Status = domain.JobAwaitingApproval
 		job.Approval = &domain.ApprovalRequest{Kind: "project_build", Command: cmd, Path: p.Config.App.Source.Project,
-			Detail: "To make this app, Mypack runs your project's build on this computer."}
+			Detail: "To make this app, MyPack runs your project's build on this computer."}
 		job.Error = &domain.Error{Code: "PROJECT_BUILD_REQUIRED", Message: "The project must be built first.", Cause: cmd + "  (in " + p.Config.App.Source.Project + ")"}
 		out := *job
 		s.mu.Unlock()
@@ -707,7 +707,7 @@ func (s *Service) StartBuild(ctx context.Context, req appservice.BuildRequest) (
 		job.Error = &domain.Error{Code: appservice.CodeDownloadRequired,
 			Message:     "A runtime must be downloaded before this build can continue.",
 			Remediation: "Approve the download to continue."}
-		job.Approval = &domain.ApprovalRequest{Kind: "runtime_download", Command: "Download Mypack runtime " + runtimeVersion,
+		job.Approval = &domain.ApprovalRequest{Kind: "runtime_download", Command: "Download MyPack runtime " + runtimeVersion,
 			Detail: "A small, signed component is needed to build apps for this computer. It's downloaded once and reused."}
 		out := *job
 		s.mu.Unlock()
@@ -1139,7 +1139,7 @@ func (s *Service) rebuildInstall(id, actor string) (domain.BuildJob, error) {
 	}
 	if in.State == domain.InstallExternal {
 		s.mu.Unlock()
-		return domain.BuildJob{}, &domain.Error{Code: appservice.CodeNotManaged, Message: "Mypack doesn't manage this app."}
+		return domain.BuildJob{}, &domain.Error{Code: appservice.CodeNotManaged, Message: "MyPack doesn't manage this app."}
 	}
 	pid := in.ProjectID
 	s.mu.Unlock()
@@ -1183,7 +1183,7 @@ func (s *Service) Uninstall(ctx context.Context, id string, clearData bool, acto
 		if in.ID == id {
 			if in.State == domain.InstallExternal {
 				s.mu.Unlock()
-				return &domain.Error{Code: appservice.CodeNotManaged, Message: "Mypack doesn't manage this app."}
+				return &domain.Error{Code: appservice.CodeNotManaged, Message: "MyPack doesn't manage this app."}
 			}
 			s.installs = append(s.installs[:i], s.installs[i+1:]...)
 			s.logActivity(actorOr(actor), "installation.uninstall", id, fmt.Sprintf("clearData=%v", clearData))

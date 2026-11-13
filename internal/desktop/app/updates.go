@@ -16,7 +16,7 @@ import (
 )
 
 // Software update (Settings → Updates, "Check for Updates…" in the app
-// menu). Mypack asks GitHub for the newest release; a copy that can
+// menu). MyPack asks GitHub for the newest release; a copy that can
 // replace itself downloads and installs it with MyGo's signed updater, and
 // one a package manager installed shows that manager's command instead.
 
@@ -106,7 +106,7 @@ func (a *App) checkForUpdates(manual bool) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		rel, err := selfupdate.Checker{UserAgent: "Mypack/" + Version}.Latest(ctx, pre)
+		rel, err := selfupdate.Checker{UserAgent: "MyPack/" + Version}.Latest(ctx, pre)
 		mygo.RunOnMain(func() {
 			a.finishCheck(rel, err, manual)
 			a.redrawUpdates()

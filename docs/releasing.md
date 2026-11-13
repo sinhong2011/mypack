@@ -1,6 +1,6 @@
-# Releasing Mypack
+# Releasing MyPack
 
-Mypack has one version line: the app and CLI. A release is a `vX.Y.Z` tag on `main`, as in [MyGo](https://github.com/egoist/mygo). There is no release pull request, no version file to bump, and no `CHANGELOG.md`. Pushing the tag starts [`.github/workflows/release.yml`](../.github/workflows/release.yml), which tests the tagged commit and runs [GoReleaser](https://goreleaser.com/) to build the archives and create the GitHub Release.
+MyPack has one version line: the app and CLI. A release is a `vX.Y.Z` tag on `main`, as in [MyGo](https://github.com/egoist/mygo). There is no release pull request, no version file to bump, and no `CHANGELOG.md`. Pushing the tag starts [`.github/workflows/release.yml`](../.github/workflows/release.yml), which tests the tagged commit and runs [GoReleaser](https://goreleaser.com/) to build the archives and create the GitHub Release.
 
 Tags look like `v0.1.0`, or `v0.2.0-beta.1` for a pre-release. They do not look like `mypack-v0.1.0`, and this repo does not keep a moving `latest` git tag. GitHub marks the newest stable `vX.Y.Z` Release as Latest on its own.
 
@@ -30,7 +30,7 @@ The source defaults stay `0.1.0-dev` (`internal/cli.Version` and `internal/deskt
 These are not part of the GitHub Release:
 
 - **Discover catalog.** The app reads `catalog/discover.json` from `main`, so a catalog edit reaches users without a release.
-- **Generated-app runtimes.** These are on their own Release, `runtimes`, published by the **Runtimes** workflow ([below](#runtime-registry)). Locally, `make runtimes` / `scripts/release-runtimes.sh` writes a dev registry under `dist/registry/`, at the Makefile `VERSION` (default `1.0.0`), which is also what `make app` writes into `dist/Mypack-1.0.0.dmg`. Neither is the git tag.
+- **Generated-app runtimes.** These are on their own Release, `runtimes`, published by the **Runtimes** workflow ([below](#runtime-registry)). Locally, `make runtimes` / `scripts/release-runtimes.sh` writes a dev registry under `dist/registry/`, at the Makefile `VERSION` (default `1.0.0`), which is also what `make app` writes into `dist/MyPack-1.0.0.dmg`. Neither is the git tag.
 - **Browser companion.** `apps/browser-companion` is built with pnpm and is not in the archives.
 - **Dev signing keys.** `dist/keys/` is gitignored. The release workflows never read it. GoReleaser writes to `dist/goreleaser/` so `release --clean` cannot delete `dist/keys/` or `dist/registry/`.
 
@@ -49,7 +49,7 @@ The script checks that you are on `main`, that `main` matches GitHub's, and that
 The Release workflow then:
 
 1. **verify**: checks that the tag is `vX.Y.Z` or `vX.Y.Z-pre` (`scripts/release.sh --check-tag`) and that its commit is on `main`, then runs `go vet ./...` and `go test ./...` on it. A tag pushed by hand, or before CI on `main` finished, cannot publish a broken build.
-2. **publish**: runs `goreleaser release --clean`. It builds the six archives, writes `checksums.txt`, and creates the GitHub Release named `Mypack X.Y.Z`. A tag with `-` in it is marked as a pre-release (`prerelease: auto`).
+2. **publish**: runs `goreleaser release --clean`. It builds the six archives, writes `checksums.txt`, and creates the GitHub Release named `MyPack X.Y.Z`. A tag with `-` in it is marked as a pre-release (`prerelease: auto`).
 3. **installers**: three jobs at once, after publish, run `make installers` (see [Installers](#installers)) and upload the results to that Release with `gh release upload --clobber`: macOS on a macOS runner, Windows and Linux on Ubuntu.
 4. **packages**: for a stable tag (no `-`), downloads those installers back from the Release, writes every package manager's manifest with [`scripts/packages.sh`](../scripts/packages.sh), and hands them to one job per package manager: **homebrew**, **scoop**, **winget**, **chocolatey**, **aur** and **linux-repo** (see [Package managers](#package-managers)). A job whose secret is not set skips with a notice, so the Release itself never fails on them.
 
@@ -87,7 +87,7 @@ builds every archive into `dist/goreleaser/` with a `-snapshot` version, without
 
 ### Local bundles
 
-Local `make app` still defaults `VERSION` to `1.0.0`, so `dist/Mypack-1.0.0.dmg` and the dev runtime registry stay on that number. That default is not the git tag. Pass `VERSION=0.1.0` when you want a local bundle to match a release.
+Local `make app` still defaults `VERSION` to `1.0.0`, so `dist/MyPack-1.0.0.dmg` and the dev runtime registry stay on that number. That default is not the git tag. Pass `VERSION=0.1.0` when you want a local bundle to match a release.
 
 ## Archives
 
@@ -125,33 +125,33 @@ Results go to `build/<os>-<arch>/` (gitignored). The target writes the version i
 How the installed app differs from the archives:
 
 - **Version.** `mygo build` takes no `-ldflags` of ours, so it links the `mygo.json` version and `cmd/mypack` reads it (`mygo.App.Version()`) when nothing stamped one. `mypack version` reports the release.
-- **Windows.** `Mypack.exe` is a windowed program, so the CLI prints nothing in a terminal there. Use `mypack.exe` or `mypack-cli.exe` from the zip archive for the CLI on Windows.
+- **Windows.** `MyPack.exe` is a windowed program, so the CLI prints nothing in a terminal there. Use `mypack.exe` or `mypack-cli.exe` from the zip archive for the CLI on Windows.
 - **No browser companion host.** `mypack-native-host` is only in the archives.
-- **Signing.** The DMG is signed ad hoc, so Gatekeeper blocks it on other Macs until it is signed with a Developer ID and notarized ([below](#notarized-macos-disk-image)): right-click Mypack.app › Open, or `xattr -dr com.apple.quarantine /Applications/Mypack.app`. The Windows setup has no signature, so SmartScreen warns ("More info › Run anyway").
+- **Signing.** The DMG is signed ad hoc, so Gatekeeper blocks it on other Macs until it is signed with a Developer ID and notarized ([below](#notarized-macos-disk-image)): right-click MyPack.app › Open, or `xattr -dr com.apple.quarantine /Applications/MyPack.app`. The Windows setup has no signature, so SmartScreen warns ("More info › Run anyway").
 
-`make app` / `make dmg` (`scripts/package-app.sh`) still build `dist/Mypack.app` for local development. The Release does not use them.
+`make app` / `make dmg` (`scripts/package-app.sh`) still build `dist/MyPack.app` for local development. The Release does not use them.
 
 ## App updates
 
-Mypack checks GitHub for a newer release and, where it can, installs it itself (Settings › Updates, and **Check for Updates…** in the Mypack menu; code in `internal/selfupdate` and `internal/desktop/app/updates.go`).
+MyPack checks GitHub for a newer release and, where it can, installs it itself (Settings › Updates, and **Check for Updates…** in the MyPack menu; code in `internal/selfupdate` and `internal/desktop/app/updates.go`).
 
 **Checking.** The app reads `GET /repos/sinhong2011/mypack/releases` from the GitHub API and takes the highest `vX.Y.Z` that is not a draft. Pre-releases count only when the user turns on **Include pre-releases**. It checks about 8 s after launch, then on an hourly tick once the last successful check is a day old (**Check for updates automatically**, on by default; the time is kept in `ui-state.json`). Development builds (`…-dev`) and `MYPACK_FAKE=1` never check on their own. A background check that finds a new version shows one toast per version and a count on Settings in the sidebar.
 
-**Installing.** A copy that can replace itself (MyGo's `mygo.Updater.Enabled()`: built by `mygo build` with `updates` in `mygo.json`, and installed where the user can write, which covers the `.dmg` app in `/Applications` and the per-user Windows setup in `%LOCALAPPDATA%\Programs\Mypack`) downloads the signed update with `mygo.Updater`, shows its progress, and offers **Restart to Update**. A copy that cannot (an archive build or a Linux tarball without a manifest) gets a **Download** button to the release page instead.
+**Installing.** A copy that can replace itself (MyGo's `mygo.Updater.Enabled()`: built by `mygo build` with `updates` in `mygo.json`, and installed where the user can write, which covers the `.dmg` app in `/Applications` and the per-user Windows setup in `%LOCALAPPDATA%\Programs\MyPack`) downloads the signed update with `mygo.Updater`, shows its progress, and offers **Restart to Update**. A copy that cannot (an archive build or a Linux tarball without a manifest) gets a **Download** button to the release page instead.
 
 **Package managers.** A copy installed by a package manager is never updated by the app. It shows "Installed with <manager>" and the command:
 
 | Manager | Detected by | Command |
 | --- | --- | --- |
 | Homebrew | `<prefix>/Caskroom/mypack` (`$HOMEBREW_PREFIX`, `/opt/homebrew`, `/usr/local`) | `brew upgrade --cask mypack` |
-| winget | `%LOCALAPPDATA%\Microsoft\WinGet\Packages\Mypack.Mypack_*`, or the app running from it | `winget upgrade Mypack.Mypack` |
+| winget | `%LOCALAPPDATA%\Microsoft\WinGet\Packages\MyPack.MyPack_*`, or the app running from it | `winget upgrade MyPack.MyPack` |
 | Chocolatey | `%ChocolateyInstall%\lib\mypack` | `choco upgrade mypack` |
 | Scoop | the app in `<scoop>\apps\mypack` | `scoop update mypack` |
 | APT | the app in `/opt/mypack` or `/usr`, with `/var/lib/dpkg/info/mypack.list` | `sudo apt update && sudo apt install --only-upgrade mypack` |
 | AUR | `/var/lib/pacman/local/mypack[-bin\|-git]-*` | `yay -Syu <package>` |
 | DNF / zypper | the app in `/opt/mypack` and `/usr/bin/dnf` or `/usr/bin/zypper` | `sudo dnf upgrade mypack` / `sudo zypper update mypack` |
 
-winget installs the per-user setup like a manual download does, and leaves no record in a folder for that installer type. Such a copy is not detected and updates itself, and winget sees the newer version the next time it looks. If the package IDs or names change (cask `mypack`, winget `Mypack.Mypack`, Chocolatey and Scoop `mypack`), update `internal/selfupdate/source.go` to match.
+winget installs the per-user setup like a manual download does, and leaves no record in a folder for that installer type. Such a copy is not detected and updates itself, and winget sees the newer version the next time it looks. If the package IDs or names change (cask `mypack`, winget `MyPack.MyPack`, Chocolatey and Scoop `mypack`), update `internal/selfupdate/source.go` to match.
 
 **Publishing updates.** `mygo.json` `updates` holds the public key and `"github": "sinhong2011/mypack"`. With `MYGO_UPDATER_PRIVATE_KEY` set, `make installers` also writes, per platform, `mypack-<version>-<os>-<arch>.tar.gz` (signed), any `*.delta` from the last published versions, and `update-<os>-<arch>.json`, plus `install.sh` (macOS and Linux), `install.ps1` (Windows) and `SHA256SUMS` (the SHA-256 of every file but the manifests; check a download with `sha256sum -c --ignore-missing SHA256SUMS`). On a tag push with the key, the installers job runs `make installers UPLOAD=1`, which is `mygo build -upload`: it uploads every one of these files with the installers to the Release `v<version>` (made by the publish job before; `-upload` would create a draft if it were missing), merges `SHA256SUMS` with the copy the other platforms already uploaded, and uploads the manifests last. Two platforms that finish at once can still drop each other's `SHA256SUMS` lines, so the `checksums` job adds any asset the file is missing afterwards. `-upload` needs `gh` with `GH_TOKEN` (`github.token`, `contents: write`) and refuses to run without the key; pull requests build without it. Installed apps read the manifests from `releases/latest/download/`, so an update is live once its Release is the latest; a pre-release is offered only to users who opted in. There is no `CHANGELOG.md`, so manifests carry no notes, and the app shows the Release's notes from the API instead.
 
@@ -164,9 +164,9 @@ Losing the key strands installed apps, which then accept only updates signed wit
 
 ## Runtime registry
 
-Apps made with Mypack run on a runtime. Each platform installer ships a copy of the signed `registry.json`, via `scripts/bundle-runtime.sh`. On first launch Mypack copies the host runtime into the cache, so a same-platform first build does not need the network.
+Apps made with MyPack run on a runtime. Each platform installer ships a copy of the signed `registry.json`, via `scripts/bundle-runtime.sh`. On first launch MyPack copies the host runtime into the cache, so a same-platform first build does not need the network.
 
-Windows and Linux ship the matching archive for `DefaultRuntimeVersion` (`pkg/config/config.go`). macOS cannot ship that `.tar.gz`: Apple's notary service unpacks gzip and rejects the unsigned nested Mach-O (that is why v0.1.0-beta.4 never uploaded `mypack-*.dmg` or `update-darwin-universal.json`). The macOS job therefore extracts `mypack-runtime` into `resources/darwin-arm64/bin` and `resources/darwin-amd64/bin`. `mygo build` lipos them for a universal app and signs the helper with the app (Developer ID, hardened runtime, inside-out), then notarization sees a signed Mach-O instead of an archive. First launch seeds `Contents/Resources/bin/mypack-runtime` into the cache. The published `runtimes` Release stays unsigned: that binary becomes the user's generated app, which Mypack ad-hoc signs after assembly.
+Windows and Linux ship the matching archive for `DefaultRuntimeVersion` (`pkg/config/config.go`). macOS cannot ship that `.tar.gz`: Apple's notary service unpacks gzip and rejects the unsigned nested Mach-O (that is why v0.1.0-beta.4 never uploaded `mypack-*.dmg` or `update-darwin-universal.json`). The macOS job therefore extracts `mypack-runtime` into `resources/darwin-arm64/bin` and `resources/darwin-amd64/bin`. `mygo build` lipos them for a universal app and signs the helper with the app (Developer ID, hardened runtime, inside-out), then notarization sees a signed Mach-O instead of an archive. First launch seeds `Contents/Resources/bin/mypack-runtime` into the cache. The published `runtimes` Release stays unsigned: that binary becomes the user's generated app, which MyPack ad-hoc signs after assembly.
 
 The production registry lives on a GitHub Release with the fixed tag `runtimes`, and is fetched only when a project asks for a runtime version or platform that is not already cached (an update, or a cross-compile):
 
@@ -174,7 +174,7 @@ The production registry lives on a GitHub Release with the fixed tag `runtimes`,
 
 That Release holds `registry.json`, its signature `registry.json.sig`, and every runtime archive, side by side. Each entry's `url` is a bare file name, so it resolves next to `registry.json`. It is marked as a prerelease so GitHub's `/releases/latest` (where MyGo looks for `update-*.json` when pre-releases are off) cannot be this Release. Apps fetch it by the `runtimes` tag. Publish a runtime version (below) before tagging an app release that bundles it; `make installers` downloads the archives from this Release.
 
-**Signing key.** Mypack trusts a manifest only when it is signed with a key it knows. The production public key is committed in `internal/runtimemanager/registry.pub` and built into every binary with `go:embed`, so installers made with `mygo build` (which takes no `-ldflags`) trust it too. The private key exists only in the `REGISTRY_SIGNING_KEY` Actions secret and in your password manager. Never commit it.
+**Signing key.** MyPack trusts a manifest only when it is signed with a key it knows. The production public key is committed in `internal/runtimemanager/registry.pub` and built into every binary with `go:embed`, so installers made with `mygo build` (which takes no `-ldflags`) trust it too. The private key exists only in the `REGISTRY_SIGNING_KEY` Actions secret and in your password manager. Never commit it.
 
 **Publishing a runtime version.** Bump `DefaultRuntimeVersion` in `pkg/config/config.go` whenever `Config.MinRuntime()` asks for a newer runtime (`TestDefaultRuntimeCoversEveryFeature` fails until you do), or the installer bundles a runtime too old for that feature and its projects download one on first build. Then run the workflow before you tag an app release that asks for that version:
 
@@ -246,7 +246,7 @@ Stable releases (tags without `-`) are published to these, from the installers o
 | --- | --- | --- | --- | --- |
 | Homebrew | `brew install --cask sinhong2011/tap/mypack` | `Casks/mypack.rb` in [sinhong2011/homebrew-tap](https://github.com/sinhong2011/homebrew-tap) | homebrew | `PACKAGING_TOKEN` |
 | Scoop | `scoop bucket add mypack https://github.com/sinhong2011/scoop-bucket`, `scoop install mypack/mypack` | `bucket/mypack.json` in sinhong2011/scoop-bucket | scoop | `PACKAGING_TOKEN` |
-| winget | `winget install Mypack.Mypack` | `manifests/m/Mypack/Mypack/` in [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs), by pull request | winget | `PACKAGING_TOKEN` |
+| winget | `winget install MyPack.MyPack` | `manifests/m/MyPack/MyPack/` in [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs), by pull request | winget | `PACKAGING_TOKEN` |
 | Chocolatey | `choco install mypack` | [community.chocolatey.org/packages/mypack](https://community.chocolatey.org/packages/mypack) | chocolatey | `CHOCOLATEY_API_KEY` |
 | AUR | `yay -S mypack-bin` | [aur.archlinux.org/packages/mypack-bin](https://aur.archlinux.org/packages/mypack-bin) | aur | `AUR_SSH_PRIVATE_KEY` |
 | APT | `apt install mypack` (README › Install adds the source) | `apt/` on the `gh-pages` branch, served at https://sinhong2011.github.io/mypack/ | linux-repo | `LINUX_REPO_GPG_KEY` |
@@ -254,8 +254,8 @@ Stable releases (tags without `-`) are published to these, from the installers o
 
 What each installs:
 
-- **Homebrew**: the universal `.dmg`, `Mypack.app` in `/Applications`, and the `mypack` command (a link to `Mypack.app/Contents/MacOS/Mypack`). `brew uninstall --zap` also removes the app's data.
-- **Scoop, winget, Chocolatey**: the per-user setup program (`/S`). Scoop installs it into its own app folder and adds the `mypack` shim; winget and Chocolatey into `%LOCALAPPDATA%\Programs\Mypack`. Chocolatey has x64 only (it runs emulated on arm64); Scoop and winget have both.
+- **Homebrew**: the universal `.dmg`, `MyPack.app` in `/Applications`, and the `mypack` command (a link to `MyPack.app/Contents/MacOS/MyPack`). `brew uninstall --zap` also removes the app's data.
+- **Scoop, winget, Chocolatey**: the per-user setup program (`/S`). Scoop installs it into its own app folder and adds the `mypack` shim; winget and Chocolatey into `%LOCALAPPDATA%\Programs\MyPack`. Chocolatey has x64 only (it runs emulated on arm64); Scoop and winget have both.
 - **APT, DNF, AUR**: the `.deb` / `.rpm` packages, in `/opt/mypack` with `/usr/bin/mypack` (`linux.command` in `mygo.json`), the desktop entry and the `mypack://` handler. `mypack-bin` unpacks the Debian package.
 
 Try the manifests without publishing:
@@ -271,14 +271,14 @@ None of this is in the repository; each step is done once, by a maintainer.
 
 1. **`PACKAGING_TOKEN`**: a classic personal access token with the `public_repo` scope, from an account that can push to `sinhong2011/homebrew-tap` and `sinhong2011/scoop-bucket`. Add it under *Settings › Secrets and variables › Actions*. A fine-grained token does not work for winget, which forks `microsoft/winget-pkgs` and opens a pull request from the fork.
 2. **Scoop bucket**: create the public repository `sinhong2011/scoop-bucket` with an empty `bucket/` folder (a `README.md` with the two `scoop` commands helps).
-3. **winget**: fork `microsoft/winget-pkgs` under the token's account. The automatic update needs a version already in winget, so submit the first one by hand: render the manifests from a published Release (`gh release download v0.2.0 --dir assets --pattern '*.exe' --pattern '*.dmg' --pattern '*.deb'`, then `scripts/packages.sh render 0.2.0 assets out`), check them with `winget validate out/winget/manifests/m/Mypack/Mypack/0.2.0` on Windows, and open the pull request with those three files (or `wingetcreate submit`). Until that first version is merged, the winget job skips with a notice instead of failing the release. Later versions are opened by the winget job with [komac](https://github.com/russellbanks/Komac) through `vedantmgoyal9/winget-releaser`. Microsoft reviews each pull request; it can take a few days.
+3. **winget**: fork `microsoft/winget-pkgs` under the token's account. The automatic update needs a version already in winget, so submit the first one by hand: render the manifests from a published Release (`gh release download v0.2.0 --dir assets --pattern '*.exe' --pattern '*.dmg' --pattern '*.deb'`, then `scripts/packages.sh render 0.2.0 assets out`), check them with `winget validate out/winget/manifests/m/MyPack/MyPack/0.2.0` on Windows, and open the pull request with those three files (or `wingetcreate submit`). Until that first version is merged, the winget job skips with a notice instead of failing the release. Later versions are opened by the winget job with [komac](https://github.com/russellbanks/Komac) through `vedantmgoyal9/winget-releaser`. Microsoft reviews each pull request; it can take a few days.
 4. **Chocolatey**: create an account on [community.chocolatey.org](https://community.chocolatey.org), copy the API key from your account page into `CHOCOLATEY_API_KEY`. Every version goes through Chocolatey's automated checks and human moderation before it is listed; the first can take a while.
 5. **AUR**: create an account on [aur.archlinux.org](https://aur.archlinux.org) with a dedicated SSH key (`ssh-keygen -t ed25519 -f aur -C mypack-aur`), add the public half to the account, and put the private half in `AUR_SSH_PRIVATE_KEY`. The job's first push creates `mypack-bin`.
 6. **APT and RPM repositories**: make a signing key for the repositories alone, without a passphrase, and keep a copy offline:
 
    ```sh
-   gpg --batch --passphrase '' --quick-gen-key 'Mypack packages <packages@mypack.dev>' ed25519 sign 3y
-   gpg --armor --export-secret-keys 'Mypack packages' > mypack-packages.key   # into LINUX_REPO_GPG_KEY, then delete
+   gpg --batch --passphrase '' --quick-gen-key 'MyPack packages <packages@mypack.dev>' ed25519 sign 3y
+   gpg --armor --export-secret-keys 'MyPack packages' > mypack-packages.key   # into LINUX_REPO_GPG_KEY, then delete
    ```
 
    After the first release has run the linux-repo job, turn on GitHub Pages: *Settings › Pages › Deploy from a branch*, `gh-pages`, `/ (root)`. The job rewrites `gh-pages` as a single commit each release and keeps the newest five versions (`KEEP` in `scripts/linux-repo.sh`), so the branch does not grow with every release. Before the key expires, extend it (`gpg --quick-set-expire`), update the secret, and run the job again; users' copies of `mypack.gpg` need the new expiry, so mention it in the release notes. Rotating to a new key means every user re-downloads `mypack.gpg`.

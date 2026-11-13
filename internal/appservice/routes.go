@@ -16,7 +16,7 @@ import (
 )
 
 // Link routing: generated apps read <UserConfigDir>/mypack-apps/routes.json
-// (runtime/routing) to open a clicked link in the Mypack app that owns its
+// (runtime/routing) to open a clicked link in the MyPack app that owns its
 // host instead of the browser. The Builder is the only writer. The table is
 // rewritten whenever installations change (install, update, repair,
 // uninstall, relocate, forget, external changes) and when the service starts.

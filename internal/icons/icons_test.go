@@ -178,7 +178,7 @@ func TestICODecodeBMPAndPNG(t *testing.T) {
 }
 
 func TestICOWriter(t *testing.T) {
-	src := Default("Mypack")
+	src := Default("MyPack")
 	ico, err := ICO(src)
 	if err != nil {
 		t.Fatal(err)

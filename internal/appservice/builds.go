@@ -217,7 +217,7 @@ func (s *Impl) ApproveJob(ctx context.Context, jobID, actor string) (err error) 
 	defer func() { s.audit(ctx, actor, "job.approve", jobID, err) }()
 	if isMCPActor(actor) {
 		return newErr(CodeApprovalRequired, "An agent cannot approve this build.",
-			"Approve it in the mypack app or with the mypack CLI.")
+			"Approve it in the MyPack app or with the mypack CLI.")
 	}
 	job, err := s.store.GetJob(ctx, jobID)
 	if err != nil {

@@ -10,7 +10,7 @@ All new fields are optional and additive in `mypack.json`. Absent = the default 
 |---|---|---|---|---|
 | `native.notifications` | `"allow"`, `"ask"`, `"deny"` | `allow` (treat empty as allow) | 3-way segmented control "Notifications: Allow / Ask first / Off" | Settings > Native |
 | `native.badge` | `"auto"`, `"off"` | `auto` | Switch "Show unread count on the Dock/taskbar icon" (on = auto) | Settings > Native |
-| `native.linkRouting` | `true`/`false` (pointer; absent = true) | true | Switch "Open links in my other Mypack apps". Off also removes this app from other apps' routing table | Settings > Navigation |
+| `native.linkRouting` | `true`/`false` (pointer; absent = true) | true | Switch "Open links in my other MyPack apps". Off also removes this app from other apps' routing table | Settings > Navigation |
 | `webview.userAgentPreset` | `"safari"`, `"chrome"`, `"edge"`, `"firefox"`, `"mobile-safari"`, `"custom"` | `safari` (empty) | Popup menu "Browser identity". Show the free-text `webview.userAgent` field only for `custom` | Settings > Advanced |
 
 Rules for the UA control:
@@ -42,5 +42,5 @@ No questions needed. Keep defaults (allow / auto / routing on / safari). Optiona
 - Linux popups (OAuth sign-in) open as independent pages without `window.opener` (WebKitGTK limitation, MyGo docs); prefer redirect-based sign-in there.
 
 ## Things the GUI must NOT do
-- Do not register http/https handling for generated apps. Routing is only Mypack app to Mypack app.
+- Do not register http/https handling for generated apps. Routing is only MyPack app to MyPack app.
 - Do not write routes.json from the GUI; call the service.

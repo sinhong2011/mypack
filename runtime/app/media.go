@@ -35,7 +35,7 @@ type MediaReport struct {
 }
 
 // mediaKeysSupported: WebView2 already hands the media keys and the Windows
-// media controls to the page, so Mypack stays out of the way there.
+// media controls to the page, so MyPack stays out of the way there.
 func mediaKeysSupported() bool { return runtime.GOOS != "windows" }
 
 // nowPlaying is the part of mygo.NowPlaying the controller uses.

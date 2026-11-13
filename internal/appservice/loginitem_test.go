@@ -52,7 +52,7 @@ func TestOpenAtLoginReadsTheSystem(t *testing.T) {
 	if on, err := e.svc.OpenAtLogin(ctx); err != nil || on {
 		t.Fatalf("OpenAtLogin = %v, %v; want false", on, err)
 	}
-	// Turned on outside Mypack (System Settings, Task Manager): it shows.
+	// Turned on outside MyPack (System Settings, Task Manager): it shows.
 	l.mu.Lock()
 	l.on = true
 	l.mu.Unlock()

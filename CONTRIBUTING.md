@@ -1,6 +1,6 @@
-# Contributing to Mypack
+# Contributing to MyPack
 
-Thanks for helping. Mypack's promise is simple: paste a URL, get a reliable
+Thanks for helping. MyPack's promise is simple: paste a URL, get a reliable
 desktop app, and keep it updated, repairable and safe to roll back. Changes that
 make that core flow faster, clearer or more reliable are the most welcome.
 
@@ -46,7 +46,7 @@ Read [ARCHITECTURE.md](ARCHITECTURE.md) before larger changes. In short:
   server all use. Put behaviour there, not in a front end.
 - Errors are `*domain.Error` with a stable `Code`. The CLI maps codes to exit
   codes, so don't rename existing ones.
-- Generated apps (`runtime/`) must keep working when Mypack is uninstalled.
+- Generated apps (`runtime/`) must keep working when MyPack is uninstalled.
 
 ## Releases
 
@@ -67,7 +67,7 @@ title for someone reading the release notes.
 
 ## License of contributions
 
-Mypack is licensed under the [Apache License 2.0](LICENSE). Unless you say
+MyPack is licensed under the [Apache License 2.0](LICENSE). Unless you say
 otherwise, any contribution you submit is licensed under the same terms, as
 described in section 5 of the license. There is no separate contributor
 agreement to sign.

@@ -156,7 +156,7 @@ func Run(svc appservice.Service) error {
 	i18n.SetLocale(a.settings.Language)
 	applyAppearance(a.settings.Appearance)
 
-	mygo.App.SetName("Mypack") // the display name; data folders keep their paths
+	mygo.App.SetName("MyPack") // the display name; data folders keep their paths
 	mygo.App.SetVersion(Version)
 	if !mygo.App.RequestSingleInstanceLock() {
 		return nil
@@ -180,7 +180,7 @@ func Run(svc appservice.Service) error {
 
 	mygo.App.WhenReady(func() {
 		a.win = mygo.NewWindow(mygo.WindowOptions{
-			Title:                "Mypack",
+			Title:                "MyPack",
 			Width:                1200,
 			Height:               780,
 			MinWidth:             880,

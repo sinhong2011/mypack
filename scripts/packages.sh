@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Writes the package-manager manifests for one Mypack release from the
+# Writes the package-manager manifests for one MyPack release from the
 # installers on its GitHub Release: a Homebrew cask, a Scoop manifest,
 # winget manifests, a Chocolatey package and an AUR PKGBUILD. The Release
 # workflow runs it and publishes each one whose secret is set. See
@@ -14,7 +14,7 @@ set -euo pipefail
 repo=sinhong2011/mypack
 homepage="https://github.com/$repo"
 desc="Turn any website or local HTML project into a native desktop app"
-winget_id=Mypack.Mypack
+winget_id=MyPack.MyPack
 
 sha256() {
   if command -v sha256sum >/dev/null; then sha256sum "$1" | cut -d' ' -f1
@@ -49,7 +49,7 @@ cask "mypack" do
   sha256 "$(sha256 "$dir/$dmg")"
 
   url "$homepage/releases/download/v#{version}/mypack-#{version}.dmg"
-  name "Mypack"
+  name "MyPack"
   desc "$desc"
   homepage "$homepage"
 
@@ -60,8 +60,8 @@ cask "mypack" do
 
   depends_on macos: ">= :monterey"
 
-  app "Mypack.app"
-  binary "#{appdir}/Mypack.app/Contents/MacOS/Mypack", target: "mypack"
+  app "MyPack.app"
+  binary "#{appdir}/MyPack.app/Contents/MacOS/MyPack", target: "mypack"
 
   zap trash: [
     "~/Library/Application Support/mypack",
@@ -101,8 +101,8 @@ scoop() {
   "uninstaller": {
     "script": "if (Test-Path \"\$dir\\\\Uninstall.exe\") { Start-Process -Wait \"\$dir\\\\Uninstall.exe\" -ArgumentList '/S', \"_?=\$dir\" }"
   },
-  "bin": [["Mypack.exe", "mypack"]],
-  "shortcuts": [["Mypack.exe", "Mypack"]],
+  "bin": [["MyPack.exe", "mypack"]],
+  "shortcuts": [["MyPack.exe", "MyPack"]],
   "checkver": "github",
   "autoupdate": {
     "architecture": {
@@ -117,7 +117,7 @@ EOF
 # winget: the three manifests of one version, for the first submission by
 # hand; later versions are updated by the Release workflow (komac).
 winget() {
-  local w="$out/winget/manifests/m/Mypack/Mypack/$version"
+  local w="$out/winget/manifests/m/MyPack/MyPack/$version"
   mkdir -p "$w"
   cat >"$w/$winget_id.yaml" <<EOF
 PackageIdentifier: $winget_id
@@ -152,10 +152,10 @@ EOF
 PackageIdentifier: $winget_id
 PackageVersion: $version
 PackageLocale: en-US
-Publisher: Mypack
+Publisher: MyPack
 PublisherUrl: $homepage
 PublisherSupportUrl: $homepage/issues
-PackageName: Mypack
+PackageName: MyPack
 PackageUrl: $homepage
 License: Apache-2.0
 LicenseUrl: $homepage/blob/main/LICENSE
@@ -179,8 +179,8 @@ chocolatey() {
   <metadata>
     <id>mypack</id>
     <version>$version</version>
-    <title>Mypack</title>
-    <authors>Mypack contributors</authors>
+    <title>MyPack</title>
+    <authors>MyPack contributors</authors>
     <owners>sinhong2011</owners>
     <projectUrl>$homepage</projectUrl>
     <licenseUrl>$homepage/blob/main/LICENSE</licenseUrl>
@@ -191,7 +191,7 @@ chocolatey() {
     <releaseNotes>$homepage/releases/tag/v$version</releaseNotes>
     <tags>mypack desktop webview website app-builder</tags>
     <summary>$desc.</summary>
-    <description>Mypack turns a website, or a local HTML project, into a real, standalone desktop app in a few clicks. Every app has its own name, icon and sign-in, and uses the system WebView (WebView2).</description>
+    <description>MyPack turns a website, or a local HTML project, into a real, standalone desktop app in a few clicks. Every app has its own name, icon and sign-in, and uses the system WebView (WebView2).</description>
   </metadata>
   <files>
     <file src="tools\**" target="tools" />
@@ -220,7 +220,7 @@ aur() {
   local a="$out/aur" pkgver=${version//-/}
   mkdir -p "$a"
   cat >"$a/PKGBUILD" <<EOF
-# Maintainer: Mypack contributors <$homepage>
+# Maintainer: MyPack contributors <$homepage>
 # Written by scripts/packages.sh in $repo; edit it there.
 pkgname=mypack-bin
 pkgver=$pkgver
@@ -316,7 +316,7 @@ self_test() {
   fi
   grep -q "pkgver=1.2.3$" "$t/out/aur/PKGBUILD"
   grep -q "InstallerUrl: https://github.com/$repo/releases/download/v1.2.3/mypack-setup-1.2.3-arm64.exe" \
-    "$t/out/winget/manifests/m/Mypack/Mypack/1.2.3/$winget_id.installer.yaml"
+    "$t/out/winget/manifests/m/MyPack/MyPack/1.2.3/$winget_id.installer.yaml"
   assets 0.2.0-beta.1
   [[ $deb_amd64 == "mypack_0.2.0~beta.1_amd64.deb" && $rpm_arm64 == "mypack-0.2.0~beta.1-1.aarch64.rpm" ]]
   echo "packages.sh: examples pass"

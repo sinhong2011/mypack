@@ -1,6 +1,6 @@
 # Security policy
 
-Mypack downloads signed runtimes, installs apps and stores website sessions, so
+MyPack downloads signed runtimes, installs apps and stores website sessions, so
 security reports matter a lot to us.
 
 ## Reporting a vulnerability
@@ -13,7 +13,7 @@ Please include:
 
 - what an attacker could do, and what they need first (local access, a
   malicious website, a modified registry, …)
-- steps to reproduce, and the Mypack version and operating system
+- steps to reproduce, and the MyPack version and operating system
 - any proof-of-concept you have
 
 We aim to reply within 7 days and to agree on a disclosure date with you. We

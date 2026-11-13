@@ -87,7 +87,7 @@ type Options struct {
 	// else <UserConfigDir>/mypack-apps/routes.json; "-" disables writing.
 	RoutesFile string
 
-	// LoginItem starts Mypack at login (OpenAtLogin). Only the GUI sets it;
+	// LoginItem starts MyPack at login (OpenAtLogin). Only the GUI sets it;
 	// without one, OpenAtLogin and SetOpenAtLogin return UNSUPPORTED.
 	LoginItem LoginItem
 }

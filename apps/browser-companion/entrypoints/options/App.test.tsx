@@ -34,7 +34,7 @@ it('shows the stored language and saves a new choice', async () => {
 
   select.value = 'ja';
   select.dispatchEvent(new Event('change'));
-  await vi.waitFor(() => expect(root.querySelector('h1')?.textContent).toBe('mypack コンパニオンの設定'));
+  await vi.waitFor(() => expect(root.querySelector('h1')?.textContent).toBe('MyPack コンパニオンの設定'));
   expect(store.language).toBe('ja');
   expect(select.value).toBe('ja');
 });

@@ -11,7 +11,7 @@ import (
 	"mypack.dev/mypack/runtime/routing"
 )
 
-// openLink opens an http(s) link that leaves this app: in the Mypack app that
+// openLink opens an http(s) link that leaves this app: in the MyPack app that
 // owns its host when link routing finds one, else in the default browser.
 func (a *App) openLink(raw string) {
 	if e, ok := a.routeTarget(raw); ok {
@@ -31,7 +31,7 @@ func (a *App) openLink(raw string) {
 	openExternal(raw)
 }
 
-// routeTarget returns the other installed Mypack app that owns raw's host.
+// routeTarget returns the other installed MyPack app that owns raw's host.
 func (a *App) routeTarget(raw string) (routing.Entry, bool) {
 	if !a.cfg.Native.LinkRoutingEnabled() {
 		return routing.Entry{}, false
