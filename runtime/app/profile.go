@@ -175,3 +175,10 @@ func clampZoom(z int) int {
 	}
 	return z
 }
+
+// SavedTab is a tab kept in state.json.
+type SavedTab struct {
+	URL    string `json:"url"`
+	Title  string `json:"title,omitempty"`
+	Pinned bool   `json:"pinned,omitempty"`
+}

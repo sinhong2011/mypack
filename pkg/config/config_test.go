@@ -72,7 +72,7 @@ func TestProjectBuildValidation(t *testing.T) {
 
 func TestNativeAndUAPresetDefaults(t *testing.T) {
 	c := New("Mail", Source{Type: SourceURL, Value: "https://mail.example.com"}, Target{OS: "darwin", Arch: "arm64"})
-	if c.Runtime.Version != DefaultRuntimeVersion || DefaultRuntimeVersion != "1.0.9" {
+	if c.Runtime.Version != DefaultRuntimeVersion || DefaultRuntimeVersion != "1.0.10" {
 		t.Fatalf("runtime version = %q", c.Runtime.Version)
 	}
 	if c.Native.NotificationsMode() != "allow" || c.Native.BadgeMode() != "auto" || !c.Native.LinkRoutingEnabled() {
@@ -414,5 +414,43 @@ func TestDefaultRuntimeCoversEveryFeature(t *testing.T) {
 		if min := c.MinRuntime(); min == "" || !RuntimeAtLeast(DefaultRuntimeVersion, min) {
 			t.Errorf("%s needs runtime %q, newer than DefaultRuntimeVersion %s: bump it and publish that runtime", name, min, DefaultRuntimeVersion)
 		}
+	}
+}
+
+func TestRuntimeTier(t *testing.T) {
+	host := Target{OS: "darwin", Arch: "arm64"}
+	fresh := func() *Config {
+		c := New("Docs", Source{Type: SourceURL, Value: "https://docs.example.com"}, host)
+		c.ApplyDefaults(host)
+		return c
+	}
+	if c := fresh(); c.RuntimeTier() != TierLite || len(c.FullRuntimeFeatures()) != 0 {
+		t.Fatalf("a plain website app should be lite: %v", c.FullRuntimeFeatures())
+	}
+	if c := fresh(); func() bool { c.Runtime.Version = "1.0.9"; return c.RuntimeTier() != TierFull }() {
+		t.Fatal("runtimes before LiteRuntimeSince are full only")
+	}
+	no := false
+	for name, set := range map[string]func(c *Config){
+		"hidden title bar": func(c *Config) { c.Window.TitleBarStyle = "hidden" },
+		"glass":            func(c *Config) { c.Window.TitleBarStyle = "glass" },
+		"tabs":             func(c *Config) { c.Window.Tabs = true },
+		"find":             func(c *Config) { c.WebView.FindInPage = true },
+		"basic auth":       func(c *Config) { c.Network.BasicAuthUser = "me" },
+		"group": func(c *Config) {
+			c.App.Group = &GroupConfig{Members: []GroupMember{{Name: "A"}}}
+		},
+	} {
+		c := fresh()
+		set(c)
+		if c.RuntimeTier() != TierFull {
+			t.Errorf("%s should need the full runtime", name)
+		}
+	}
+	// A frameless window keeps the injected drag region, not the strip.
+	c := fresh()
+	c.Window.TitleBarStyle, c.Window.Decorations = "overlay", &no
+	if c.RuntimeTier() != TierLite {
+		t.Fatalf("frameless overlay should be lite: %v", c.FullRuntimeFeatures())
 	}
 }

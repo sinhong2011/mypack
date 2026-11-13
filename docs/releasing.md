@@ -179,14 +179,16 @@ That Release holds `registry.json`, its signature `registry.json.sig`, and every
 **Publishing a runtime version.** Bump `DefaultRuntimeVersion` in `pkg/config/config.go` whenever `Config.MinRuntime()` asks for a newer runtime (`TestDefaultRuntimeCoversEveryFeature` fails until you do), or the installer bundles a runtime too old for that feature and its projects download one on first build. Then run the workflow before you tag an app release that asks for that version:
 
 ```sh
-gh workflow run runtimes.yml -f version=1.0.9
+gh workflow run runtimes.yml -f version=1.0.10
 ```
+
+Each target is built twice, full and lite (`TIERS`, default `full lite`; the lite build adds `-tags mypack_lite`), so a version publishes `mypack-runtime-<v>-<os>-<arch>.tar.gz` and `…-<arch>-lite.tar.gz`. Installers bundle both tiers from `LiteRuntimeSince` on: Windows and Linux ship both archives; macOS ships `bin/mypack-runtime` and `bin/mypack-runtime-lite`, both signed by `mygo build`. See ARCHITECTURE.md › Runtime tiers.
 
 The workflow builds every target on macOS (for the universal binary), downloads the current `registry.json`, adds the new version to it (`signregistry registry -flat -merge`, so older versions stay listed), signs it with the next sequence number, checks that the key matches `registry.pub`, and uploads the archives, then the manifest. A version that is already on the Release is refused: archives are immutable. The manifest expires 365 days after it is signed, so publish a runtime version at least once a year.
 
 **Rotating the key.** Generate a new pair with `go run ./scripts/signregistry keygen -keys dist/keys-new`, add the new public key as a second line of `registry.pub`, ship an app release, then set `REGISTRY_SIGNING_KEY` to the new private key. Remove the old line once no supported release needs it.
 
-A macOS `.dmg` carries `registry.json` and a signed `bin/mypack-runtime` helper. Each Windows setup and Linux package carries that architecture's archive. `darwin-universal` and other platforms stay on the Release for cross-builds.
+A macOS `.dmg` carries `registry.json` and signed `bin/mypack-runtime` and `bin/mypack-runtime-lite` helpers. Each Windows setup and Linux package carries that architecture's archives, full and lite. `darwin-universal` and other platforms stay on the Release for cross-builds.
 
 **Development.** `make gui` / `make run` still use the dev key in `dist/keys/` and a `file://` registry in `dist/registry/`. `MYPACK_REGISTRY`, `MYPACK_TRUSTED_KEY` and Settings › Runtime registry override the production registry for self-hosted mirrors. `MYPACK_BUNDLED_RUNTIMES` points at a local bundle directory (the same layout as `resources/runtimes/`).
 
