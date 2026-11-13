@@ -864,14 +864,15 @@ func (a *App) tileActions(c *ui.Context, d tileData, size float32, show bool) {
 			if d.run != nil {
 				act := ui.ButtonBase(c.Key("launch")).Label(d.action + " " + d.name).Row().Height(h - 4).PaddingX(8).Gap(4).
 					AlignItems(ui.Center).Radius((h - 4) / 2).Cursor(ui.CursorPointer)
-				fg := p.AccentText
+				// Monochrome, as system chrome: the label in the text colour,
+				// its glyph a step quieter, and the same neutral hover as More.
 				if act.Hovered() {
-					act.Background(p.AccentSoft)
+					act.Background(p.Hover)
 				}
 				kit.Press(act, false, act.Pressed(), 0)
 				act.Children(func() {
-					kit.Glyph(c, d.actionIcon, 12, fg)
-					ui.Text(c, d.action).FontSize(design.FontCaption).FontWeight(design.WeightSemibold).TextColor(fg).
+					kit.Glyph(c, d.actionIcon, 12, p.TextSecondary)
+					ui.Text(c, d.action).FontSize(design.FontCaption).FontWeight(design.WeightMedium).TextColor(p.Text).
 						SingleLine().MaxWidth(size)
 				})
 				if act.Clicked() {
