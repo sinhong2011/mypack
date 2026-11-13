@@ -340,6 +340,17 @@ func (a *App) detailsModal(c *ui.Context, u *detailsDialog, in *domain.Installat
 					st, tone := a.installStatus(in)
 					kit.StatusPill(c, st, tone).Margin(2, 0, 0, 0)
 				})
+				// The primary action sits top right, beside the name, so it
+				// keeps one place whatever the secondary actions below are.
+				ui.Box(c).AlignSelf(ui.Start).Shrink(0).Children(func() {
+					if in.State == domain.InstallMissing {
+						if kit.Button(c.Key("locate"), T("action.locate"), kit.ButtonOpts{Variant: kit.Primary, Icon: icons.Folder}).MinWidth(96).Clicked() {
+							a.locateApp(in.ID)
+						}
+					} else if kit.Button(c.Key("open"), T("action.open"), kit.ButtonOpts{Variant: kit.Primary, Icon: icons.Rocket}).MinWidth(96).Clicked() {
+						a.openInstall(in.ID)
+					}
+				})
 			})
 			switch in.State {
 			case domain.InstallMissing:
@@ -482,13 +493,6 @@ func (a *App) detailsActions(c *ui.Context, u *detailsDialog, in *domain.Install
 			a.create.reset(a.host)
 			a.create.setInput(in.SourceURL)
 			a.nav(secCreate)
-		}
-		if missing {
-			if kit.Button(c.Key("locate"), T("action.locate"), kit.ButtonOpts{Variant: kit.Primary, Icon: icons.Folder}).MinWidth(96).Clicked() {
-				a.locateApp(in.ID)
-			}
-		} else if kit.Button(c.Key("open"), T("action.open"), kit.ButtonOpts{Variant: kit.Primary, Icon: icons.Rocket}).MinWidth(96).Clicked() {
-			a.openInstall(in.ID)
 		}
 	})
 }
