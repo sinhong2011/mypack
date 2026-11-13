@@ -98,6 +98,8 @@
   "create.icon.choose": "画像を選択…",
   "create.icon.filter": "画像",
   "create.icon.reset": "Webサイトのアイコンを使用",
+  "icon.from": "{provider} からアイコンを取得",
+  "icon.from.done": "{name} のアイコンを {provider} から取得しました。",
   "create.name.label": "アプリ名",
   "create.name.placeholder": "アプリに名前を付ける",
   "create.name.tip": "クリックして名前を変更",

@@ -248,7 +248,7 @@ func (a *App) settingsEditor(c *ui.Context, ed *editorState, pr *domain.Project)
 	q := strings.TrimSpace(ed.query)
 	// The same grouped card as the common settings above: each group is a
 	// row (icon, name, summary, chevron) and opens in place into its own
-	// hairline rows, indented to the name.
+	// hairline rows, flush with the card's edge.
 	type shownGroup struct {
 		g    settingGroup
 		rows []setting
@@ -328,7 +328,7 @@ func (a *App) settingsEditor(c *ui.Context, ed *editorState, pr *domain.Project)
 							}
 						}
 						if open {
-							kit.Reveal(ui.Column(c.Key("body")).Padding(0, 0, 4, 32).BorderWidth(0.5, 0, 0, 0).BorderColor(p.Divider).
+							kit.Reveal(ui.Column(c.Key("body")).Padding(0, 0, 4, 0).BorderWidth(0.5, 0, 0, 0).BorderColor(p.Divider).
 								Dividers(0.5, p.Divider)).Children(func() {
 								for k, r := range rows {
 									r := r
