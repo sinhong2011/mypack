@@ -337,6 +337,8 @@
   "runtime.first.size": "サイズ",
   "runtime.first.source": "入手元",
   "runtime.first.title": "1回だけのダウンロード",
+  "runtime.ask.detail": "{size} · 署名済み · 一度だけダウンロードし、すべてのアプリで使用",
+  "runtime.ask.title": "アプリエンジンを取得しますか？",
   "runtimes.cached": "未検証",
   "runtimes.col.lastUsed": "最終使用",
   "runtimes.col.platform": "プラットフォーム",

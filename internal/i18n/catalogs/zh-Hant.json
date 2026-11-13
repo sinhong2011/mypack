@@ -337,6 +337,8 @@
   "runtime.first.size": "大小",
   "runtime.first.source": "來源",
   "runtime.first.title": "一次性下載",
+  "runtime.ask.detail": "{size} · 已簽署 · 只需下載一次，所有 App 通用",
+  "runtime.ask.title": "取得 App 引擎？",
   "runtimes.cached": "未驗證",
   "runtimes.col.lastUsed": "上次使用",
   "runtimes.col.platform": "平台",
