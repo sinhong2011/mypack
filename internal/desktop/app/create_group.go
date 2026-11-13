@@ -32,7 +32,8 @@ func (a *App) createSites(c *ui.Context) {
 		return
 	}
 	p := design.Of(c)
-	ui.Column(c.Key("sites")).AlignItems(ui.Center).Gap(8).Margin(10, 0, 0, 0).Children(func() {
+	// It folds away as the build starts, so the stage under it glides up.
+	kit.Arrive(ui.Column(c.Key("sites")).AlignItems(ui.Center).Gap(8).Margin(10, 0, 0, 0)).Children(func() {
 		ui.Row(c).Gap(6).AlignItems(ui.Center).Justify(ui.Center).Wrap().Children(func() {
 			if s.isGroup() {
 				a.siteChip(c.Key("main"), a.createMainIcon(), s.mainName(), nil)

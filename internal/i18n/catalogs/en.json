@@ -337,6 +337,8 @@
   "runtime.first.size": "Size",
   "runtime.first.source": "Source",
   "runtime.first.title": "One-time download",
+  "runtime.ask.detail": "{size} · signed · downloaded once for all your apps",
+  "runtime.ask.title": "Get the app engine?",
   "runtimes.cached": "Not verified",
   "runtimes.col.lastUsed": "Last used",
   "runtimes.col.platform": "Platform",

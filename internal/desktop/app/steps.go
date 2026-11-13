@@ -409,6 +409,12 @@ func (a *App) buildFooter(c *ui.Context, pr *domain.Project, j *domain.BuildJob)
 	_, states := a.jobSteps(pr, j)
 	switch {
 	case j.Status == domain.JobCancelled:
+	case j.Status == domain.JobAwaitingApproval:
+		// The runtime download is asked here, as the caption; the
+		// project's own build asks in the stage.
+		if asksRuntime(j) {
+			a.runtimeAsk(c, j)
+		}
 	case j.Status == domain.JobFailed:
 		ui.Column(c.Key("failed")).AlignItems(ui.Center).Gap(14).Children(func() {
 			a.buildSteps(c, pr, j, false, false)
