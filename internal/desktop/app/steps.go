@@ -140,6 +140,10 @@ type stepTrack struct {
 	started map[stepKind]time.Time
 	ended   map[stepKind]time.Time
 	open    bool // the folded summary was opened
+	// doneAt is when the list was first seen finished; settled marks a
+	// build that was already finished when first shown (no finale).
+	doneAt  time.Time
+	settled bool
 }
 
 func newStepTrack(plan []stepKind) *stepTrack {
@@ -243,6 +247,7 @@ func (a *App) jobSteps(pr *domain.Project, j *domain.BuildJob) (*stepTrack, []ki
 	}
 	t := a.steps[j.ID]
 	plan := stepPlan(jobBuildsProject(*j), a.jobNeedsDownload(*j), a.jobInstalls(*j))
+	fresh := t == nil
 	if t == nil {
 		t = newStepTrack(plan)
 		a.steps[j.ID] = t
@@ -260,22 +265,35 @@ func (a *App) jobSteps(pr *domain.Project, j *domain.BuildJob) (*stepTrack, []ki
 	case domain.JobSucceeded:
 		ph = phaseBuilt
 		if pr != nil {
-			si := a.successOf(pr, j)
 			opened, auto := a.autoOpen[j.ID]
-			switch {
-			case si.installed && (!auto || !opened.IsZero()):
-				ph = phaseInstalled
-			case auto:
-				ph = phaseInstalling
-			case !a.jobInstalls(*j):
-			default:
-				ph = phaseNotInstalled
-			}
+			ph = builtPhase(a.successOf(pr, j).installed, auto, !opened.IsZero(), a.jobInstalls(*j))
 		}
 	}
 	states := stepStates(t.plan, stepAt(j.Stage, t.plan), ph)
-	t.observe(states, time.Now())
+	now := time.Now()
+	t.observe(states, now)
+	if stepsDone(states) && t.doneAt.IsZero() {
+		t.doneAt, t.settled = now, fresh
+	}
 	return t, states
+}
+
+// builtPhase is where a built build is with its Install & Open: installed
+// (this build's app is the one installed), installing (an automatic
+// Install & Open started and has not opened yet), or not installed. An
+// automatic Install & Open that already opened is over: once that app is
+// uninstalled or replaced, the build is back to not installed, not
+// installing for ever.
+func builtPhase(installed, auto, opened, installs bool) stepPhase {
+	switch {
+	case auto && !opened:
+		return phaseInstalling
+	case installed:
+		return phaseInstalled
+	case !installs:
+		return phaseBuilt
+	}
+	return phaseNotInstalled
 }
 
 // stepsDone reports whether the list has given way to the result: the
@@ -293,6 +311,10 @@ func stepsDone(states []kit.StepState) bool {
 // stage, with Cancel (Esc) under it while it runs. compact drops the
 // opened rows and Cancel (the flyout, the HUD).
 func (a *App) buildSteps(c *ui.Context, pr *domain.Project, j *domain.BuildJob, compact, onDark bool) {
+	if !compact && j.Status != domain.JobFailed && j.Status != domain.JobCancelled && j.Status != domain.JobAwaitingApproval {
+		a.magicCaption(c, pr, j)
+		return
+	}
 	t, states := a.jobSteps(pr, j)
 	// The status block's clock still runs: it is the scene's single
 	// source of truth for its progress, and it throttles the detail.
@@ -316,6 +338,7 @@ func (a *App) buildSteps(c *ui.Context, pr *domain.Project, j *domain.BuildJob, 
 			r.Right = secs(t.took(k))
 			r.DoneAt = t.ended[k]
 		case kit.StepActive:
+			r.StartedAt = t.started[k]
 			switch k {
 			case stepEngine:
 				r.Right = st.detail

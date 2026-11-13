@@ -144,3 +144,29 @@ func TestPlainErrorAndFixes(t *testing.T) {
 		t.Errorf("SIGNING_FAILED with no retry: %d fixes", len(fx))
 	}
 }
+
+func TestBuiltPhase(t *testing.T) {
+	for _, tc := range []struct {
+		name                              string
+		installed, auto, opened, installs bool
+		want                              stepPhase
+	}{
+		{"auto install under way", false, true, false, true, phaseInstalling},
+		{"auto install done, not opened yet", true, true, false, true, phaseInstalling},
+		{"auto installed and opened", true, true, true, true, phaseInstalled},
+		{"installed by hand", true, false, false, true, phaseInstalled},
+		{"auto installed, then uninstalled", false, true, true, true, phaseNotInstalled},
+		{"never installed", false, false, false, true, phaseNotInstalled},
+		{"Install & Open off", false, false, false, false, phaseBuilt},
+	} {
+		if got := builtPhase(tc.installed, tc.auto, tc.opened, tc.installs); got != tc.want {
+			t.Errorf("%s: builtPhase = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+	// Uninstalled after its auto Install & Open: the list gives way to the
+	// result bar instead of spinning on Install & Open.
+	plan := stepPlan(false, false, true)
+	if !stepsDone(stepStates(plan, stepCheck, builtPhase(false, true, true, true))) {
+		t.Error("an uninstalled build's steps should be done")
+	}
+}
