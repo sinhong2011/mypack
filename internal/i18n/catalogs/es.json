@@ -337,6 +337,8 @@
   "runtime.first.size": "Tamaño",
   "runtime.first.source": "Origen",
   "runtime.first.title": "Descarga única",
+  "runtime.ask.detail": "{size} · firmado · se descarga una vez para todas tus apps",
+  "runtime.ask.title": "¿Descargar el motor de apps?",
   "runtimes.cached": "Sin verificar",
   "runtimes.col.lastUsed": "Último uso",
   "runtimes.col.platform": "Plataforma",

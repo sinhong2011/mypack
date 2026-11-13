@@ -66,36 +66,12 @@ type RuntimeDownloadInfo struct {
 	Size, Source, Cache              string
 	Approve, Cancel                  string
 	Busy                             bool
-	// Inline draws it as the content of the surface it sits on (the
-	// build stage), centred, with no card of its own: a glyph, the
-	// title, one sentence, the facts in one quiet line (the cache folder
-	// in its tooltip) and the two buttons.
-	Inline bool
 }
 
 // RuntimeDownloadCard asks once for the runtime download (spec §9C.9).
 // It returns (approve, cancel).
 func RuntimeDownloadCard(c *ui.Context, d RuntimeDownloadInfo) (approve, cancel bool) {
 	p := design.Of(c)
-	if d.Inline {
-		ui.Column(c).FillWidth().AlignItems(ui.Center).Gap(0).Children(func() {
-			Pop(ui.Row(c.Key("glyph")).Size(56, 56).Radius(28).Center().Background(p.AccentSoft)).Children(func() {
-				Glyph(c, icons.Download, 26, p.AccentText)
-			})
-			ui.Text(c, d.Title).FontSize(design.FontTitle2).FontWeight(design.WeightSemibold).TextColor(p.Text).
-				TextAlign(ui.Center).Margin(16, 0, 0, 0)
-			ui.Text(c, d.Body).FontSize(design.FontBody).TextColor(p.TextSecondary).LineHeight(1.4).
-				TextAlign(ui.Center).MaxWidth(400).Margin(6, 0, 0, 0)
-			ui.Text(c, d.Size+" · "+d.Source).FontSize(design.FontSmall).TextColor(p.TextTertiary).FontFeatures("tnum").
-				TextAlign(ui.Center).Margin(10, 0, 0, 0).Tooltip(d.CacheLbl + ": " + d.Cache)
-			ui.Row(c).Gap(8).Justify(ui.Center).Margin(20, 0, 0, 0).Children(func() {
-				cancel = Button(c.Key("cancel"), d.Cancel, ButtonOpts{Variant: Ghost, Size: design.ControlLG}).Clicked() || c.Shortcut(0, ui.KeyEscape)
-				approve = Button(c.Key("approve"), d.Approve, ButtonOpts{Variant: Primary, Size: design.ControlLG, Loading: d.Busy, Icon: icons.Download}).Clicked() ||
-					(!d.Busy && c.Shortcut(0, ui.KeyEnter))
-			})
-		})
-		return
-	}
 	Card(c).Padding(22).Gap(16).Children(func() {
 		ui.Row(c).Gap(14).AlignItems(ui.Start).Children(func() {
 			ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {

@@ -74,7 +74,7 @@ func (a *App) buildPanel(c *ui.Context, pr *domain.Project, j *domain.BuildJob) 
 	}
 	switch j.Status {
 	case domain.JobAwaitingApproval:
-		a.approvalCard(c, j, false)
+		a.approvalCard(c, j)
 	case domain.JobSucceeded:
 		a.successPanel(c, pr, j)
 	case domain.JobFailed:
@@ -133,14 +133,12 @@ func (a *App) logView(c *ui.Context, jobID string, h float32) {
 	kit.LogViewer(c, lines, h)
 }
 
-// approvalCard asks for what a waiting build needs; inline draws it as
-// the build stage's own content rather than a card.
-func (a *App) approvalCard(c *ui.Context, j *domain.BuildJob, inline bool) {
+func (a *App) approvalCard(c *ui.Context, j *domain.BuildJob) {
 	if j.Approval != nil && j.Approval.Kind == "project_build" {
 		a.projectBuildApproval(c, j)
 		return
 	}
-	a.runtimeApproval(c, j, inline)
+	a.runtimeApproval(c, j)
 }
 
 // projectBuildApproval asks, once per project, to run the project's own
@@ -197,7 +195,7 @@ func (a *App) approveJob(id string) {
 
 // runtimeApproval asks to download a runtime (approval kind
 // "runtime_download").
-func (a *App) runtimeApproval(c *ui.Context, j *domain.BuildJob, inline bool) {
+func (a *App) runtimeApproval(c *ui.Context, j *domain.BuildJob) {
 	var size int64
 	var src, cache string
 	for _, t := range j.Targets {
@@ -218,7 +216,7 @@ func (a *App) runtimeApproval(c *ui.Context, j *domain.BuildJob, inline bool) {
 		Title: T("runtime.first.title"), Body: body,
 		SizeLabel: T("runtime.first.size"), SourceLabel: T("runtime.first.source"), CacheLbl: T("runtime.first.cache"),
 		Size: bytesLabel(size), Source: src + " · " + T("runtime.first.signed"), Cache: cache,
-		Approve: T("runtime.first.approve"), Cancel: T("common.cancel"), Busy: a.dlg.approving == j.ID, Inline: inline,
+		Approve: T("runtime.first.approve"), Cancel: T("common.cancel"), Busy: a.dlg.approving == j.ID,
 	})
 	if approve {
 		a.approveJob(j.ID)

@@ -293,10 +293,15 @@ func (a *App) createBuilding(c *ui.Context, pr *domain.Project, j *domain.BuildJ
 	a.stage(c, cap, func(h float32) {
 		switch j.Status {
 		case domain.JobAwaitingApproval:
-			// Centred in the stage, as its content, not a card hung from
-			// its top edge.
-			kit.PageSwap(ui.Column(c.Key("approval")).FillWidth().Grow(1).Justify(ui.Center).Padding(24)).
-				Children(func() { a.approvalCard(c, j, true) })
+			// The runtime download is asked as the build's first frame:
+			// the app's icon, still empty, the question under it
+			// (buildFooter). The project's own build keeps its card.
+			if asksRuntime(j) {
+				a.magicWaiting(c, pr, h)
+			} else {
+				ui.Column(c.Key("approval")).FillWidth().Grow(1).Justify(ui.Center).Padding(24).
+					Children(func() { a.approvalCard(c, j) })
+			}
 		case domain.JobSucceeded:
 			// The result is the app, launched: its window springs open
 			// (after the icon's finale).
