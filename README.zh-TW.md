@@ -1,6 +1,6 @@
 <div align="center">
 
-# Mypack
+# MyPack
 
 **任何網站。任何桌面。一個漂亮的原生建構工具。**
 
@@ -18,7 +18,7 @@
 
 [功能](#功能) · [開始使用](#開始使用) · [CLI 與代理程式](#cli-與-ai-代理程式) · [貢獻](#貢獻) · [靈感](#靈感與致謝)
 
-![Mypack 資料庫](docs/screenshots/real-library.png)
+![MyPack 資料庫](docs/screenshots/real-library.png)
 
 </div>
 
@@ -26,26 +26,26 @@
 貼上網址  →  確認名稱與圖示  →  建立  →  安裝並開啟
 ```
 
-Mypack 以 [Apache License 2.0](LICENSE) 免費開源。
+MyPack 以 [Apache License 2.0](LICENSE) 免費開源。
 所有功能都包含在內：沒有 App 數量限制、不需授權金鑰、不必註冊帳號。
 
-## 為什麼選擇 Mypack？
+## 為什麼選擇 MyPack？
 
 我們有很多工作是在網頁應用程式裡完成的，但瀏覽器分頁並不是理想的家。
 分頁容易埋在其他分頁之中，每個網站共用同一組 cookie，而且它們都沒有自己的 Dock 圖示、通知或視窗。
 
-Mypack 讓每個網站成為獨立的 App，並且持續幫你打理：
+MyPack 讓每個網站成為獨立的 App，並且持續幫你打理：
 
-- **你的電腦上不需要工具鏈。** Mypack 不會編譯任何東西。它使用小型的預先建置 runtime，把你的 App 設定寫進去，所以建立只需幾秒鐘。
-- **App 可以獨立運作。** 每個 App 都有自己的名稱、圖示和獨立的登入狀態，使用系統 WebView，即使你解除安裝 Mypack 也還能繼續使用。
+- **你的電腦上不需要工具鏈。** MyPack 不會編譯任何東西。它使用小型的預先建置 runtime，把你的 App 設定寫進去，所以建立只需幾秒鐘。
+- **App 可以獨立運作。** 每個 App 都有自己的名稱、圖示和獨立的登入狀態，使用系統 WebView，即使你解除安裝 MyPack 也還能繼續使用。
 - **不只是做出來，還會持續照顧。** 一鍵更新 App，而且不會弄丟登入狀態（如果更新失敗，會回到先前的版本），也可以修復，或搬到另一台電腦。
 
 ## 功能
 
 **製作 App**
 
-- 🌐 **來自任何網站**：Mypack 會擷取名稱與最佳圖示。兩者都可以改，也可以在圖示工作室裡自己設計。
-- 📁 **來自本機專案**：HTML 檔、含 `index.html` 的資料夾，或 Vite、CRA、Astro、Nuxt、SvelteKit、Next 的匯出結果。Mypack 會先執行專案的建置，但只在你核准之後。
+- 🌐 **來自任何網站**：MyPack 會擷取名稱與最佳圖示。兩者都可以改，也可以在圖示工作室裡自己設計。
+- 📁 **來自本機專案**：HTML 檔、含 `index.html` 的資料夾，或 Vite、CRA、Astro、Nuxt、SvelteKit、Next 的匯出結果。MyPack 會先執行專案的建置，但只在你核准之後。
 - 🧭 **探索**：數十個熱門網站，一鍵就能開始。清單是任何人都可以貢獻的純 [JSON 檔](catalog/discover.json)。
 - 🗂️ **組合 App**：多個網站放在同一個視窗，具有側邊欄、每個網站獨立的工作階段，以及分割檢視。
 - 📥 **Pake 設定**：可以把你的 [Pake](https://github.com/tw93/Pake) `pake.json` 一併帶進來。
@@ -54,7 +54,7 @@ Mypack 讓每個網站成為獨立的 App，並且持續幫你打理：
 
 - 🔔 網頁通知，以及未讀數量的 Dock 標記
 - 🎵 音樂和影片網站支援媒體鍵與「正在播放」（macOS 和 Linux；Windows 本身已支援）
-- 🔗 你的 Mypack App 之間的連結會在正確的 App 開啟
+- 🔗 你的 MyPack App 之間的連結會在正確的 App 開啟
 - 🪟 視窗模式：視窗、精簡、側邊欄，或放在選單列
 - 📑 分頁，並可釘選頁面
 - 🛡️ 內容阻擋、自訂 CSS 與 JavaScript、proxy 與 user-agent 設定
@@ -70,12 +70,12 @@ Mypack 讓每個網站成為獨立的 App，並且持續幫你打理：
 **給開發者與 AI 代理程式**
 
 - ⌨️ 無介面 CLI，提供 `--json` 輸出與穩定的結束代碼
-- 🤖 內建 [MCP](https://modelcontextprotocol.io) 伺服器，讓 Claude Code、Codex 和其他代理程式可以替你建立 App。Mypack 本身沒有內建聊天或 LLM。
+- 🤖 內建 [MCP](https://modelcontextprotocol.io) 伺服器，讓 Claude Code、Codex 和其他代理程式可以替你建立 App。MyPack 本身沒有內建聊天或 LLM。
 
 ## 運作方式
 
 ```
-               ┌───────────── Mypack（建構工具） ─────────────┐
+               ┌───────────── MyPack（建構工具） ─────────────┐
   網站 /       │  名稱與圖示  →  mypack.json  →  組裝 App    │      你的 App
   資料夾   ──▶ │                                       ▲        │ ──▶  .app / .exe /
                └───────────────────────────────────────┼────────┘      Linux 資料夾
@@ -84,10 +84,10 @@ Mypack 讓每個網站成為獨立的 App，並且持續幫你打理：
                           的登錄庫下載一次，驗證後快取起來
 ```
 
-runtime 是每個平台一個小巧的二進位檔，對任何特定網站一無所知。Mypack 複製它，加入你的 App 名稱、圖示和 `mypack.json`，並在 macOS 上為結果簽名。細節請見
+runtime 是每個平台一個小巧的二進位檔，對任何特定網站一無所知。MyPack 複製它，加入你的 App 名稱、圖示和 `mypack.json`，並在 macOS 上為結果簽名。細節請見
 [ARCHITECTURE.md](ARCHITECTURE.md)。
 
-| | Mypack（建構工具） | 它製作的 App |
+| | MyPack（建構工具） | 它製作的 App |
 |---|---|---|
 | **macOS**（Apple silicon 與 Intel） | ✅ 主要平台，封裝為 `.app` / `.dmg` | ✅ WKWebView |
 | **Linux**（x64 與 arm64） | 🧪 從原始碼建置 | ✅ WebKitGTK，已在 Ubuntu 24.04 測試 |
@@ -106,7 +106,7 @@ brew install --cask sinhong2011/tap/mypack
 **Windows**，使用 winget、[Scoop](https://scoop.sh) 或 [Chocolatey](https://chocolatey.org)：
 
 ```powershell
-winget install Mypack.Mypack
+winget install MyPack.MyPack
 ```
 
 ```powershell
@@ -142,7 +142,7 @@ yay -S mypack-bin
 每個 [Release](https://github.com/sinhong2011/mypack/releases/latest) 也提供可直接下載的安裝程式：macOS 的 `.dmg`、Windows 的安裝程式，以及 Linux 的 `.deb` 與 `.rpm`。透過套件管理員安裝後，`mypack` 指令就在 PATH 中，之後用該套件管理員的升級指令更新即可。
 
 > [!NOTE]
-> 發行版本尚未簽名。macOS 若被 Gatekeeper 擋下，請在 Mypack.app 上按右鍵選「打開」；Windows 的 SmartScreen 可能會要求確認（「其他資訊 › 仍要執行」）。
+> 發行版本尚未簽名。macOS 若被 Gatekeeper 擋下，請在 MyPack.app 上按右鍵選「打開」；Windows 的 SmartScreen 可能會要求確認（「其他資訊 › 仍要執行」）。
 
 ### 從原始碼建置
 
@@ -152,8 +152,8 @@ yay -S mypack-bin
 git clone https://github.com/sinhong2011/mypack.git
 cd mypack
 make runtimes   # build the app runtimes and sign them with a local dev key
-make app        # build dist/Mypack.app (macOS)
-open dist/Mypack.app
+make app        # build dist/MyPack.app (macOS)
+open dist/MyPack.app
 ```
 
 `make dmg` 也會做成可拖到 Applications 的磁碟映像。若只想先看看而不建置任何東西，`make run-fake` 會以示範資料啟動應用程式。
@@ -171,7 +171,7 @@ open dist/Mypack.app
 應用程式的執行檔同時也是 CLI：
 
 ```sh
-alias mypack=/Applications/Mypack.app/Contents/MacOS/Mypack   # not needed after a package-manager install
+alias mypack=/Applications/MyPack.app/Contents/MacOS/MyPack   # not needed after a package-manager install
 
 mypack create github.com --json          # a draft project; nothing is built yet
 mypack build <project-id> --yes --json   # build it (--yes allows the runtime download)
@@ -195,7 +195,7 @@ App 裡的 **設定 › 代理程式連線** 提供可直接複製的 Claude Cod
 
 ```
 cmd/          進入點：應用程式、CLI、瀏覽器 native-messaging host
-runtime/      Mypack 做出的每個 App 裡的 runtime
+runtime/      MyPack 做出的每個 App 裡的 runtime
 internal/     建構工具、安裝程式、服務、儲存、CLI、MCP 伺服器與 App 的 UI
 pkg/config/   mypack.json 格式（以及 Pake 匯入）
 catalog/      探索目錄，discover.json
@@ -217,12 +217,12 @@ apps/         瀏覽器擴充功能（WXT + SolidJS）
 
 ## 靈感與致謝
 
-Mypack 站在兩個專案的肩膀上：
+MyPack 站在兩個專案的肩膀上：
 
 - **[Pake](https://github.com/tw93/Pake)**，作者是 [tw93](https://github.com/tw93)
-  展示了網站作為小巧、專注的桌面 App 可以有多好用，以及有多少人想要這樣的體驗。Mypack 用不同的方式實踐同一個想法：用預先建置的 runtime 取代建置工具鏈，並提供原生應用程式，讓你製作並長期管理自己的 App。它能讀取 Pake 設定，所以你可以把既有的設定帶過來。
+  展示了網站作為小巧、專注的桌面 App 可以有多好用，以及有多少人想要這樣的體驗。MyPack 用不同的方式實踐同一個想法：用預先建置的 runtime 取代建置工具鏈，並提供原生應用程式，讓你製作並長期管理自己的 App。它能讀取 Pake 設定，所以你可以把既有的設定帶過來。
 - **[MyGo](https://github.com/egoist/mygo)**，作者是 [egoist](https://github.com/egoist)
-  是 Mypack 介面與它所製作 App 背後的純 Go 原生 UI 工具組：沒有 Electron、沒有網頁前端、沒有 cgo。
+  是 MyPack 介面與它所製作 App 背後的純 Go 原生 UI 工具組：沒有 Electron、沒有網頁前端、沒有 cgo。
 
 也感謝 [Lucide](https://lucide.dev) 提供圖示，以及
 [modernc.org/sqlite](https://gitlab.com/cznic/sqlite)。所有第三方聲明
@@ -230,6 +230,6 @@ Mypack 站在兩個專案的肩膀上：
 
 ## 授權條款
 
-Mypack 採用 [Apache License 2.0](LICENSE) 授權。
+MyPack 採用 [Apache License 2.0](LICENSE) 授權。
 
-「Mypack」這個名稱及其標誌是商標，不在程式碼授權的範圍內。若你散布修改過的建置版本，請使用不同的名稱與圖示；詳見 [TRADEMARKS.md](TRADEMARKS.md)。散布建置版本的 fork 應自行託管 runtime 登錄庫，並用自己的金鑰簽名。
+「MyPack」這個名稱及其標誌是商標，不在程式碼授權的範圍內。若你散布修改過的建置版本，請使用不同的名稱與圖示；詳見 [TRADEMARKS.md](TRADEMARKS.md)。散布建置版本的 fork 應自行託管 runtime 登錄庫，並用自己的金鑰簽名。

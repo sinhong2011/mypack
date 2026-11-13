@@ -1,5 +1,5 @@
 name: Feature request
-description: Suggest an improvement to Mypack.
+description: Suggest an improvement to MyPack.
 labels: [enhancement]
 body:
   - type: textarea

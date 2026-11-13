@@ -1,5 +1,5 @@
-// Package selfupdate finds new Mypack releases and works out how this copy
-// of Mypack is updated: by itself (MyGo's signed updater) or by the package
+// Package selfupdate finds new MyPack releases and works out how this copy
+// of MyPack is updated: by itself (MyGo's signed updater) or by the package
 // manager that installed it. It has no UI; internal/desktop/app shows it.
 package selfupdate
 

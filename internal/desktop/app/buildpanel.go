@@ -321,7 +321,7 @@ func (a *App) failurePanel(c *ui.Context, pr *domain.Project, j *domain.BuildJob
 // diagnostic is a stable, parseable, non-localized report (spec §9D.3).
 func (a *App) diagnostic(j *domain.BuildJob) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "Mypack %s diagnostic\n", Version)
+	fmt.Fprintf(&b, "MyPack %s diagnostic\n", Version)
 	fmt.Fprintf(&b, "job: %s\nproject: %s (rev %d)\nstatus: %s\nstage: %s\nruntime: %s\n", j.ID, j.ProjectID, j.ProjectRev, j.Status, j.Stage, j.RuntimeVersion)
 	for _, t := range j.Targets {
 		fmt.Fprintf(&b, "target: %s/%s/%s\n", t.OS, t.Arch, t.Format)

@@ -1,4 +1,4 @@
-# Publishes the Mypack app and CLI when a vX.Y.Z tag is pushed: the tag is
+# Publishes the MyPack app and CLI when a vX.Y.Z tag is pushed: the tag is
 # the release. scripts/release.sh checks main and pushes it. The version
 # comes from the tag alone (GoReleaser stamps it with -X), and the notes
 # are the titles of the pull requests merged since the last tag. See
@@ -325,7 +325,7 @@ jobs:
         if: env.TOKEN != ''
         run: bash scripts/packages.sh push sinhong2011/scoop-bucket packages/scoop
 
-  # Updates Mypack.Mypack in microsoft/winget-pkgs from a fork under the
+  # Updates MyPack.MyPack in microsoft/winget-pkgs from a fork under the
   # token's account. The first version is submitted by hand.
   winget:
     needs: packages
@@ -339,21 +339,21 @@ jobs:
       # The action can only update a package that is already in winget-pkgs:
       # until the first version is merged there, skip it with a notice
       # rather than fail the release.
-      - name: Check that Mypack.Mypack is in winget-pkgs
+      - name: Check that MyPack.MyPack is in winget-pkgs
         id: listed
         if: env.TOKEN != ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh api repos/microsoft/winget-pkgs/contents/manifests/m/Mypack/Mypack --silent 2>/dev/null; then
+          if gh api repos/microsoft/winget-pkgs/contents/manifests/m/MyPack/MyPack --silent 2>/dev/null; then
             echo "listed=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::notice::Mypack.Mypack is not in microsoft/winget-pkgs yet; submit the first version by hand (docs/releasing.md)"
+            echo "::notice::MyPack.MyPack is not in microsoft/winget-pkgs yet; submit the first version by hand (docs/releasing.md)"
           fi
       - if: steps.listed.outputs.listed == 'true'
         uses: vedantmgoyal9/winget-releaser@v2
         with:
-          identifier: Mypack.Mypack
+          identifier: MyPack.MyPack
           installers-regex: '^mypack-setup-.*\.exe$'
           release-tag: ${{ github.ref_name }}
           token: ${{ secrets.PACKAGING_TOKEN }}
@@ -403,7 +403,7 @@ jobs:
           git clone ssh://aur@aur.archlinux.org/mypack-bin.git aur
           cp packages/aur/PKGBUILD packages/aur/.SRCINFO aur/
           cd aur
-          git config user.name "Mypack release"
+          git config user.name "MyPack release"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add PKGBUILD .SRCINFO
           if git diff --cached --quiet; then echo "no change"; exit 0; fi
@@ -450,5 +450,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -q -m "Mypack ${GITHUB_REF_NAME#v} packages"
+          git commit -q -m "MyPack ${GITHUB_REF_NAME#v} packages"
           git push --force "$remote" gh-pages

@@ -360,7 +360,7 @@ func (a *App) newBridge() *bridgeService {
 			Type:          mygo.MessageQuestion,
 			Title:         a.title(),
 			Message:       fmt.Sprintf("Allow %s to show notifications?", host),
-			Detail:        "You can change this later in the app's settings in Mypack.",
+			Detail:        "You can change this later in the app's settings in MyPack.",
 			Buttons:       []string{"Allow", "Don't Allow"},
 			DefaultButton: 0,
 			CancelButton:  1,

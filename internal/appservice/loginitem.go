@@ -7,16 +7,16 @@ import (
 	"mypack.dev/mypack/internal/domain"
 )
 
-// LoginItem starts Mypack when the user logs in: a login item on macOS, a
+// LoginItem starts MyPack when the user logs in: a login item on macOS, a
 // Run entry of the user on Windows, an XDG autostart entry on Linux. It
 // reads and writes the system's own record, never a stored flag, so it
 // shows what the system will do, including changes made in System Settings
 // or Task Manager. The GUI gives the service one (Options.LoginItem); the
 // CLI and the MCP server have none, as only the GUI is a login item.
 type LoginItem interface {
-	// Enabled reports whether the system starts Mypack at login.
+	// Enabled reports whether the system starts MyPack at login.
 	Enabled() bool
-	// SetEnabled asks the system to start Mypack at login, or not.
+	// SetEnabled asks the system to start MyPack at login, or not.
 	SetEnabled(on bool) error
 }
 
@@ -56,11 +56,11 @@ const loginRemedy = "Check the login items in your system settings (macOS: Syste
 
 func loginFailedMsg(on bool) string {
 	if on {
-		return "Mypack could not be set to open at login."
+		return "MyPack could not be set to open at login."
 	}
-	return "Mypack could not be stopped from opening at login."
+	return "MyPack could not be stopped from opening at login."
 }
 
 func errNoLoginItem() error {
-	return newErr(CodeUnsupported, "Open at login is set in the Mypack app's Settings.", "")
+	return newErr(CodeUnsupported, "Open at login is set in the MyPack app's Settings.", "")
 }

@@ -1,4 +1,4 @@
-// Language resolution: follow the browser (default), an explicit choice in options, or follow mypack Desktop
+// Language resolution: follow the browser (default), an explicit choice in options, or follow MyPack Desktop
 // (the locale the host reports in `hello`, cached in storage). See docs/companion.md › Language mapping.
 import { browser } from 'wxt/browser';
 

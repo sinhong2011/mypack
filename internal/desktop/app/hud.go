@@ -15,11 +15,11 @@ import (
 
 // The build HUD: a small black pill at the top centre of the screen, just
 // under the menu bar (where the notch is on notched MacBooks), that shows
-// the active build while Mypack's own window is not in front. It never
+// the active build while MyPack's own window is not in front. It never
 // takes the focus (shown inactive, always on top, no shadow, no Dock or
 // taskbar entry). Hover opens it to the stage, % and Cancel; a success
 // says "<App> is ready" with Open for a few seconds, then it retracts; a
-// failure stays until dismissed. A click brings Mypack up on that
+// failure stays until dismissed. A click brings MyPack up on that
 // project. macOS only (elsewhere it is off); Settings › Builds turns it
 // off ("Show build progress near the notch").
 
@@ -37,7 +37,7 @@ type hudState struct {
 	failed  bool
 	gone    bool // dismissed (a failure) or retracted (a success)
 	ticking bool // a re-check is scheduled
-	front   bool // Mypack's window is in front (key and visible)
+	front   bool // MyPack's window is in front (key and visible)
 	mem     hudMem
 }
 
@@ -48,7 +48,7 @@ func (a *App) hudEnabled() bool {
 
 // ---- visibility: a small state machine, tested on its own ----------------------------
 
-// hudIn is what decides the HUD: the setting, whether Mypack's window is
+// hudIn is what decides the HUD: the setting, whether MyPack's window is
 // in front (key and visible), the build it follows and how that ended.
 type hudIn struct {
 	enabled bool
@@ -71,7 +71,7 @@ type hudMem struct {
 const hudShowFor = 6 * time.Second
 
 // hudNext decides whether the HUD shows: only while a build runs or just
-// ended, and only while Mypack's window is not in front. Coming back to
+// ended, and only while MyPack's window is not in front. Coming back to
 // the window hides it at once and counts as having seen a result; a
 // result waits ~6 s otherwise. A new build starts afresh.
 func hudNext(m hudMem, in hudIn) (hudMem, bool) {
@@ -95,7 +95,7 @@ func hudNext(m hudMem, in hudIn) (hudMem, bool) {
 }
 
 // watchFront follows the main window's focus, so the HUD hides the moment
-// Mypack comes to the front and shows when it goes behind.
+// MyPack comes to the front and shows when it goes behind.
 func (a *App) watchFront() {
 	if a.win == nil {
 		return
@@ -166,7 +166,7 @@ func (a *App) openHUD() {
 	x := d.Bounds.X + (d.Bounds.Width-hudW)/2
 	y := d.WorkArea.Y // under the menu bar (and the notch)
 	h.win = mygo.NewWindow(mygo.WindowOptions{
-		Title: "Mypack", X: x, Y: y, Width: hudW, Height: hudH,
+		Title: "MyPack", X: x, Y: y, Width: hudW, Height: hudH,
 		Frameless: true, Transparent: true, AlwaysOnTop: true, SkipTaskbar: true, DisableShadow: true, Hidden: true,
 		Content: ui.View(a.hudView),
 	})
@@ -282,7 +282,7 @@ func (a *App) hudView(c *ui.Context) {
 	}
 }
 
-// hudFocus brings Mypack to the front on the build's project.
+// hudFocus brings MyPack to the front on the build's project.
 func (a *App) hudFocus(projectID string) {
 	a.showWindow()
 	if a.section != secCreate || a.create.building != projectID {

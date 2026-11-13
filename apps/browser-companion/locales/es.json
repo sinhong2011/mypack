@@ -1,6 +1,6 @@
 {
-  "appName": "mypack Companion",
-  "appDescription": "Ayudante opcional: convierte el sitio web actual en un borrador de aplicación de escritorio de mypack. No se compila nada sin tu aprobación en mypack.",
+  "appName": "MyPack Companion",
+  "appDescription": "Ayudante opcional: convierte el sitio web actual en un borrador de aplicación de escritorio de MyPack. No se compila nada sin tu aprobación en MyPack.",
   "actionTitle": "Crear aplicación de escritorio",
   "contextMenuTitle": "Crear aplicación de escritorio desde esta página"
 }

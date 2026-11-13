@@ -1,6 +1,6 @@
 {
-  "appName": "mypack Companion",
-  "appDescription": "Optional helper: turn the current website into a mypack desktop app draft. Nothing is built without your approval in mypack.",
+  "appName": "MyPack Companion",
+  "appDescription": "Optional helper: turn the current website into a MyPack desktop app draft. Nothing is built without your approval in MyPack.",
   "actionTitle": "Create Desktop App",
   "contextMenuTitle": "Create Desktop App from this page"
 }

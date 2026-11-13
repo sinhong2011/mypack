@@ -1,5 +1,5 @@
-Mypack
-Copyright 2026 The Mypack Authors
+MyPack
+Copyright 2026 The MyPack Authors
 
 This product is licensed under the Apache License, Version 2.0 (see LICENSE).
 
@@ -14,5 +14,5 @@ license:
   BSD-3-Clause
 - github.com/tc-hib/winres — 0BSD License
 
-"Mypack" and the Mypack logo are trademarks of The Mypack Authors. The Apache
+"MyPack" and the MyPack logo are trademarks of The MyPack Authors. The Apache
 License does not grant permission to use them; see TRADEMARKS.md.

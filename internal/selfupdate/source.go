@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// Manager is the package manager that installed Mypack, if any.
+// Manager is the package manager that installed MyPack, if any.
 type Manager string
 
 const (
@@ -25,13 +25,13 @@ const (
 	ManagerLinuxPackage Manager = "package manager"
 )
 
-// Source is how this copy of Mypack is updated.
+// Source is how this copy of MyPack is updated.
 type Source struct {
-	Manager Manager // ManagerNone: Mypack updates itself, when it can
+	Manager Manager // ManagerNone: MyPack updates itself, when it can
 	Command string  // the command that updates it; empty when unknown
 }
 
-// Managed reports whether a package manager updates Mypack.
+// Managed reports whether a package manager updates MyPack.
 func (s Source) Managed() bool { return s.Manager != ManagerNone }
 
 // Env is what Detect looks at; the zero fields take the real system's.
@@ -44,7 +44,7 @@ type Env struct {
 	Home   string                // the user's home directory
 }
 
-// DetectSource looks at where the running Mypack is installed.
+// DetectSource looks at where the running MyPack is installed.
 func DetectSource() Source {
 	exe, _ := os.Executable()
 	if r, err := filepath.EvalSymlinks(exe); err == nil {
@@ -61,7 +61,7 @@ func DetectSource() Source {
 //     running from it;
 //   - Scoop: the app in ~\scoop\apps\mypack (or $SCOOP\apps\mypack);
 //   - Chocolatey: %ChocolateyInstall%\lib\mypack;
-//   - winget: %LOCALAPPDATA%\Microsoft\WinGet\Packages\Mypack.Mypack_*, or
+//   - winget: %LOCALAPPDATA%\Microsoft\WinGet\Packages\MyPack.MyPack_*, or
 //     the app running from WinGet\Packages;
 //   - Linux packages: the app in /opt/mypack or /usr, with the dpkg,
 //     pacman or RPM tool on the system telling which.
@@ -151,12 +151,12 @@ func detectWindows(e Env) Source {
 		return Source{Manager: ManagerChocolatey, Command: "choco upgrade mypack"}
 	}
 
-	winget := Source{Manager: ManagerWinget, Command: "winget upgrade Mypack.Mypack"}
+	winget := Source{Manager: ManagerWinget, Command: "winget upgrade MyPack.MyPack"}
 	if strings.Contains(exe, `\microsoft\winget\packages\`) {
 		return winget
 	}
 	if la := e.Getenv("LOCALAPPDATA"); la != "" {
-		if len(e.Glob(winJoin(la, "Microsoft", "WinGet", "Packages", "Mypack.Mypack_*"))) > 0 {
+		if len(e.Glob(winJoin(la, "Microsoft", "WinGet", "Packages", "MyPack.MyPack_*"))) > 0 {
 			return winget
 		}
 	}
@@ -187,7 +187,7 @@ func detectLinux(e Env) Source {
 }
 
 // pacmanName takes the package name from a pacman database entry,
-// <name>-<version>-<release>, when it is Mypack's ("mypack" or
+// <name>-<version>-<release>, when it is MyPack's ("mypack" or
 // "mypack-bin").
 func pacmanName(entry string) string {
 	i := strings.LastIndexByte(entry, '-')

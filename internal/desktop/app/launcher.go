@@ -20,7 +20,7 @@ import (
 // macOS) brings up a small panel over whatever app is in front, as
 // Spotlight does, to open one of your apps by typing a few letters.
 // Pinned apps come first. Enter opens the app, ⌘Enter shows it in
-// Mypack; Esc, or clicking elsewhere, puts it away. It is a panel window,
+// MyPack; Esc, or clicking elsewhere, puts it away. It is a panel window,
 // so the app the user was in stays active and gets the keyboard back.
 // Settings › General turns it off.
 
@@ -95,7 +95,7 @@ func (a *App) toggleLauncher() {
 	}
 	if l.win == nil {
 		l.win = mygo.NewWindow(mygo.WindowOptions{
-			Title: "Mypack", Width: launcherW, Height: 120, FitContent: true,
+			Title: "MyPack", Width: launcherW, Height: 120, FitContent: true,
 			Frameless: true, Panel: true, CornerRadius: 14, Hidden: true, DisableResize: true,
 			Content: ui.View(a.launcherView),
 		})
@@ -119,7 +119,7 @@ func (a *App) hideLauncher() {
 	l.shown = false
 }
 
-// launchItem is one result: an app to open, or an action in Mypack.
+// launchItem is one result: an app to open, or an action in MyPack.
 type launchItem struct {
 	key    string
 	name   string
@@ -128,7 +128,7 @@ type launchItem struct {
 	glyph  *ui.SVG
 	pinned bool
 	open   func() // Enter
-	show   func() // ⌘Enter: in Mypack
+	show   func() // ⌘Enter: in MyPack
 }
 
 // launcherItems is the results for q: with no query, the pinned apps,
@@ -210,7 +210,7 @@ func (a *App) launcherItems(q string) []launchItem {
 				a.create.setInput(u)
 				a.nav(secCreate)
 			}
-			out = append(out, launchItem{key: "make", name: T("palette.make", "url", config.RegistrableHost(u)), sub: "Mypack",
+			out = append(out, launchItem{key: "make", name: T("palette.make", "url", config.RegistrableHost(u)), sub: "MyPack",
 				glyph: icons.Plus, open: makeApp, show: makeApp})
 		}
 	}
@@ -225,12 +225,12 @@ func (a *App) launcherView(c *ui.Context) {
 	if l.sel >= len(items) {
 		l.sel = max(0, len(items)-1)
 	}
-	run := func(i int, inMypack bool) {
+	run := func(i int, inMyPack bool) {
 		if i < 0 || i >= len(items) {
 			return
 		}
 		a.hideLauncher()
-		if inMypack {
+		if inMyPack {
 			items[i].show()
 		} else {
 			items[i].open()
@@ -317,7 +317,7 @@ func (a *App) launcherView(c *ui.Context) {
 			}
 		})
 		ui.Row(c).Height(32).Padding(0, 16).Gap(14).AlignItems(ui.Center).Background(p.Sunken).Children(func() {
-			for _, h := range [][2]string{{"↩", T("action.open")}, {cmdEnter(), T("launcher.showInMypack")}, {"esc", T("launcher.close")}} {
+			for _, h := range [][2]string{{"↩", T("action.open")}, {cmdEnter(), T("launcher.showInMyPack")}, {"esc", T("launcher.close")}} {
 				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 					ui.Text(c, h[0]).FontSize(design.FontCaption).FontWeight(design.WeightSemibold).TextColor(p.TextSecondary).
 						Padding(1, 6).Radius(5).Background(p.Fill)

@@ -1,4 +1,4 @@
-// The toolbar popup: looks the current tab up in mypack Desktop and offers to open the matching app, manage it, or
+// The toolbar popup: looks the current tab up in MyPack Desktop and offers to open the matching app, manage it, or
 // create a draft. Nothing is ever built or installed from here.
 import { createEffect, createSignal, For, type JSX, Match, on, onCleanup, onMount, Show, Switch } from 'solid-js';
 import { browser } from 'wxt/browser';
@@ -162,7 +162,7 @@ export default function App(props: { root: HTMLElement }) {
     if (hello.protocolVersion !== PROTOCOL_VERSION || !REQUIRED_ACTIONS.every((a) => (hello.actions || []).includes(a))) {
       return setView({ kind: 'protocol' });
     }
-    // Optional "Follow mypack Desktop": remember the Desktop locale, re-render if it changes ours.
+    // Optional "Follow MyPack Desktop": remember the Desktop locale, re-render if it changes ours.
     const dl = normalizeLocale(hello.locale);
     const settings = await getSettings();
     if (dl && dl !== settings.desktopLocale) await setSettings({ desktopLocale: dl });
@@ -362,7 +362,7 @@ export default function App(props: { root: HTMLElement }) {
                   <ActionButton
                     primary
                     autofocus
-                    label={t('openMypack')}
+                    label={t('openMyPack')}
                     busyLabel={t('opening')}
                     run={async () => {
                       await host.request('openManager', { projectId: v.draft.projectId });

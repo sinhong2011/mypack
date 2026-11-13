@@ -152,7 +152,7 @@ describe('popup', () => {
     expect(log[1]!.payload).toEqual({ url: 'https://example.com/path', title: 'Example Site' });
     expect(log[3]!.payload).toEqual({ projectId: 'p1' });
     expect(log.every((r) => r.protocolVersion === 1)).toBe(true);
-    expect(button(root, 'Manage in mypack')).toBeTruthy();
+    expect(button(root, 'Manage in MyPack')).toBeTruthy();
   });
 
   it('offers Open and Manage for a unique installed match', async () => {
@@ -167,7 +167,7 @@ describe('popup', () => {
     await vi.waitFor(() => expect(button(root, 'Open in Desktop App')).toBeTruthy());
     expect(root.textContent).toContain('Installed · Profile: work');
     button(root, 'Open in Desktop App')!.click();
-    await vi.waitFor(() => expect(button(root, 'Opened in mypack.')).toBeTruthy());
+    await vi.waitFor(() => expect(button(root, 'Opened in MyPack.')).toBeTruthy());
     expect(log.at(-1)).toMatchObject({ action: 'openManagedApp', payload: { installationId: 'i1' } });
   });
 
@@ -187,14 +187,14 @@ describe('popup', () => {
 
   it('explains how to register a missing host', async () => {
     const root = await mount(fakeChrome((c) => missingPort(c)));
-    await vi.waitFor(() => expect(root.textContent).toContain('mypack helper not found'));
+    await vi.waitFor(() => expect(root.textContent).toContain('MyPack helper not found'));
     expect(root.querySelector('code')?.textContent).toBe('mypack-native-host install --extension-id abcdefghijklmnopabcdefghijklmnop');
   });
 
   it('reports a protocol mismatch', async () => {
     const port = makePort(() => ({ ok: true, result: { ...HELLO, protocolVersion: 2 } }));
     const root = await mount(fakeChrome(() => port));
-    await vi.waitFor(() => expect(root.textContent).toContain('Update mypack or the companion'));
+    await vi.waitFor(() => expect(root.textContent).toContain('Update MyPack or the companion'));
   });
 
   it('shows the localized error for a failed action', async () => {
@@ -242,7 +242,7 @@ describe.skipIf(!HOST_BIN)('popup against the real native host', () => {
       dispose?.();
 
       root = await mount(fakeChrome(connect, 'https://companion-e2e.invalid/other'));
-      await vi.waitFor(() => expect(button(root, 'Manage in mypack')).toBeTruthy(), { timeout: 5000 });
+      await vi.waitFor(() => expect(button(root, 'Manage in MyPack')).toBeTruthy(), { timeout: 5000 });
       expect(root.textContent).toContain('Draft');
     } finally {
       ports.forEach((p) => p.disconnect());

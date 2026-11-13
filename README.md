@@ -1,6 +1,6 @@
 <div align="center">
 
-# Mypack
+# MyPack
 
 **Any website. Any desktop. One beautiful native builder.**
 
@@ -18,7 +18,7 @@ in a few clicks. No Go, Rust, Node or Xcode project required.
 
 [Features](#features) · [Install](#install) · [Getting started](#getting-started) · [CLI & agents](#cli-and-ai-agents) · [Contributing](#contributing) · [Inspiration](#inspiration-and-thanks)
 
-![Mypack Library](docs/screenshots/real-library.png)
+![MyPack Library](docs/screenshots/real-library.png)
 
 </div>
 
@@ -26,23 +26,23 @@ in a few clicks. No Go, Rust, Node or Xcode project required.
 Paste a URL  →  confirm name & icon  →  Build  →  Install & Open
 ```
 
-Mypack is free and open source under the [Apache License 2.0](LICENSE).
+MyPack is free and open source under the [Apache License 2.0](LICENSE).
 Every feature is included: no app limits, no license keys, no account.
 
-## Why Mypack?
+## Why MyPack?
 
 A lot of our work lives in web apps, but a browser tab is a poor home for them.
 Tabs get lost among other tabs, every site shares one set of cookies, and none
 of them get their own Dock icon, notifications or window.
 
-Mypack gives each site a proper app of its own, and then keeps looking after it:
+MyPack gives each site a proper app of its own, and then keeps looking after it:
 
-- **No toolchain on your machine.** Mypack doesn't compile anything. It uses a
+- **No toolchain on your machine.** MyPack doesn't compile anything. It uses a
   small prebuilt runtime and writes your app's settings into it, so a build
   takes seconds.
 - **Apps that stand on their own.** Every app has its own name, icon and
   separate sign-in, uses the system WebView, and keeps working if you uninstall
-  Mypack.
+  MyPack.
 - **Looked after, not just made.** Update an app in one click without losing
   your logins (if an update fails, the previous version comes back), repair it,
   or move it to another computer.
@@ -51,10 +51,10 @@ Mypack gives each site a proper app of its own, and then keeps looking after it:
 
 **Making apps**
 
-- 🌐 **From any website**: Mypack fetches the name and the best icon. You can
+- 🌐 **From any website**: MyPack fetches the name and the best icon. You can
   change both, or design an icon in the Icon Studio.
 - 📁 **From local projects**: an HTML file, a folder with `index.html`, or a
-  Vite, CRA, Astro, Nuxt, SvelteKit or Next export. Mypack runs the project's
+  Vite, CRA, Astro, Nuxt, SvelteKit or Next export. MyPack runs the project's
   build first, but only after you approve it.
 - 🧭 **Discover**: dozens of popular sites, one click to start. The list is a
   plain [JSON file](catalog/discover.json) that anyone can add to.
@@ -67,7 +67,7 @@ Mypack gives each site a proper app of its own, and then keeps looking after it:
 
 - 🔔 Web notifications and a Dock badge for unread counts
 - 🎵 Media keys and Now Playing for music and video sites (macOS and Linux; Windows already has them)
-- 🔗 Links between your Mypack apps open in the right app
+- 🔗 Links between your MyPack apps open in the right app
 - 🪟 Window modes: normal, compact, sidebar, or in the menu bar
 - 📑 Tabs with pinned pages
 - 🛡️ Content blocking, custom CSS and JavaScript, proxy and user-agent settings
@@ -87,7 +87,7 @@ Mypack gives each site a proper app of its own, and then keeps looking after it:
 
 - ⌨️ A headless CLI with `--json` output and stable exit codes
 - 🤖 A built-in [MCP](https://modelcontextprotocol.io) server, so Claude Code,
-  Codex and other agents can create and build apps for you. Mypack itself has
+  Codex and other agents can create and build apps for you. MyPack itself has
   no built-in chat or LLM.
 
 ## A look around
@@ -128,7 +128,7 @@ Mypack gives each site a proper app of its own, and then keeps looking after it:
 ## How it works
 
 ```
-               ┌───────────── Mypack (the builder) ─────────────┐
+               ┌───────────── MyPack (the builder) ─────────────┐
   website /    │  name & icon  →  mypack.json  →  assemble app  │      your app
   folder   ──▶ │                                       ▲        │ ──▶  .app / .exe /
                └───────────────────────────────────────┼────────┘      Linux folder
@@ -138,11 +138,11 @@ Mypack gives each site a proper app of its own, and then keeps looking after it:
 ```
 
 The runtime is one small binary per platform that knows nothing about any
-particular website. Mypack copies it, adds your app's name, icon and
+particular website. MyPack copies it, adds your app's name, icon and
 `mypack.json`, and on macOS signs the result. The details are in
 [ARCHITECTURE.md](ARCHITECTURE.md).
 
-| | Mypack (the builder) | Apps it makes |
+| | MyPack (the builder) | Apps it makes |
 |---|---|---|
 | **macOS** (Apple silicon & Intel) | ✅ Main platform: Homebrew or `.dmg` | ✅ WKWebView |
 | **Linux** (x64 & arm64) | 🧪 APT, DNF/Zypper, AUR, `.deb` / `.rpm` | ✅ WebKitGTK, tested on Ubuntu 24.04 |
@@ -162,7 +162,7 @@ brew install --cask sinhong2011/tap/mypack
 [Scoop](https://scoop.sh) or [Chocolatey](https://chocolatey.org):
 
 ```powershell
-winget install Mypack.Mypack
+winget install MyPack.MyPack
 ```
 
 ```powershell
@@ -207,21 +207,21 @@ need GTK 3 and WebKitGTK, which they pull in.
 
 > [!NOTE]
 > Releases aren't signed yet. On macOS, if Gatekeeper blocks the first
-> launch, right-click Mypack.app and choose **Open** (Homebrew users can
-> run `xattr -dr com.apple.quarantine /Applications/Mypack.app`). On
+> launch, right-click MyPack.app and choose **Open** (Homebrew users can
+> run `xattr -dr com.apple.quarantine /Applications/MyPack.app`). On
 > Windows, SmartScreen may ask you to confirm (**More info › Run anyway**).
 
 ### Build from source
 
-To work on Mypack itself, you need Go 1.27.3 or newer. With `GOTOOLCHAIN=auto` (the default), Go fetches
+To work on MyPack itself, you need Go 1.27.3 or newer. With `GOTOOLCHAIN=auto` (the default), Go fetches
 the right version for you.
 
 ```sh
 git clone https://github.com/sinhong2011/mypack.git
 cd mypack
 make runtimes   # build the app runtimes and sign them with a local dev key
-make app        # build dist/Mypack.app (macOS)
-open dist/Mypack.app
+make app        # build dist/MyPack.app (macOS)
+open dist/MyPack.app
 ```
 
 `make dmg` also makes a drag-to-Applications disk image. To look around
@@ -242,7 +242,7 @@ The app's binary is also the CLI:
 
 ```sh
 # installed by a package manager, mypack is already on your PATH; otherwise:
-alias mypack=/Applications/Mypack.app/Contents/MacOS/Mypack
+alias mypack=/Applications/MyPack.app/Contents/MacOS/MyPack
 
 mypack create github.com --json          # a draft project; nothing is built yet
 mypack build <project-id> --yes --json   # build it (--yes allows the runtime download)
@@ -272,7 +272,7 @@ approve it.
 
 ```
 cmd/          entry points: the app, the CLI, the browser native-messaging host
-runtime/      the runtime inside every app Mypack makes
+runtime/      the runtime inside every app MyPack makes
 internal/     builder, installer, service, storage, CLI, MCP server and the app's UI
 pkg/config/   the mypack.json format (and Pake import)
 catalog/      the Discover catalog, discover.json
@@ -299,16 +299,16 @@ privately as described in [SECURITY.md](SECURITY.md), and follow the
 
 ## Inspiration and thanks
 
-Mypack stands on the shoulders of two projects:
+MyPack stands on the shoulders of two projects:
 
 - **[Pake](https://github.com/tw93/Pake)** by [tw93](https://github.com/tw93)
   showed how good a website can feel as a small, focused desktop app, and how
-  many people want that. Mypack takes the same idea a different way: a
+  many people want that. MyPack takes the same idea a different way: a
   prebuilt runtime instead of a build toolchain, and a native app for making
   and looking after your apps over time. It reads Pake configs, so you can
   bring yours along.
 - **[MyGo](https://github.com/egoist/mygo)** by [egoist](https://github.com/egoist)
-  is the pure-Go native UI toolkit behind Mypack's interface and the apps it
+  is the pure-Go native UI toolkit behind MyPack's interface and the apps it
   makes: no Electron, no web front end, no cgo.
 
 Thanks also to [Lucide](https://lucide.dev) for the icons and to
@@ -317,9 +317,9 @@ are in [NOTICE](NOTICE).
 
 ## License
 
-Mypack is licensed under the [Apache License 2.0](LICENSE).
+MyPack is licensed under the [Apache License 2.0](LICENSE).
 
-The name "Mypack" and its logo are trademarks and aren't covered by the code
+The name "MyPack" and its logo are trademarks and aren't covered by the code
 license. If you distribute a modified build, please give it a different name
 and icon; see [TRADEMARKS.md](TRADEMARKS.md). Forks that distribute builds
 should host their own runtime registry and sign it with their own key.

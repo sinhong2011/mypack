@@ -3,7 +3,7 @@ import { defineConfig } from 'wxt';
 // One source, two targets: Chrome and Edge (MV3 service worker). The version comes from package.json.
 // Manifest strings (name, description, toolbar tooltip, context-menu default): `locales/*.json` → `_locales/*/messages.json`
 // via `@wxt-dev/i18n`. The popup, options page and context menu use the seven catalogs in `i18n/` instead, because the
-// language can be overridden in options or follow mypack Desktop (see lib/locale.ts and docs/companion.md).
+// language can be overridden in options or follow MyPack Desktop (see lib/locale.ts and docs/companion.md).
 export default defineConfig({
   modules: ['@wxt-dev/module-solid', '@wxt-dev/i18n/module'],
   manifestVersion: 3,

@@ -30,12 +30,12 @@ type uiState struct {
 	AutoInstall        map[string]bool `json:"autoInstall,omitempty"`
 	AutoInstallDefault *bool           `json:"autoInstallDefault,omitempty"`
 	// ShowHUD (nil = on) shows build progress near the notch while
-	// Mypack's window is not in front.
+	// MyPack's window is not in front.
 	ShowHUD *bool `json:"showHud,omitempty"`
 	// LookDefaults are the Look & Behaviour choices last made on Create,
 	// which seed the next new app (lookdefaults.go).
 	LookDefaults *lookDefaults `json:"lookDefaults,omitempty"`
-	// LastUpdateCheck is when Mypack last asked for a new release, which
+	// LastUpdateCheck is when MyPack last asked for a new release, which
 	// spaces automatic checks a day apart; UpdateNotified is the newest
 	// version a toast told of, so each is told once.
 	LastUpdateCheck time.Time `json:"lastUpdateCheck,omitempty"`

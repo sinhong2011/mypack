@@ -81,7 +81,7 @@ func TestLauncherView(t *testing.T) {
 	a := launcherApp(t)
 	tt := ui.NewTester(a.launcherView, launcherW, 520)
 	tt.Frame()
-	if !tt.HasText(T("launcher.showInMypack")) || !tt.HasText("Linear") {
+	if !tt.HasText(T("launcher.showInMyPack")) || !tt.HasText("Linear") {
 		t.Fatalf("texts %v", tt.Texts())
 	}
 	a.launcher.input.Focus()

@@ -124,10 +124,10 @@ type Service interface {
 
 	Settings(ctx context.Context) (Settings, error)
 	SaveSettings(ctx context.Context, s Settings) error
-	// OpenAtLogin reports whether the system starts Mypack when the user
+	// OpenAtLogin reports whether the system starts MyPack when the user
 	// logs in, read from the system each time. UNSUPPORTED outside the GUI.
 	OpenAtLogin(ctx context.Context) (bool, error)
-	// SetOpenAtLogin makes the system start Mypack at login, or not.
+	// SetOpenAtLogin makes the system start MyPack at login, or not.
 	SetOpenAtLogin(ctx context.Context, on bool, actor string) error
 	Activity(ctx context.Context, limit int) ([]domain.Activity, error)
 
@@ -220,7 +220,7 @@ type Settings struct {
 	RegistryURL     string `json:"registryUrl"`
 	ShowMenuBarIcon bool   `json:"showMenuBarIcon"`
 	CheckUpdates    bool   `json:"checkUpdates"`
-	// UpdatePrereleases offers prereleases of Mypack too.
+	// UpdatePrereleases offers prereleases of MyPack too.
 	UpdatePrereleases bool   `json:"updatePrereleases,omitempty"`
 	LibraryView       string `json:"libraryView"` // "grid" | "list"
 	// SyncFolder is where Library sync keeps the Library (Pro); empty = off.

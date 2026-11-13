@@ -1,6 +1,6 @@
 <div align="center">
 
-# Mypack
+# MyPack
 
 **どんなWebサイトも。どんなデスクトップも。美しいネイティブビルダーひとつで。**
 
@@ -17,7 +17,7 @@ WebサイトやローカルのHTMLプロジェクトを、数回のクリック�
 
 [機能](#機能) · [はじめ方](#はじめ方) · [CLIとエージェント](#cliとaiエージェント) · [コントリビューション](#コントリビューション) · [着想](#着想と謝辞)
 
-![Mypackのライブラリ](docs/screenshots/real-library.png)
+![MyPackのライブラリ](docs/screenshots/real-library.png)
 
 </div>
 
@@ -25,26 +25,26 @@ WebサイトやローカルのHTMLプロジェクトを、数回のクリック�
 URLを貼る  →  名前とアイコンを確認  →  ビルド  →  インストールして開く
 ```
 
-Mypack は [Apache License 2.0](LICENSE) の下で無料のオープンソースです。
+MyPack は [Apache License 2.0](LICENSE) の下で無料のオープンソースです。
 機能はすべて含まれています。アプリ数の制限、ライセンスキー、アカウントは不要です。
 
-## なぜ Mypack なのか
+## なぜ MyPack なのか
 
 私たちの仕事の多くはWebアプリの中にありますが、ブラウザのタブはそれらの居場所としては不向きです。
 タブは他のタブに埋もれ、どのサイトも同じcookieを共有し、どれも独自のDockアイコン、通知、ウィンドウを持ちません。
 
-Mypack は各サイトに本物の専用アプリを与え、その後も世話を続けます。
+MyPack は各サイトに本物の専用アプリを与え、その後も世話を続けます。
 
-- **マシンにツールチェーンは不要です。** Mypack は何もコンパイルしません。小型の事前ビルド済みruntimeを使い、アプリの設定を書き込むだけなので、ビルドは数秒で終わります。
-- **アプリは単体で成り立ちます。** どのアプリも独自の名前、アイコン、分離されたログインを持ち、システムのWebViewを使い、Mypack をアンインストールしても動き続けます。
+- **マシンにツールチェーンは不要です。** MyPack は何もコンパイルしません。小型の事前ビルド済みruntimeを使い、アプリの設定を書き込むだけなので、ビルドは数秒で終わります。
+- **アプリは単体で成り立ちます。** どのアプリも独自の名前、アイコン、分離されたログインを持ち、システムのWebViewを使い、MyPack をアンインストールしても動き続けます。
 - **作って終わりではありません。** ログインを失わずにワンクリックでアプリをアップデートでき（アップデートに失敗すれば前のバージョンに戻ります）、修復したり、別のコンピュータへ移したりできます。
 
 ## 機能
 
 **アプリを作る**
 
-- 🌐 **任意のWebサイトから**：Mypack が名前と最適なアイコンを取得します。どちらも変更でき、アイコンスタジオでアイコンをデザインすることもできます。
-- 📁 **ローカルプロジェクトから**：HTMLファイル、`index.html` を含むフォルダ、または Vite、CRA、Astro、Nuxt、SvelteKit、Next のエクスポート。Mypack はまずプロジェクトのビルドを実行しますが、あなたが承認したあとだけです。
+- 🌐 **任意のWebサイトから**：MyPack が名前と最適なアイコンを取得します。どちらも変更でき、アイコンスタジオでアイコンをデザインすることもできます。
+- 📁 **ローカルプロジェクトから**：HTMLファイル、`index.html` を含むフォルダ、または Vite、CRA、Astro、Nuxt、SvelteKit、Next のエクスポート。MyPack はまずプロジェクトのビルドを実行しますが、あなたが承認したあとだけです。
 - 🧭 **見つける**：人気サイトが数十あり、ワンクリックで始められます。リストは誰でも追加できるシンプルな [JSONファイル](catalog/discover.json) です。
 - 🗂️ **グループアプリ**：複数のサイトを1つのウィンドウにまとめ、サイドレール、サイトごとの独立したセッション、分割ビューを備えます。
 - 📥 **Pake 設定**：お持ちの [Pake](https://github.com/tw93/Pake) の `pake.json` をそのまま持って来られます。
@@ -53,7 +53,7 @@ Mypack は各サイトに本物の専用アプリを与え、その後も世話�
 
 - 🔔 Web通知と、未読数のDockバッジ
 - 🎵 音楽・動画サイトでメディアキーと「再生中」表示（macOSとLinux。Windowsは標準で対応）
-- 🔗 Mypack アプリ同士のリンクは、正しいアプリで開きます
+- 🔗 MyPack アプリ同士のリンクは、正しいアプリで開きます
 - 🪟 ウィンドウモード：ウインドウ、コンパクト、サイドバー、またはメニューバー
 - 📑 タブとページのピン留め
 - 🛡️ コンテンツブロッキング、カスタムCSSとJavaScript、proxyとuser-agentの設定
@@ -69,12 +69,12 @@ Mypack は各サイトに本物の専用アプリを与え、その後も世話�
 **開発者とAIエージェント向け**
 
 - ⌨️ `--json` 出力と安定した終了コードを持つヘッドレスCLI
-- 🤖 組み込みの [MCP](https://modelcontextprotocol.io) サーバー。Claude Code、Codex などのエージェントがアプリの作成とビルドを行えます。Mypack 自体にチャットやLLMは内蔵されていません。
+- 🤖 組み込みの [MCP](https://modelcontextprotocol.io) サーバー。Claude Code、Codex などのエージェントがアプリの作成とビルドを行えます。MyPack 自体にチャットやLLMは内蔵されていません。
 
 ## 仕組み
 
 ```
-               ┌───────────── Mypack（ビルダー） ─────────────┐
+               ┌───────────── MyPack（ビルダー） ─────────────┐
   Webサイト /  │  名前とアイコン  →  mypack.json  →  アプリ組み立て │      あなたのアプリ
   フォルダ ──▶ │                                       ▲        │ ──▶  .app / .exe /
                └───────────────────────────────────────┼────────┘      Linuxフォルダ
@@ -83,10 +83,10 @@ Mypack は各サイトに本物の専用アプリを与え、その後も世話�
                           レジストリから一度だけダウンロードし、検証してキャッシュします
 ```
 
-runtime はプラットフォームごとに1つの小さなバイナリで、特定のWebサイトについては何も知りません。Mypack はそれをコピーし、アプリの名前、アイコン、`mypack.json` を加え、macOS では結果に署名します。詳細は
+runtime はプラットフォームごとに1つの小さなバイナリで、特定のWebサイトについては何も知りません。MyPack はそれをコピーし、アプリの名前、アイコン、`mypack.json` を加え、macOS では結果に署名します。詳細は
 [ARCHITECTURE.md](ARCHITECTURE.md) にあります。
 
-| | Mypack（ビルダー） | 作られるアプリ |
+| | MyPack（ビルダー） | 作られるアプリ |
 |---|---|---|
 | **macOS**（Apple silicon と Intel） | ✅ メインのプラットフォーム。`.app` / `.dmg` としてパッケージ化 | ✅ WKWebView |
 | **Linux**（x64 と arm64） | 🧪 ソースからビルド | ✅ WebKitGTK、Ubuntu 24.04 でテスト済み |
@@ -105,7 +105,7 @@ brew install --cask sinhong2011/tap/mypack
 **Windows**（winget、[Scoop](https://scoop.sh)、[Chocolatey](https://chocolatey.org)）：
 
 ```powershell
-winget install Mypack.Mypack
+winget install MyPack.MyPack
 ```
 
 ```powershell
@@ -141,7 +141,7 @@ yay -S mypack-bin
 各 [Release](https://github.com/sinhong2011/mypack/releases/latest) には直接ダウンロードできるインストーラーもあります：macOS 用の `.dmg`、Windows 用のセットアッププログラム、Linux 用の `.deb` と `.rpm`。パッケージマネージャーでインストールすると `mypack` コマンドが PATH に入り、そのマネージャーのアップグレードコマンドで更新できます。
 
 > [!NOTE]
-> リリースはまだ署名されていません。macOS で Gatekeeper に初回起動をブロックされたら、Mypack.app を右クリックして「開く」を選んでください。Windows では SmartScreen が確認を求めることがあります（「詳細情報 › 実行」）。
+> リリースはまだ署名されていません。macOS で Gatekeeper に初回起動をブロックされたら、MyPack.app を右クリックして「開く」を選んでください。Windows では SmartScreen が確認を求めることがあります（「詳細情報 › 実行」）。
 
 ### ソースからビルドする
 
@@ -151,8 +151,8 @@ Go 1.27.3 以降が必要です。`GOTOOLCHAIN=auto`（デフォルト）なら�
 git clone https://github.com/sinhong2011/mypack.git
 cd mypack
 make runtimes   # build the app runtimes and sign them with a local dev key
-make app        # build dist/Mypack.app (macOS)
-open dist/Mypack.app
+make app        # build dist/MyPack.app (macOS)
+open dist/MyPack.app
 ```
 
 `make dmg` は Applications にドラッグできるディスクイメージも作ります。何もビルドせずに眺めるだけなら、`make run-fake` がデモデータでアプリを起動します。
@@ -170,7 +170,7 @@ HTMLファイルやフォルダをウィンドウにドロップしたり、**�
 アプリのバイナリはそのまま CLI でもあります。
 
 ```sh
-alias mypack=/Applications/Mypack.app/Contents/MacOS/Mypack   # not needed after a package-manager install
+alias mypack=/Applications/MyPack.app/Contents/MacOS/MyPack   # not needed after a package-manager install
 
 mypack create github.com --json          # a draft project; nothing is built yet
 mypack build <project-id> --yes --json   # build it (--yes allows the runtime download)
@@ -194,7 +194,7 @@ claude mcp add mypack -- mypack mcp serve
 
 ```
 cmd/          エントリポイント：アプリ、CLI、ブラウザの native-messaging host
-runtime/      Mypack が作る各アプリに入る runtime
+runtime/      MyPack が作る各アプリに入る runtime
 internal/     ビルダー、インストーラー、サービス、ストレージ、CLI、MCPサーバー、アプリのUI
 pkg/config/   mypack.json 形式（および Pake のインポート）
 catalog/      見つける用カタログ、discover.json
@@ -216,12 +216,12 @@ apps/         ブラウザ拡張機能（WXT + SolidJS）
 
 ## 着想と謝辞
 
-Mypack は次の2つのプロジェクトの肩の上に立っています。
+MyPack は次の2つのプロジェクトの肩の上に立っています。
 
 - **[Pake](https://github.com/tw93/Pake)**（[tw93](https://github.com/tw93) 作）
-  は、Webサイトが小さく焦点の定まったデスクトップアプリとしてどれほどうまく感じられるか、そしてそれを求める人がどれだけ多いかを示しました。Mypack は同じ発想を別のやり方で実現します。ビルド用ツールチェーンの代わりに事前ビルド済みruntimeを使い、アプリを作り、長く面倒を見るためのネイティブアプリを提供します。Pake の設定を読み込めるので、既存の設定を持って来られます。
+  は、Webサイトが小さく焦点の定まったデスクトップアプリとしてどれほどうまく感じられるか、そしてそれを求める人がどれだけ多いかを示しました。MyPack は同じ発想を別のやり方で実現します。ビルド用ツールチェーンの代わりに事前ビルド済みruntimeを使い、アプリを作り、長く面倒を見るためのネイティブアプリを提供します。Pake の設定を読み込めるので、既存の設定を持って来られます。
 - **[MyGo](https://github.com/egoist/mygo)**（[egoist](https://github.com/egoist) 作）
-  は、Mypack のインターフェースと、それが作るアプリの背後にある純GoのネイティブUIツールキットです。Electron も、Webフロントエンドも、cgo もありません。
+  は、MyPack のインターフェースと、それが作るアプリの背後にある純GoのネイティブUIツールキットです。Electron も、Webフロントエンドも、cgo もありません。
 
 アイコンを提供してくれた [Lucide](https://lucide.dev) と、
 [modernc.org/sqlite](https://gitlab.com/cznic/sqlite) にも感謝します。第三者に関する通知はすべて
@@ -229,6 +229,6 @@ Mypack は次の2つのプロジェクトの肩の上に立っています。
 
 ## ライセンス
 
-Mypack は [Apache License 2.0](LICENSE) の下でライセンスされています。
+MyPack は [Apache License 2.0](LICENSE) の下でライセンスされています。
 
-「Mypack」という名称とそのロゴは商標であり、コードのライセンスの対象外です。改変したビルドを配布する場合は、別の名前とアイコンを付けてください。[TRADEMARKS.md](TRADEMARKS.md) を参照してください。ビルドを配布するフォークは、独自のruntimeレジストリをホストし、独自の鍵で署名する必要があります。
+「MyPack」という名称とそのロゴは商標であり、コードのライセンスの対象外です。改変したビルドを配布する場合は、別の名前とアイコンを付けてください。[TRADEMARKS.md](TRADEMARKS.md) を参照してください。ビルドを配布するフォークは、独自のruntimeレジストリをホストし、独自の鍵で署名する必要があります。

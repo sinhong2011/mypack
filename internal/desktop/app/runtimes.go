@@ -14,7 +14,7 @@ import (
 	"mypack.dev/mypack/pkg/config"
 )
 
-// shownRuntimes keeps every platform of the runtime this Mypack pins new
+// shownRuntimes keeps every platform of the runtime this MyPack pins new
 // projects to, and older or newer versions only where a copy is on disk.
 // The registry lists every version ever published, so without this a fresh
 // install shows a full table of downloads nobody needs per old version.

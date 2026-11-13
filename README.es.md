@@ -1,6 +1,6 @@
 <div align="center">
 
-# Mypack
+# MyPack
 
 **Cualquier sitio web. Cualquier escritorio. Un hermoso constructor nativo.**
 
@@ -17,7 +17,7 @@ Convierte un sitio web, o un proyecto HTML local, en una aplicación de escritor
 
 [Características](#características) · [Cómo empezar](#cómo-empezar) · [CLI y agentes](#cli-y-agentes-de-ia) · [Contribuir](#contribuir) · [Inspiración](#inspiración-y-agradecimientos)
 
-![Biblioteca de Mypack](docs/screenshots/real-library.png)
+![Biblioteca de MyPack](docs/screenshots/real-library.png)
 
 </div>
 
@@ -25,26 +25,26 @@ Convierte un sitio web, o un proyecto HTML local, en una aplicación de escritor
 Pega una URL  →  confirma el nombre y el icono  →  Compilar  →  Instalar y abrir
 ```
 
-Mypack es gratuito y de código abierto bajo la [Apache License 2.0](LICENSE).
+MyPack es gratuito y de código abierto bajo la [Apache License 2.0](LICENSE).
 Todas las funciones están incluidas: sin límite de apps, sin claves de licencia, sin cuenta.
 
-## ¿Por qué Mypack?
+## ¿Por qué MyPack?
 
 Gran parte de nuestro trabajo vive en aplicaciones web, pero una pestaña del navegador es un mal hogar para ellas.
 Las pestañas se pierden entre otras pestañas, todos los sitios comparten un mismo juego de cookies y ninguno tiene su propio icono en el Dock, notificaciones o ventana.
 
-Mypack le da a cada sitio una app propia de verdad, y después sigue cuidándola:
+MyPack le da a cada sitio una app propia de verdad, y después sigue cuidándola:
 
-- **Sin cadena de herramientas en tu máquina.** Mypack no compila nada. Usa un runtime prediseñado pequeño y escribe en él la configuración de tu app, así que una compilación tarda segundos.
-- **Apps que se sostienen por sí solas.** Cada app tiene su propio nombre, icono e inicio de sesión independiente, usa el WebView del sistema y sigue funcionando si desinstalas Mypack.
+- **Sin cadena de herramientas en tu máquina.** MyPack no compila nada. Usa un runtime prediseñado pequeño y escribe en él la configuración de tu app, así que una compilación tarda segundos.
+- **Apps que se sostienen por sí solas.** Cada app tiene su propio nombre, icono e inicio de sesión independiente, usa el WebView del sistema y sigue funcionando si desinstalas MyPack.
 - **Cuidada, no solo creada.** Actualiza una app en un clic sin perder tus inicios de sesión (si una actualización falla, vuelve la versión anterior), repárala o muévela a otro equipo.
 
 ## Características
 
 **Crear apps**
 
-- 🌐 **Desde cualquier sitio web**: Mypack obtiene el nombre y el mejor icono. Puedes cambiar ambos, o diseñar un icono en el Estudio de iconos.
-- 📁 **Desde proyectos locales**: un archivo HTML, una carpeta con `index.html`, o una exportación de Vite, CRA, Astro, Nuxt, SvelteKit o Next. Mypack ejecuta primero la compilación del proyecto, pero solo después de que la apruebes.
+- 🌐 **Desde cualquier sitio web**: MyPack obtiene el nombre y el mejor icono. Puedes cambiar ambos, o diseñar un icono en el Estudio de iconos.
+- 📁 **Desde proyectos locales**: un archivo HTML, una carpeta con `index.html`, o una exportación de Vite, CRA, Astro, Nuxt, SvelteKit o Next. MyPack ejecuta primero la compilación del proyecto, pero solo después de que la apruebes.
 - 🧭 **Descubrir**: decenas de sitios populares, un clic para empezar. La lista es un [archivo JSON](catalog/discover.json) sencillo al que cualquiera puede añadir entradas.
 - 🗂️ **Apps de grupo**: varios sitios en una misma ventana, con una barra lateral, una sesión independiente por sitio y vista dividida.
 - 📥 **Configuraciones de Pake**: trae tu `pake.json` de [Pake](https://github.com/tw93/Pake).
@@ -53,7 +53,7 @@ Mypack le da a cada sitio una app propia de verdad, y después sigue cuidándola
 
 - 🔔 Notificaciones web y una insignia en el Dock para los recuentos de no leídos
 - 🎵 Teclas multimedia y «Ahora suena» en sitios de música y vídeo (macOS y Linux; Windows ya las tiene)
-- 🔗 Los enlaces entre tus apps de Mypack se abren en la app correcta
+- 🔗 Los enlaces entre tus apps de MyPack se abren en la app correcta
 - 🪟 Modos de ventana: ventana, compacta, barra lateral, o en la barra de menús
 - 📑 Pestañas con páginas fijadas
 - 🛡️ Bloqueo de contenido, CSS y JavaScript personalizados, ajustes de proxy y user-agent
@@ -69,12 +69,12 @@ Mypack le da a cada sitio una app propia de verdad, y después sigue cuidándola
 **Para desarrolladores y agentes de IA**
 
 - ⌨️ Una CLI sin interfaz, con salida `--json` y códigos de salida estables
-- 🤖 Un servidor [MCP](https://modelcontextprotocol.io) integrado, para que Claude Code, Codex y otros agentes puedan crear y compilar apps por ti. Mypack no incluye chat ni un LLM propio.
+- 🤖 Un servidor [MCP](https://modelcontextprotocol.io) integrado, para que Claude Code, Codex y otros agentes puedan crear y compilar apps por ti. MyPack no incluye chat ni un LLM propio.
 
 ## Cómo funciona
 
 ```
-               ┌───────────── Mypack (el constructor) ─────────────┐
+               ┌───────────── MyPack (el constructor) ─────────────┐
   sitio web /  │  nombre e icono  →  mypack.json  →  ensamblar app │      tu app
   carpeta  ──▶ │                                       ▲          │ ──▶  .app / .exe /
                └───────────────────────────────────────┼──────────┘      carpeta Linux
@@ -83,10 +83,10 @@ Mypack le da a cada sitio una app propia de verdad, y después sigue cuidándola
                           registro firmado (Ed25519), verificado y puesto en caché
 ```
 
-El runtime es un binario pequeño por plataforma que no sabe nada de ningún sitio web en particular. Mypack lo copia, añade el nombre, el icono y el `mypack.json` de tu app, y en macOS firma el resultado. Los detalles están en
+El runtime es un binario pequeño por plataforma que no sabe nada de ningún sitio web en particular. MyPack lo copia, añade el nombre, el icono y el `mypack.json` de tu app, y en macOS firma el resultado. Los detalles están en
 [ARCHITECTURE.md](ARCHITECTURE.md).
 
-| | Mypack (el constructor) | Apps que crea |
+| | MyPack (el constructor) | Apps que crea |
 |---|---|---|
 | **macOS** (Apple silicon e Intel) | ✅ Plataforma principal, empaquetado como `.app` / `.dmg` | ✅ WKWebView |
 | **Linux** (x64 y arm64) | 🧪 Compilar desde el código fuente | ✅ WebKitGTK, probado en Ubuntu 24.04 |
@@ -105,7 +105,7 @@ brew install --cask sinhong2011/tap/mypack
 **Windows** con winget, [Scoop](https://scoop.sh) o [Chocolatey](https://chocolatey.org):
 
 ```powershell
-winget install Mypack.Mypack
+winget install MyPack.MyPack
 ```
 
 ```powershell
@@ -141,7 +141,7 @@ yay -S mypack-bin
 Cada [Release](https://github.com/sinhong2011/mypack/releases/latest) también incluye los instaladores para descargar directamente: un `.dmg` para macOS, programas de instalación para Windows y paquetes `.deb` y `.rpm` para Linux. Con un gestor de paquetes, el comando `mypack` queda en tu PATH y se actualiza con el comando de actualización de ese gestor.
 
 > [!NOTE]
-> Las versiones aún no están firmadas. En macOS, si Gatekeeper bloquea el primer inicio, haz clic derecho en Mypack.app y elige **Abrir**. En Windows, SmartScreen puede pedir confirmación (**Más información › Ejecutar de todas formas**).
+> Las versiones aún no están firmadas. En macOS, si Gatekeeper bloquea el primer inicio, haz clic derecho en MyPack.app y elige **Abrir**. En Windows, SmartScreen puede pedir confirmación (**Más información › Ejecutar de todas formas**).
 
 ### Compilar desde el código fuente
 
@@ -151,8 +151,8 @@ Necesitas Go 1.27.3 o una versión posterior. Con `GOTOOLCHAIN=auto` (el valor p
 git clone https://github.com/sinhong2011/mypack.git
 cd mypack
 make runtimes   # build the app runtimes and sign them with a local dev key
-make app        # build dist/Mypack.app (macOS)
-open dist/Mypack.app
+make app        # build dist/MyPack.app (macOS)
+open dist/MyPack.app
 ```
 
 `make dmg` también crea una imagen de disco para arrastrar a Applications. Para explorarlo sin compilar nada, `make run-fake` inicia la app con datos de demostración.
@@ -170,7 +170,7 @@ También puedes soltar un archivo HTML o una carpeta sobre la ventana, o elegir 
 El binario de la app también es la CLI:
 
 ```sh
-alias mypack=/Applications/Mypack.app/Contents/MacOS/Mypack   # not needed after a package-manager install
+alias mypack=/Applications/MyPack.app/Contents/MacOS/MyPack   # not needed after a package-manager install
 
 mypack create github.com --json          # a draft project; nothing is built yet
 mypack build <project-id> --yes --json   # build it (--yes allows the runtime download)
@@ -194,7 +194,7 @@ claude mcp add mypack -- mypack mcp serve
 
 ```
 cmd/          puntos de entrada: la app, la CLI, el host de native-messaging del navegador
-runtime/      el runtime dentro de cada app que Mypack crea
+runtime/      el runtime dentro de cada app que MyPack crea
 internal/     constructor, instalador, servicio, almacenamiento, CLI, servidor MCP y la UI de la app
 pkg/config/   el formato mypack.json (y la importación de Pake)
 catalog/      el catálogo de Descubrir, discover.json
@@ -216,12 +216,12 @@ Empieza por [CONTRIBUTING.md](CONTRIBUTING.md). Informa de los problemas de segu
 
 ## Inspiración y agradecimientos
 
-Mypack se apoya en los hombros de dos proyectos:
+MyPack se apoya en los hombros de dos proyectos:
 
 - **[Pake](https://github.com/tw93/Pake)** de [tw93](https://github.com/tw93)
-  mostró lo bien que puede sentirse un sitio web como una app de escritorio pequeña y centrada, y cuánta gente quiere eso. Mypack toma la misma idea por otro camino: un runtime prediseñado en lugar de una cadena de herramientas de compilación, y una app nativa para crear y cuidar tus apps a lo largo del tiempo. Lee configuraciones de Pake, así que puedes traer las tuyas.
+  mostró lo bien que puede sentirse un sitio web como una app de escritorio pequeña y centrada, y cuánta gente quiere eso. MyPack toma la misma idea por otro camino: un runtime prediseñado en lugar de una cadena de herramientas de compilación, y una app nativa para crear y cuidar tus apps a lo largo del tiempo. Lee configuraciones de Pake, así que puedes traer las tuyas.
 - **[MyGo](https://github.com/egoist/mygo)** de [egoist](https://github.com/egoist)
-  es el kit de UI nativa escrito en Go puro detrás de la interfaz de Mypack y de las apps que crea: sin Electron, sin front end web, sin cgo.
+  es el kit de UI nativa escrito en Go puro detrás de la interfaz de MyPack y de las apps que crea: sin Electron, sin front end web, sin cgo.
 
 Gracias también a [Lucide](https://lucide.dev) por los iconos y a
 [modernc.org/sqlite](https://gitlab.com/cznic/sqlite). Todos los avisos de terceros
@@ -229,7 +229,7 @@ están en [NOTICE](NOTICE).
 
 ## Licencia
 
-Mypack se licencia bajo la [Apache License 2.0](LICENSE).
+MyPack se licencia bajo la [Apache License 2.0](LICENSE).
 
-El nombre «Mypack» y su logotipo son marcas comerciales y no están cubiertos por la licencia del código. Si distribuyes una compilación modificada, dale un nombre y un icono distintos; consulta [TRADEMARKS.md](TRADEMARKS.md). Los forks que distribuyan compilaciones
+El nombre «MyPack» y su logotipo son marcas comerciales y no están cubiertos por la licencia del código. Si distribuyes una compilación modificada, dale un nombre y un icono distintos; consulta [TRADEMARKS.md](TRADEMARKS.md). Los forks que distribuyan compilaciones
 deben alojar su propio registro de runtimes y firmarlo con su propia clave.

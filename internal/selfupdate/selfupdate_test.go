@@ -121,12 +121,12 @@ func TestCheckerLatest(t *testing.T) {
 			{"tag_name":"v1.3.0-beta.1","prerelease":true}]`))
 	}))
 	defer srv.Close()
-	c := Checker{BaseURL: srv.URL, UserAgent: "Mypack/1.0.0"}
+	c := Checker{BaseURL: srv.URL, UserAgent: "MyPack/1.0.0"}
 	r, err := c.Latest(context.Background(), false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if gotPath != "/repos/sinhong2011/mypack/releases" || gotUA != "Mypack/1.0.0" {
+	if gotPath != "/repos/sinhong2011/mypack/releases" || gotUA != "MyPack/1.0.0" {
 		t.Fatalf("request %s UA %q", gotPath, gotUA)
 	}
 	if r.Version != "1.2.0" || r.Published.IsZero() {
@@ -199,28 +199,28 @@ func TestDetect(t *testing.T) {
 		cmd   string
 		check func(Source) bool
 	}{
-		{name: "mac dmg", goos: "darwin", exe: "/Applications/Mypack.app/Contents/MacOS/mypack", want: ManagerNone},
-		{name: "mac brew cask", goos: "darwin", exe: "/Applications/Mypack.app/Contents/MacOS/mypack",
+		{name: "mac dmg", goos: "darwin", exe: "/Applications/MyPack.app/Contents/MacOS/mypack", want: ManagerNone},
+		{name: "mac brew cask", goos: "darwin", exe: "/Applications/MyPack.app/Contents/MacOS/mypack",
 			fs: fakeFS{"/opt/homebrew/Caskroom/mypack": true}, want: ManagerHomebrew, cmd: "brew upgrade --cask mypack"},
-		{name: "mac brew intel", goos: "darwin", exe: "/Applications/Mypack.app/Contents/MacOS/mypack",
+		{name: "mac brew intel", goos: "darwin", exe: "/Applications/MyPack.app/Contents/MacOS/mypack",
 			fs: fakeFS{"/usr/local/Caskroom/mypack": true}, want: ManagerHomebrew},
-		{name: "mac brew custom prefix", goos: "darwin", exe: "/Users/a/Applications/Mypack.app/Contents/MacOS/mypack",
+		{name: "mac brew custom prefix", goos: "darwin", exe: "/Users/a/Applications/MyPack.app/Contents/MacOS/mypack",
 			env: map[string]string{"HOMEBREW_PREFIX": "/Users/a/brew"}, fs: fakeFS{"/Users/a/brew/Caskroom/mypack": true}, want: ManagerHomebrew},
-		{name: "mac other cask only", goos: "darwin", exe: "/Applications/Mypack.app/Contents/MacOS/mypack",
+		{name: "mac other cask only", goos: "darwin", exe: "/Applications/MyPack.app/Contents/MacOS/mypack",
 			fs: fakeFS{"/opt/homebrew/Caskroom/mypack-nightly": true}, want: ManagerNone},
-		{name: "win nsis per-user", goos: "windows", exe: `C:\Users\a\AppData\Local\Programs\Mypack\mypack.exe`,
+		{name: "win nsis per-user", goos: "windows", exe: `C:\Users\a\AppData\Local\Programs\MyPack\mypack.exe`,
 			env: map[string]string{"LOCALAPPDATA": `C:\Users\a\AppData\Local`}, want: ManagerNone},
 		{name: "win scoop", goos: "windows", exe: `C:\Users\a\scoop\apps\mypack\current\mypack.exe`,
 			want: ManagerScoop, cmd: "scoop update mypack"},
 		{name: "win scoop custom root", goos: "windows", exe: `D:\tools\apps\mypack\1.0.0\mypack.exe`,
 			env: map[string]string{"SCOOP": `D:\Tools`}, want: ManagerScoop},
-		{name: "win choco lib", goos: "windows", exe: `C:\Users\a\AppData\Local\Programs\Mypack\mypack.exe`,
+		{name: "win choco lib", goos: "windows", exe: `C:\Users\a\AppData\Local\Programs\MyPack\mypack.exe`,
 			fs: fakeFS{`C:\ProgramData\chocolatey\lib\mypack`: true}, want: ManagerChocolatey, cmd: "choco upgrade mypack"},
-		{name: "win winget packages", goos: "windows", exe: `C:\Users\a\AppData\Local\Programs\Mypack\mypack.exe`,
+		{name: "win winget packages", goos: "windows", exe: `C:\Users\a\AppData\Local\Programs\MyPack\mypack.exe`,
 			env:  map[string]string{"LOCALAPPDATA": `C:\Users\a\AppData\Local`},
-			fs:   fakeFS{`C:\Users\a\AppData\Local\Microsoft\WinGet\Packages\Mypack.Mypack_Microsoft.Winget.Source_8wekyb3d8bbwe`: true},
-			want: ManagerWinget, cmd: "winget upgrade Mypack.Mypack"},
-		{name: "win winget portable", goos: "windows", exe: `C:\Users\a\AppData\Local\Microsoft\WinGet\Packages\Mypack.Mypack_x\mypack.exe`,
+			fs:   fakeFS{`C:\Users\a\AppData\Local\Microsoft\WinGet\Packages\MyPack.MyPack_Microsoft.Winget.Source_8wekyb3d8bbwe`: true},
+			want: ManagerWinget, cmd: "winget upgrade MyPack.MyPack"},
+		{name: "win winget portable", goos: "windows", exe: `C:\Users\a\AppData\Local\Microsoft\WinGet\Packages\MyPack.MyPack_x\mypack.exe`,
 			want: ManagerWinget},
 		{name: "linux install.sh", goos: "linux", exe: "/home/a/.local/mypack.app/mypack", fs: fakeFS{"/usr/bin/apt": true}, want: ManagerNone},
 		{name: "linux deb", goos: "linux", exe: "/opt/mypack/mypack",

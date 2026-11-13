@@ -1,5 +1,5 @@
 name: Bug report
-description: Something in Mypack doesn't work as it should.
+description: Something in MyPack doesn't work as it should.
 labels: [bug]
 body:
   - type: textarea
@@ -22,7 +22,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: Mypack version
+      label: MyPack version
       description: Settings › About, or `mypack version`.
     validations:
       required: true

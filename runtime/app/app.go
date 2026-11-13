@@ -41,7 +41,7 @@ type App struct {
 	bridge *bridgeService   // page -> Go calls: notifications, badge
 	badges *badgeController // Dock / taskbar badge
 	media  *mediaController // media keys and Now Playing; nil where the webview has them
-	routes *routing.Table   // link routing between Mypack apps
+	routes *routing.Table   // link routing between MyPack apps
 
 	mu       sync.Mutex
 	main     *mygo.Window
@@ -142,7 +142,7 @@ func (a *App) Run() error {
 		log.Printf("mypack-runtime: warning: network.proxy=%q is ignored; webviews follow the operating-system proxy settings (platform limitation)", redactProxy(cfg.Network.Proxy))
 	}
 
-	// Links other Mypack apps (or the Builder) hand to this app: macOS
+	// Links other MyPack apps (or the Builder) hand to this app: macOS
 	// delivers them as open-URL events, Windows/Linux as arguments. Register
 	// before Run to receive the URL the app was launched with.
 	mygo.App.OnOpenURL(a.handleIncomingURL)

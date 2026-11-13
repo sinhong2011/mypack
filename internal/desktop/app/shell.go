@@ -130,7 +130,7 @@ func (a *App) sidebar(c *ui.Context) {
 		ui.Row(c).Height(design.TitleBarH).Shrink(0).DragWindow().AlignItems(ui.Center).Padding(0, 0, 0, max(6, bar.Left)).Gap(8).Children(func() {
 			if bar.Left == 0 {
 				kit.BrandMark(c, 22)
-				ui.Text(c, "Mypack").FontSize(design.FontTitle3).FontWeight(design.WeightBold).TextColor(p.Text).LetterSpacing(design.TrackTitle)
+				ui.Text(c, "MyPack").FontSize(design.FontTitle3).FontWeight(design.WeightBold).TextColor(p.Text).LetterSpacing(design.TrackTitle)
 			}
 		})
 		ui.Column(c).Gap(1).Role(ui.RoleNavigation).Label(T("nav.label")).Children(func() {

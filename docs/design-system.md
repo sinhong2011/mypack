@@ -415,7 +415,7 @@ Accessibility is built in:
       Compatibility, Packaging, Diagnostics.
   - Advanced adds the user agent as a preset (Safari, Chrome, Edge,
     Firefox, Mobile Safari, or Custom, which shows the text field) and
-    "Open links to my other Mypack apps in those apps".
+    "Open links to my other MyPack apps in those apps".
   - While a build runs from Create, the inspector is held: it is quieter
     (0.8) but still readable, and does not take clicks.
   - The build action is one pill ("Build & Open" or "Build for This Mac")
@@ -478,7 +478,7 @@ Accessibility is built in:
     for new apps is in Settings › Builds. They are stored GUI-side in
     ui-state.
   - On success the build's artifact for this device is installed and
-    opened with `InstallAndOpen`. Only a Mypack-managed install is
+    opened with `InstallAndOpen`. Only a MyPack-managed install is
     replaced. Anything else asks (the conflict dialog); the free limit
     shows its dialog, and a running app gets "Quit X to update it".
 - **Web projects** (a dropped folder with package.json):

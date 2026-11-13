@@ -37,16 +37,16 @@ type importSkip struct {
 	names []string
 }
 
-func saveMypack(a *App, name string) (string, error) {
+func saveMyPack(a *App, name string) (string, error) {
 	return mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: a.win, DefaultPath: name,
-		Filters: []mygo.FileFilter{{Name: "Mypack", Extensions: []string{"mypack"}}}})
+		Filters: []mygo.FileFilter{{Name: "MyPack", Extensions: []string{"mypack"}}}})
 }
 
 // exportLibrary saves projects ids (all when empty) as a .mypack file.
 func (a *App) exportLibrary(ids []string, name string) {
 	a.showWindow()
 	go func() {
-		path, err := saveMypack(a, strings.ReplaceAll(name, "/", "-")+appservice.LibraryExt)
+		path, err := saveMyPack(a, strings.ReplaceAll(name, "/", "-")+appservice.LibraryExt)
 		if err != nil || path == "" {
 			return
 		}
@@ -74,7 +74,7 @@ func (a *App) importApps() {
 	a.showWindow()
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.win, Title: T("library.import.title"),
-			ButtonLabel: T("library.import.button"), Filters: []mygo.FileFilter{{Name: "Mypack", Extensions: []string{"mypack", "json"}}}})
+			ButtonLabel: T("library.import.button"), Filters: []mygo.FileFilter{{Name: "MyPack", Extensions: []string{"mypack", "json"}}}})
 		if err != nil || len(paths) == 0 {
 			return
 		}
@@ -278,7 +278,7 @@ func (a *App) transferGroup(c *ui.Context) {
 }
 
 // syncFolderLabel names the sync folder as Finder does ("iCloud Drive ›
-// Mypack"), else as a short path.
+// MyPack"), else as a short path.
 func syncFolderLabel(path string) string {
 	const icloud = "/Library/Mobile Documents/com~apple~CloudDocs"
 	if i := strings.Index(path, icloud); i >= 0 {

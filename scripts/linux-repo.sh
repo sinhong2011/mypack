@@ -46,8 +46,8 @@ prune "$site/rpm/packages" '^mypack-(.+)-1\.[a-z0-9_]+\.rpm$' 'mypack-VERSION-1.
     gzip -9kn "$d/Packages"
   done
   apt-ftparchive \
-    -o APT::FTPArchive::Release::Origin=Mypack \
-    -o APT::FTPArchive::Release::Label=Mypack \
+    -o APT::FTPArchive::Release::Origin=MyPack \
+    -o APT::FTPArchive::Release::Label=MyPack \
     -o APT::FTPArchive::Release::Suite=stable \
     -o APT::FTPArchive::Release::Codename=stable \
     -o APT::FTPArchive::Release::Architectures="amd64 arm64" \
@@ -64,7 +64,7 @@ prune "$site/rpm/packages" '^mypack-(.+)-1\.[a-z0-9_]+\.rpm$' 'mypack-VERSION-1.
   gpg --batch --yes --local-user "$key" --armor --detach-sign -o repodata/repomd.xml.asc repodata/repomd.xml
   cat >mypack.repo <<EOF
 [mypack]
-name=Mypack
+name=MyPack
 baseurl=$url/rpm
 enabled=1
 gpgcheck=0
@@ -79,9 +79,9 @@ touch "$site/.nojekyll"
 cat >"$site/index.html" <<EOF
 <!doctype html>
 <meta charset="utf-8">
-<title>Mypack packages</title>
-<h1>Mypack package repositories</h1>
-<p>APT and RPM repositories for <a href="https://github.com/sinhong2011/mypack">Mypack</a>.
+<title>MyPack packages</title>
+<h1>MyPack package repositories</h1>
+<p>APT and RPM repositories for <a href="https://github.com/sinhong2011/mypack">MyPack</a>.
 Setup: <a href="https://github.com/sinhong2011/mypack#install">README › Install</a>.</p>
 <ul>
 <li><a href="apt/">apt/</a> (Debian, Ubuntu)</li>

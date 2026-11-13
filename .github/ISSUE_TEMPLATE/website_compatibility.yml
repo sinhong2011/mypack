@@ -1,5 +1,5 @@
 name: Website compatibility
-description: A website doesn't work properly as a Mypack app.
+description: A website doesn't work properly as a MyPack app.
 labels: [website-compatibility]
 body:
   - type: input
@@ -35,7 +35,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: Mypack version and operating system
+      label: MyPack version and operating system
       placeholder: 1.0.0 on macOS 26.1
     validations:
       required: true
