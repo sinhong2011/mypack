@@ -9,6 +9,7 @@ import (
 
 	"mypack.dev/mypack/internal/desktop/design"
 	"mypack.dev/mypack/internal/desktop/kit"
+	"mypack.dev/mypack/internal/desktop/kit/icons"
 	"mypack.dev/mypack/internal/desktop/sampleicons"
 )
 
@@ -41,6 +42,44 @@ func (a *App) loadCatalog() {
 		}
 		a.win.Update(func() { templates = fromCatalog(c) })
 	}()
+}
+
+// refreshCatalog fetches the catalog now, skipping the day-long cache (the
+// Discover toolbar's refresh button). A failed fetch keeps the list shown.
+func (a *App) refreshCatalog() {
+	if a.catalogBusy {
+		return
+	}
+	a.catalogBusy = true
+	go func() {
+		c, err := catalog.Fetch(context.Background())
+		if a.win == nil {
+			return
+		}
+		a.win.Update(func() {
+			a.catalogBusy = false
+			if err != nil {
+				a.toast(T("discover.refresh.failed"), "", 2)
+				return
+			}
+			templates = fromCatalog(c)
+			a.toast(T("discover.refreshed"), "", 1)
+		})
+	}()
+}
+
+// discoverToolbar holds the refresh button, a spinner while it fetches.
+func (a *App) discoverToolbar(c *ui.Context) {
+	if a.catalogBusy {
+		ui.Box(c.Key("refresh")).Size(design.ToolbarControl, design.ToolbarControl).Center().Shrink(0).
+			Role(ui.RoleProgress).Label(T("discover.refreshing")).Children(func() {
+			kit.Spinner(c, 16, design.Of(c).TextSecondary)
+		})
+		return
+	}
+	if kit.ToolbarIcon(c.Key("refresh"), icons.Refresh, T("discover.refresh")).Clicked() {
+		a.refreshCatalog()
+	}
 }
 
 // templateIcon is the neutral generated icon a preset shows.
