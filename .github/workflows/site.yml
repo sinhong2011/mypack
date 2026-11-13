@@ -17,11 +17,16 @@ on:
     paths:
       - "site/**"
       - ".github/workflows/site.yml"
+  # The build bakes in the latest release's version (JSON-LD) and the star count. Releases don't touch site/, so
+  # a daily rebuild picks them up; the page also refreshes the star count in the browser.
+  schedule:
+    - cron: "17 3 * * *"
   workflow_dispatch:
 
+# A newer pull request push cancels the older build. Deploys from main queue instead of cancelling one midway.
 concurrency:
   group: site-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -62,7 +67,7 @@ jobs:
   deploy:
     name: Deploy to Cloudflare Pages
     if: >-
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') &&
       github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
@@ -83,10 +88,23 @@ jobs:
             echo "::error::Add the CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID repository secrets (Settings › Secrets and variables › Actions)."
             exit 1
           fi
-      # The first run creates the Pages project. Later runs fail this step because it exists, which is fine;
-      # a real problem (a bad token, say) fails the deploy below too, with the error.
-      - name: Create the Pages project if missing
-        continue-on-error: true
+      # Ask Cloudflare whether the Pages project exists; only the first run creates it. Any other answer than
+      # found or not found (a bad token, say) stops here with Cloudflare's error.
+      - name: Look up the Pages project
+        id: project
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          code=$(curl -sS -o body.json -w '%{http_code}' -H "Authorization: Bearer $TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/pages/projects/$PROJECT")
+          case "$code" in
+            200) echo "exists=true" >> "$GITHUB_OUTPUT" ;;
+            404) echo "exists=false" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::Cloudflare answered $code"; cat body.json; exit 1 ;;
+          esac
+      - name: Create the Pages project
+        if: steps.project.outputs.exists == 'false'
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
