@@ -1,0 +1,51 @@
+---
+import { m } from "../paraglide/messages.js";
+import { SITE } from "../config";
+import Icon from "./Icon.astro";
+
+// The demo's sites. Monograms only: the tiles stand in for whatever icon MyPack fetches.
+const SITES = [
+  { url: "github.com", name: "GitHub", mark: "G", tone: "t-github" },
+  { url: "figma.com", name: "Figma", mark: "F", tone: "t-figma" },
+  { url: "music.youtube.com", name: "YouTube Music", mark: "Y", tone: "t-music" },
+  { url: "notion.so", name: "Notion", mark: "N", tone: "t-notion" },
+];
+const STEPS = [m.demo_step_validate(), m.demo_step_assemble(), m.demo_step_sign(), m.demo_step_verify()];
+---
+<section class="hero" data-shader="hero" aria-labelledby="hero-title">
+  <div class="wrap hero__grid">
+    <div>
+      <h1 id="hero-title" class="display">
+        <span class="line-1">{m.hero_title_1()}</span>
+        <span class="line-2">{m.hero_title_2()}</span>
+      </h1>
+      <p class="hero__lede">{m.hero_lede()}</p>
+      <div class="hero__cta">
+        <a class="btn btn-primary" href={SITE.releases} data-dl>
+          <Icon name="download" />
+          <span data-dl-label data-template={m.download_for({ os: "{os}" })}>{m.download()}</span>
+        </a>
+        <a class="btn btn-ghost" href="#install">{m.hero_more()}</a>
+      </div>
+      <p class="hero__note">{m.hero_note()}</p>
+    </div>
+
+    <div class="demo" data-demo role="img" aria-label={m.demo_aria()} data-sites={JSON.stringify(SITES)}>
+      <div class="demo__win" data-win>
+        <div class="demo__chrome">
+          <div class="dots" aria-hidden="true"><i></i><i></i><i></i></div>
+          <div class="demo__url"><Icon name="globe" size={15} /><span data-typed>github.com</span><i class="caret" aria-hidden="true"></i></div>
+        </div>
+        <div class="demo__body">
+          <div class="demo__icon t-github" data-icon>G</div>
+          <div class="demo__name" data-name>GitHub</div>
+          <div class="demo__bar"><i data-bar></i></div>
+          <ol class="demo__steps" data-steps>{STEPS.map((s) => <li>{s}</li>)}</ol>
+        </div>
+      </div>
+      <div class="demo__dock" data-dock aria-hidden="true">
+        {SITES.map((s, i) => <div class="demo__slot"><div class={`tile ${s.tone}`} data-tile={i}>{s.mark}</div></div>)}
+      </div>
+    </div>
+  </div>
+</section>

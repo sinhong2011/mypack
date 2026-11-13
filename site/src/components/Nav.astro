@@ -1,0 +1,25 @@
+---
+import { m } from "../paraglide/messages.js";
+import { SITE } from "../config";
+import { versioned } from "../versioned";
+import { currentLocale, localeHref } from "../i18n";
+import LangSwitch from "./LangSwitch.astro";
+import Icon from "./Icon.astro";
+---
+<header class="nav" data-nav>
+  <div class="nav__bar">
+    <a class="nav__brand" href={localeHref(currentLocale())}>
+      <img src={versioned("assets/icon-256.png")} alt="" width="30" height="30" />
+      MyPack
+    </a>
+    <nav class="nav__links" aria-label={m.nav_label()}>
+      <a href="#how">{m.nav_how()}</a>
+      <a href="#features">{m.nav_features()}</a>
+      <a href="#compare">{m.nav_compare()}</a>
+      <a href="#developers">{m.nav_developers()}</a>
+      <a href={SITE.repo} rel="noopener">GitHub</a>
+    </nav>
+    <LangSwitch />
+    <a class="btn btn-nav" href="#install"><Icon name="download" size={17} /><span class="label-long">{m.nav_download()}</span></a>
+  </div>
+</header>

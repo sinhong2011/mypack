@@ -1,0 +1,17 @@
+---
+import { m } from "../paraglide/messages.js";
+import { SITE } from "../config";
+import { versioned } from "../versioned";
+import Icon from "./Icon.astro";
+---
+<section class="close" data-shader="close" aria-labelledby="close-title">
+  <div class="wrap">
+    <img class="close__icon" src={versioned("assets/icon-256.png")} alt="" width="104" height="104" loading="lazy" />
+    <h2 id="close-title" class="display">{m.close_title()}</h2>
+    <p>{m.close_lede()}</p>
+    <div class="hero__cta">
+      <a class="btn btn-primary" href={SITE.releases} data-dl><Icon name="download" /><span data-dl-label data-template={m.download_for({ os: "{os}" })}>{m.download()}</span></a>
+      <a class="btn btn-ghost" href={SITE.repo} rel="noopener"><Icon name="github" />{m.close_source()}</a>
+    </div>
+  </div>
+</section>

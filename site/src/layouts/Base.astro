@@ -1,0 +1,64 @@
+---
+import "../styles/global.css";
+import { versioned } from "../versioned";
+import { asset } from "../config";
+import { LOCALES, currentLocale, localeHref, isCJK } from "../i18n";
+import { m } from "../paraglide/messages.js";
+
+interface Props {
+  title: string;
+  description: string;
+  page?: string;
+  /** schema.org data for search engines, emitted as JSON-LD. */
+  jsonLd?: Record<string, unknown>[];
+}
+const { title, description, page = "", jsonLd = [] } = Astro.props;
+const locale = currentLocale();
+const fonts = "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&family=Onest:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap";
+const origin = Astro.site ? Astro.site.origin : "";
+const canonical = `${origin}${localeHref(locale, page)}`;
+const ogImage = `${origin}${asset("assets/og.jpg")}`;
+const ogLocale = (l: { lang: string }) => l.lang.replace(/-/g, "_");
+---
+<!doctype html>
+<html lang={locale.lang} data-cjk={isCJK(locale) ? "" : undefined}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <meta name="robots" content="index, follow" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="MyPack" />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={m.meta_og_image_alt()} />
+    <meta property="og:locale" content={ogLocale(locale)} />
+    {LOCALES.filter((l) => l.id !== locale.id).map((l) => <meta property="og:locale:alternate" content={ogLocale(l)} />)}
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
+    <meta name="twitter:image:alt" content={m.meta_og_image_alt()} />
+    {LOCALES.map((l) => <link rel="alternate" hreflang={l.lang} href={`${origin}${localeHref(l, page)}`} />)}
+    <link rel="alternate" hreflang="x-default" href={`${origin}${localeHref(LOCALES[0], page)}`} />
+    <meta name="theme-color" content="#F3F5FB" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#070B1E" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href={versioned("assets/favicon-64.png")} type="image/png" />
+    <link rel="apple-touch-icon" href={versioned("assets/apple-touch-icon.png")} />
+    {origin && <link rel="sitemap" href={asset("sitemap-index.xml")} />}
+    {jsonLd.map((d) => <script type="application/ld+json" is:inline set:html={JSON.stringify(d).replace(/</g, "\\u003c")} />)}
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href={fonts} rel="stylesheet" />
+  </head>
+  <body>
+    <a class="skip" href="#main">{m.skip()}</a>
+    <slot />
+  </body>
+</html>
