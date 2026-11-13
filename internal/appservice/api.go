@@ -13,6 +13,7 @@ import (
 	"context"
 
 	"mypack.dev/mypack/internal/domain"
+	"mypack.dev/mypack/internal/metadata"
 	"mypack.dev/mypack/pkg/config"
 )
 
@@ -61,6 +62,10 @@ type Service interface {
 	// limited). Never fails hard on network errors: returns a Metadata with
 	// Fallback=true so the user can continue (spec §9C.1).
 	FetchMetadata(ctx context.Context, rawURL string) (Metadata, error)
+	// FetchIconFrom asks a third-party favicon service (IconProviders) for
+	// a website's icon, as a square PNG. Only call it when the user picks
+	// the provider: it sends the site's host name to that service.
+	FetchIconFrom(ctx context.Context, rawURL string, provider metadata.IconProvider) ([]byte, error)
 
 	// ---- Builds ---------------------------------------------------------
 

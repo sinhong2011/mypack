@@ -45,6 +45,8 @@ jobs:
         run: bash scripts/macos-notary-credentials.sh --self-test
       - name: Bundle-runtime script examples
         run: bash scripts/bundle-runtime.sh --self-test
+      - name: Linux repository examples
+        run: bash scripts/linux-repo.sh --self-test
       - uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
@@ -412,7 +414,9 @@ jobs:
 
   # The APT and RPM repositories on GitHub Pages (gh-pages branch), signed
   # with LINUX_REPO_GPG_KEY. The branch is one commit, rewritten each
-  # release, so old packages do not pile up in its history.
+  # release, so old packages do not pile up in its history. The job checks
+  # it out into linux-repo/. site/ is the marketing website. Pages still
+  # serves the root of gh-pages (apt/, rpm/, the signing key).
   linux-repo:
     needs: packages
     runs-on: ubuntu-latest
@@ -440,12 +444,13 @@ jobs:
           printf '%s\n' "$GPG_KEY" | gpg --batch --import
           key=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr/ { print $10; exit }')
           remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          if ! git clone --depth 1 --branch gh-pages "$remote" site; then
-            mkdir site
+          # site/ is the marketing website. gh-pages is checked out beside it.
+          if ! git clone --depth 1 --branch gh-pages "$remote" linux-repo; then
+            mkdir linux-repo
           fi
-          rm -rf site/.git
-          KEEP=5 bash scripts/linux-repo.sh site artifact/release "$key"
-          cd site
+          rm -rf linux-repo/.git
+          KEEP=5 bash scripts/linux-repo.sh linux-repo artifact/release "$key"
+          cd linux-repo
           git init -q -b gh-pages
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

@@ -1000,3 +1000,30 @@ func TestOpenArtifactLaunchesInPlace(t *testing.T) {
 		t.Fatal("opening a removed artifact succeeded")
 	}
 }
+
+func TestFetchIconFrom(t *testing.T) {
+	var got []string
+	e := newEnv(t, func(o *Options) {
+		o.IconFrom = func(ctx context.Context, u string, p metadata.IconProvider) ([]byte, error) {
+			got = append(got, string(p)+" "+u)
+			if p == metadata.IconGoogle {
+				return []byte("PNG"), nil
+			}
+			return nil, metadata.ErrNoProviderIcon
+		}
+	})
+	ctx := context.Background()
+	if b, err := e.svc.FetchIconFrom(ctx, "acme.example", metadata.IconGoogle); err != nil || string(b) != "PNG" {
+		t.Fatalf("google: %q %v", b, err)
+	}
+	var de *domain.Error
+	if _, err := e.svc.FetchIconFrom(ctx, "acme.example", metadata.IconDuckDuckGo); !errors.As(err, &de) || de.Code != CodeIconNotFound {
+		t.Fatalf("duckduckgo: %v", err)
+	}
+	if _, err := e.svc.FetchIconFrom(ctx, "", metadata.IconGoogle); !errors.As(err, &de) || de.Code != CodeInvalidInput {
+		t.Fatalf("empty: %v", err)
+	}
+	if len(got) != 2 || got[0] != "google https://acme.example/" {
+		t.Fatalf("calls %q", got)
+	}
+}

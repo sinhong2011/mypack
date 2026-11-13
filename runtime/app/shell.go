@@ -1,7 +1,10 @@
+//go:build !mypack_lite
+
 package app
 
 import (
 	"image/color"
+	"log"
 	"runtime"
 	"strconv"
 	"strings"
@@ -45,6 +48,22 @@ func (a *App) stripHeight() int {
 		return stripHeightOverlay
 	}
 	return stripHeightHidden
+}
+
+// openStripWindow creates a window of native UI (strip + web view) loading
+// url. Main thread.
+func (a *App) openStripWindow(o mygo.WindowOptions, url string) (*mygo.Window, *mygo.Page) {
+	s := a.newShell()
+	o.Content = ui.View(s.viewFn)
+	w := safeNewWindow(o)
+	s.win = w
+	p, err := s.attach(url)
+	if err != nil {
+		log.Printf("mypack-runtime: web view: %v", err)
+		return w, nil
+	}
+	a.registerPage(w, p)
+	return w, p
 }
 
 // shell is the native layout of one window.

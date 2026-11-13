@@ -1,8 +1,9 @@
 // Package metadata fetches a website's title, icon and theme color safely
 // (timeouts, redirect cap, size limits, http/https only). Spec §3 Source.
 //
-// Privacy: only the website itself is contacted. No third-party favicon
-// services are used.
+// Privacy: Fetch only contacts the website itself. FetchIconFrom asks a
+// third-party favicon service (Google or DuckDuckGo) and is only called
+// when the user picks one; it sends just the site's host name.
 package metadata
 
 import (

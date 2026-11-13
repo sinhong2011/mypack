@@ -1,0 +1,37 @@
+---
+// The four steps from the README, in order: numbered because they are a sequence.
+import { m } from "../paraglide/messages.js";
+import Shot from "./Shot.astro";
+
+const STEPS = [
+  { t: m.step1_t(), d: m.step1_d(), shot: "create-empty", alt: m.step1_alt() },
+  { t: m.step2_t(), d: m.step2_d(), shot: "create-check", alt: m.step2_alt() },
+  { t: m.step3_t(), d: m.step3_d(), shot: "create-building", alt: m.step3_alt() },
+  { t: m.step4_t(), d: m.step4_d(), shot: "create-done", alt: m.step4_alt() },
+] as const;
+---
+<section id="how" class="section" aria-labelledby="how-title">
+  <div class="wrap">
+    <div class="section-head">
+      <h2 id="how-title" class="h2">{m.steps_title()}</h2>
+      <p class="lede">{m.steps_lede()}</p>
+    </div>
+    <div class="steps" data-steps-root>
+      <ol class="steps__list">
+        {STEPS.map((s, i) => (
+          <li class:list={["step", { "is-active": i === 0 }]} data-step={i}>
+            <span class="step__n" aria-hidden="true">{String(i + 1).padStart(2, "0")}</span>
+            <h3 class="h3">{s.t}</h3>
+            <p>{s.d}</p>
+            <Shot name={s.shot} alt={s.alt} class="shot-inline" />
+          </li>
+        ))}
+      </ol>
+      <div class="steps__stage" aria-hidden="true">
+        <div class="steps__frame">
+          {STEPS.map((s, i) => <Shot name={s.shot} alt="" class={i === 0 ? "is-active" : ""} eager={i === 0} />)}
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

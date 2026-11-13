@@ -15,6 +15,7 @@ import (
 	"mypack.dev/mypack/internal/appservice"
 	"mypack.dev/mypack/internal/domain"
 	mpicons "mypack.dev/mypack/internal/icons"
+	"mypack.dev/mypack/internal/metadata"
 	"mypack.dev/mypack/pkg/config"
 )
 
@@ -264,6 +265,18 @@ func (a *App) maybeFetchMetadata(c *ui.Context) {
 	}()
 }
 
+// siteUnreachable reports that the current site's lookup failed, so its
+// name and icon are placeholders.
+func (s *createState) siteUnreachable() bool {
+	return s.meta != nil && s.meta.Fallback && s.metaFor == s.normalized
+}
+
+// refetchMetadata forgets the current site's lookup so maybeFetchMetadata
+// runs it again on the next frame, without the typing debounce.
+func (s *createState) refetchMetadata() {
+	s.meta, s.metaFor, s.lastEdit = nil, "", time.Time{}
+}
+
 // ensureCfg returns the pending settings for the new app, made on first use.
 func (a *App) ensureCfg() *config.Config {
 	s := &a.create
@@ -431,6 +444,26 @@ func (a *App) chooseLocalSource() {
 		}
 		a.win.Update(func() { a.create.setInput(paths[0]) })
 	}()
+}
+
+// createIconFrom sets the new app's icon from a favicon service.
+func (a *App) createIconFrom(p metadata.IconProvider) {
+	s := &a.create
+	u := s.normalized
+	var got []byte
+	a.do(func(ctx context.Context) error {
+		b, err := a.svc.FetchIconFrom(ctx, u, p)
+		got = b
+		return err
+	}, func(err error) {
+		if err != nil {
+			a.toastErr(err)
+			return
+		}
+		if s.normalized == u { // still the same site
+			s.iconPNG, s.iconCustom, s.iconDoc = got, true, ""
+		}
+	})
 }
 
 // chooseIcon picks a PNG/JPEG/ICNS/ICO file and hands its bytes to set.

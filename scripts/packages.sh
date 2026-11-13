@@ -58,7 +58,7 @@ cask "mypack" do
     strategy :github_latest
   end
 
-  depends_on macos: ">= :monterey"
+  depends_on macos: :monterey
 
   app "MyPack.app"
   binary "#{appdir}/MyPack.app/Contents/MacOS/MyPack", target: "mypack"

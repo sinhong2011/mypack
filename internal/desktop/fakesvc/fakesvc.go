@@ -626,6 +626,26 @@ func (s *Service) FetchMetadata(ctx context.Context, rawURL string) (appservice.
 		IconURL: "https://" + host + "/favicon.ico", IconPNG: icon}, nil
 }
 
+// FetchIconFrom asks the real provider, like realIcon does for FetchMetadata,
+// and falls back to a demo icon so the demo works offline.
+func (s *Service) FetchIconFrom(ctx context.Context, rawURL string, provider metadata.IconProvider) ([]byte, error) {
+	u, err := config.NormalizeURL(rawURL)
+	if err != nil {
+		return nil, &domain.Error{Code: appservice.CodeInvalidInput, Message: err.Error(), Field: "url"}
+	}
+	host := config.RegistrableHost(u)
+	if err := s.sleep(ctx, 500*time.Millisecond); err != nil {
+		return nil, err
+	}
+	if strings.Contains(host, "offline") || strings.HasSuffix(host, ".invalid") {
+		return nil, &domain.Error{Code: appservice.CodeIconNotFound, Message: provider.Name() + " has no icon for " + host + "."}
+	}
+	if b, err := metadata.FetchIconFrom(ctx, u, provider); err == nil {
+		return b, nil
+	}
+	return demoIcon(titleForHost(host)), nil
+}
+
 // ---- builds -----------------------------------------------------------------
 
 func (s *Service) runtimeFor(t config.Target) *domain.RuntimeInfo {

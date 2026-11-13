@@ -59,6 +59,10 @@ type Icons interface {
 // MetadataFetcher resolves website metadata (metadata.Fetch).
 type MetadataFetcher func(ctx context.Context, rawURL string) (metadata.Result, error)
 
+// IconFetcher asks a third-party favicon service for a website's icon
+// (metadata.FetchIconFrom).
+type IconFetcher func(ctx context.Context, rawURL string, p metadata.IconProvider) ([]byte, error)
+
 // CapabilityFunc evaluates host -> target support (builder.Capabilities).
 type CapabilityFunc func(host, target config.Target) builder.Capability
 
@@ -81,6 +85,7 @@ type Options struct {
 	Installer    Installer
 	Icons        Icons
 	Metadata     MetadataFetcher
+	IconFrom     IconFetcher
 	Capabilities CapabilityFunc
 	Host         *config.Target // overrides builder.HostTarget()
 
