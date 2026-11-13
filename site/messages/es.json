@@ -151,5 +151,6 @@
   "foot_mygo": "Hecho con MyGo, el kit de interfaz nativa en Go puro de egoist.",
   "foot_pake": "Inspirado en Pake, de tw93.",
   "foot_license_1": "MyPack se distribuye bajo la",
-  "foot_trademark": "El nombre «MyPack» y su logotipo son marcas registradas y no están cubiertos por la licencia del código; consulta"
+  "foot_trademark": "El nombre «MyPack» y su logotipo son marcas registradas y no están cubiertos por la licencia del código; consulta",
+  "stars_label": "{count} estrellas en GitHub"
 }

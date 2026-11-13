@@ -5,6 +5,7 @@ import { versioned } from "../versioned";
 import { currentLocale, localeHref } from "../i18n";
 import LangSwitch from "./LangSwitch.astro";
 import Icon from "./Icon.astro";
+import Stars from "./Stars.astro";
 ---
 <header class="nav" data-nav>
   <div class="nav__bar">
@@ -17,7 +18,7 @@ import Icon from "./Icon.astro";
       <a href="#features">{m.nav_features()}</a>
       <a href="#compare">{m.nav_compare()}</a>
       <a href="#developers">{m.nav_developers()}</a>
-      <a href={SITE.repo} rel="noopener">GitHub</a>
+      <a class="nav__gh" href={SITE.repo} rel="noopener">GitHub <Stars /></a>
     </nav>
     <LangSwitch />
     <a class="btn btn-nav" href="#install"><Icon name="download" size={17} /><span class="label-long">{m.nav_download()}</span></a>

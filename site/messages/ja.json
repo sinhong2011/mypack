@@ -151,5 +151,6 @@
   "foot_mygo": "egoist による純 Go のネイティブ UI ツールキット MyGo で作られています。",
   "foot_pake": "tw93 の Pake に着想を得ています。",
   "foot_license_1": "MyPack のライセンスは",
-  "foot_trademark": "「MyPack」の名前とロゴは商標で、コードのライセンスには含まれません。詳しくは"
+  "foot_trademark": "「MyPack」の名前とロゴは商標で、コードのライセンスには含まれません。詳しくは",
+  "stars_label": "GitHub のスター {count} 個"
 }

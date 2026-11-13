@@ -151,5 +151,6 @@
   "foot_mygo": "基于 MyGo 构建，这是 egoist 开发的纯 Go 原生 UI 工具包。",
   "foot_pake": "灵感来自 tw93 的 Pake。",
   "foot_license_1": "MyPack 采用",
-  "foot_trademark": "“MyPack”名称和标志是商标，不在代码许可范围内；详见"
+  "foot_trademark": "“MyPack”名称和标志是商标，不在代码许可范围内；详见",
+  "stars_label": "GitHub 上有 {count} 颗星"
 }

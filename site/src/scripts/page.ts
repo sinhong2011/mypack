@@ -67,6 +67,29 @@ if (root) {
   });
 }
 
+// GitHub stars: refresh the build-time count, once a session per visitor (the API allows 60 calls an hour).
+(async () => {
+  const chips = $$("[data-stars]");
+  if (!chips.length) return;
+  let n: number | undefined;
+  try { const c = sessionStorage.getItem("mp-stars"); if (c) n = Number(c); } catch {}
+  if (n === undefined || Number.isNaN(n)) {
+    n = undefined;
+    try {
+      const r = await fetch("https://api.github.com/repos/sinhong2011/mypack", { headers: { accept: "application/vnd.github+json" } });
+      if (r.ok) n = (await r.json()).stargazers_count;
+      try { if (typeof n === "number") sessionStorage.setItem("mp-stars", String(n)); } catch {}
+    } catch {}
+  }
+  if (typeof n !== "number") return;
+  for (const chip of chips) {
+    const v = new Intl.NumberFormat(chip.dataset.lang, { notation: "compact", maximumFractionDigits: 1 }).format(n);
+    $("[data-stars-n]", chip)!.textContent = v;
+    chip.setAttribute("aria-label", chip.dataset.label!.replace("{count}", v));
+    chip.hidden = false;
+  }
+})();
+
 // Copy buttons: [data-copy-text] holds the text; [data-copy-label] shows the result for a moment.
 $$("[data-copy-text]").forEach((btn) => btn.addEventListener("click", async () => {
   const label = $("[data-copy-label]", btn) ?? btn;

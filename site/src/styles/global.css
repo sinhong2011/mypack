@@ -157,6 +157,12 @@ section { position: relative; }
 .nav.is-stuck .btn-nav { background: var(--color-cobalt); color: #fff; }
 @media (max-width: 520px) { .nav .btn-nav .label-long { display: none; } }
 
+/* GitHub star count chip (Stars.astro) */
+.stars { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; padding: 3px 8px 3px 7px; border-radius: 999px;
+  font: 600 12.5px/1 var(--font-sans); font-variant-numeric: tabular-nums; background: color-mix(in oklab, currentColor 14%, transparent); }
+.stars[hidden] { display: none; }
+.nav__links a.nav__gh { display: inline-flex; align-items: center; }
+
 /* Language menu */
 .lang { position: relative; }
 .lang > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 6px; height: 42px; padding: 0 12px; border-radius: 12px; font-size: 14px; font-weight: 600; }

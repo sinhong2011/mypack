@@ -151,5 +151,6 @@
   "foot_mygo": "Built with MyGo, the pure-Go native UI toolkit by egoist.",
   "foot_pake": "Inspired by Pake by tw93.",
   "foot_license_1": "MyPack is licensed under the",
-  "foot_trademark": "The name “MyPack” and its logo are trademarks and aren't covered by the code license; see"
+  "foot_trademark": "The name “MyPack” and its logo are trademarks and aren't covered by the code license; see",
+  "stars_label": "{count} stars on GitHub"
 }
