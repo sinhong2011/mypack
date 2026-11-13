@@ -209,7 +209,7 @@ func Run(svc appservice.Service) error {
 		a.reload("projects", "installs", "jobs", "runtimes", "storage")
 		a.startLibrarySync()
 		a.loadCatalog()
-		a.watchFront()
+		a.watchWindow()
 		a.syncTray()
 		a.syncLauncherShortcut()
 		a.startUpdates()

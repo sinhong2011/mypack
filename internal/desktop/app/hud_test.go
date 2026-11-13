@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// The HUD shows only while MyPack's window is not in front, for a running
+// The HUD shows only while MyPack's window is hidden or minimised, for a running
 // or just-ended build; coming back hides it at once and counts as having
 // seen a result; a result waits about 6 s; the setting turns it off.
 func TestHUDVisibility(t *testing.T) {
@@ -19,18 +19,18 @@ func TestHUDVisibility(t *testing.T) {
 			t.Fatalf("%s: show = %v, want %v (mem %+v)", what, got, want, m)
 		}
 	}
-	run := func(front bool, at time.Duration) hudIn {
-		return hudIn{enabled: true, front: front, job: "j1", running: true, now: t0.Add(at)}
+	run := func(up bool, at time.Duration) hudIn {
+		return hudIn{enabled: true, up: up, job: "j1", running: true, now: t0.Add(at)}
 	}
-	ended := func(front bool, how string, at time.Duration) hudIn {
-		return hudIn{enabled: true, front: front, job: "j1", ended: how, now: t0.Add(at)}
+	ended := func(up bool, how string, at time.Duration) hudIn {
+		return hudIn{enabled: true, up: up, job: "j1", ended: how, now: t0.Add(at)}
 	}
 
-	step(hudIn{enabled: true, front: false, now: t0}, false, "no build")
-	step(run(true, 0), false, "building, window in front")
-	step(run(false, time.Second), true, "building, window behind")
-	step(run(true, 2*time.Second), false, "back to the window mid-build")
-	step(run(false, 3*time.Second), true, "away again: shows at once")
+	step(hudIn{enabled: true, up: false, now: t0}, false, "no build")
+	step(run(true, 0), false, "building, window up")
+	step(run(false, time.Second), true, "building, window hidden")
+	step(run(true, 2*time.Second), false, "window back mid-build")
+	step(run(false, 3*time.Second), true, "hidden again: shows at once")
 	step(ended(false, "succeeded", 4*time.Second), true, "finished while away")
 	step(ended(false, "succeeded", 8*time.Second), true, "result waits")
 	step(ended(false, "succeeded", 11*time.Second), false, "result expires after ~6 s")
@@ -48,5 +48,5 @@ func TestHUDVisibility(t *testing.T) {
 	off := run(false, 0)
 	off.enabled = false
 	step(off, false, "setting off: menu bar only")
-	step(hudIn{enabled: true, front: false, job: "j2", running: true, now: t0}, true, "a new build starts afresh")
+	step(hudIn{enabled: true, up: false, job: "j2", running: true, now: t0}, true, "a new build starts afresh")
 }

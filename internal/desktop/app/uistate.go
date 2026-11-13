@@ -30,7 +30,7 @@ type uiState struct {
 	AutoInstall        map[string]bool `json:"autoInstall,omitempty"`
 	AutoInstallDefault *bool           `json:"autoInstallDefault,omitempty"`
 	// ShowHUD (nil = on) shows build progress near the notch while
-	// MyPack's window is not in front.
+	// MyPack's window is hidden or minimised.
 	ShowHUD *bool `json:"showHud,omitempty"`
 	// LookDefaults are the Look & Behaviour choices last made on Create,
 	// which seed the next new app (lookdefaults.go).
