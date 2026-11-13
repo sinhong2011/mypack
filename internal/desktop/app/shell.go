@@ -280,6 +280,8 @@ func (a *App) toolbar(c *ui.Context) {
 			a.libraryToolbar(c)
 		case secProject:
 			a.projectToolbar(c)
+		case secDiscover:
+			a.discoverToolbar(c)
 		}
 		switch a.section {
 		case secLibrary, secProject, secCreate, secGallery:

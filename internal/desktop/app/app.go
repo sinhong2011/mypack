@@ -101,6 +101,8 @@ type App struct {
 
 	toasts []toastReq
 
+	catalogBusy bool // Discover's refresh is fetching the catalog
+
 	reloadMu   sync.Mutex
 	reloadWant map[string]bool
 	reloadT    *time.Timer
