@@ -144,7 +144,7 @@ func (a *App) createPreview(c *ui.Context) {
 			}
 		})
 		// Couldn't reach the site: a compact hint, never a banner.
-		if s.siteUnreachable() {
+		if s.meta != nil && s.meta.Fallback && s.metaFor == s.normalized {
 			ui.Row(c).Gap(5).AlignItems(ui.Center).Justify(ui.Center).Margin(4, 0, 0, 0).Children(func() {
 				kit.Glyph(c, icons.Info, 12, p.Warning)
 				ui.Text(c, T("create.offline")).FontSize(design.FontCaption).TextColor(p.TextSecondary).SingleLine().MinWidth(0).Shrink(1)
@@ -505,14 +505,8 @@ func (a *App) iconPicker(c *ui.Context, png []byte, name string, size float32) u
 				}
 			}
 		}
-		// When the site couldn't be reached there is no website icon yet:
-		// the item then looks the site up again.
-		retry := s.siteUnreachable() && s.local == "" && !s.isGroup()
-		if m.Item(T("create.icon.reset")).Disabled(!s.iconCustom && s.iconStyle == nil && !retry).Chosen() {
+		if m.Item(T("create.icon.reset")).Disabled(!s.iconCustom && s.iconStyle == nil).Chosen() {
 			s.iconPNG, s.iconCustom, s.iconStyle = nil, false, nil
-			if retry {
-				s.refetchMetadata()
-			}
 		}
 	})
 	hov := b.Hovered()
