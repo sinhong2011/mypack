@@ -1,0 +1,19 @@
+---
+import { LOCALES, currentLocale, localeHref } from "../i18n";
+import { m } from "../paraglide/messages.js";
+import Icon from "./Icon.astro";
+const here = currentLocale();
+---
+<details class="lang" data-lang>
+  <summary aria-label={`${m.nav_language()}: ${here.label}`}>
+    <Icon name="globe" size={16} />
+    <span lang={here.lang}>{here.code}</span>
+  </summary>
+  <div class="lang__menu">
+    <ul>
+      {LOCALES.map((l) => (
+        <li><a href={localeHref(l)} hreflang={l.lang} lang={l.lang} aria-current={l.id === here.id ? "page" : undefined}>{l.label}</a></li>
+      ))}
+    </ul>
+  </div>
+</details>

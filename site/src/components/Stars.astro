@@ -1,0 +1,16 @@
+---
+// The repo's GitHub star count as a small chip. Filled at build time and refreshed in the browser
+// (scripts/page.ts); hidden while unknown.
+import { m } from "../paraglide/messages.js";
+import { currentLocale } from "../i18n";
+import { starCount } from "../release";
+
+const n = await starCount();
+const lang = currentLocale().lang;
+const fmt = (v: number) => new Intl.NumberFormat(lang, { notation: "compact", maximumFractionDigits: 1 }).format(v);
+---
+<span class="stars" data-stars data-lang={lang} data-label={m.stars_label({ count: "{count}" })} hidden={n === undefined}
+  aria-label={n === undefined ? undefined : m.stars_label({ count: fmt(n) })}>
+  <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2.8l2.8 5.9 6.4.8-4.7 4.4 1.2 6.4L12 17.2l-5.7 3.1 1.2-6.4-4.7-4.4 6.4-.8z"/></svg>
+  <span data-stars-n aria-hidden="true">{n === undefined ? "" : fmt(n)}</span>
+</span>
