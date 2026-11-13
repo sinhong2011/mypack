@@ -294,13 +294,18 @@ func (a *App) createBuilding(c *ui.Context, pr *domain.Project, j *domain.BuildJ
 		case domain.JobAwaitingApproval:
 			ui.Column(c).Padding(4, 20, 20, 20).Children(func() { a.approvalCard(c, j) })
 		case domain.JobSucceeded:
-			// The result is the app, launched: its window springs open.
-			a.mockup(c, c.Key("launched"), pr.Config, pr.IconPNG, pr.Config.App.Name, h, true)
+			// The result is the app, launched: its window springs open
+			// (after the icon's finale).
+			if !a.magicStageIf(c, pr, j, h, false) {
+				a.mockup(c, c.Key("launched"), pr.Config, pr.IconPNG, pr.Config.App.Name, h, true)
+			}
 		case domain.JobFailed:
 			// The app as it would be; the step list below says why not.
 			a.mockup(c, c.Key("mockup"), pr.Config, pr.IconPNG, pr.Config.App.Name, h, false)
 		default:
-			a.sceneFor(c, pr, j, h)
+			if !a.magicStageIf(c, pr, j, h, false) {
+				a.sceneFor(c, pr, j, h)
+			}
 		}
 	})
 	ui.Column(c.Key("footer")).AlignItems(ui.Center).Gap(8).Margin(16, 0, 0, 0).Children(func() {

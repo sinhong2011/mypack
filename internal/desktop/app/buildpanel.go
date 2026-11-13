@@ -82,7 +82,9 @@ func (a *App) buildPanel(c *ui.Context, pr *domain.Project, j *domain.BuildJob) 
 	default:
 		ui.Column(c).FillWidth().Gap(0).Margin(8, 0, 0, 0).Children(func() {
 			running := j.Status == domain.JobRunning || j.Status == domain.JobQueued
-			a.sceneFor(c, pr, j, 280)
+			if !a.magicStageIf(c, pr, j, 280, true) {
+				a.sceneFor(c, pr, j, 280)
+			}
 			if j.Status == domain.JobCancelled {
 				ui.Column(c).Gap(4).Margin(8, 0, 0, 0).Children(func() {
 					kit.PageTitle(c, T("build.cancelled.title")).SingleLine()
@@ -283,7 +285,9 @@ func (a *App) successPanel(c *ui.Context, pr *domain.Project, j *domain.BuildJob
 	ui.Column(c).FillWidth().Padding(8, 0, 8, 0).Gap(16).Children(func() {
 		// The result is the app, launched (its window springs open); under
 		// it the steps, then the result bar.
-		a.mockup(c, c.Key("launched"), pr.Config, pr.IconPNG, pr.Config.App.Name, 260, true)
+		if !a.magicStageIf(c, pr, j, 260, true) {
+			a.mockup(c, c.Key("launched"), pr.Config, pr.IconPNG, pr.Config.App.Name, 260, true)
+		}
 		ui.Column(c).FillWidth().AlignItems(ui.Center).Children(func() { a.buildFooter(c, pr, j) })
 		a.successExtras(c, j, si)
 	}).Role(ui.RoleRegion).Label(T("build.success.title"))

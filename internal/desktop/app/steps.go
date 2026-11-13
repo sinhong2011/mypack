@@ -140,6 +140,10 @@ type stepTrack struct {
 	started map[stepKind]time.Time
 	ended   map[stepKind]time.Time
 	open    bool // the folded summary was opened
+	// doneAt is when the list was first seen finished; settled marks a
+	// build that was already finished when first shown (no finale).
+	doneAt  time.Time
+	settled bool
 }
 
 func newStepTrack(plan []stepKind) *stepTrack {
@@ -243,6 +247,7 @@ func (a *App) jobSteps(pr *domain.Project, j *domain.BuildJob) (*stepTrack, []ki
 	}
 	t := a.steps[j.ID]
 	plan := stepPlan(jobBuildsProject(*j), a.jobNeedsDownload(*j), a.jobInstalls(*j))
+	fresh := t == nil
 	if t == nil {
 		t = newStepTrack(plan)
 		a.steps[j.ID] = t
@@ -265,7 +270,11 @@ func (a *App) jobSteps(pr *domain.Project, j *domain.BuildJob) (*stepTrack, []ki
 		}
 	}
 	states := stepStates(t.plan, stepAt(j.Stage, t.plan), ph)
-	t.observe(states, time.Now())
+	now := time.Now()
+	t.observe(states, now)
+	if stepsDone(states) && t.doneAt.IsZero() {
+		t.doneAt, t.settled = now, fresh
+	}
 	return t, states
 }
 
@@ -302,6 +311,10 @@ func stepsDone(states []kit.StepState) bool {
 // stage, with Cancel (Esc) under it while it runs. compact drops the
 // opened rows and Cancel (the flyout, the HUD).
 func (a *App) buildSteps(c *ui.Context, pr *domain.Project, j *domain.BuildJob, compact, onDark bool) {
+	if !compact && j.Status != domain.JobFailed && j.Status != domain.JobCancelled && j.Status != domain.JobAwaitingApproval {
+		a.magicCaption(c, pr, j)
+		return
+	}
 	t, states := a.jobSteps(pr, j)
 	// The status block's clock still runs: it is the scene's single
 	// source of truth for its progress, and it throttles the detail.
