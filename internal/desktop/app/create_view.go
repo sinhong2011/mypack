@@ -498,6 +498,13 @@ func (a *App) iconPicker(c *ui.Context, png []byte, name string, size float32) u
 		if m.Item(T("create.icon.choose")).Chosen() {
 			a.chooseIcon(func(bb []byte) { s.iconPNG, s.iconCustom = bb, true })
 		}
+		if s.normalized != "" && s.local == "" && !s.isGroup() {
+			for _, pv := range iconProviders {
+				if m.Item(T("icon.from", "provider", pv.Name())).Chosen() {
+					a.createIconFrom(pv)
+				}
+			}
+		}
 		if m.Item(T("create.icon.reset")).Disabled(!s.iconCustom && s.iconStyle == nil).Chosen() {
 			s.iconPNG, s.iconCustom, s.iconStyle = nil, false, nil
 		}

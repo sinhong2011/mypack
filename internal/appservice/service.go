@@ -42,6 +42,7 @@ type Impl struct {
 	inst     Installer
 	icons    Icons
 	fetch    MetadataFetcher
+	iconFrom IconFetcher
 	caps     CapabilityFunc
 	host     config.Target
 	login    LoginItem
@@ -98,6 +99,10 @@ func New(opts Options) (*Impl, error) {
 	s.fetch = opts.Metadata
 	if s.fetch == nil {
 		s.fetch = metadata.Fetch
+	}
+	s.iconFrom = opts.IconFrom
+	if s.iconFrom == nil {
+		s.iconFrom = metadata.FetchIconFrom
 	}
 	s.login = opts.LoginItem
 	s.caps = opts.Capabilities
@@ -352,6 +357,24 @@ func (s *Impl) FetchMetadata(ctx context.Context, rawURL string) (Metadata, erro
 	}
 	return Metadata{URL: r.URL, Title: r.Title, Description: r.Description, IconURL: r.IconURL,
 		IconPNG: r.IconPNG, ThemeColor: r.ThemeColor, Fallback: r.Fallback, Warning: r.Warning}, nil
+}
+
+// FetchIconFrom implements Service.
+func (s *Impl) FetchIconFrom(ctx context.Context, rawURL string, provider metadata.IconProvider) ([]byte, error) {
+	u, err := config.NormalizeURL(rawURL)
+	if err != nil {
+		return nil, &domain.Error{Code: CodeInvalidInput, Message: err.Error(), Field: "input",
+			Remediation: "Enter a website address such as example.com."}
+	}
+	b, err := s.iconFrom(ctx, u, provider)
+	if errors.Is(err, metadata.ErrNoProviderIcon) {
+		return nil, &domain.Error{Code: CodeIconNotFound, Message: provider.Name() + " has no icon for " + config.RegistrableHost(u) + ".",
+			Remediation: "Try the other icon service, or choose an image."}
+	}
+	if err != nil {
+		return nil, asDomainErr(err, CodeInvalidInput)
+	}
+	return b, nil
 }
 
 // CreateProject implements Service.
