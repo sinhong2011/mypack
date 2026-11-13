@@ -260,22 +260,31 @@ func (a *App) jobSteps(pr *domain.Project, j *domain.BuildJob) (*stepTrack, []ki
 	case domain.JobSucceeded:
 		ph = phaseBuilt
 		if pr != nil {
-			si := a.successOf(pr, j)
 			opened, auto := a.autoOpen[j.ID]
-			switch {
-			case si.installed && (!auto || !opened.IsZero()):
-				ph = phaseInstalled
-			case auto:
-				ph = phaseInstalling
-			case !a.jobInstalls(*j):
-			default:
-				ph = phaseNotInstalled
-			}
+			ph = builtPhase(a.successOf(pr, j).installed, auto, !opened.IsZero(), a.jobInstalls(*j))
 		}
 	}
 	states := stepStates(t.plan, stepAt(j.Stage, t.plan), ph)
 	t.observe(states, time.Now())
 	return t, states
+}
+
+// builtPhase is where a built build is with its Install & Open: installed
+// (this build's app is the one installed), installing (an automatic
+// Install & Open started and has not opened yet), or not installed. An
+// automatic Install & Open that already opened is over: once that app is
+// uninstalled or replaced, the build is back to not installed, not
+// installing for ever.
+func builtPhase(installed, auto, opened, installs bool) stepPhase {
+	switch {
+	case auto && !opened:
+		return phaseInstalling
+	case installed:
+		return phaseInstalled
+	case !installs:
+		return phaseBuilt
+	}
+	return phaseNotInstalled
 }
 
 // stepsDone reports whether the list has given way to the result: the
@@ -316,6 +325,7 @@ func (a *App) buildSteps(c *ui.Context, pr *domain.Project, j *domain.BuildJob, 
 			r.Right = secs(t.took(k))
 			r.DoneAt = t.ended[k]
 		case kit.StepActive:
+			r.StartedAt = t.started[k]
 			switch k {
 			case stepEngine:
 				r.Right = st.detail
