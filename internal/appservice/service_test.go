@@ -158,6 +158,9 @@ type fakeIcons struct{}
 
 func (fakeIcons) Default(name string) []byte         { return []byte("default:" + name) }
 func (fakeIcons) Normalize(b []byte) ([]byte, error) { return append([]byte("norm:"), b...), nil }
+func (fakeIcons) IconComposerPNG(_ context.Context, p string) ([]byte, error) {
+	return []byte("iconcomposer:" + filepath.Base(p)), nil
+}
 
 type env struct {
 	svc  *Impl

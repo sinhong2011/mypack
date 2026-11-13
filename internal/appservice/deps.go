@@ -52,6 +52,8 @@ type Installer interface {
 type Icons interface {
 	Default(name string) []byte
 	Normalize(data []byte) ([]byte, error)
+	// IconComposerPNG renders an Icon Composer document (.icon folder).
+	IconComposerPNG(ctx context.Context, path string) ([]byte, error)
 }
 
 // MetadataFetcher resolves website metadata (metadata.Fetch).
@@ -118,6 +120,9 @@ type realIcons struct{}
 
 func (realIcons) Default(name string) []byte         { return icons.Default(name) }
 func (realIcons) Normalize(b []byte) ([]byte, error) { return icons.Normalize(b) }
+func (realIcons) IconComposerPNG(ctx context.Context, p string) ([]byte, error) {
+	return icons.IconComposerPNG(ctx, p)
+}
 
 // Compile-time checks that the real packages satisfy the seams.
 var (
