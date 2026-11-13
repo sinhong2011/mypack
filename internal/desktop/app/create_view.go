@@ -114,7 +114,7 @@ func (a *App) createPreview(c *ui.Context) {
 	p := design.Of(c)
 	s := &a.create
 	loading := s.normalized != "" && s.meta == nil && s.metaFor != s.normalized
-	ui.Column(c.Key("identity")).AlignItems(ui.Center).Gap(2).Margin(18, 0, 0, 0).Children(func() {
+	kit.Follow(ui.Column(c.Key("identity")).AlignItems(ui.Center).Gap(2).Margin(18, 0, 0, 0)).Children(func() {
 		ui.Box(c).Size(identityIcon, identityIcon).Children(func() {
 			if loading && s.iconPNG == nil {
 				kit.Shimmer(c, identityIcon, identityIcon, design.AppIconRadius(identityIcon))
@@ -156,7 +156,7 @@ func (a *App) createPreview(c *ui.Context) {
 	a.createSites(c)
 	a.createMockupStage(c)
 	// The footer: Build, centred.
-	ui.Row(c.Key("footer")).Justify(ui.Center).Margin(16, 0, 0, 0).Children(func() {
+	kit.Follow(ui.Row(c.Key("footer")).Justify(ui.Center).Margin(16, 0, 0, 0)).Children(func() {
 		if kit.Button(c.Key("build"), a.buildCTA(), kit.ButtonOpts{Variant: kit.Primary, Size: design.ControlLG,
 			Loading: s.busy, Disabled: len(s.targets) == 0, Hotkey: "mod+b", Icon: icons.Build}).Clicked() {
 			s.buildRequested = true
@@ -235,6 +235,7 @@ const footerRoom = 16 + 56 + 8 + 16 + 12
 func (a *App) stage(c *ui.Context, cap float32, body func(h float32)) {
 	p := design.Of(c)
 	st := ui.Column(c.Key("stage")).FillWidth().Radius(16).Background(p.Group).Margin(16, 0, 0, 0).Clip()
+	kit.Follow(st) // it glides up as the address field folds away on Build
 	// Fill the rest of the column's viewport, less the footer, but never
 	// less than 300 pt. The footer's room is the same in every state (the
 	// Build pill, the status block, the result bar and its caption), so
@@ -258,7 +259,7 @@ func (a *App) createStarting(c *ui.Context) {
 	s := &a.create
 	a.createIdentity(c, a.createIcon(), s.displayName(), "")
 	a.createMockupStage(c)
-	ui.Row(c.Key("footer")).Gap(8).AlignItems(ui.Center).Justify(ui.Center).Margin(16, 0, 0, 0).Children(func() {
+	kit.Follow(ui.Row(c.Key("footer")).Gap(8).AlignItems(ui.Center).Justify(ui.Center).Margin(16, 0, 0, 0)).Children(func() {
 		kit.Spinner(c, 14, p.TextTertiary)
 		ui.Text(c, T("create.starting")).FontSize(design.FontBody).TextColor(p.TextSecondary)
 	})
@@ -268,7 +269,7 @@ func (a *App) createStarting(c *ui.Context) {
 // building or built.
 func (a *App) createIdentity(c *ui.Context, icon []byte, name, host string) {
 	p := design.Of(c)
-	ui.Column(c.Key("identity")).AlignItems(ui.Center).Gap(2).Margin(18, 0, 0, 0).Children(func() {
+	kit.Follow(ui.Column(c.Key("identity")).AlignItems(ui.Center).Gap(2).Margin(18, 0, 0, 0)).Children(func() {
 		kit.AppIconOpts(c, icon, name, identityIcon, kit.IconOpts{Shadow: true}).Margin(0, 0, 8, 0)
 		kit.PageTitle(c, name).SingleLine()
 		if host != "" {
@@ -292,7 +293,10 @@ func (a *App) createBuilding(c *ui.Context, pr *domain.Project, j *domain.BuildJ
 	a.stage(c, cap, func(h float32) {
 		switch j.Status {
 		case domain.JobAwaitingApproval:
-			ui.Column(c).Padding(4, 20, 20, 20).Children(func() { a.approvalCard(c, j) })
+			// Centred in the stage, as its content, not a card hung from
+			// its top edge.
+			kit.PageSwap(ui.Column(c.Key("approval")).FillWidth().Grow(1).Justify(ui.Center).Padding(24)).
+				Children(func() { a.approvalCard(c, j, true) })
 		case domain.JobSucceeded:
 			// The result is the app, launched: its window springs open
 			// (after the icon's finale).
@@ -308,7 +312,7 @@ func (a *App) createBuilding(c *ui.Context, pr *domain.Project, j *domain.BuildJ
 			}
 		}
 	})
-	ui.Column(c.Key("footer")).AlignItems(ui.Center).Gap(8).Margin(16, 0, 0, 0).Children(func() {
+	kit.Follow(ui.Column(c.Key("footer")).AlignItems(ui.Center).Gap(8).Margin(16, 0, 0, 0)).Children(func() {
 		a.buildFooter(c, pr, j)
 	})
 	switch j.Status {
@@ -334,7 +338,9 @@ func (a *App) createStart(c *ui.Context) {
 func (a *App) createURLField(c *ui.Context, h float32) {
 	p := design.Of(c)
 	s := &a.create
-	ui.Column(c).Gap(10).FillWidth().MaxWidth(640).Children(func() {
+	// It folds away as the build starts, so what is under it glides up
+	// instead of jumping.
+	kit.Arrive(ui.Column(c.Key("urlfield")).Gap(10).FillWidth().MaxWidth(640)).Children(func() {
 		r := kit.URLField(c.Key("url"), &s.input, kit.URLFieldOpts{
 			Placeholder: T("create.url.placeholder"), Label: T("create.url.label"), Height: h,
 			Loading: s.fetchingFor != "" && s.fetchingFor == s.normalized, Invalid: s.invalidMsg != "" && s.input != "",
