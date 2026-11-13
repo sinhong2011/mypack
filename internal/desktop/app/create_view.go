@@ -502,6 +502,13 @@ func (a *App) iconPicker(c *ui.Context, png []byte, name string, size float32) u
 		if m.Item(T("create.icon.choose")).Chosen() {
 			a.chooseIcon(func(bb []byte) { s.iconPNG, s.iconCustom = bb, true })
 		}
+		if s.normalized != "" && s.local == "" && !s.isGroup() {
+			for _, pv := range iconProviders {
+				if m.Item(T("icon.from", "provider", pv.Name())).Chosen() {
+					a.createIconFrom(pv)
+				}
+			}
+		}
 		// When the site couldn't be reached there is no website icon yet:
 		// the item then looks the site up again.
 		retry := s.siteUnreachable() && s.local == "" && !s.isGroup()

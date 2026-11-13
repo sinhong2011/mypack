@@ -15,6 +15,7 @@ import (
 	"mypack.dev/mypack/internal/appservice"
 	"mypack.dev/mypack/internal/domain"
 	mpicons "mypack.dev/mypack/internal/icons"
+	"mypack.dev/mypack/internal/metadata"
 	"mypack.dev/mypack/pkg/config"
 )
 
@@ -437,6 +438,26 @@ func (a *App) chooseLocalSource() {
 		}
 		a.win.Update(func() { a.create.setInput(paths[0]) })
 	}()
+}
+
+// createIconFrom sets the new app's icon from a favicon service.
+func (a *App) createIconFrom(p metadata.IconProvider) {
+	s := &a.create
+	u := s.normalized
+	var got []byte
+	a.do(func(ctx context.Context) error {
+		b, err := a.svc.FetchIconFrom(ctx, u, p)
+		got = b
+		return err
+	}, func(err error) {
+		if err != nil {
+			a.toastErr(err)
+			return
+		}
+		if s.normalized == u { // still the same site
+			s.iconPNG, s.iconCustom = got, true
+		}
+	})
 }
 
 // chooseIcon picks a PNG/JPEG/ICNS/ICO file and hands its bytes to set.
