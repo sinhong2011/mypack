@@ -10,6 +10,7 @@ import (
 	"mypack.dev/mypack/internal/desktop/kit"
 	"mypack.dev/mypack/internal/desktop/kit/icons"
 	"mypack.dev/mypack/internal/domain"
+	"mypack.dev/mypack/internal/metadata"
 	"mypack.dev/mypack/pkg/config"
 )
 
@@ -86,8 +87,7 @@ func (a *App) projectView(c *ui.Context) {
 			ui.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
 				kit.LargeTitle(c, pr.Config.App.Name).SingleLine().MinWidth(0)
 				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-					kit.Glyph(c, icons.Link, 12, p.TextTertiary)
-					kit.Secondary(c, domainOf(pr.Config.App.Source)).SingleLine().MinWidth(0)
+					a.projectSource(c, pr, design.FontBody)
 					if pr.LastBuild != nil {
 						ui.Text(c, "· "+T("project.lastBuilt", "when", ago(*pr.LastBuild))).FontSize(design.FontBody).TextColor(p.TextTertiary).SingleLine()
 					}
@@ -120,6 +120,7 @@ func (a *App) projectIcon(c *ui.Context, pr *domain.Project, size float32) {
 		if pr.Config.App.Source.Type == config.SourceURL && m.Item(T("icon.refresh")).Chosen() {
 			a.refreshIcon(pr)
 		}
+		a.iconProviderItems(m, pr)
 		if m.Item(T("create.icon.reset")).Disabled(pr.Config.App.Icon.Source != "file").Chosen() {
 			id := pr.ID
 			a.do(func(ctx context.Context) error { _, err := a.svc.SetProjectIcon(ctx, id, nil, "gui"); return err }, a.toastErr)
@@ -182,6 +183,7 @@ func (a *App) projectMenu(m *ui.Menu, pr *domain.Project) {
 	if pr.Config.App.Source.Type == config.SourceURL && m.Item(T("icon.refresh")).Chosen() {
 		a.refreshIcon(pr)
 	}
+	a.iconProviderItems(m, pr)
 	m.Separator()
 	if m.Item(T("action.duplicate")).Chosen() {
 		a.do(func(ctx context.Context) error { _, err := a.svc.DuplicateProject(ctx, id, "gui"); return err }, a.toastErr)
@@ -363,8 +365,7 @@ func (a *App) projectBento(c *ui.Context, pr *domain.Project) {
 				ui.Column(c).Grow(1).MinWidth(0).Gap(4).AlignItems(ui.Start).Children(func() {
 					kit.LargeTitle(c, pr.Config.App.Name).SingleLine().MinWidth(0)
 					ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-						kit.Glyph(c, icons.Link, 12, p.TextTertiary)
-						kit.Secondary(c, domainOf(pr.Config.App.Source)).SingleLine().MinWidth(0)
+						a.projectSource(c, pr, design.FontBody)
 					})
 				})
 			})
@@ -417,15 +418,13 @@ func (a *App) projectBento(c *ui.Context, pr *domain.Project) {
 // the left (icon, name, site, Dock), its settings in the inspector on the
 // right, saved as they change.
 func (a *App) projectSettingsView(c *ui.Context, pr *domain.Project) {
-	p := design.Of(c)
 	ed := a.editorFor(pr)
 	a.previewInspector(c, func() {
 		ui.Column(c).AlignItems(ui.Center).Gap(0).Padding(32, 0, 24, 0).Children(func() {
 			a.projectIcon(c, pr, heroIcon)
 			kit.PageTitle(c, ed.cfg.App.Name).Margin(16, 0, 2, 0).SingleLine()
 			ui.Row(c).Height(20).Gap(5).AlignItems(ui.Center).Children(func() {
-				kit.Glyph(c, icons.Link, 12, p.TextTertiary)
-				ui.Text(c, domainOf(pr.Config.App.Source)).FontSize(design.FontSmall).TextColor(p.TextSecondary).SingleLine()
+				a.projectSource(c, pr, design.FontSmall)
 			})
 			a.saveIndicator(c, ed).Margin(10, 0, 0, 0)
 			// Build is in the bar above; under the preview, Open the
@@ -497,5 +496,41 @@ func (a *App) refreshIcon(pr *domain.Project) {
 			return
 		}
 		a.toast(T("icon.refresh.done", "name", name), "", 1)
+	})
+}
+
+// iconProviders are the favicon services offered, on request only, for
+// sites whose own icon can't be fetched.
+var iconProviders = []metadata.IconProvider{metadata.IconGoogle, metadata.IconDuckDuckGo}
+
+// iconProviderItems adds "Get Icon from Google / DuckDuckGo" for a URL
+// project.
+func (a *App) iconProviderItems(m *ui.Menu, pr *domain.Project) {
+	if pr.Config.App.Source.Type != config.SourceURL || pr.Config.IsGroup() {
+		return
+	}
+	for _, p := range iconProviders {
+		if m.Item(T("icon.from", "provider", p.Name())).Chosen() {
+			a.iconFromProvider(pr, p)
+		}
+	}
+}
+
+// iconFromProvider sets a URL project's icon from a favicon service.
+func (a *App) iconFromProvider(pr *domain.Project, p metadata.IconProvider) {
+	id, src, name := pr.ID, pr.Config.App.Source.Value, pr.Config.App.Name
+	a.do(func(ctx context.Context) error {
+		b, err := a.svc.FetchIconFrom(ctx, src, p)
+		if err != nil {
+			return err
+		}
+		_, err = a.svc.SetProjectIcon(ctx, id, b, "gui")
+		return err
+	}, func(err error) {
+		if err != nil {
+			a.toastErr(err)
+			return
+		}
+		a.toast(T("icon.from.done", "name", name, "provider", p.Name()), "", 1)
 	})
 }

@@ -132,8 +132,12 @@ func (a *App) createPreview(c *ui.Context) {
 			if s.local != "" {
 				ic, src = icons.Folder, shortPath(s.local)
 			}
-			kit.Glyph(c, ic, 12, p.TextTertiary)
-			ui.Text(c, src).FontSize(design.FontSmall).TextColor(p.TextSecondary).SingleLine().MinWidth(0).Shrink(1)
+			if ic == icons.Link && s.normalized != "" {
+				a.siteLink(c, s.normalized, src, design.FontSmall)
+			} else {
+				kit.Glyph(c, ic, 12, p.TextTertiary)
+				ui.Text(c, src).FontSize(design.FontSmall).TextColor(p.TextSecondary).SingleLine().MinWidth(0).Shrink(1)
+			}
 			if loading {
 				ui.Text(c, "· "+T("create.fetching")).FontSize(design.FontSmall).TextColor(p.TextTertiary).SingleLine()
 			}
@@ -144,7 +148,7 @@ func (a *App) createPreview(c *ui.Context) {
 			}
 		})
 		// Couldn't reach the site: a compact hint, never a banner.
-		if s.meta != nil && s.meta.Fallback && s.metaFor == s.normalized {
+		if s.siteUnreachable() {
 			ui.Row(c).Gap(5).AlignItems(ui.Center).Justify(ui.Center).Margin(4, 0, 0, 0).Children(func() {
 				kit.Glyph(c, icons.Info, 12, p.Warning)
 				ui.Text(c, T("create.offline")).FontSize(design.FontCaption).TextColor(p.TextSecondary).SingleLine().MinWidth(0).Shrink(1)
@@ -498,8 +502,21 @@ func (a *App) iconPicker(c *ui.Context, png []byte, name string, size float32) u
 		if m.Item(T("create.icon.choose")).Chosen() {
 			a.chooseIcon(func(bb []byte) { s.iconPNG, s.iconCustom = bb, true })
 		}
-		if m.Item(T("create.icon.reset")).Disabled(!s.iconCustom && s.iconStyle == nil).Chosen() {
+		if s.normalized != "" && s.local == "" && !s.isGroup() {
+			for _, pv := range iconProviders {
+				if m.Item(T("icon.from", "provider", pv.Name())).Chosen() {
+					a.createIconFrom(pv)
+				}
+			}
+		}
+		// When the site couldn't be reached there is no website icon yet:
+		// the item then looks the site up again.
+		retry := s.siteUnreachable() && s.local == "" && !s.isGroup()
+		if m.Item(T("create.icon.reset")).Disabled(!s.iconCustom && s.iconStyle == nil && !retry).Chosen() {
 			s.iconPNG, s.iconCustom, s.iconStyle = nil, false, nil
+			if retry {
+				s.refetchMetadata()
+			}
 		}
 	})
 	hov := b.Hovered()
