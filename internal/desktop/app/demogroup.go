@@ -317,39 +317,47 @@ func (a *App) demoGroupMembers(c *ui.Context, d demoLaunch, members []config.Gro
 }
 
 func (a *App) demoRailSplit(c *ui.Context, d demoLaunch, pref *demoPrefs) {
+	p := design.Of(c)
 	n := len(d.members())
 	on := pref.Split >= 0
-	ui.Column(c.Key("split")).Gap(2).AlignItems(ui.Center).Shrink(0).Padding(0, 0, 4, 0).Children(func() {
-		a.demoSplitBtn(c, "side", icons.Columns2, T("group.split.side"), on && !pref.SplitVert, false, func() {
+	ic := icons.Columns2
+	if on && pref.SplitVert {
+		ic = icons.Rows2
+	}
+	btn := ui.ButtonBase(c.Key("split")).Size(demoRailWidth, demoRailIcon).Radius(10).
+		Label(T("group.split")).Tooltip(T("group.split")).FocusRing(false).Cursor(ui.CursorPointer).
+		AlignItems(ui.Center).Justify(ui.Center)
+	if on {
+		btn.Background(p.Accent.Alpha(0.18))
+	} else if btn.Hovered() || btn.FocusVisible() {
+		btn.Background(p.Hover)
+	}
+	btn.Children(func() {
+		fg := p.TextSecondary
+		if on {
+			fg = p.Accent
+		}
+		kit.Glyph(c, ic, 18, fg)
+	})
+	btn.PopoverMenuButton(func(m *ui.Menu) {
+		if m.Item(T("group.split.side")).Radio(on && !pref.SplitVert).Chosen() {
 			pref.setSplitVert(false, n)
 			a.invalidateDemo(d)
-		})
-		a.demoSplitBtn(c, "stack", icons.Rows2, T("group.split.stack"), on && pref.SplitVert, false, func() {
+		}
+		if m.Item(T("group.split.stack")).Radio(on && pref.SplitVert).Chosen() {
 			pref.setSplitVert(true, n)
 			a.invalidateDemo(d)
-		})
-		a.demoSplitBtn(c, "swap", icons.Swap, T("group.split.swap"), false, !on, func() {
+		}
+		m.Separator()
+		if m.Item(T("group.split.swap")).Disabled(!on).Chosen() {
 			pref.swapSplit()
 			a.invalidateDemo(d)
-		})
-		a.demoSplitBtn(c, "unsplit", icons.Close, T("group.split.close"), false, !on, func() {
+		}
+		if m.Item(T("group.split.close")).Disabled(!on).Chosen() {
 			pref.toggleSplit(n)
 			a.invalidateDemo(d)
-		})
-	})
-}
-
-func (a *App) demoSplitBtn(c *ui.Context, key string, ic *ui.SVG, title string, on, disabled bool, click func()) {
-	p := design.Of(c)
-	b := kit.IconButton(c.Key(key), ic, title)
-	if disabled {
-		b.Opacity(0.35)
-	} else if on {
-		b.Background(p.Accent.Alpha(0.18))
-	}
-	if !disabled && b.Clicked() {
-		click()
-	}
+		}
+	}, ui.PopoverMenuButtonOptions{At: ui.AnchorTopEnd, Self: ui.AnchorTopStart})
 }
 
 func (a *App) demoMemberPane(c *ui.Context, d demoLaunch, m config.GroupMember, focused bool) {

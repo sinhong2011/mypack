@@ -47,8 +47,6 @@ var (
 	settingsGlyph = lucideGlyph(`<path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/>`)
 	columnsGlyph  = lucideGlyph(`<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 3v18"/>`)
 	rowsGlyph     = lucideGlyph(`<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 12h18"/>`)
-	swapGlyph     = lucideGlyph(`<path d="M8 8 4 12l4 4"/><path d="M4 12h16"/><path d="m16 8 4 4-4 4"/>`)
-	closeGlyph    = lucideGlyph(`<path d="M18 6 6 18"/><path d="m6 6 12 12"/>`)
 )
 
 type groupMember struct {
@@ -616,43 +614,49 @@ func (g *group) memberPane(c *ui.Context, m *groupMember, focused bool) {
 	})
 }
 
-// railSplit is the split controls on the rail (Chrome/Arc/Zen: orientation,
-// swap, close), above Settings so they do not cover the pages.
+// railSplit is one Split View control on the rail, above Settings. Click
+// opens the menu (side by side, top and bottom, swap, close), as Chrome
+// and Firefox group split on a single button.
 func (g *group) railSplit(c *ui.Context, on, vert, horizontal bool) {
-	btns := func() {
-		g.splitRailBtn(c, "side", "Side by side", columnsGlyph, on && !vert, false, func() { g.setSplitVert(false) })
-		g.splitRailBtn(c, "stack", "Top and bottom", rowsGlyph, on && vert, false, func() { g.setSplitVert(true) })
-		g.splitRailBtn(c, "swap", "Swap sides", swapGlyph, false, !on, g.swapSplit)
-		g.splitRailBtn(c, "unsplit", "Close split", closeGlyph, false, !on, g.toggleSplit)
-	}
-	if horizontal {
-		ui.Row(c.Key("split")).Gap(2).AlignItems(ui.Center).Shrink(0).Children(btns)
-		return
-	}
-	ui.Column(c.Key("split")).Gap(2).AlignItems(ui.Center).Shrink(0).Padding(0, 0, 4, 0).Children(btns)
-}
-
-func (g *group) splitRailBtn(c *ui.Context, key, label string, glyph *ui.SVG, on, disabled bool, click func()) {
 	t := c.Theme()
-	b := ui.Box(c.Key(key)).Size(28, 28).Radius(8).Role(ui.RoleButton).Label(label).Tooltip(label).Focusable().
-		AlignItems(ui.Center).Justify(ui.Center)
-	if disabled {
-		b.Opacity(0.35)
-	} else if on {
-		b.Background(t.Accent.Alpha(0.18))
-	} else if b.Hovered() || b.FocusVisible() {
-		b.Background(t.SurfaceHover)
+	slotW := float32(railWidth)
+	if horizontal {
+		slotW = railIcon + 8
 	}
-	b.Children(func() {
+	glyph := columnsGlyph
+	if on && vert {
+		glyph = rowsGlyph
+	}
+	btn := ui.ButtonBase(c.Key("split")).Size(slotW, railIcon).Radius(10).
+		Label("Split View").Tooltip("Split View").FocusRing(false).Cursor(ui.CursorPointer).
+		AlignItems(ui.Center).Justify(ui.Center)
+	if on {
+		btn.Background(t.Accent.Alpha(0.18))
+	} else if btn.Hovered() || btn.FocusVisible() {
+		btn.Background(t.SurfaceHover)
+	}
+	btn.Children(func() {
 		col := t.TextMuted
-		if on && !disabled {
+		if on {
 			col = t.Accent
 		}
-		ui.Icon(c, glyph).FontSize(16).TextColor(col)
+		ui.Icon(c, glyph).FontSize(18).TextColor(col)
 	})
-	if !disabled && b.Clicked() {
-		click()
-	}
+	btn.PopoverMenuButton(func(m *ui.Menu) {
+		if m.Item("Split Side by Side").Radio(on && !vert).Chosen() {
+			g.setSplitVert(false)
+		}
+		if m.Item("Split Top and Bottom").Radio(on && vert).Chosen() {
+			g.setSplitVert(true)
+		}
+		m.Separator()
+		if m.Item("Swap Sides").Disabled(!on).Chosen() {
+			g.swapSplit()
+		}
+		if m.Item("Close Split View").Disabled(!on).Chosen() {
+			g.toggleSplit()
+		}
+	}, ui.PopoverMenuButtonOptions{At: ui.AnchorTopEnd, Self: ui.AnchorTopStart})
 }
 
 // railSettings is the Settings control at the end of the rail. Group
