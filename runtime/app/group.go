@@ -588,8 +588,8 @@ func (g *group) drawMembers(c *ui.Context, active, split int, pct *float32, vert
 			ui.WebView(c, g.members[active].view).Grow(1)
 			return
 		}
-		first := func() { g.memberPane(c.Key("a"), g.members[active], true) }
-		second := func() { g.memberPane(c.Key("b"), g.members[split], false) }
+		first := func() { g.memberPane(c.Key("a"), g.members[active]) }
+		second := func() { g.memberPane(c.Key("b"), g.members[split]) }
 		// Separate keys so rotating does not reuse a Split of the other axis.
 		var panes ui.Element
 		if vert {
@@ -601,17 +601,8 @@ func (g *group) drawMembers(c *ui.Context, active, split int, pct *float32, vert
 	})
 }
 
-func (g *group) memberPane(c *ui.Context, m *groupMember, focused bool) {
-	t := c.Theme()
-	box := ui.Box(c).Fill().MinWidth(0).MinHeight(0).Clip()
-	if focused {
-		box.Border(2, t.Accent)
-	} else {
-		box.Border(1, t.Border)
-	}
-	box.Children(func() {
-		ui.WebView(c, m.view).Fill().MinWidth(0).MinHeight(0)
-	})
+func (g *group) memberPane(c *ui.Context, m *groupMember) {
+	ui.WebView(c, m.view).Fill().MinWidth(0).MinHeight(0)
 }
 
 // railSplit is one Split View control on the rail, above Settings. Click

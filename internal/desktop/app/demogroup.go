@@ -299,11 +299,11 @@ func (a *App) demoGroupMembers(c *ui.Context, d demoLaunch, members []config.Gro
 			return
 		}
 		if split < 0 || split >= len(members) {
-			a.demoMemberPane(c.Key("main"), d, members[active], true)
+			a.demoMemberPane(c.Key("main"), d, members[active])
 			return
 		}
-		first := func() { a.demoMemberPane(c.Key("left"), d, members[active], true) }
-		second := func() { a.demoMemberPane(c.Key("right"), d, members[split], false) }
+		first := func() { a.demoMemberPane(c.Key("left"), d, members[active]) }
+		second := func() { a.demoMemberPane(c.Key("right"), d, members[split]) }
 		var panes ui.Element
 		if vert {
 			panes = ui.SplitVerticalPercent(c.Key("split-v"), &pref.SplitPct, first, second)
@@ -358,16 +358,9 @@ func (a *App) demoRailSplit(c *ui.Context, d demoLaunch, pref *demoPrefs) {
 	}, ui.PopoverMenuButtonOptions{At: ui.AnchorTopEnd, Self: ui.AnchorTopStart})
 }
 
-func (a *App) demoMemberPane(c *ui.Context, d demoLaunch, m config.GroupMember, focused bool) {
-	p := design.Of(c)
+func (a *App) demoMemberPane(c *ui.Context, d demoLaunch, m config.GroupMember) {
 	home := memberHome(m)
-	col := ui.Column(c).Grow(1).Fill().MinWidth(0).MinHeight(0).Background(p.CanvasBot).Center().Gap(14).Padding(28)
-	if focused {
-		col.Border(2, p.Accent)
-	} else {
-		col.Border(1, p.Divider)
-	}
-	col.Children(func() {
+	ui.Column(c).Grow(1).Fill().MinWidth(0).MinHeight(0).Background(design.Of(c).CanvasBot).Center().Gap(14).Padding(28).Children(func() {
 		kit.AppIconOpts(c, a.memberIcon(m), m.Name, 72, kit.IconOpts{Shadow: true})
 		kit.LargeTitle(c, m.Name)
 		a.demoSiteLink(c, home)
