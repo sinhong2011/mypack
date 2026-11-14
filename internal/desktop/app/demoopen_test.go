@@ -106,12 +106,27 @@ func TestDemoFromInstallGroup(t *testing.T) {
 	if p.Active != 2 {
 		t.Fatalf("active %d", p.Active)
 	}
-	p.splitWith(0, 3)
+	p.splitWith(0, 3, false)
 	if p.Split != 0 {
 		t.Fatalf("split with %d", p.Split)
 	}
 	if p.SplitPct != 50 {
 		t.Fatalf("split starts even: %v", p.SplitPct)
+	}
+	if p.SplitVert {
+		t.Fatal("split to the right is side by side")
+	}
+	p.setSplitVert(true, 3)
+	if !p.SplitVert {
+		t.Fatal("stacked")
+	}
+	p.rotateSplit(3)
+	if p.SplitVert {
+		t.Fatal("rotate back")
+	}
+	p.swapSplit()
+	if p.Active != 0 || p.Split != 2 {
+		t.Fatalf("swap active=%d split=%d", p.Active, p.Split)
 	}
 	p.SplitPct = 0
 	p.clamp(3)
@@ -120,7 +135,7 @@ func TestDemoFromInstallGroup(t *testing.T) {
 	}
 	p.show(0, 3) // picking the beside site swaps
 	if p.Active != 0 || p.Split != 2 {
-		t.Fatalf("swap active=%d split=%d", p.Active, p.Split)
+		t.Fatalf("pick beside active=%d split=%d", p.Active, p.Split)
 	}
 }
 

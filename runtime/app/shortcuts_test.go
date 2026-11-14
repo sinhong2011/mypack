@@ -56,19 +56,21 @@ func TestShortcutsBootListsGroupWhenGrouped(t *testing.T) {
 		{ID: "b", Name: "B", URL: "https://b.example"},
 	}}
 	a := &App{cfg: cfg}
-	var next, split, tabs bool
+	var next, split, splitStack, tabs bool
 	for _, s := range a.shortcutsBoot() {
 		switch s.ID {
 		case "nextSite":
 			next = true
 		case "split":
 			split = true
+		case "splitStack":
+			splitStack = true
 		case "newTab":
 			tabs = true
 		}
 	}
-	if !next || !split {
-		t.Fatal("group should list Next Site and Toggle Split View")
+	if !next || !split || !splitStack {
+		t.Fatal("group should list Next Site, Toggle Split View and Rotate Split")
 	}
 	if tabs {
 		t.Fatal("group should not list New Tab")

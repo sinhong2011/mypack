@@ -25,8 +25,9 @@ import (
 // so each notifies and badges while another shows; the rail shows each
 // member's unread count and the Dock the total. A link to another
 // member's site opens in that member. Split view shows two members side
-// by side, with a divider to drag. The group works in every window.mode:
-// a window, compact, sidebar or the menu-bar panel.
+// by side or stacked, with a divider to drag and controls to rotate,
+// swap, or close (Chrome, Arc, Zen, Firefox). The group works in every
+// window.mode: a window, compact, sidebar or the menu-bar panel.
 
 const (
 	railWidth      = 68
@@ -35,9 +36,20 @@ const (
 	groupSessionID = "." // profileId + "." + member id
 )
 
-// settingsGlyph is the Lucide gear used on the rail (title-bar-hidden
-// windows have no GTK/Win32 menu, so Settings lives here).
-var settingsGlyph = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg>`))
+// lucideGlyph is one Lucide icon the rail and split chrome use
+// (title-bar-hidden windows have no GTK/Win32 menu, so Settings lives
+// here).
+func lucideGlyph(shapes string) *ui.SVG {
+	return ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">` + shapes + `</svg>`))
+}
+
+var (
+	settingsGlyph = lucideGlyph(`<path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/>`)
+	columnsGlyph  = lucideGlyph(`<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 3v18"/>`)
+	rowsGlyph     = lucideGlyph(`<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 12h18"/>`)
+	swapGlyph     = lucideGlyph(`<path d="M8 8 4 12l4 4"/><path d="M4 12h16"/><path d="m16 8 4 4-4 4"/>`)
+	closeGlyph    = lucideGlyph(`<path d="M18 6 6 18"/><path d="m6 6 12 12"/>`)
+)
 
 type groupMember struct {
 	cfg   config.GroupMember
@@ -60,12 +72,13 @@ type group struct {
 	localSchemes []string
 	localOrigins []string
 
-	mu       sync.Mutex
-	win      *mygo.Window
-	active   int
-	split    int     // member shown beside the active one, or -1
-	prev     int     // the member shown before the active one
-	splitPct float32 // first pane share, 0–100
+	mu        sync.Mutex
+	win       *mygo.Window
+	active    int
+	split     int     // member shown beside the active one, or -1
+	prev      int     // the member shown before the active one
+	splitPct  float32 // first pane share, 0–100
+	splitVert bool    // true: stacked (top/bottom), like Chrome/Arc/Zen
 }
 
 // newGroup prepares the members of cfg's group: a local member's site
@@ -279,18 +292,29 @@ func (g *group) step(d int) {
 }
 
 // toggleSplit shows the member shown before (else the next one) beside the
-// active one, or closes the split.
+// active one, or closes the split. A new split keeps the last orientation.
 func (g *group) toggleSplit() {
 	g.mu.Lock()
 	if g.split >= 0 {
 		g.split = -1
-	} else if len(g.members) > 1 {
-		o := g.prev
-		if o < 0 || o == g.active || o >= len(g.members) {
-			o = (g.active + 1) % len(g.members)
-		}
-		g.split = o
+	} else {
+		g.openSplitLocked()
 	}
+	g.invalidateLocked()
+}
+
+func (g *group) openSplitLocked() {
+	if g.split >= 0 || len(g.members) < 2 {
+		return
+	}
+	o := g.prev
+	if o < 0 || o == g.active || o >= len(g.members) {
+		o = (g.active + 1) % len(g.members)
+	}
+	g.split = o
+}
+
+func (g *group) invalidateLocked() {
 	w := g.win
 	g.mu.Unlock()
 	if w != nil {
@@ -298,19 +322,66 @@ func (g *group) toggleSplit() {
 	}
 }
 
-// splitWith shows member i beside the active one.
-func (g *group) splitWith(i int) {
+// setSplitVert sets side-by-side (false) or stacked (true), opening a
+// split if needed — Chrome's "change to stacked or side-by-side".
+func (g *group) setSplitVert(vert bool) {
 	g.mu.Lock()
-	if i == g.active {
+	g.openSplitLocked()
+	if g.split >= 0 {
+		g.splitVert = vert
+	}
+	g.invalidateLocked()
+}
+
+// rotateSplit flips side-by-side ↔ stacked. With no split it opens stacked
+// (Zen/Arc: a dedicated vertical split, Cmd+Shift+\).
+func (g *group) rotateSplit() {
+	g.mu.Lock()
+	if g.split < 0 {
+		g.openSplitLocked()
+		g.splitVert = true
+	} else {
+		g.splitVert = !g.splitVert
+	}
+	g.invalidateLocked()
+}
+
+// swapSplit exchanges the two panes (Chrome reverse, Firefox reverse).
+func (g *group) swapSplit() {
+	g.mu.Lock()
+	if g.split < 0 {
+		g.mu.Unlock()
+		return
+	}
+	g.active, g.split = g.split, g.active
+	w := g.win
+	m := g.members[g.active]
+	g.mu.Unlock()
+	a := g.a
+	if w != nil && m.page != nil {
+		a.mu.Lock()
+		if _, ok := a.windows[w]; ok || a.main == w {
+			a.windows[w] = m.page
+		}
+		a.mu.Unlock()
+		w.Invalidate()
+		if m.view != nil {
+			m.view.Focus()
+		}
+	}
+	a.state.Update(func(s *State) { s.GroupActive = m.cfg.ID })
+}
+
+// splitWith shows member i beside the active one. vert is stacked.
+func (g *group) splitWith(i int, vert bool) {
+	g.mu.Lock()
+	if i == g.active || i < 0 || i >= len(g.members) {
 		g.mu.Unlock()
 		return
 	}
 	g.split = i
-	w := g.win
-	g.mu.Unlock()
-	if w != nil {
-		w.Invalidate()
-	}
+	g.splitVert = vert
+	g.invalidateLocked()
 }
 
 // ownerOf returns the member whose site raw belongs to, other than from
@@ -434,7 +505,7 @@ func (g *group) handleIncoming(raw string) bool {
 func (g *group) viewFn(c *ui.Context) {
 	t := c.Theme()
 	g.mu.Lock()
-	active, split, pct := g.active, g.split, g.splitPct
+	active, split, pct, vert := g.active, g.split, g.splitPct, g.splitVert
 	g.mu.Unlock()
 	if pct <= 0 || pct > 100 {
 		pct = 50
@@ -494,11 +565,11 @@ func (g *group) viewFn(c *ui.Context) {
 			col.Children(func() {
 				ui.Box(c.Key("captionstrip")).FillWidth().Height(h).Shrink(0).Background(t.Surface).DragWindow().
 					BorderWidth(0, 0, 1, 0).BorderColor(t.Border)
-				g.drawMembers(c, active, split, &pct)
+				g.drawMembers(c, active, split, &pct, vert)
 			})
 			return
 		}
-		g.drawMembers(c, active, split, &pct)
+		g.drawMembers(c, active, split, &pct, vert)
 	})
 	g.mu.Lock()
 	g.splitPct = pct
@@ -506,10 +577,10 @@ func (g *group) viewFn(c *ui.Context) {
 	g.a.drawDownloadNotice(c)
 }
 
-// drawMembers draws the shown members: the active one, and the one beside it
-// in a split.
-func (g *group) drawMembers(c *ui.Context, active, split int, pct *float32) {
-	ui.Box(c.Key("members")).Grow(1).Basis(0).MinWidth(0).MinHeight(0).Row().Gap(0).Children(func() {
+// drawMembers draws the shown members: the active one, and the one beside
+// it in a split (side-by-side or stacked).
+func (g *group) drawMembers(c *ui.Context, active, split int, pct *float32, vert bool) {
+	ui.Box(c.Key("members")).Grow(1).Basis(0).MinWidth(0).MinHeight(0).Column().Gap(0).Children(func() {
 		if active >= len(g.members) || g.members[active].view == nil {
 			ui.Spacer(c)
 			return
@@ -518,12 +589,65 @@ func (g *group) drawMembers(c *ui.Context, active, split int, pct *float32) {
 			ui.WebView(c, g.members[active].view).Grow(1)
 			return
 		}
-		ui.SplitPercent(c.Key("split"), pct, func() {
-			ui.WebView(c, g.members[active].view).Fill().MinWidth(0).MinHeight(0)
-		}, func() {
-			ui.WebView(c, g.members[split].view).Fill().MinWidth(0).MinHeight(0)
-		}).SplitReset(50).Grow(1).FillHeight().MinWidth(0).MinHeight(0)
+		g.drawSplitChrome(c, vert)
+		first := func() { g.memberPane(c.Key("a"), g.members[active], true) }
+		second := func() { g.memberPane(c.Key("b"), g.members[split], false) }
+		// Separate keys so rotating does not reuse a Split of the other axis.
+		var panes ui.Element
+		if vert {
+			panes = ui.SplitVerticalPercent(c.Key("split-v"), pct, first, second)
+		} else {
+			panes = ui.SplitPercent(c.Key("split-h"), pct, first, second)
+		}
+		panes.SplitReset(50).Grow(1).FillWidth().FillHeight().MinWidth(0).MinHeight(0)
 	})
+}
+
+func (g *group) memberPane(c *ui.Context, m *groupMember, focused bool) {
+	t := c.Theme()
+	box := ui.Box(c).Fill().MinWidth(0).MinHeight(0).Clip()
+	if focused {
+		box.Border(2, t.Accent)
+	} else {
+		box.Border(1, t.Border)
+	}
+	box.Children(func() {
+		ui.WebView(c, m.view).Fill().MinWidth(0).MinHeight(0)
+	})
+}
+
+// drawSplitChrome is Arc/Chrome's split controls: orientation, swap, close.
+func (g *group) drawSplitChrome(c *ui.Context, vert bool) {
+	t := c.Theme()
+	ui.Row(c.Key("splitbar")).FillWidth().Height(36).Shrink(0).Gap(4).AlignItems(ui.Center).
+		Padding(0, 8).Background(t.Surface).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
+		g.splitChromeBtn(c, "side", "Side by side", columnsGlyph, !vert, func() { g.setSplitVert(false) })
+		g.splitChromeBtn(c, "stack", "Top and bottom", rowsGlyph, vert, func() { g.setSplitVert(true) })
+		ui.Spacer(c).Grow(1)
+		g.splitChromeBtn(c, "swap", "Swap sides", swapGlyph, false, g.swapSplit)
+		g.splitChromeBtn(c, "unsplit", "Close split", closeGlyph, false, g.toggleSplit)
+	})
+}
+
+func (g *group) splitChromeBtn(c *ui.Context, key, label string, glyph *ui.SVG, on bool, click func()) {
+	t := c.Theme()
+	b := ui.Box(c.Key(key)).Size(28, 28).Radius(8).Role(ui.RoleButton).Label(label).Tooltip(label).Focusable().
+		AlignItems(ui.Center).Justify(ui.Center)
+	if on {
+		b.Background(t.Accent.Alpha(0.18))
+	} else if b.Hovered() || b.FocusVisible() {
+		b.Background(t.SurfaceHover)
+	}
+	b.Children(func() {
+		col := t.TextMuted
+		if on {
+			col = t.Accent
+		}
+		ui.Icon(c, glyph).FontSize(16).TextColor(col)
+	})
+	if b.Clicked() {
+		click()
+	}
 }
 
 // railSettings is the Settings control at the end of the rail. Group
@@ -589,8 +713,11 @@ func (g *group) railItem(c *ui.Context, m *groupMember, active, beside, horizont
 			g.show(m.index, true)
 		}
 		btn.ContextMenu(func(menu *ui.Menu) {
-			if menu.Item("Open in Split View").Disabled(active).Chosen() {
-				g.splitWith(m.index)
+			if menu.Item("Split to the Right").Disabled(active).Chosen() {
+				g.splitWith(m.index, false)
+			}
+			if menu.Item("Split Below").Disabled(active).Chosen() {
+				g.splitWith(m.index, true)
 			}
 			if beside && menu.Item("Close Split View").Chosen() {
 				g.toggleSplit()
@@ -637,10 +764,26 @@ func (a *App) groupMenuItems() []*mygo.MenuItem {
 		}
 		items = append(items, it)
 	}
+	g.mu.Lock()
+	splitOn, splitVert := g.split >= 0, g.splitVert
+	g.mu.Unlock()
 	items = append(items,
 		&mygo.MenuItem{Label: "Next Site", Accelerator: a.acc("Ctrl+Tab"), Click: func(*mygo.MenuItem, *mygo.Window) { g.step(+1) }},
 		&mygo.MenuItem{Label: "Previous Site", Accelerator: a.acc("Ctrl+Shift+Tab"), Click: func(*mygo.MenuItem, *mygo.Window) { g.step(-1) }},
+		mygo.Separator(),
 		&mygo.MenuItem{Label: "Toggle Split View", Accelerator: a.acc("CmdOrCtrl+\\"), Click: func(*mygo.MenuItem, *mygo.Window) { g.toggleSplit() }},
+		&mygo.MenuItem{Label: "Split Side by Side", Type: mygo.MenuItemRadio, Checked: splitOn && !splitVert, Click: func(*mygo.MenuItem, *mygo.Window) { g.setSplitVert(false) }},
+		&mygo.MenuItem{Label: "Split Top and Bottom", Type: mygo.MenuItemRadio, Checked: splitOn && splitVert, Click: func(*mygo.MenuItem, *mygo.Window) { g.setSplitVert(true) }},
+		&mygo.MenuItem{Label: "Rotate Split", Accelerator: a.acc("CmdOrCtrl+Shift+\\"), Click: func(*mygo.MenuItem, *mygo.Window) { g.rotateSplit() }},
+		&mygo.MenuItem{Label: "Swap Sides", Click: func(*mygo.MenuItem, *mygo.Window) { g.swapSplit() }},
+		&mygo.MenuItem{Label: "Close Split View", Click: func(*mygo.MenuItem, *mygo.Window) {
+			g.mu.Lock()
+			on := g.split >= 0
+			g.mu.Unlock()
+			if on {
+				g.toggleSplit()
+			}
+		}},
 	)
 	return items
 }

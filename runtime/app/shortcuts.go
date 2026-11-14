@@ -37,6 +37,7 @@ func runtimeShortcutDefs() []runtimeShortcut {
 		{ID: "nextSite", Label: "Next Site", Group: view, Def: "Ctrl+Tab"},
 		{ID: "prevSite", Label: "Previous Site", Group: view, Def: "Ctrl+Shift+Tab"},
 		{ID: "split", Label: "Toggle Split View", Group: view, Def: "CmdOrCtrl+\\"},
+		{ID: "splitStack", Label: "Rotate Split", Group: view, Def: "CmdOrCtrl+Shift+\\"},
 	}
 }
 
@@ -52,7 +53,7 @@ func (a *App) shortcutList() []runtimeShortcut {
 			if !tabs {
 				continue
 			}
-		case "nextSite", "prevSite", "split":
+		case "nextSite", "prevSite", "split", "splitStack":
 			if !group {
 				continue
 			}

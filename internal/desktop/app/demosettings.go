@@ -16,6 +16,7 @@ import (
 // can be changed here. Active and Split are a group window's rail
 // (which site shows, and which sits beside it); Split is -1 when the
 // window is not split. SplitPct is the first pane's share (0–100).
+// SplitVert is stacked (top/bottom) rather than side by side.
 type demoPrefs struct {
 	Title          string
 	AlwaysOnTop    bool
@@ -25,6 +26,7 @@ type demoPrefs struct {
 	Active         int
 	Split          int
 	SplitPct       float32
+	SplitVert      bool
 }
 
 func (a *App) prefsFor(d demoLaunch) *demoPrefs {

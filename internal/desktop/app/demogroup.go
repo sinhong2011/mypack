@@ -85,13 +85,8 @@ func (p *demoPrefs) step(d, n int) {
 	p.show(((p.Active+d)%n+n)%n, n)
 }
 
-func (p *demoPrefs) toggleSplit(n int) {
-	p.clamp(n)
-	if p.Split >= 0 {
-		p.Split = -1
-		return
-	}
-	if n < 2 {
+func (p *demoPrefs) openSplit(n int) {
+	if p.Split >= 0 || n < 2 {
 		return
 	}
 	o := p.Active + 1
@@ -101,18 +96,54 @@ func (p *demoPrefs) toggleSplit(n int) {
 	p.Split = o
 }
 
-func (p *demoPrefs) splitWith(i, n int) {
+func (p *demoPrefs) toggleSplit(n int) {
+	p.clamp(n)
+	if p.Split >= 0 {
+		p.Split = -1
+		return
+	}
+	p.openSplit(n)
+}
+
+func (p *demoPrefs) setSplitVert(vert bool, n int) {
+	p.clamp(n)
+	p.openSplit(n)
+	if p.Split >= 0 {
+		p.SplitVert = vert
+	}
+}
+
+func (p *demoPrefs) rotateSplit(n int) {
+	p.clamp(n)
+	if p.Split < 0 {
+		p.openSplit(n)
+		p.SplitVert = true
+		return
+	}
+	p.SplitVert = !p.SplitVert
+}
+
+func (p *demoPrefs) swapSplit() {
+	if p.Split < 0 {
+		return
+	}
+	p.Active, p.Split = p.Split, p.Active
+}
+
+func (p *demoPrefs) splitWith(i, n int, vert bool) {
 	p.clamp(n)
 	if i < 0 || i >= n || i == p.Active {
 		return
 	}
 	p.Split = i
+	p.SplitVert = vert
 }
 
 func (a *App) demoGroupViewMenu(d demoLaunch) *mygo.MenuItem {
 	members := d.members()
 	n := len(members)
-	items := make([]*mygo.MenuItem, 0, n+4)
+	pref := a.prefsFor(d)
+	items := make([]*mygo.MenuItem, 0, n+10)
 	for i, m := range members {
 		i := i
 		it := &mygo.MenuItem{Label: m.Name, Click: func(*mygo.MenuItem, *mygo.Window) {
@@ -134,9 +165,33 @@ func (a *App) demoGroupViewMenu(d demoLaunch) *mygo.MenuItem {
 			a.prefsFor(d).step(-1, n)
 			a.invalidateDemo(d)
 		}},
+		mygo.Separator(),
 		&mygo.MenuItem{Label: T("group.split"), Accelerator: "CmdOrCtrl+\\", Click: func(*mygo.MenuItem, *mygo.Window) {
 			a.prefsFor(d).toggleSplit(n)
 			a.invalidateDemo(d)
+		}},
+		&mygo.MenuItem{Label: T("group.split.side"), Type: mygo.MenuItemRadio, Checked: pref.Split >= 0 && !pref.SplitVert, Click: func(*mygo.MenuItem, *mygo.Window) {
+			a.prefsFor(d).setSplitVert(false, n)
+			a.invalidateDemo(d)
+		}},
+		&mygo.MenuItem{Label: T("group.split.stack"), Type: mygo.MenuItemRadio, Checked: pref.Split >= 0 && pref.SplitVert, Click: func(*mygo.MenuItem, *mygo.Window) {
+			a.prefsFor(d).setSplitVert(true, n)
+			a.invalidateDemo(d)
+		}},
+		&mygo.MenuItem{Label: T("group.split.rotate"), Accelerator: "CmdOrCtrl+Shift+\\", Click: func(*mygo.MenuItem, *mygo.Window) {
+			a.prefsFor(d).rotateSplit(n)
+			a.invalidateDemo(d)
+		}},
+		&mygo.MenuItem{Label: T("group.split.swap"), Click: func(*mygo.MenuItem, *mygo.Window) {
+			a.prefsFor(d).swapSplit()
+			a.invalidateDemo(d)
+		}},
+		&mygo.MenuItem{Label: T("group.split.close"), Click: func(*mygo.MenuItem, *mygo.Window) {
+			p := a.prefsFor(d)
+			if p.Split >= 0 {
+				p.toggleSplit(n)
+				a.invalidateDemo(d)
+			}
 		}},
 	)
 	return &mygo.MenuItem{Label: T("menu.view"), Submenu: items}
@@ -218,8 +273,11 @@ func (a *App) demoRailItem(c *ui.Context, d demoLaunch, m config.GroupMember, i 
 			pref.show(i, n)
 		}
 		btn.ContextMenu(func(menu *ui.Menu) {
-			if menu.Item(T("demo.split")).Disabled(active).Chosen() {
-				pref.splitWith(i, n)
+			if menu.Item(T("demo.split.side")).Disabled(active).Chosen() {
+				pref.splitWith(i, n, false)
+			}
+			if menu.Item(T("demo.split.stack")).Disabled(active).Chosen() {
+				pref.splitWith(i, n, true)
 			}
 			if beside && menu.Item(T("demo.split.close")).Chosen() {
 				pref.toggleSplit(n)
@@ -235,28 +293,76 @@ func (a *App) demoRailItem(c *ui.Context, d demoLaunch, m config.GroupMember, i 
 }
 
 func (a *App) demoGroupMembers(c *ui.Context, d demoLaunch, members []config.GroupMember, pref *demoPrefs) {
-	active, split := pref.Active, pref.Split
-	ui.Box(c.Key("members")).Grow(1).Basis(0).MinWidth(0).MinHeight(0).Row().Gap(0).Children(func() {
+	active, split, vert := pref.Active, pref.Split, pref.SplitVert
+	n := len(members)
+	ui.Box(c.Key("members")).Grow(1).Basis(0).MinWidth(0).MinHeight(0).Column().Gap(0).Children(func() {
 		if active < 0 || active >= len(members) {
 			ui.Spacer(c)
 			return
 		}
 		if split < 0 || split >= len(members) {
-			a.demoMemberPane(c.Key("main"), d, members[active])
+			a.demoMemberPane(c.Key("main"), d, members[active], true)
 			return
 		}
-		ui.SplitPercent(c.Key("split"), &pref.SplitPct, func() {
-			a.demoMemberPane(c.Key("left"), d, members[active])
-		}, func() {
-			a.demoMemberPane(c.Key("right"), d, members[split])
-		}).SplitReset(50).Grow(1).FillHeight().MinWidth(0).MinHeight(0)
+		a.demoSplitChrome(c, d, pref, n, vert)
+		first := func() { a.demoMemberPane(c.Key("left"), d, members[active], true) }
+		second := func() { a.demoMemberPane(c.Key("right"), d, members[split], false) }
+		var panes ui.Element
+		if vert {
+			panes = ui.SplitVerticalPercent(c.Key("split-v"), &pref.SplitPct, first, second)
+		} else {
+			panes = ui.SplitPercent(c.Key("split-h"), &pref.SplitPct, first, second)
+		}
+		panes.SplitReset(50).Grow(1).FillWidth().FillHeight().MinWidth(0).MinHeight(0)
 	})
 }
 
-func (a *App) demoMemberPane(c *ui.Context, d demoLaunch, m config.GroupMember) {
+func (a *App) demoSplitChrome(c *ui.Context, d demoLaunch, pref *demoPrefs, n int, vert bool) {
+	p := design.Of(c)
+	ui.Row(c.Key("splitbar")).FillWidth().Height(36).Shrink(0).Gap(4).AlignItems(ui.Center).
+		Padding(0, 8).Background(p.Raised).Children(func() {
+		a.demoSplitBtn(c, "side", icons.Columns2, T("group.split.side"), !vert, func() {
+			pref.setSplitVert(false, n)
+			a.invalidateDemo(d)
+		})
+		a.demoSplitBtn(c, "stack", icons.Rows2, T("group.split.stack"), vert, func() {
+			pref.setSplitVert(true, n)
+			a.invalidateDemo(d)
+		})
+		ui.Spacer(c).Grow(1)
+		a.demoSplitBtn(c, "swap", icons.Swap, T("group.split.swap"), false, func() {
+			pref.swapSplit()
+			a.invalidateDemo(d)
+		})
+		a.demoSplitBtn(c, "unsplit", icons.Close, T("group.split.close"), false, func() {
+			pref.toggleSplit(n)
+			a.invalidateDemo(d)
+		})
+	})
+	ui.Box(c).Height(1).FillWidth().Background(p.Divider)
+}
+
+func (a *App) demoSplitBtn(c *ui.Context, key string, ic *ui.SVG, title string, on bool, click func()) {
+	p := design.Of(c)
+	b := kit.IconButton(c.Key(key), ic, title)
+	if on {
+		b.Background(p.Accent.Alpha(0.18))
+	}
+	if b.Clicked() {
+		click()
+	}
+}
+
+func (a *App) demoMemberPane(c *ui.Context, d demoLaunch, m config.GroupMember, focused bool) {
 	p := design.Of(c)
 	home := memberHome(m)
-	ui.Column(c).Grow(1).Fill().MinWidth(0).MinHeight(0).Background(p.CanvasBot).Center().Gap(14).Padding(28).Children(func() {
+	col := ui.Column(c).Grow(1).Fill().MinWidth(0).MinHeight(0).Background(p.CanvasBot).Center().Gap(14).Padding(28)
+	if focused {
+		col.Border(2, p.Accent)
+	} else {
+		col.Border(1, p.Divider)
+	}
+	col.Children(func() {
 		kit.AppIconOpts(c, a.memberIcon(m), m.Name, 72, kit.IconOpts{Shadow: true})
 		kit.LargeTitle(c, m.Name)
 		if home != "" {
