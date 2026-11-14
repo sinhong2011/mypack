@@ -106,6 +106,12 @@ type App struct {
 	reloadMu   sync.Mutex
 	reloadWant map[string]bool
 	reloadT    *time.Timer
+	// reloaded, when set, runs after a coalesced reload has updated state.
+	// Tests wait on it. The GUI leaves it nil.
+	reloaded func()
+	// applyMu serialises a reload when there is no window yet (headless
+	// tests). A real window applies on the UI thread instead.
+	applyMu sync.Mutex
 
 	tray     *mygo.Tray
 	quitting bool
@@ -206,6 +212,9 @@ func Run(svc appservice.Service) error {
 			a.redrawSettings()
 		}
 		svc.Subscribe(a.onEvent)
+		// CLI and MCP write the same database from other processes. Poll so
+		// this already-open Library reloads instead of keeping its startup lists.
+		a.watchExternalChanges(context.Background())
 		a.reload("projects", "installs", "jobs", "runtimes", "storage")
 		a.startLibrarySync()
 		a.loadCatalog()
@@ -383,10 +392,7 @@ func (a *App) flushReload() {
 		p, err := a.svc.Settings(ctx)
 		settings, errs = p, append(errs, err)
 	}
-	if a.win == nil {
-		return
-	}
-	a.win.Update(func() {
+	apply := func() {
 		for _, err := range errs {
 			if err != nil {
 				log.Printf("mypack: reload: %v", err)
@@ -424,7 +430,17 @@ func (a *App) flushReload() {
 			a.loaded = true
 		}
 		a.syncTray()
-	})
+		if a.reloaded != nil {
+			a.reloaded()
+		}
+	}
+	if a.win == nil {
+		a.applyMu.Lock()
+		apply()
+		a.applyMu.Unlock()
+		return
+	}
+	a.win.Update(apply)
 }
 
 // onEvent runs on the service's goroutine.
