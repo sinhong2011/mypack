@@ -1,0 +1,41 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+Architectures: amd64 arm64
+Codename: stable
+Components: main
+Date: Sat, 14 Nov 2026 08:49:52 +0000
+Label: MyPack
+Origin: MyPack
+Suite: stable
+MD5Sum:
+ 949f5ddda0aaa1bedc44090f31dec574              142 Release
+ e4e6f1c61340f4dd80b0575126e4b5d0             3305 main/binary-amd64/Packages
+ 3e926b4f7278f102deec13b88a06dea7             1221 main/binary-amd64/Packages.gz
+ 97d7c9165120c65dccd9b989632bbd60             3305 main/binary-arm64/Packages
+ b5204643004576c71a416960304edf4d             1217 main/binary-arm64/Packages.gz
+SHA1:
+ da9d1b61a658871aaa4b9121efd31805ac7d3278              142 Release
+ e4631b368668c5cc6a21d1137373cad0e6cb327f             3305 main/binary-amd64/Packages
+ 86bebb6a053fb8aab9c51da8baebbfcc07f880b6             1221 main/binary-amd64/Packages.gz
+ dce61977b5707f9140b5e2f2265dae7730eb0848             3305 main/binary-arm64/Packages
+ 49f6cf793a30e39b0ef13885280c827279e8a890             1217 main/binary-arm64/Packages.gz
+SHA256:
+ b827bd1490e395f118c5c07e8b20428ba48c60cc39ca461fb689386c88af5fc5              142 Release
+ 5128f613b144fb4d039074e604926f348582a8efe570283875fc2b311df36172             3305 main/binary-amd64/Packages
+ e095a1bcd540e46cd133f043a532d9e757fcbc5b3b8ba55ba2e998cbb8a3a494             1221 main/binary-amd64/Packages.gz
+ 3bd5d69e7c0e2b6571434ba0b9d218c3f7ef455e6f7ef94bf509ce5ac5ad9b3f             3305 main/binary-arm64/Packages
+ 5d3fc2b65374bb91d7d95020638ca00398c28c5a718ebbd68a59254d7bc7a165             1217 main/binary-arm64/Packages.gz
+SHA512:
+ 0498f31b94fd638af2da9c1848800a58a5e92e5a8e4562c076dec8e6e7f9d10253a046462b4cef7524b1bf71cb6924075f45f47d1d14beaec58da4dfc8580d42              142 Release
+ 555ba16a62d3a1e85060b0973616fe34cf9dc20be948721f3c515e67183777632a33a887c70dca0c1b101b92ffe797a1b7a64750f422ddd33d888a86b27d6a75             3305 main/binary-amd64/Packages
+ ad7d1a439d6a44c844b8a8663eb6cf52cfb20dd7f397e6d2f6b8a7c65efaf54bb1d5b29e7c685e9c5d8ab9a7728fdeae1c48b23f7aaf31fdfeded4800c77d23f             1221 main/binary-amd64/Packages.gz
+ a6ebddc5492130f3255ab2f19dad54b4a2795843892dab1b2803943a5f036e784c4c23528e69d1fadb649af6e9c6c344989b1b415e862ecb059bb821ea11c43a             3305 main/binary-arm64/Packages
+ cd0a2282529d1ec6f376b68782b0ab10c4a2428c02f5d792fd43987a65cb89d2caad30d6291f82b50aa278ed2e482df4b884ed25a46a67873c2c5fff076b15cc             1217 main/binary-arm64/Packages.gz
+-----BEGIN PGP SIGNATURE-----
+
+iHUEARYKAB0WIQQeZIwb3BXQB+6bSwvK52/zAmd7GgUCavggsAAKCRDK52/zAmd7
+GmbtAQCHMZLPP21voo0L3XlHHXj2QvxDm1EYbvpMTSGDeWkJGQD/bZZ2GrNHskDC
+37/PvgmOuqFdywo+qkWtbk4Ag2scDQQ=
+=EUsq
+-----END PGP SIGNATURE-----

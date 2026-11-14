@@ -1,0 +1,85 @@
+Package: mypack
+Architecture: amd64
+Version: 0.3.0
+Priority: optional
+Section: utils
+Maintainer: MyPack
+Installed-Size: 29044
+Depends: libgtk-3-0 | libgtk-3-0t64, libwebkit2gtk-4.1-0
+Filename: pool/main/m/mypack/mypack_0.3.0_amd64.deb
+Size: 17256290
+MD5sum: e14507f6c16cbf71913c773f587ea984
+SHA1: 854b55cbe43c7beb13709cc4611dee279588e4ae
+SHA256: ed7a5b3fd6150a1f0768c86c1dc49b15dc1027d3f0cea158bcb388d25848ee1c
+SHA512: 97d5ad7952166fac69e6ed8e8e2d89315a921e00ad9b4fc349e7df059a3265397efc2f50a34d3d0e6f825b24edc4a93af2639f3087648e458f9b540d06620b03
+Description: Turn any website or local HTML project into a native desktop app
+ MyPack is a desktop application.
+
+Package: mypack
+Architecture: amd64
+Version: 0.5.0
+Priority: optional
+Section: utils
+Maintainer: MyPack
+Installed-Size: 34418
+Depends: libgtk-3-0 | libgtk-3-0t64, libwebkit2gtk-4.1-0
+Filename: pool/main/m/mypack/mypack_0.5.0_amd64.deb
+Size: 22715384
+MD5sum: a008063813cb21bf506ab7e62af3a665
+SHA1: 1a490bb5d74950613cb5c4e5ae0db261ce74dfee
+SHA256: 13b92763c968123b2989522272d156063ab3b85496b86d190097e0840a81fb8f
+SHA512: dc0331135679083bd545024643da6bb8806a0831681636d6d2784a17ae1e43801ba1a17d6bb57c65a28848aefd5b1a469661801c6611acb5b968c40fd17c4d17
+Description: Turn any website or local HTML project into a native desktop app
+ MyPack is a desktop application.
+
+Package: mypack
+Architecture: amd64
+Version: 0.5.1
+Priority: optional
+Section: utils
+Maintainer: MyPack
+Installed-Size: 34422
+Depends: libgtk-3-0 | libgtk-3-0t64, libwebkit2gtk-4.1-0
+Filename: pool/main/m/mypack/mypack_0.5.1_amd64.deb
+Size: 22717210
+MD5sum: 7c57b6c7dc64f3fc479245c45f332d08
+SHA1: 2491a7a8396045bb571005a1e791b815a266817f
+SHA256: 722250dcdb3df232ce2ef9b5702022bce678d3fd048ca6b7a5a6a635be91c1b5
+SHA512: b4c5050cc722fa42aad00b9a2a28aba50d04f35b8e66cfd22bcaa2eed8cf41a69d3edeabf1bf78ea8797825a91b7a9f22c86e97e69ec1f60fb68967768b5f9db
+Description: Turn any website or local HTML project into a native desktop app
+ MyPack is a desktop application.
+
+Package: mypack
+Architecture: amd64
+Version: 0.6.0
+Priority: optional
+Section: utils
+Maintainer: MyPack
+Installed-Size: 34498
+Depends: libgtk-3-0 | libgtk-3-0t64, libwebkit2gtk-4.1-0
+Filename: pool/main/m/mypack/mypack_0.6.0_amd64.deb
+Size: 22749944
+MD5sum: 096b2c729e3e18e9c4a83eed5d3001d8
+SHA1: 9b8af17b9b8ca71b72cc3cd67250a2c774b4983c
+SHA256: 2b716287a4eac6fc08a91ba7b425ce5a2edd3d9ed4a8acca3e950d92f81608d4
+SHA512: 27d8c3d66f0b762e4d1948e8281f7afd46ff153ba6fbc5483079e7003d38793ebad733e50b4eab2e1a18499c7c6b646737064870a4ef4289c86930ce8cf0bef2
+Description: Turn any website or local HTML project into a native desktop app
+ MyPack is a desktop application.
+
+Package: mypack
+Architecture: amd64
+Version: 0.6.1
+Priority: optional
+Section: utils
+Maintainer: MyPack
+Installed-Size: 34498
+Depends: libgtk-3-0 | libgtk-3-0t64, libwebkit2gtk-4.1-0
+Filename: pool/main/m/mypack/mypack_0.6.1_amd64.deb
+Size: 22751728
+MD5sum: 5a9b5e486c81866706a300817c153632
+SHA1: 959c619e7017483e4d68dbcf0c77a6e3924f33ff
+SHA256: 0880e24b96d3837b572a1e958b1e0ac72ee0388e35e98bdc0adbe3c24e456169
+SHA512: 9d05a00a37a6df27e83872ad5a6b5561839332bf5a9fcb6e109f5a064341d36f53cad898f398551c9ebbec5fd17f13043d5c2c45e31e48d8fca99b9be501d34e
+Description: Turn any website or local HTML project into a native desktop app
+ MyPack is a desktop application.
+
