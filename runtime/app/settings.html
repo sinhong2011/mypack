@@ -222,11 +222,11 @@ const views = {
     </div>`;
   },
   downloads() {
-    const path = boot.downloadDir || "the system Downloads folder";
+    const resolved = boot.downloadDir || "the system Downloads folder";
     return `<h1>Downloads</h1>
-      <p class="note">This folder is set in MyPack when the app is built. Rebuild the app to change it. Other settings on this page apply immediately.</p>
+      <p class="note">This folder belongs to this app, not to MyPack. Empty uses the system Downloads folder. Changes apply to the next download.</p>
       <div class="card">
-      ${field("dl", lab("Save files to", "Baked in at build time.") + `<div class="note">${esc(path)}</div>`)}
+      ${field("dl", lab("Save files to", "Starts from MyPack’s default.") + `<div class="ctrl grow">${txt("downloadDirectory", resolved)}<button class="btn" id="pickDl" type="button">Choose…</button></div>`)}
       ${field("proxy", lab("Proxy", "Web pages follow the system proxy. This value is kept for tools that read it.") + `<div class="ctrl grow">${txt("proxy", "http://127.0.0.1:7890")}</div>`)}
       ${field("auth", lab("Saved username", "Used when a site asks for a sign-in. The password is never stored.") + `<div class="ctrl grow">${txt("basicAuthUser")}</div>`)}
     </div>
@@ -320,7 +320,7 @@ function bind() {
    "width","height","minWidth","minHeight","mode","panelWidth","panelHeight","sidebarEdge",
    "sidebarAutoHide","titleBarStyle","tabs","fullscreen","multiWindow",
    "externalByDefault","popups","userAgentPreset","userAgent","restoreLastUrl","findInPage","devTools",
-   "internalUrlRegex","proxy","basicAuthUser",
+   "internalUrlRegex","downloadDirectory","proxy","basicAuthUser",
    "incognito","trackers","cookieBanners","tray","startToTray","linkRouting",
    "dragDrop","camera","microphone","css","js"].forEach(id => on(id, () => {
      read();
@@ -328,6 +328,7 @@ function bind() {
      touch();
    }));
   click("showDl", () => say("mypack:settings:downloads"));
+  click("pickDl", () => say("mypack:settings:pick"));
   document.querySelectorAll("[data-sc]").forEach(b => b.onclick = () => { recID = b.dataset.sc; render(); });
   document.querySelectorAll("[data-reset]").forEach(b => b.onclick = () => setShortcut(b.dataset.reset, null));
   document.querySelectorAll("[data-off]").forEach(b => b.onclick = () => setShortcut(b.dataset.off, ""));
@@ -375,6 +376,7 @@ function fill() {
   set("findInPage", S.webview.findInPage);
   set("devTools", S.webview.devTools);
   set("internalUrlRegex", S.webview.navigation.internalUrlRegex || "");
+  set("downloadDirectory", S.network.downloadDirectory || "");
   set("proxy", S.network.proxy || "");
   set("basicAuthUser", S.network.basicAuthUser || "");
   set("incognito", S.webview.incognito);
@@ -423,6 +425,7 @@ function read() {
   if ($("findInPage")) S.webview.findInPage = chk("findInPage", false);
   if ($("devTools")) S.webview.devTools = chk("devTools", false);
   if ($("internalUrlRegex")) S.webview.navigation.internalUrlRegex = val("internalUrlRegex", "");
+  if ($("downloadDirectory")) S.network.downloadDirectory = val("downloadDirectory", "");
   if ($("proxy")) S.network.proxy = val("proxy", "");
   if ($("basicAuthUser")) S.network.basicAuthUser = val("basicAuthUser", "");
   if ($("incognito")) S.webview.incognito = chk("incognito", false);
@@ -456,7 +459,7 @@ function collect() {
       blocking: S.webview.blocking,
       externalByDefault: S.webview.externalByDefault
     },
-    network: { proxy: S.network.proxy, basicAuthUser: S.network.basicAuthUser },
+    network: { downloadDirectory: S.network.downloadDirectory, proxy: S.network.proxy, basicAuthUser: S.network.basicAuthUser },
     native: Object.assign({}, S.native, { shortcuts: shortcutMap(), globalShortcut: S.native.globalShortcut || "" })
   };
 }
@@ -512,8 +515,16 @@ function scheduleSave() {
   saveT = setTimeout(() => say("mypack:settings:save"), 450);
 }
 
+function setDownloadDir(v) {
+  S.network.downloadDirectory = v || "";
+  const el = $("downloadDirectory");
+  if (el) el.value = S.network.downloadDirectory;
+  scheduleSave();
+}
+
 window.MP = {
   collect,
+  setDownloadDir,
   error(msg) { const e = $("error"); e.textContent = msg; e.classList.remove("hidden"); }
 };
 

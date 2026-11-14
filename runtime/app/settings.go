@@ -20,6 +20,7 @@ const (
 	settingsTitleReset   = "mypack:settings:reset"
 	settingsTitleProfile = "mypack:settings:profile"
 	settingsTitleReveal  = "mypack:settings:downloads"
+	settingsTitlePick    = "mypack:settings:pick"
 )
 
 // settingsForm is the JSON the Settings page posts. Names match mypack.json.
@@ -114,7 +115,7 @@ func (a *App) openSettings() {
 	}
 	p.OnPageTitleUpdated(func(e *mygo.TitleEvent) {
 		switch e.Title {
-		case settingsTitleSave, settingsTitleReset, settingsTitleProfile, settingsTitleReveal:
+		case settingsTitleSave, settingsTitleReset, settingsTitleProfile, settingsTitleReveal, settingsTitlePick:
 			e.PreventDefault()
 		}
 		switch e.Title {
@@ -126,6 +127,8 @@ func (a *App) openSettings() {
 			go a.revealProfile()
 		case settingsTitleReveal:
 			go a.revealDownloads()
+		case settingsTitlePick:
+			go a.pickDownloadDir(p)
 		}
 	})
 	win.OnClosed(func() {
@@ -388,8 +391,7 @@ func applySettingsForm(cfg *config.Config, f settingsForm) error {
 	setInlineInjection(cfg, "js", f.WebView.JS)
 	wv.Blocking = tidyBlocking(f.WebView.Blocking)
 
-	// Download folder is baked at build time in MyPack; the running app
-	// cannot change it here.
+	cfg.Network.DownloadDirectory = strings.TrimSpace(f.Network.DownloadDirectory)
 	cfg.Network.Proxy = strings.TrimSpace(f.Network.Proxy)
 	cfg.Network.BasicAuthUser = strings.TrimSpace(f.Network.BasicAuthUser)
 

@@ -87,7 +87,7 @@ func TestApplySettingsForm(t *testing.T) {
 				Allow:    []string{"https://www.cdn.example/x"},
 			},
 		},
-		Network: config.NetworkConfig{Proxy: "http://127.0.0.1:7890"},
+		Network: config.NetworkConfig{DownloadDirectory: "~/Inbox", Proxy: "http://127.0.0.1:7890"},
 		Native: settingsNativeForm{
 			Tray: true, Notifications: "ask", Badge: "off", LinkRouting: false,
 			GlobalShortcut: "CmdOrCtrl+Shift+M",
@@ -118,8 +118,8 @@ func TestApplySettingsForm(t *testing.T) {
 	if cfg.WebView.Blocking == nil || !cfg.WebView.Blocking.Trackers || cfg.WebView.Blocking.Allow[0] != "cdn.example" {
 		t.Fatalf("blocking: %+v", cfg.WebView.Blocking)
 	}
-	if cfg.Network.DownloadDirectory != "" {
-		t.Fatalf("download folder is baked at build: %q", cfg.Network.DownloadDirectory)
+	if cfg.Network.DownloadDirectory != "~/Inbox" {
+		t.Fatalf("download folder: %q", cfg.Network.DownloadDirectory)
 	}
 	if cfg.Network.Proxy != "http://127.0.0.1:7890" {
 		t.Fatal(cfg.Network.Proxy)
@@ -162,7 +162,7 @@ func TestSettingsHTMLHasPanes(t *testing.T) {
 				Blocking: &config.BlockingConfig{}},
 		},
 	})
-	for _, s := range []string{"Settings", "Downloads", "Shortcuts", "Rebuild the app to change it", "Safe domains", "Custom CSS", "mypack:settings:save"} {
+	for _, s := range []string{"Settings", "Downloads", "Shortcuts", "belongs to this app", "mypack:settings:pick", "Safe domains", "Custom CSS", "mypack:settings:save"} {
 		if s == "Settings…" {
 			continue
 		}

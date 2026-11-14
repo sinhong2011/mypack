@@ -55,12 +55,10 @@ func applyUserPrefs(cfg *config.Config, raw []byte) error {
 		return fmt.Errorf("no configuration")
 	}
 	snap := freezeIdentity(cfg)
-	downloadDir := cfg.Network.DownloadDirectory
 	if err := json.Unmarshal(raw, cfg); err != nil {
 		return err
 	}
 	restoreIdentity(cfg, snap)
-	cfg.Network.DownloadDirectory = downloadDir
 	return nil
 }
 
@@ -147,12 +145,6 @@ func overlayableMap(c *config.Config) map[string]any {
 	for _, k := range []string{"window", "webview", "network", "native"} {
 		if v, ok := m[k]; ok {
 			out[k] = v
-		}
-	}
-	if net, ok := out["network"].(map[string]any); ok {
-		delete(net, "downloadDirectory")
-		if len(net) == 0 {
-			delete(out, "network")
 		}
 	}
 	return out

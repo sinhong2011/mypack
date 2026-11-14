@@ -51,6 +51,15 @@ func TestDemoDownloadDirUsesMyPackDefault(t *testing.T) {
 	if a.demoDownloadDir(d) != "~/Linear" {
 		t.Fatal("project folder should win")
 	}
+	d.key = "inst:1"
+	p := a.prefsFor(d)
+	if p.DownloadDir != "~/Linear" {
+		t.Fatalf("prefs start from baked %q", p.DownloadDir)
+	}
+	p.DownloadDir = "~/Work"
+	if a.demoDownloadDir(d) != "~/Work" {
+		t.Fatal("this app's Settings should win without a rebuild")
+	}
 }
 
 func TestDemoFromArtifactUsesSnapshot(t *testing.T) {

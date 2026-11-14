@@ -31,7 +31,7 @@ func TestApplyUserPrefsKeepsIdentity(t *testing.T) {
 		t.Fatalf("overlay not applied: title=%q aot=%v w=%d", cfg.App.Title, cfg.Window.AlwaysOnTop, cfg.Window.Width)
 	}
 	if cfg.Network.DownloadDirectory != "" {
-		t.Fatalf("download folder must stay baked: %q", cfg.Network.DownloadDirectory)
+		t.Fatalf("unmentioned download folder must stay: %q", cfg.Network.DownloadDirectory)
 	}
 	if cfg.Network.Proxy != "http://127.0.0.1:9" {
 		t.Fatalf("proxy: %q", cfg.Network.Proxy)
@@ -48,6 +48,7 @@ func TestPrefsOverlayRoundTrip(t *testing.T) {
 	cur.Window.AlwaysOnTop = true
 	cur.Window.Zoom = 125
 	cur.Network.Proxy = "http://127.0.0.1:9"
+	cur.Network.DownloadDirectory = "~/Linear"
 	cur.Native.Notifications = "ask"
 	cur.Native.Shortcuts = map[string]string{"reload": "Alt+R"}
 	off := false
@@ -77,8 +78,8 @@ func TestPrefsOverlayRoundTrip(t *testing.T) {
 	if restored.App.Title != "Work" || !restored.Window.AlwaysOnTop || restored.Window.Zoom != 125 {
 		t.Fatalf("round trip window: %+v", restored.Window)
 	}
-	if restored.Network.DownloadDirectory != bundled.Network.DownloadDirectory {
-		t.Fatalf("download folder must stay baked: %q", restored.Network.DownloadDirectory)
+	if restored.Network.DownloadDirectory != "~/Linear" {
+		t.Fatalf("download folder: %q", restored.Network.DownloadDirectory)
 	}
 	if restored.Network.Proxy != "http://127.0.0.1:9" {
 		t.Fatal(restored.Network.Proxy)
@@ -115,6 +116,17 @@ func TestPrefsOverlayRevertBool(t *testing.T) {
 	}
 }
 
+func TestApplyUserPrefsAppliesDownloadDir(t *testing.T) {
+	cfg := samplePrefsConfig()
+	cfg.Network.DownloadDirectory = "~/Inbox"
+	if err := applyUserPrefs(cfg, []byte(`{"network":{"downloadDirectory":"~/Linear"}}`)); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Network.DownloadDirectory != "~/Linear" {
+		t.Fatalf("got %q", cfg.Network.DownloadDirectory)
+	}
+}
+
 func TestPrefsOverlayEmptyWhenEqual(t *testing.T) {
 	cfg := samplePrefsConfig()
 	overlay, err := prefsOverlay(cfg, cfg.Clone())
@@ -137,7 +149,7 @@ func TestSaveUserPrefsRoundTripFile(t *testing.T) {
 		t.Fatalf("loaded %q", loaded.Network.Proxy)
 	}
 	if loaded.Network.DownloadDirectory != bundled.Network.DownloadDirectory {
-		t.Fatalf("download folder must stay baked: %q", loaded.Network.DownloadDirectory)
+		t.Fatalf("unmentioned download folder must stay: %q", loaded.Network.DownloadDirectory)
 	}
 	cur.Network.Proxy = bundled.Network.Proxy
 	if err := saveUserPrefs(bundled, cur, dir); err != nil {

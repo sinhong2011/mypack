@@ -12,14 +12,16 @@ import (
 )
 
 // demoPrefs is this built app's Settings overlay. It is not MyPack's
-// Settings. Download folder is not here: that is baked when MyPack builds.
-// Active and Split are a group window's rail (which site shows, and which
-// sits beside it); Split is -1 when the window is not split.
+// Settings. DownloadDir starts from the project or MyPack default and
+// can be changed here. Active and Split are a group window's rail
+// (which site shows, and which sits beside it); Split is -1 when the
+// window is not split.
 type demoPrefs struct {
 	Title          string
 	AlwaysOnTop    bool
 	HideOnClose    bool
 	GlobalShortcut string
+	DownloadDir    string
 	Active         int
 	Split          int
 }
@@ -36,6 +38,10 @@ func (a *App) prefsFor(d demoLaunch) *demoPrefs {
 			p.AlwaysOnTop = d.cfg.Window.AlwaysOnTop
 			p.HideOnClose = d.cfg.Window.HideOnClose
 			p.GlobalShortcut = d.cfg.Native.GlobalShortcut
+			p.DownloadDir = strings.TrimSpace(d.cfg.Network.DownloadDirectory)
+		}
+		if p.DownloadDir == "" {
+			p.DownloadDir = strings.TrimSpace(a.settings.DownloadDir)
 		}
 		if d.key != "" {
 			a.demoPrefs[d.key] = p
@@ -45,6 +51,9 @@ func (a *App) prefsFor(d demoLaunch) *demoPrefs {
 }
 
 func (a *App) demoDownloadDir(d demoLaunch) string {
+	if p := a.demoPrefs[d.key]; p != nil {
+		return strings.TrimSpace(p.DownloadDir)
+	}
 	if d.cfg != nil && strings.TrimSpace(d.cfg.Network.DownloadDirectory) != "" {
 		return d.cfg.Network.DownloadDirectory
 	}
@@ -171,16 +180,29 @@ func (a *App) demoSettingsView(c *ui.Context, d demoLaunch) {
 					})
 				}
 				kit.Group(c, T("set.downloads"), func() {
-					path := a.demoDownloadDir(d)
-					kit.SettingRow(c, T("set.downloads"), "", func() {
-						if path == "" {
-							kit.Caption(c, T("demo.downloads.empty"))
-						} else {
-							kit.Mono(c, shortPath(path)).SingleLine().MaxWidth(280)
-						}
+					kit.SettingRow(c, T("set.downloads"), T("demo.downloads.baked"), func() {
+						ui.Row(c).Gap(6).AlignItems(ui.Center).Wrap().Children(func() {
+							in := kit.TextField(c.Key("dl"), &pref.DownloadDir, T("set.downloads"), kit.FieldOpts{Placeholder: "~/Downloads"})
+							in.Width(200)
+							if kit.Button(c.Key("dlc"), T("common.choose"), kit.ButtonOpts{}).Clicked() {
+								go func() {
+									paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
+										Parent: a.demoSet[d.key], Directory: true, CreateDirectories: true,
+										DefaultPath: pref.DownloadDir,
+									})
+									if err == nil && len(paths) > 0 {
+										if w := a.demoSet[d.key]; w != nil && !w.IsDestroyed() {
+											w.Update(func() { pref.DownloadDir = paths[0] })
+										}
+									}
+								}()
+							}
+						})
 					})
-					if path != "" {
-						kit.Caption(c, T("demo.downloads.baked"))
+					if path := strings.TrimSpace(pref.DownloadDir); path == "" {
+						kit.Caption(c, T("demo.downloads.empty"))
+					} else {
+						kit.Caption(c, T("set.downloads.using", "path", shortPath(path)))
 					}
 				})
 			})

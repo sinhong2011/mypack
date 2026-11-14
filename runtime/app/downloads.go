@@ -153,6 +153,24 @@ func (a *App) revealDownloads() {
 	mygo.Shell.ShowItemInFolder(d)
 }
 
+func (a *App) pickDownloadDir(p *mygo.Page) {
+	if p == nil {
+		return
+	}
+	a.mu.Lock()
+	parent := a.setWin
+	a.mu.Unlock()
+	paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: parent, Directory: true, CreateDirectories: true, DefaultPath: a.downloadDir()})
+	if err != nil || len(paths) == 0 {
+		return
+	}
+	js, err := jsonString(paths[0])
+	if err != nil {
+		return
+	}
+	_, _ = p.Eval(`window.MP && window.MP.setDownloadDir(` + js + `)`)
+}
+
 func (a *App) notifyDownload(d *mygo.Download) {
 	if !mygo.NotificationsSupported() {
 		return

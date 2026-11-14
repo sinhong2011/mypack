@@ -593,8 +593,8 @@ type NativeConfig struct {
 }
 
 // ApplyDownloadDirDefault fills an empty download folder from the Builder's
-// default. The Builder calls this when assembling an app so the path is
-// baked in; changing it later is a rebuild.
+// default. The Builder calls this when assembling an app so new builds start
+// with that path; the running app can still change it in its own Settings.
 func ApplyDownloadDirDefault(cfg *Config, defaultDir string) {
 	if cfg == nil || strings.TrimSpace(cfg.Network.DownloadDirectory) != "" {
 		return

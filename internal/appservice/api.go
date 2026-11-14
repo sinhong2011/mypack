@@ -227,8 +227,9 @@ type Settings struct {
 	Appearance string `json:"appearance"` // "system" | "light" | "dark"
 	OutputDir  string `json:"outputDir"`
 	InstallDir string `json:"installDir"`
-	// DownloadDir is the default folder baked into apps that do not set
-	// their own network.downloadDirectory. Empty = the system Downloads folder.
+	// DownloadDir is the default folder new builds start with when they do
+	// not set their own network.downloadDirectory. A running app can still
+	// change it in its Settings. Empty = the system Downloads folder.
 	DownloadDir     string `json:"downloadDir,omitempty"`
 	RegistryURL     string `json:"registryUrl"`
 	ShowMenuBarIcon bool   `json:"showMenuBarIcon"`
