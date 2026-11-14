@@ -278,7 +278,7 @@ func (m *Manager) installFromBinary(src, version, key string) (string, error) {
 		return "", newErr("RUNTIME_DOWNLOAD_FAILED", "Cannot create a temporary directory", err, "")
 	}
 	dst := filepath.Join(extracted, exeName)
-	if err := copyFile(src, dst, 0o755); err != nil {
+	if err := copyHelper(src, dst, key); err != nil {
 		return "", newErr("RUNTIME_DOWNLOAD_FAILED", "Cannot copy the bundled runtime helper", err, "")
 	}
 	bsum, bsize, err := hashFile(dst)
