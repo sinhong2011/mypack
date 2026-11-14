@@ -46,10 +46,14 @@ func TestSafeDownloadName(t *testing.T) {
 		"":                 "download",
 		".":                "download",
 		"..":               "download",
+		"/":                "download",
+		`\`:                "download",
 		"report.csv":       "report.csv",
 		"../../etc/passwd": "passwd",
 		`C:\tmp\a.bin`:     "a.bin",
 		"/tmp/a.bin":       "a.bin",
+		`\\tmp\a.bin`:      "a.bin",
+		"foo/..":           "download",
 	}
 	for in, want := range cases {
 		if got := SafeDownloadName(in); got != want {

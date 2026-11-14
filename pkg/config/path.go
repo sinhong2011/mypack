@@ -71,10 +71,15 @@ func ResolveDownloadDir(configured, home, osDownloads, tmp string, mkdir func(st
 
 // SafeDownloadName is a file name that can sit in the download folder:
 // the last path element of name, or "download" when name is empty or a
-// traversal.
+// traversal. Separators are treated as / on every OS so a Unix path such
+// as /tmp/a.bin is not read as a Windows UNC volume.
 func SafeDownloadName(name string) string {
-	name = filepath.Base(filepath.Clean("/" + strings.ReplaceAll(name, `\`, "/")))
-	if name == "" || name == "." || name == "/" || name == string(filepath.Separator) {
+	name = strings.ReplaceAll(strings.TrimSpace(name), `\`, "/")
+	name = strings.Trim(name, "/")
+	if i := strings.LastIndex(name, "/"); i >= 0 {
+		name = name[i+1:]
+	}
+	if name == "" || name == "." || name == ".." {
 		return "download"
 	}
 	return name
