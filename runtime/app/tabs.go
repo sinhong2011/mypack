@@ -606,7 +606,9 @@ func (t *tabSet) viewFn(c *ui.Context) {
 				t.a.openSettings()
 			}
 		})
-		if bar.DoubleClicked() {
+		// WindowDoubleClicked, not DoubleClicked: the latter makes the bar a
+		// button, and a button never moves the window.
+		if bar.WindowDoubleClicked() {
 			t.newTab()
 		}
 		ui.Box(c).Height(1).FillWidth().Background(th.Border)
