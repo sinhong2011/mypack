@@ -576,8 +576,7 @@ func (a *App) applyLiveSettings(reload bool) {
 	}
 	a.rebindGlobalShortcut()
 	a.syncTray()
-	a.menu = a.buildMenu()
-	mygo.App.SetMenu(a.menu)
+	a.installAppMenu()
 	if reload {
 		for _, p := range pages {
 			p.Reload()

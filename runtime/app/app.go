@@ -214,8 +214,7 @@ func (a *App) Run() error {
 			a.showMain()
 		}
 	})
-	a.menu = a.buildMenu()
-	mygo.App.SetMenu(a.menu)
+	a.installAppMenu()
 	mygo.App.WhenReady(func() {
 		a.compileBlocking() // before the first page, so it loads blocked
 		a.start()
@@ -533,6 +532,7 @@ func (a *App) setupWindow(w *mygo.Window) {
 	if skip {
 		return
 	}
+	a.applyWindowMenu(w)
 	if p := w.Page(); p != nil {
 		a.registerPage(w, p)
 	}

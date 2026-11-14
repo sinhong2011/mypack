@@ -32,25 +32,34 @@ func TestBuildMenuIncludesSettings(t *testing.T) {
 	if !found {
 		t.Fatal("Settings… is missing from the menu")
 	}
-	if runtime.GOOS != "darwin" {
-		return
+	items := m.Items()
+	if len(items) == 0 || items[0] == nil || items[0].Label != "Mail" {
+		t.Fatal("the first menu should be the app name")
 	}
-	// On macOS it belongs in the app menu, not File.
-	fileHas := false
-	for _, it := range m.Items() {
-		if it != nil && it.Label == "File" {
-			walk = func(items []*mygo.MenuItem) {
-				for _, x := range items {
-					if x != nil && x.Label == "Settings…" {
-						fileHas = true
-					}
-				}
-			}
-			walk(it.Submenu)
+	appHas := false
+	for _, x := range items[0].Submenu {
+		if x != nil && x.Label == "Settings…" {
+			appHas = true
 		}
 	}
-	if fileHas {
+	if !appHas {
+		t.Fatal("Settings… should be in the app menu")
+	}
+	fileHas := false
+	for _, it := range items {
+		if it != nil && it.Label == "File" {
+			for _, x := range it.Submenu {
+				if x != nil && x.Label == "Settings…" {
+					fileHas = true
+				}
+			}
+		}
+	}
+	if runtime.GOOS == "darwin" && fileHas {
 		t.Fatal("Settings… should be in the app menu on macOS, not File")
+	}
+	if runtime.GOOS != "darwin" && !fileHas {
+		t.Fatal("Settings… should be in File on Windows and Linux")
 	}
 }
 

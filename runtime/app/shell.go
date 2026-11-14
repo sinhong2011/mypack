@@ -169,7 +169,9 @@ func (s *shell) viewFn(c *ui.Context) {
 				ui.WebView(c, v).Fill()
 			}
 			if h > 0 {
-				ui.Row(c).Absolute().Top(0).Left(0).Right(0).Height(h).Material(glass.Glass{Native: true}).DragWindow()
+				ui.Row(c).Absolute().Top(0).Left(0).Right(0).Height(h).Material(glass.Glass{Native: true}).DragWindow().Children(func() {
+					s.drawStripSettings(c)
+				})
 			}
 			s.a.drawDownloadNotice(c)
 		})
@@ -182,12 +184,35 @@ func (s *shell) viewFn(c *ui.Context) {
 		if !c.Preferences().ReduceMotion {
 			col = strip.AnimateColor("tint", target, ui.Animation{Duration: tintAnimation, Ease: ui.EaseInOut})
 		}
-		strip.Background(col).DragWindow()
+		strip.Background(col).DragWindow().Children(func() {
+			s.drawStripSettings(c)
+		})
 		if v := s.view.Load(); v != nil {
 			ui.WebView(c, v).Grow(1)
 		}
 		s.a.drawDownloadNotice(c)
 	})
+}
+
+// drawStripSettings puts Settings on the native strip. Linux and Windows
+// hide the GTK/Win32 menu bar when the title bar is hidden, so Seamless
+// and Glass windows would otherwise have no Settings entry at all.
+func (s *shell) drawStripSettings(c *ui.Context) {
+	bar := c.TitleBar()
+	ui.Box(c).Width(max(bar.Left, 8)).Shrink(0)
+	if runtime.GOOS != "darwin" {
+		t := c.Theme()
+		hit := ui.Box(c.Key("settings")).Padding(0, 10).FillHeight().AlignItems(ui.Center).
+			Role(ui.RoleButton).Label("Settings").Tooltip("Settings…").Focusable()
+		hit.Children(func() {
+			ui.Text(c, "Settings").FontSize(12).TextColor(t.Text)
+		})
+		if hit.Clicked() {
+			s.a.openSettings()
+		}
+	}
+	ui.Spacer(c).Grow(1)
+	ui.Box(c).Width(max(bar.Right, 8)).Shrink(0)
 }
 
 // attach creates the web view once the window exists.

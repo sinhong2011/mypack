@@ -430,6 +430,10 @@ func (g *group) viewFn(c *ui.Context) {
 			for i, m := range g.members {
 				g.railItem(c.Key("m-"+m.cfg.ID), m, i == active, i == split, horizontal)
 			}
+			if !horizontal {
+				ui.Spacer(c).Grow(1)
+			}
+			g.railSettings(c, horizontal)
 		})
 		if horizontal {
 			ui.Box(c).Height(1).FillWidth().Background(t.Border)
@@ -501,6 +505,26 @@ func (g *group) drawMembers(c *ui.Context, t *ui.Theme, active, split int, ratio
 			ui.WebView(c, g.members[split].view).Grow(1 - ratio)
 		})
 	})
+}
+
+// railSettings is the Settings control at the end of the rail. Group
+// windows hide the title bar, so Linux/Windows would otherwise have no
+// menu-bar Settings.
+func (g *group) railSettings(c *ui.Context, horizontal bool) {
+	t := c.Theme()
+	slotW := float32(railWidth)
+	if horizontal {
+		slotW = railIcon + 8
+	}
+	btn := ui.Box(c.Key("settings")).Size(slotW, railIcon).Radius(10).
+		Role(ui.RoleButton).Label("Settings").Tooltip("Settings…").Focusable().
+		AlignItems(ui.Center).Justify(ui.Center)
+	btn.Children(func() {
+		ui.Text(c, "Settings").FontSize(11).TextColor(t.TextMuted)
+	})
+	if btn.Clicked() {
+		g.a.openSettings()
+	}
 }
 
 // railItem is a member's icon: its picture (else its initial), a marker
