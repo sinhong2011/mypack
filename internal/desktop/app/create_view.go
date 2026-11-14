@@ -158,7 +158,7 @@ func (a *App) createPreview(c *ui.Context) {
 	// The footer: Build, centred.
 	kit.Follow(ui.Row(c.Key("footer")).Justify(ui.Center).Margin(16, 0, 0, 0)).Children(func() {
 		if kit.Button(c.Key("build"), a.buildCTA(), kit.ButtonOpts{Variant: kit.Primary, Size: design.ControlLG,
-			Loading: s.busy, Disabled: len(s.targets) == 0, Hotkey: "mod+b", Icon: icons.Build}).Clicked() {
+			Loading: s.busy, Disabled: len(s.targets) == 0, Hotkey: a.accel(scBuild), Icon: icons.Build}).Clicked() {
 			s.buildRequested = true
 		}
 	})

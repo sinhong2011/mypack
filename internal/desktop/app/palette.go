@@ -38,7 +38,7 @@ type cmdItem struct {
 	title    string
 	sub      string // website, size or status
 	subTone  kit.Tone
-	hotkey   string // e.g. "mod+n"
+	hotkey   string // an accelerator, e.g. "CmdOrCtrl+N"
 	run      func()
 	runLabel string
 	alt      func()
@@ -129,18 +129,20 @@ func (a *App) paletteActions() []cmdItem {
 		return cmdItem{key: "act:" + title, section: sec, glyph: glyph, title: title, hotkey: hotkey, run: run, runLabel: T("palette.hint.run")}
 	}
 	return []cmdItem{
-		act(create, icons.Plus, T("menu.newApp"), "mod+n", a.newApp),
-		act(create, icons.Layers, T("menu.newGroup"), "mod+shift+n", a.newGroup),
+		act(create, icons.Plus, T("menu.newApp"), a.accel(scNewApp), a.newApp),
+		act(create, icons.Layers, T("menu.newGroup"), a.accel(scNewGroup), a.newGroup),
 		act(create, icons.Import, T("menu.importApp"), "", a.importExistingApp),
-		act(goTo, icons.Library, T("nav.library"), "mod+1", func() { a.nav(secLibrary) }),
-		act(goTo, icons.Discover, T("nav.discover"), "mod+2", func() { a.nav(secDiscover) }),
-		act(goTo, icons.Builds, T("nav.builds"), "mod+3", func() { a.nav(secBuilds) }),
-		act(goTo, icons.Runtimes, T("nav.runtimes"), "mod+4", func() { a.nav(secRuntimes) }),
-		act(goTo, icons.Settings, T("nav.settings"), "mod+,", func() { a.openSettings("") }),
+		act(goTo, icons.Library, T("nav.library"), a.accel(scLibrary), func() { a.nav(secLibrary) }),
+		act(goTo, icons.Discover, T("nav.discover"), a.accel(scDiscover), func() { a.nav(secDiscover) }),
+		act(goTo, icons.Builds, T("nav.builds"), a.accel(scBuilds), func() { a.nav(secBuilds) }),
+		act(goTo, icons.Runtimes, T("nav.runtimes"), a.accel(scRuntimes), func() { a.nav(secRuntimes) }),
+		act(goTo, icons.Settings, T("nav.settings"), a.accel(scSettings), func() { a.openSettings("") }),
 		act(settings, icons.Appearance, T("palette.appearance", "mode", T("appearance.light")), "", func() { a.setAppearance("light") }),
 		act(settings, icons.Appearance, T("palette.appearance", "mode", T("appearance.dark")), "", func() { a.setAppearance("dark") }),
 		act(settings, icons.Appearance, T("palette.appearance", "mode", T("appearance.system")), "", func() { a.setAppearance("system") }),
 		act(settings, icons.Globe, T("settings.language"), "", func() { a.openSettings(paneGeneral) }),
+		act(settings, icons.Keyboard, T("menu.shortcuts"), a.accel(scShortcuts), a.showShortcuts),
+		act(settings, icons.Sliders, T("menu.customizeShortcuts"), "", func() { a.openSettings(paneShortcuts) }),
 	}
 }
 

@@ -69,7 +69,7 @@ func (a *App) libraryToolbar(c *ui.Context) {
 		st := a.settings
 		go func() { _ = a.svc.SaveSettings(bgctx(), st) }()
 	}
-	kit.ToolbarSearch(c.Key("search"), kit.ToolbarSearchOpts{Placeholder: T("library.search"), Hotkey: "mod+k", Query: &l.query, Handle: &l.searchH,
+	kit.ToolbarSearch(c.Key("search"), kit.ToolbarSearchOpts{Placeholder: T("library.search"), Hotkey: a.accel(scPalette), Query: &l.query, Handle: &l.searchH,
 		OnPalette: a.togglePalette})
 	if l.focusSearch {
 		l.focusSearch = false

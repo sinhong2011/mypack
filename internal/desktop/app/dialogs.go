@@ -31,6 +31,9 @@ type dialogs struct {
 	group     groupDialog
 
 	importSkip importSkip
+
+	shortcuts      bool // Help › Keyboard Shortcuts
+	shortcutsQuery string
 }
 
 type identityDialog struct {
@@ -91,6 +94,7 @@ func (a *App) dialogs(c *ui.Context) {
 	p := design.Of(c)
 	d := &a.dlg
 	a.groupSheet(c)
+	a.shortcutsSheet(c)
 
 	// Identity change (spec §9C.2: explain and confirm).
 	if d.identity.open {
