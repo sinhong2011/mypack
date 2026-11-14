@@ -473,6 +473,30 @@ func (s *Service) SetProjectIcon(ctx context.Context, id string, png []byte, act
 	return out, nil
 }
 
+func (s *Service) SetProjectIconDocument(ctx context.Context, id, path, actor string) (domain.Project, error) {
+	png, err := icons.IconComposerPNG(ctx, path)
+	if err != nil {
+		return domain.Project{}, &domain.Error{Code: appservice.CodeInvalidInput, Message: "The Icon Composer icon could not be read.", Cause: err.Error()}
+	}
+	s.mu.Lock()
+	p, ok := s.projects[id]
+	if !ok {
+		s.mu.Unlock()
+		return domain.Project{}, notFound("The project")
+	}
+	p.Config.App.Icon = config.Icon{Source: "file", Path: path, Style: p.Config.App.Icon.Style}
+	p.IconPNG = png
+	if p.Config.App.Icon.Style != nil {
+		s.restyle(p, png)
+	}
+	p.Revision++
+	p.UpdatedAt = time.Now()
+	out := clone(p)
+	s.mu.Unlock()
+	s.publish(appservice.Event{Kind: appservice.EventProjectChanged, ProjectID: id})
+	return out, nil
+}
+
 func (s *Service) ProjectIconImage(ctx context.Context, id string) ([]byte, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -600,6 +624,26 @@ func (s *Service) FetchMetadata(ctx context.Context, rawURL string) (appservice.
 	}
 	return appservice.Metadata{URL: u, Title: title, Description: st.desc, ThemeColor: st.color,
 		IconURL: "https://" + host + "/favicon.ico", IconPNG: icon}, nil
+}
+
+// FetchIconFrom asks the real provider, like realIcon does for FetchMetadata,
+// and falls back to a demo icon so the demo works offline.
+func (s *Service) FetchIconFrom(ctx context.Context, rawURL string, provider metadata.IconProvider) ([]byte, error) {
+	u, err := config.NormalizeURL(rawURL)
+	if err != nil {
+		return nil, &domain.Error{Code: appservice.CodeInvalidInput, Message: err.Error(), Field: "url"}
+	}
+	host := config.RegistrableHost(u)
+	if err := s.sleep(ctx, 500*time.Millisecond); err != nil {
+		return nil, err
+	}
+	if strings.Contains(host, "offline") || strings.HasSuffix(host, ".invalid") {
+		return nil, &domain.Error{Code: appservice.CodeIconNotFound, Message: provider.Name() + " has no icon for " + host + "."}
+	}
+	if b, err := metadata.FetchIconFrom(ctx, u, provider); err == nil {
+		return b, nil
+	}
+	return demoIcon(titleForHost(host)), nil
 }
 
 // ---- builds -----------------------------------------------------------------

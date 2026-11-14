@@ -1,0 +1,53 @@
+---
+// Downloads and package managers, verbatim from README.md › Install.
+import { m } from "../paraglide/messages.js";
+import { SITE, INSTALL } from "../config";
+import Icon from "./Icon.astro";
+
+const PANELS = [
+  { id: "mac", os: "macOS", icon: "apple", note: m.install_mac(), cmds: INSTALL.mac },
+  { id: "win", os: "Windows", icon: "windows", note: m.install_win(), cmds: INSTALL.win },
+  { id: "linux", os: "Linux", icon: "linux", note: m.install_linux(), cmds: INSTALL.linux },
+] as const;
+---
+<section id="install" class="section" aria-labelledby="install-title" style="padding-top: 0">
+  <div class="wrap install">
+    <div>
+      <div class="section-head" style="margin-bottom: 0">
+        <h2 id="install-title" class="h2">{m.install_title()}</h2>
+        <p class="lede">{m.install_lede()}</p>
+      </div>
+      <ul class="support">
+        <li><b>macOS</b><span>{m.support_mac()}</span></li>
+        <li><b>Linux</b><span>{m.support_linux()}</span></li>
+        <li><b>Windows</b><span>{m.support_win()}</span></li>
+      </ul>
+    </div>
+    <div data-os-root>
+      <div class="os" role="tablist" aria-label={m.install_platform()}>
+        {PANELS.map((p, i) => (
+          <button role="tab" id={`os-${p.id}`} data-os={p.id} aria-controls={`panel-${p.id}`} aria-selected={i === 0 ? "true" : "false"} tabindex={i === 0 ? 0 : -1}><Icon name={p.icon} size={17} />{p.os}</button>
+        ))}
+      </div>
+      {PANELS.map((p, i) => (
+        <div class="panel" role="tabpanel" id={`panel-${p.id}`} aria-labelledby={`os-${p.id}`} hidden={i !== 0}>
+          <div class="panel__top">
+            <a class="btn btn-solid" href={SITE.releases}><Icon name="download" />{m.download_for({ os: p.os })}</a>
+            <p>{p.note}</p>
+          </div>
+          {p.cmds.map((c) => (
+            <div class="cmd">
+              <div class="cmd__head">
+                <span>{c.label}</span>
+                <button class="copy" type="button" data-copy-text={c.code} data-copy-done={m.copied()} data-copy-fail={m.copy_failed()} aria-label={`${m.copy()}: ${c.label}`}><span data-copy-label>{m.copy()}</span></button>
+              </div>
+              <pre><code>{c.code}</code></pre>
+            </div>
+          ))}
+        </div>
+      ))}
+      <div class="note"><p>{m.install_unsigned()}</p></div>
+      <p class="muted" style="font-size: 15px; margin-top: 18px">{m.install_all()} <a href={SITE.releases} rel="noopener" style="color: var(--color-cobalt-ink)">{m.install_all_link()}</a></p>
+    </div>
+  </div>
+</section>

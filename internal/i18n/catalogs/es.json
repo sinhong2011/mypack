@@ -98,6 +98,8 @@
   "create.icon.choose": "Elegir imagen…",
   "create.icon.filter": "Imágenes",
   "create.icon.reset": "Usar icono del sitio web",
+  "icon.from": "Obtener icono de {provider}",
+  "icon.from.done": "El icono de {name} ahora viene de {provider}.",
   "create.name.label": "Nombre de la app",
   "create.name.placeholder": "Ponle un nombre a tu app",
   "create.name.tip": "Haz clic para cambiar el nombre",

@@ -32,7 +32,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -153,8 +152,6 @@ func cmdPack(args []string) error {
 	return os.Rename(tmp, *out)
 }
 
-var archiveRe = regexp.MustCompile(`^mypack-runtime-(\d+(?:\.\d+){0,3})-(darwin|windows|linux)-(amd64|arm64|universal)\.tar\.gz$`)
-
 func cmdRegistry(args []string) error {
 	fs := flag.NewFlagSet("registry", flag.ExitOnError)
 	dir := fs.String("dir", "dist/registry", "registry directory")
@@ -196,8 +193,8 @@ func cmdRegistry(args []string) error {
 		}
 		files, _ := os.ReadDir(filepath.Join(*dir, v.Name()))
 		for _, f := range files {
-			m := archiveRe.FindStringSubmatch(f.Name())
-			if m == nil || m[1] != v.Name() {
+			version, osName, arch, tier, ok := runtimemanager.ParseArchiveName(f.Name())
+			if !ok || version != v.Name() {
 				continue
 			}
 			p := filepath.Join(*dir, v.Name(), f.Name())
@@ -205,7 +202,7 @@ func cmdRegistry(args []string) error {
 			if err != nil {
 				return err
 			}
-			e := runtimemanager.Entry{Version: m[1], OS: m[2], Arch: m[3], Filename: f.Name(), URL: v.Name() + "/" + f.Name(),
+			e := runtimemanager.Entry{Version: version, OS: osName, Arch: arch, Tier: tier, Filename: f.Name(), URL: v.Name() + "/" + f.Name(),
 				SHA256: sum, Size: size, Capabilities: capList}
 			if *flat {
 				e.URL = f.Name()
@@ -230,11 +227,17 @@ func cmdRegistry(args []string) error {
 	if len(entries) == 0 {
 		return fmt.Errorf("no runtime archives found in %s", *dir)
 	}
+	// Older Builders ignore Tier and take the first entry of a version and
+	// platform: a full entry must come before its lite twin.
 	sort.Slice(entries, func(i, j int) bool {
-		if entries[i].Version != entries[j].Version {
-			return entries[i].Version > entries[j].Version
+		a, b := entries[i], entries[j]
+		if a.Version != b.Version {
+			return a.Version > b.Version
 		}
-		return entries[i].Key() < entries[j].Key()
+		if pa, pb := a.OS+"-"+a.Arch, b.OS+"-"+b.Arch; pa != pb {
+			return pa < pb
+		}
+		return a.Tier == "" && b.Tier != ""
 	})
 	now := time.Now().UTC().Truncate(time.Second)
 	m := runtimemanager.Manifest{SchemaVersion: runtimemanager.SchemaVersion, Sequence: prev.Sequence + 1, Published: now,

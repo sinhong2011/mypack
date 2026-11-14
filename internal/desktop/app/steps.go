@@ -341,8 +341,10 @@ func (a *App) buildSteps(c *ui.Context, pr *domain.Project, j *domain.BuildJob, 
 			r.StartedAt = t.started[k]
 			switch k {
 			case stepEngine:
-				r.Right = st.detail
-				if j.Progress >= 0 {
+				// Bytes and percent once the download reports them; never
+				// "Step 1 of 5", which the list itself already says.
+				if j.Stage == domain.StageDownloading && j.Progress >= 0 {
+					r.Right = st.detail
 					r.Progress = j.Progress
 				}
 			case stepProject:

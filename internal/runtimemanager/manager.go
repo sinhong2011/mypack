@@ -596,6 +596,12 @@ func (m *Manager) checkLocal(version, key string, entry *Entry) (string, error) 
 	if sum != mk.BinarySHA256 || n != mk.BinarySize {
 		return "", errors.New("cached runtime binary has been modified")
 	}
+	// MyPack 0.5.0 seeded the installer's universal helper as-is, so every
+	// app built from it carried both slices. Such a runtime is not valid for
+	// a single-arch key: seeding (thin.go) or a download replaces it.
+	if _, single := machOCPU(key); single && isFat(exe) {
+		return "", errors.New("cached runtime is universal, not " + key)
+	}
 	return exe, nil
 }
 

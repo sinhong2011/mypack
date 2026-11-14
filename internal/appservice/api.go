@@ -13,6 +13,7 @@ import (
 	"context"
 
 	"mypack.dev/mypack/internal/domain"
+	"mypack.dev/mypack/internal/metadata"
 	"mypack.dev/mypack/pkg/config"
 )
 
@@ -30,6 +31,11 @@ type Service interface {
 	// Identifier/ProfileID changes require req.ConfirmIdentityChange.
 	UpdateProject(ctx context.Context, req UpdateRequest) (domain.Project, error)
 	SetProjectIcon(ctx context.Context, id string, png []byte, actor string) (domain.Project, error)
+	// SetProjectIconDocument makes the Icon Composer document at path (a
+	// .icon folder) the project's icon: macOS builds compile it so the app
+	// follows the icon appearance (Default, Dark, Clear, Tinted); the
+	// Library and other platforms show its default look.
+	SetProjectIconDocument(ctx context.Context, id, path, actor string) (domain.Project, error)
 	// ProjectIconImage is the image beneath a styled icon (app.icon.style):
 	// the project's IconPNG without the style. Unstyled projects return
 	// their IconPNG.
@@ -56,6 +62,10 @@ type Service interface {
 	// limited). Never fails hard on network errors: returns a Metadata with
 	// Fallback=true so the user can continue (spec §9C.1).
 	FetchMetadata(ctx context.Context, rawURL string) (Metadata, error)
+	// FetchIconFrom asks a third-party favicon service (IconProviders) for
+	// a website's icon, as a square PNG. Only call it when the user picks
+	// the provider: it sends the site's host name to that service.
+	FetchIconFrom(ctx context.Context, rawURL string, provider metadata.IconProvider) ([]byte, error)
 
 	// ---- Builds ---------------------------------------------------------
 

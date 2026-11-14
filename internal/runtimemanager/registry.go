@@ -33,10 +33,38 @@ type Entry struct {
 	SHA256       string   `json:"sha256"`
 	Size         int64    `json:"size"`
 	Capabilities []string `json:"capabilities,omitempty"`
+	// Tier is "" for the full runtime or TierLite. Older Builders ignore it
+	// and take the first entry of a version and platform, so a manifest
+	// lists a full entry before its lite twin (scripts/signregistry).
+	Tier string `json:"tier,omitempty"`
 }
 
-// Key is the "<os>-<arch>" key of the entry.
-func (e Entry) Key() string { return e.OS + "-" + e.Arch }
+// TierLite is the Lite runtime: a plain window around one web page, without
+// MyGo's UI toolkit (no tabs, site groups, title-bar strip or find bar).
+// It is built with -tags mypack_lite; see runtime/app/lite.go.
+const TierLite = "lite"
+
+// liteSuffix ends the key of a lite runtime: "darwin-arm64-lite".
+const liteSuffix = "-" + TierLite
+
+// Key is the "<os>-<arch>" key of the entry, "<os>-<arch>-lite" for a lite one.
+func (e Entry) Key() string {
+	if e.Tier == TierLite {
+		return e.OS + "-" + e.Arch + liteSuffix
+	}
+	return e.OS + "-" + e.Arch
+}
+
+// LiteKey is the key of the lite runtime for platform key ("darwin-arm64").
+func LiteKey(key string) string {
+	if IsLiteKey(key) {
+		return key
+	}
+	return key + liteSuffix
+}
+
+// IsLiteKey reports whether key names a lite runtime.
+func IsLiteKey(key string) bool { return strings.HasSuffix(key, liteSuffix) }
 
 // HasCapability reports whether the entry advertises capability c.
 func (e Entry) HasCapability(c string) bool {

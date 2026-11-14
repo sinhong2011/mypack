@@ -287,7 +287,7 @@ func (a *App) toolbar(c *ui.Context) {
 		case secLibrary, secProject, secCreate, secGallery:
 		default:
 			// Elsewhere the search pill opens the palette.
-			kit.ToolbarSearch(c.Key("search"), kit.ToolbarSearchOpts{Placeholder: T("library.search"), Hotkey: "mod+k", OnPalette: a.togglePalette})
+			kit.ToolbarSearch(c.Key("search"), kit.ToolbarSearchOpts{Placeholder: T("library.search"), Hotkey: a.accel(scPalette), OnPalette: a.togglePalette})
 		}
 		switch {
 		case a.section == secCreate && a.create.building == "":
@@ -304,7 +304,7 @@ func (a *App) toolbar(c *ui.Context) {
 				a.newApp()
 			}
 		default:
-			if kit.NewPill(c.Key("tb-build"), T("menu.newApp"), "mod+n", a.toolbarW > 0 && a.toolbarW < 700).Clicked() {
+			if kit.NewPill(c.Key("tb-build"), T("menu.newApp"), a.accel(scNewApp), a.toolbarW > 0 && a.toolbarW < 700).Clicked() {
 				a.newApp()
 			}
 		}

@@ -1,0 +1,13 @@
+---
+// A real app capture, light or dark to match the reader's system.
+import { versioned } from "../versioned";
+import sizes from "../shots.json";
+
+interface Props { name: keyof typeof sizes; alt: string; class?: string; eager?: boolean }
+const { name, alt, class: cls = "", eager = false } = Astro.props;
+const [width, height] = sizes[name];
+---
+<picture class={`frame ${cls}`}>
+  <source srcset={versioned(`assets/shots/dark-${name}.webp`)} media="(prefers-color-scheme: dark)" />
+  <img src={versioned(`assets/shots/light-${name}.webp`)} {width} {height} {alt} loading={eager ? "eager" : "lazy"} decoding="async" />
+</picture>

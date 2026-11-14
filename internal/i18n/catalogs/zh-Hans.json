@@ -98,6 +98,8 @@
   "create.icon.choose": "选择图片…",
   "create.icon.filter": "图片",
   "create.icon.reset": "使用网站图标",
+  "icon.from": "从 {provider} 获取图标",
+  "icon.from.done": "{name} 的图标现在来自 {provider}。",
   "create.name.label": "应用名称",
   "create.name.placeholder": "给你的应用起个名字",
   "create.name.tip": "点按以重新命名",

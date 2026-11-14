@@ -1,3 +1,5 @@
+//go:build !mypack_lite
+
 package app
 
 import (

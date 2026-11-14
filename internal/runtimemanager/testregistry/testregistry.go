@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -38,10 +39,16 @@ type Entry struct {
 	SHA256       string   `json:"sha256"`
 	Size         int64    `json:"size"`
 	Capabilities []string `json:"capabilities,omitempty"`
+	Tier         string   `json:"tier,omitempty"`
 }
 
-// Key is os-arch.
-func (e Entry) Key() string { return e.OS + "-" + e.Arch }
+// Key is os-arch, os-arch-lite for a lite entry.
+func (e Entry) Key() string {
+	if e.Tier == "lite" {
+		return e.OS + "-" + e.Arch + "-lite"
+	}
+	return e.OS + "-" + e.Arch
+}
 
 func exeName(key string) string {
 	if len(key) > 8 && key[:8] == "windows-" {
@@ -120,7 +127,11 @@ func Create(dir string, o Options) (*Registry, error) {
 		return nil, err
 	}
 	for _, key := range o.Keys {
-		goos, arch := split(key)
+		tier := ""
+		if strings.HasSuffix(key, "-lite") {
+			tier = "lite"
+		}
+		goos, arch := split(strings.TrimSuffix(key, "-lite"))
 		bin := StubBinary(key)
 		if b, ok := o.Binaries[key]; ok {
 			bin = b
@@ -132,7 +143,7 @@ func Create(dir string, o Options) (*Registry, error) {
 		}
 		sum := sha256.Sum256(arc)
 		m.Runtimes = append(m.Runtimes, Entry{Version: o.Version, OS: goos, Arch: arch, Filename: fn,
-			URL: o.Version + "/" + fn, SHA256: hex.EncodeToString(sum[:]), Size: int64(len(arc)), Capabilities: o.Capabilities})
+			URL: o.Version + "/" + fn, SHA256: hex.EncodeToString(sum[:]), Size: int64(len(arc)), Capabilities: o.Capabilities, Tier: tier})
 	}
 	r := &Registry{Dir: dir, Public: pub, Private: priv, Manifest: m}
 	if err := r.Write(m); err != nil {

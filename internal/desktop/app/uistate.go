@@ -21,9 +21,12 @@ type uiState struct {
 	Pinned []string `json:"pinned,omitempty"`
 	// LauncherOff turns off the quick launcher and its global shortcut
 	// (launcher.go).
-	LauncherOff  bool            `json:"launcherOff,omitempty"`
-	SettingsOpen map[string]bool `json:"advancedOpen,omitempty"`
-	SettingsPane string          `json:"settingsPane,omitempty"` // Settings' category on show
+	LauncherOff bool `json:"launcherOff,omitempty"`
+	// Shortcuts are the keyboard shortcuts the user changed, by ID, as
+	// accelerators; "" is none (shortcuts.go).
+	Shortcuts    map[string]string `json:"shortcuts,omitempty"`
+	SettingsOpen map[string]bool   `json:"advancedOpen,omitempty"`
+	SettingsPane string            `json:"settingsPane,omitempty"` // Settings' category on show
 	// AutoInstall is, per project, whether a successful build for this
 	// device is installed and opened at once; AutoInstallDefault (nil =
 	// on) seeds new projects.

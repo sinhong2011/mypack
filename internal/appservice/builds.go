@@ -60,11 +60,12 @@ func (s *Impl) Preflight(ctx context.Context, projectID string, targets []config
 	if err != nil {
 		return Preflight{}, err
 	}
-	return s.preflight(ctx, p.Config.Runtime.Version, targets, set.OutputDir)
+	return s.preflight(ctx, p.Config, targets, set.OutputDir)
 }
 
-func (s *Impl) preflight(ctx context.Context, runtimeVersion string, targets []config.Target, outputDir string) (Preflight, error) {
+func (s *Impl) preflight(ctx context.Context, cfg *config.Config, targets []config.Target, outputDir string) (Preflight, error) {
 	s.syncRegistry(ctx)
+	runtimeVersion := cfg.Runtime.Version
 	pf := Preflight{OutputDir: outputDir, RuntimeVersion: runtimeVersion}
 	seen := map[string]bool{}
 	for _, t := range targets {
@@ -72,15 +73,16 @@ func (s *Impl) preflight(ctx context.Context, runtimeVersion string, targets []c
 		tp := TargetPreflight{Target: t, Supported: capab.Supported, Level: capab.Level,
 			Signing: capab.Signing, Reason: capab.Reason}
 		if capab.Supported {
-			info, err := s.runtimes.Status(ctx, runtimeVersion, t.Key())
+			key := builder.RuntimeKey(ctx, s.runtimes, cfg, t) // full or Lite, as the build will
+			info, err := s.runtimes.Status(ctx, runtimeVersion, key)
 			if err != nil {
 				return pf, err
 			}
 			tp.Runtime = info
-			if !info.Cached && !seen[t.Key()] {
+			if !info.Cached && !seen[key] {
 				pf.DownloadBytes += info.Size
 			}
-			seen[t.Key()] = true
+			seen[key] = true
 		}
 		pf.Targets = append(pf.Targets, tp)
 	}
@@ -141,7 +143,7 @@ type submission struct {
 // awaiting approval when a runtime download is needed but not allowed.
 func (s *Impl) submit(ctx context.Context, sub submission) (domain.BuildJob, error) {
 	snap := sub.snapshot
-	pf, err := s.preflight(ctx, snap.Runtime.Version, snap.Build.Targets, sub.outputDir)
+	pf, err := s.preflight(ctx, snap, snap.Build.Targets, sub.outputDir)
 	if err != nil {
 		return domain.BuildJob{}, err
 	}
@@ -245,7 +247,7 @@ func (s *Impl) ApproveJob(ctx context.Context, jobID, actor string) (err error) 
 		}
 	}
 	// Another approval (runtime download) may still be outstanding.
-	if pf, perr := s.preflight(ctx, job.Snapshot.Runtime.Version, job.Snapshot.Build.Targets, meta.OutputDir); perr == nil {
+	if pf, perr := s.preflight(ctx, job.Snapshot, job.Snapshot.Build.Targets, meta.OutputDir); perr == nil {
 		if pending, total := s.pendingApproval(ctx, job.ProjectID, job.Snapshot, pf, meta.AllowDownload); pending != nil {
 			job.Error = pending
 			if err := s.store.SaveJobState(ctx, job); err != nil {

@@ -34,7 +34,7 @@ func (a *App) installMenu() {
 			{Label: T("menu.about"), Click: on(func() { a.showWindow(); a.openSettings(paneAbout) })},
 			{Label: T("menu.checkUpdates"), Click: on(a.checkForUpdatesMenu)},
 			mygo.Separator(),
-			{Label: T("menu.settings"), Accelerator: "CmdOrCtrl+,", Click: on(func() { a.showWindow(); a.openSettings("") })},
+			{Label: T("menu.settings"), Accelerator: a.menuAccel(scSettings), Click: on(func() { a.showWindow(); a.openSettings("") })},
 			mygo.Separator(),
 			{Role: mygo.RoleServices},
 			mygo.Separator(),
@@ -42,36 +42,76 @@ func (a *App) installMenu() {
 			{Role: mygo.RoleHideOthers},
 			{Role: mygo.RoleUnhide},
 			mygo.Separator(),
-			{Label: T("menu.quit"), Accelerator: "CmdOrCtrl+Q", Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Quit() }},
+			{Label: T("menu.quit"), Accelerator: a.quitAccel(), Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Quit() }},
 		}},
 		{Label: T("menu.file"), Submenu: []*mygo.MenuItem{
-			{Label: T("menu.newApp"), Accelerator: "CmdOrCtrl+N", Click: on(a.newApp)},
-			{Label: T("menu.newGroup"), Accelerator: "CmdOrCtrl+Shift+N", Click: on(a.newGroup)},
-			{Label: T("menu.build"), Accelerator: "CmdOrCtrl+B", Click: on(a.buildShortcut)},
+			{Label: T("menu.newApp"), Accelerator: a.menuAccel(scNewApp), Click: on(a.newApp)},
+			{Label: T("menu.newGroup"), Accelerator: a.menuAccel(scNewGroup), Click: on(a.newGroup)},
+			{Label: T("menu.build"), Accelerator: a.menuAccel(scBuild), Click: on(a.buildShortcut)},
 			mygo.Separator(),
 			{Label: T("menu.importApp"), Click: on(a.importExistingApp)},
 			{Label: T("menu.importConfig"), Click: on(a.importConfig)},
 			{Label: T("menu.importApps"), Click: on(a.importApps)},
 			{Label: T("menu.exportLibrary"), Click: on(func() { a.exportLibrary(nil, T("library.export.name")) })},
-			{Label: T("create.open"), Accelerator: "CmdOrCtrl+O", Click: on(a.openSource)},
+			{Label: T("create.open"), Accelerator: a.menuAccel(scOpen), Click: on(a.openSource)},
 			mygo.Separator(),
 			{Role: mygo.RoleClose},
 		}},
 		{Role: mygo.RoleEditMenu},
 		{Label: T("menu.view"), Submenu: []*mygo.MenuItem{
-			{Label: T("nav.library"), Accelerator: "CmdOrCtrl+1", Click: on(func() { a.nav(secLibrary) })},
-			{Label: T("nav.discover"), Accelerator: "CmdOrCtrl+2", Click: on(func() { a.nav(secDiscover) })},
-			{Label: T("nav.builds"), Accelerator: "CmdOrCtrl+3", Click: on(func() { a.nav(secBuilds) })},
-			{Label: T("nav.runtimes"), Accelerator: "CmdOrCtrl+4", Click: on(func() { a.nav(secRuntimes) })},
+			{Label: T("nav.library"), Accelerator: a.menuAccel(scLibrary), Click: on(func() { a.nav(secLibrary) })},
+			{Label: T("nav.discover"), Accelerator: a.menuAccel(scDiscover), Click: on(func() { a.nav(secDiscover) })},
+			{Label: T("nav.builds"), Accelerator: a.menuAccel(scBuilds), Click: on(func() { a.nav(secBuilds) })},
+			{Label: T("nav.runtimes"), Accelerator: a.menuAccel(scRuntimes), Click: on(func() { a.nav(secRuntimes) })},
 			mygo.Separator(),
-			{Label: T("menu.palette"), Accelerator: "CmdOrCtrl+K", Click: on(a.togglePalette)},
-			{Label: T("menu.find"), Accelerator: "CmdOrCtrl+F", Click: on(func() { a.nav(secLibrary); a.lib.focusSearch = true })},
+			{Label: T("menu.palette"), Accelerator: a.menuAccel(scPalette), Click: on(a.togglePalette)},
+			{Label: T("menu.find"), Accelerator: a.menuAccel(scFind), Click: on(func() { a.nav(secLibrary); a.lib.focusSearch = true })},
 			mygo.Separator(),
 			{Role: mygo.RoleToggleFullScreen},
 		}},
 		{Role: mygo.RoleWindowMenu},
+		a.helpMenu(on),
 	})
 	mygo.App.SetMenu(menu)
+}
+
+// helpMenu is the Help menu: the keyboard shortcut reference, and where
+// to read about MyPack or report a problem. On macOS it is the system's
+// Help menu, with its search field.
+func (a *App) helpMenu(on func(func()) func(*mygo.MenuItem, *mygo.Window)) *mygo.MenuItem {
+	open := func(url string) func() {
+		return func() {
+			a.do(func(ctx context.Context) error { return a.svc.OpenURL(ctx, url) }, a.toastErr)
+		}
+	}
+	m := &mygo.MenuItem{Label: T("menu.help"), Submenu: []*mygo.MenuItem{
+		// No key here: View › Command Palette has it.
+		{Label: T("menu.palette"), Click: on(func() {
+			a.showWindow()
+			if !a.palette.open {
+				a.togglePalette()
+			}
+		})},
+		{Label: T("menu.shortcuts"), Accelerator: a.menuAccel(scShortcuts), Click: on(a.showShortcuts)},
+		{Label: T("menu.customizeShortcuts"), Click: on(func() { a.showWindow(); a.openSettings(paneShortcuts) })},
+		mygo.Separator(),
+		{Label: T("settings.about.releases"), Click: on(open(aboutRepoURL + "/releases"))},
+		{Label: T("settings.about.source"), Click: on(open(aboutRepoURL))},
+		{Label: T("settings.about.issue"), Click: on(open(aboutRepoURL + "/issues/new/choose"))},
+	}}
+	if runtime.GOOS == "darwin" {
+		m.Role = mygo.RoleHelp
+	}
+	return m
+}
+
+// quitAccel is Quit's shortcut, which no other takes. Recording a
+// shortcut lets go of it too, so that pressing it there quits nothing.
+func (a *App) quitAccel() string {
+	if a.set.recording != "" {
+		return ""
+	}
+	return "CmdOrCtrl+Q"
 }
 
 // newApp opens Create (⌘N).
@@ -434,7 +474,7 @@ func (a *App) trayMenu(active []domain.BuildJob) *mygo.Menu {
 		}
 	}
 	if a.launcher.registered != "" {
-		items = append(items, &mygo.MenuItem{Label: T("tray.launcher", "keys", launcherKeys()), Click: func(*mygo.MenuItem, *mygo.Window) { a.toggleLauncher() }})
+		items = append(items, &mygo.MenuItem{Label: T("tray.launcher", "keys", a.hotkey(scLauncher)), Click: func(*mygo.MenuItem, *mygo.Window) { a.toggleLauncher() }})
 	}
 	if len(a.projects) > 0 {
 		items = append(items, mygo.Separator(), &mygo.MenuItem{Label: T("tray.recent"), Disabled: true})

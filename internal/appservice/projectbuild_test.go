@@ -152,6 +152,8 @@ func TestProjectBuildApprovalGatingAndOrdering(t *testing.T) {
 		evMu      sync.Mutex
 		stages    []domain.Stage
 		logStages []domain.Stage
+		sawDone   = make(chan struct{})
+		doneOnce  sync.Once
 	)
 	pe.svc.Subscribe(func(ev Event) {
 		evMu.Lock()
@@ -159,6 +161,9 @@ func TestProjectBuildApprovalGatingAndOrdering(t *testing.T) {
 		if ev.Kind == EventJobChanged && ev.Job != nil && ev.JobID == job.ID {
 			if n := len(stages); n == 0 || stages[n-1] != ev.Job.Stage {
 				stages = append(stages, ev.Job.Stage)
+			}
+			if ev.Job.Status == domain.JobSucceeded || ev.Job.Status == domain.JobFailed {
+				doneOnce.Do(func() { close(sawDone) })
 			}
 		}
 		if ev.Kind == EventJobLog && ev.JobID == job.ID && ev.Log != nil {
@@ -171,6 +176,13 @@ func TestProjectBuildApprovalGatingAndOrdering(t *testing.T) {
 	done := waitJob(t, pe.svc, job.ID, domain.JobSucceeded, domain.JobFailed)
 	if done.Status != domain.JobSucceeded {
 		t.Fatalf("done = %+v", done.Error)
+	}
+	// The bus delivers on its own goroutine: wait until this subscriber has
+	// seen the finished job, or stages may still lack the later ones.
+	select {
+	case <-sawDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("subscriber never saw the finished job")
 	}
 	calls := pe.calls(t)
 	if len(calls) != 2 || !strings.HasPrefix(calls[0], "npm install |") || !strings.HasPrefix(calls[1], "npm run build |") {

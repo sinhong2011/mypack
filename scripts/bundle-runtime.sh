@@ -14,6 +14,10 @@
 #   scripts/bundle-runtime.sh windows/amd64
 #   scripts/bundle-runtime.sh --self-test
 #
+# Both runtime tiers ship: full and, from pkg/config LiteRuntimeSince, lite
+# (-lite keys and archives; macOS bin/mypack-runtime-lite). The Builder
+# picks per app (config.Config.RuntimeTier), so neither needs a download.
+#
 # PLATFORM (os/arch) comes from the argument, $PLATFORM, or `go env`.
 # RUNTIME_VERSION defaults to pkg/config DefaultRuntimeVersion.
 # Sources, in order: dist/registry, the "runtimes" GitHub Release, a local
@@ -50,6 +54,38 @@ runtime_version() {
     return
   fi
   sed -n 's/^const DefaultRuntimeVersion = "\([^"]*\)".*/\1/p' "$ROOT/pkg/config/config.go"
+}
+
+lite_since() {
+  sed -n 's/^const LiteRuntimeSince = "\([^"]*\)".*/\1/p' "$ROOT/pkg/config/config.go"
+}
+
+# version_at_least A B: A >= B for dotted numeric versions.
+version_at_least() {
+  [ "$(printf '%s\n%s\n' "$2" "$1" | sort -t. -k1,1n -k2,2n -k3,3n -k4,4n | head -n1)" = "$2" ]
+}
+
+# tier_keys <version> <platform keys...>: each key, then its -lite key when
+# that version has a lite tier.
+tier_keys() {
+  local ver="$1" since out="" k
+  shift
+  since="$(lite_since)"
+  for k in "$@"; do
+    out="$out $k"
+    if [ -n "$since" ] && version_at_least "$ver" "$since"; then
+      out="$out $k-lite"
+    fi
+  done
+  echo "${out# }"
+}
+
+# helper_name <key>: the bundled macOS helper of a key.
+helper_name() {
+  case "$1" in
+    *-lite) echo "mypack-runtime-lite" ;;
+    *) echo "mypack-runtime" ;;
+  esac
 }
 
 archive_name() {
@@ -102,12 +138,15 @@ verify_archive() {
 import hashlib, json, os, sys
 
 archive, key, version, registry = sys.argv[1:]
+tier = ""
+if key.endswith("-lite"):
+    key, tier = key[: -len("-lite")], "lite"
 os_name, _, arch = key.partition("-")
 with open(registry, encoding="utf-8") as f:
     man = json.load(f)
 want = None
 for e in man.get("runtimes") or []:
-    if e.get("version") == version and e.get("os") == os_name and e.get("arch") == arch:
+    if e.get("version") == version and e.get("os") == os_name and e.get("arch") == arch and (e.get("tier") or "") == tier:
         want = e
         break
 if want is None:
@@ -131,8 +170,9 @@ PY
 # service unpacks gzip and rejects the unsigned nested binary.
 extract_darwin() {
   local archive="$1" key="$2"
-  local dest="$ROOT/resources/${key}/bin"
-  local tmp exe
+  local dest="$ROOT/resources/${key%-lite}/bin"
+  local name tmp exe
+  name="$(helper_name "$key")"
   mkdir -p "$dest"
   tmp="$(mktemp -d "${TMPDIR:-/tmp}/mypack-runtime.XXXXXX")"
   tar -xzf "$archive" -C "$tmp"
@@ -142,11 +182,11 @@ extract_darwin() {
     rm -rf "$tmp"
     return 1
   fi
-  mv "$exe" "$dest/mypack-runtime"
-  chmod 755 "$dest/mypack-runtime"
+  mv "$exe" "$dest/$name"
+  chmod 755 "$dest/$name"
   rm -rf "$tmp"
   rm -f "$archive"
-  echo "bundle-runtime: $key → resources/${key}/bin/mypack-runtime"
+  echo "bundle-runtime: $key → resources/${key%-lite}/bin/$name"
 }
 
 self_test() {
@@ -156,6 +196,12 @@ self_test() {
   [ "$got" = "$want" ] || { echo "universal keys: got '$got' want '$want'"; fail=1; }
   got="$(keys_for_platform windows/amd64)"
   [ "$got" = "windows-amd64" ] || { echo "windows keys: got '$got'"; fail=1; }
+  got="$(tier_keys 1.0.10 darwin-arm64 darwin-amd64)"
+  [ "$got" = "darwin-arm64 darwin-arm64-lite darwin-amd64 darwin-amd64-lite" ] || { echo "tier keys 1.0.10: got '$got'"; fail=1; }
+  got="$(tier_keys 1.0.9 windows-amd64)"
+  [ "$got" = "windows-amd64" ] || { echo "tier keys 1.0.9: got '$got'"; fail=1; }
+  [ "$(helper_name darwin-arm64-lite)" = "mypack-runtime-lite" ] || { echo "lite helper name"; fail=1; }
+  [ -n "$(lite_since)" ] || { echo "LiteRuntimeSince missing"; fail=1; }
   ver="$(runtime_version)"
   [ -n "$ver" ] || { echo "DefaultRuntimeVersion missing"; fail=1; }
   echo "$ver" | grep -Eq '^[0-9]+(\.[0-9]+){0,3}$' || { echo "bad version $ver"; fail=1; }
@@ -168,7 +214,7 @@ self_test() {
   if grep -E 'gh release download' "$ROOT/scripts/bundle-runtime.sh" | grep -v -- '--pattern' | grep -q .; then
     echo "gh release download must pass --pattern, not a filename argument"; fail=1
   fi
-  if ! grep -q 'resources/${key}/bin' "$ROOT/scripts/bundle-runtime.sh"; then
+  if ! grep -q 'resources/${key%-lite}/bin' "$ROOT/scripts/bundle-runtime.sh"; then
     echo "darwin helper extract (MyGo platform dir) is missing"; fail=1
   fi
   if [ "$fail" = 0 ]; then
@@ -198,7 +244,7 @@ if ! [[ "$VERSION" =~ ^[0-9]+(\.[0-9]+){0,3}$ ]]; then
   echo "bundle-runtime: RUNTIME_VERSION must look like 1.0.8 (got '$VERSION')" >&2
   exit 2
 fi
-KEYS="$(keys_for_platform "$PLATFORM_ARG")"
+KEYS="$(tier_keys "$VERSION" $(keys_for_platform "$PLATFORM_ARG"))"
 
 mkdir -p "$DEST"
 rm -f "$DEST"/mypack-runtime-*.tar.gz "$DEST"/registry.json "$DEST"/registry.json.sig "$DEST"/bundled.json

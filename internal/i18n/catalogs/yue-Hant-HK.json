@@ -98,6 +98,8 @@
   "create.icon.choose": "揀圖片…",
   "create.icon.filter": "圖片",
   "create.icon.reset": "用返網站圖示",
+  "icon.from": "由 {provider} 攞圖示",
+  "icon.from.done": "{name} 嘅圖示而家用 {provider} 嘅。",
   "create.name.label": "App 名稱",
   "create.name.placeholder": "幫你個 App 改個名",
   "create.name.tip": "撳一下改名",

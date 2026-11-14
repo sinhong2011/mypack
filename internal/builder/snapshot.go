@@ -34,7 +34,12 @@ func (j *job) writeResources() error {
 		inj.Content = string(b)
 		inj.Path = ""
 	}
-	snap.App.Icon.Path = "" // the icon ships as icon.png/AppIcon.icns
+	// The icon ships as icon.png/AppIcon.icns (and Assets.car); the runtime
+	// never reads app.icon, but it validates it, and a "file" icon needs a path.
+	if snap.App.Icon.Source == "file" {
+		snap.App.Icon.Source = "default"
+	}
+	snap.App.Icon.Path = ""
 
 	// Local sources are bundled next to the config; paths become relative to the resources dir.
 	source := snap.App.Source.Type

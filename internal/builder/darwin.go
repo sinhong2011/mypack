@@ -39,6 +39,11 @@ func (j *job) infoPlist() []byte {
 		"MyPackManaged":                        true,
 		"MyPackRuntimeVersion":                 c.Runtime.Version,
 	}
+	if j.iconCar {
+		// macOS 26+ draws the Icon Composer icon from Assets.car in the
+		// appearance the user picked; older systems use AppIcon.icns.
+		d["CFBundleIconName"] = icons.IconComposerName
+	}
 	if c.Native.Camera {
 		d["NSCameraUsageDescription"] = camUsage
 	}
@@ -56,11 +61,18 @@ func (j *job) infoPlist() []byte {
 
 func (j *job) customizeDarwin() error {
 	contents := filepath.Join(j.root, "Contents")
+	haveICNS, err := j.iconComposer()
+	if err != nil {
+		return err
+	}
 	if err := os.WriteFile(filepath.Join(contents, "Info.plist"), j.infoPlist(), 0o644); err != nil {
 		return err
 	}
 	if err := os.WriteFile(filepath.Join(contents, "PkgInfo"), []byte("APPL????"), 0o644); err != nil {
 		return err
+	}
+	if haveICNS {
+		return nil
 	}
 	// Full-bleed artwork: macOS 26+ masks icons itself and "jails" icons
 	// that carry their own rounded corners/margins on a light plate.
@@ -73,6 +85,47 @@ func (j *job) customizeDarwin() error {
 		return fmt.Errorf("icns: %w", err)
 	}
 	return os.WriteFile(filepath.Join(j.resDir, "AppIcon.icns"), icns, 0o644)
+}
+
+// iconComposer compiles an Icon Composer icon (app.icon.path naming a .icon
+// document) into Assets.car and AppIcon.icns in the bundle's resources. It
+// reports whether AppIcon.icns was written. When the document cannot be
+// compiled the app gets the icon's picture instead, with a warning; an icon
+// studio style always wins over the document.
+func (j *job) iconComposer() (bool, error) {
+	ic := j.cfg.App.Icon
+	if ic.Source != "file" || !icons.IsIconComposer(ic.Path) {
+		return false, nil
+	}
+	if ic.Style != nil {
+		j.warn("The icon is styled in the icon studio, so the Icon Composer icon's light, dark and tinted looks are not used")
+		return false, nil
+	}
+	if !icons.IconComposerAvailable() {
+		j.warn("Icon Composer icons need a Mac with Xcode 26 or later; the app gets a plain icon that does not follow the icon appearance")
+		return false, nil
+	}
+	out := filepath.Join(j.staging, "iconcomposer")
+	c, err := icons.CompileIconComposer(j.ctx, ic.Path, out)
+	if err != nil {
+		if j.ctx.Err() != nil {
+			return false, j.ctx.Err()
+		}
+		j.warn("The Icon Composer icon could not be compiled (%v); the app gets a plain icon", err)
+		return false, nil
+	}
+	if err := copyFile(j.ctx, c.Car, filepath.Join(j.resDir, "Assets.car"), 0o644); err != nil {
+		return false, err
+	}
+	j.iconCar = true
+	j.log("info", "Compiled the Icon Composer icon %s", filepath.Base(ic.Path))
+	if c.ICNS == "" {
+		return false, nil
+	}
+	if err := copyFile(j.ctx, c.ICNS, filepath.Join(j.resDir, "AppIcon.icns"), 0o644); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (j *job) signDarwin() error {
@@ -91,7 +144,11 @@ func (j *job) signDarwin() error {
 
 func (j *job) verifyDarwin() error {
 	c := j.root
-	for _, p := range []string{"Contents/Info.plist", "Contents/PkgInfo", "Contents/Resources/AppIcon.icns", "Contents/Resources/icon.png", "Contents/Resources/mypack.json"} {
+	need := []string{"Contents/Info.plist", "Contents/PkgInfo", "Contents/Resources/AppIcon.icns", "Contents/Resources/icon.png", "Contents/Resources/mypack.json"}
+	if j.iconCar {
+		need = append(need, "Contents/Resources/Assets.car")
+	}
+	for _, p := range need {
 		if st, err := os.Stat(filepath.Join(c, p)); err != nil || st.Size() == 0 {
 			return fmt.Errorf("missing %s", p)
 		}
