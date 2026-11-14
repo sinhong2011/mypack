@@ -31,6 +31,11 @@ type Service interface {
 	// Identifier/ProfileID changes require req.ConfirmIdentityChange.
 	UpdateProject(ctx context.Context, req UpdateRequest) (domain.Project, error)
 	SetProjectIcon(ctx context.Context, id string, png []byte, actor string) (domain.Project, error)
+	// SetProjectIconDocument makes the Icon Composer document at path (a
+	// .icon folder) the project's icon: macOS builds compile it so the app
+	// follows the icon appearance (Default, Dark, Clear, Tinted); the
+	// Library and other platforms show its default look.
+	SetProjectIconDocument(ctx context.Context, id, path, actor string) (domain.Project, error)
 	// ProjectIconImage is the image beneath a styled icon (app.icon.style):
 	// the project's IconPNG without the style. Unstyled projects return
 	// their IconPNG.

@@ -801,3 +801,55 @@ func TestValidateDrawsIconStyle(t *testing.T) {
 		t.Fatal("the build did not draw app.icon.style")
 	}
 }
+
+func TestDarwinIconComposerIcon(t *testing.T) {
+	requireDarwin(t)
+	if !icons.IconComposerAvailable() {
+		t.Skip("needs Xcode 26+ (actool)")
+	}
+	doc, _ := filepath.Abs("../icons/testdata/Sample.icon")
+	tgt := config.Target{OS: "darwin", Arch: runtime.GOARCH, Format: "app"}
+	for _, styled := range []bool{false, true} {
+		e := newEnv(t, []string{hostKey()}, nil)
+		cfg := testConfig("Composer", tgt)
+		cfg.App.Icon = config.Icon{Source: "file", Path: doc}
+		if styled {
+			cfg.App.Icon.Style = &config.IconStyle{Glyph: config.GlyphText, Text: "C"}
+		}
+		var logs []string
+		arts, err := (&Engine{Runtimes: e.mgr}).Build(context.Background(), Request{Config: cfg, Targets: []config.Target{tgt}, OutputDir: e.out,
+			AllowDownload: true, Log: func(l domain.LogLine) { logs = append(logs, l.Level+": "+l.Message) }})
+		if err != nil {
+			t.Fatalf("styled=%v build: %v\n%v", styled, err, logs)
+		}
+		res := filepath.Join(arts[0].Path, "Contents", "Resources")
+		pl, _ := os.ReadFile(filepath.Join(arts[0].Path, "Contents", "Info.plist"))
+		p := parsePlist(t, pl)
+		_, carErr := os.Stat(filepath.Join(res, "Assets.car"))
+		if styled {
+			if carErr == nil || p["CFBundleIconName"] != "" {
+				t.Errorf("a styled icon must not ship the Icon Composer icon: %v", p)
+			}
+			if !strings.Contains(strings.Join(logs, "\n"), "icon studio") {
+				t.Errorf("want a warning about the style: %v", logs)
+			}
+			continue
+		}
+		if carErr != nil {
+			t.Fatalf("Assets.car missing: %v", carErr)
+		}
+		if p["CFBundleIconName"] != "AppIcon" || p["CFBundleIconFile"] != "AppIcon" {
+			t.Errorf("Info.plist icon keys: %v", p)
+		}
+		b, err := os.ReadFile(filepath.Join(res, "AppIcon.icns"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := icons.ICNSLargestPNG(b); err != nil {
+			t.Fatalf("AppIcon.icns: %v", err)
+		}
+		if mj, _ := os.ReadFile(filepath.Join(res, "mypack.json")); strings.Contains(string(mj), "Sample.icon") {
+			t.Error("the icon path leaked into the bundled mypack.json")
+		}
+	}
+}

@@ -510,7 +510,7 @@ func (a *App) iconPicker(c *ui.Context, png []byte, name string, size float32) u
 		}
 		m.Separator()
 		if m.Item(T("create.icon.choose")).Chosen() {
-			a.chooseIcon(func(bb []byte) { s.iconPNG, s.iconCustom = bb, true })
+			a.chooseIconDoc(func(bb []byte, doc string) { s.iconPNG, s.iconCustom, s.iconDoc = bb, true, doc })
 		}
 		if s.normalized != "" && s.local == "" && !s.isGroup() {
 			for _, pv := range iconProviders {
@@ -523,7 +523,7 @@ func (a *App) iconPicker(c *ui.Context, png []byte, name string, size float32) u
 		// the item then looks the site up again.
 		retry := s.siteUnreachable() && s.local == "" && !s.isGroup()
 		if m.Item(T("create.icon.reset")).Disabled(!s.iconCustom && s.iconStyle == nil && !retry).Chosen() {
-			s.iconPNG, s.iconCustom, s.iconStyle = nil, false, nil
+			s.iconPNG, s.iconCustom, s.iconDoc, s.iconStyle = nil, false, "", nil
 			if retry {
 				s.refetchMetadata()
 			}

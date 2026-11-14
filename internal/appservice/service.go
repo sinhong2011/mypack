@@ -15,6 +15,7 @@ import (
 
 	"mypack.dev/mypack/internal/builder"
 	"mypack.dev/mypack/internal/domain"
+	"mypack.dev/mypack/internal/icons"
 	"mypack.dev/mypack/internal/metadata"
 	"mypack.dev/mypack/internal/runtimemanager"
 	"mypack.dev/mypack/internal/storage"
@@ -507,12 +508,24 @@ func (s *Impl) CreateProject(ctx context.Context, req CreateRequest) (p domain.P
 	return p, nil
 }
 
+// isIconDoc reports whether path names an Icon Composer document (.icon),
+// whether or not it is still there.
+func isIconDoc(path string) bool { return strings.EqualFold(filepath.Ext(path), ".icon") }
+
 func mustRead(path string) []byte { b, _ := os.ReadFile(path); return b }
 
 // configIcon resolves the icon of a project loaded from a config file.
 func (s *Impl) configIcon(ctx context.Context, cfg *config.Config, md *Metadata) (png []byte, iconURL string) {
 	switch cfg.App.Icon.Source {
 	case "file":
+		if isIconDoc(cfg.App.Icon.Path) {
+			// An Icon Composer document stays the build's icon (the Builder
+			// compiles it); the Library shows its default look.
+			if png, err := s.icons.IconComposerPNG(ctx, cfg.App.Icon.Path); err == nil {
+				return png, ""
+			}
+			return nil, "" // the build warns and draws the default icon
+		}
 		if b, err := os.ReadFile(cfg.App.Icon.Path); err == nil {
 			if n, nerr := s.icons.Normalize(b); nerr == nil {
 				return n, ""
@@ -643,6 +656,10 @@ func (s *Impl) SetProjectIcon(ctx context.Context, id string, png []byte, actor 
 			return p, gerr
 		}
 		cur.IconPNG = norm
+		if isIconDoc(cur.Config.App.Icon.Path) {
+			// A new picture replaces an Icon Composer document.
+			cur.Config.App.Icon.Source, cur.Config.App.Icon.Path = "default", ""
+		}
 		if cur.Config.App.Icon.Style != nil {
 			s.restyle(&cur, norm) // a new image beneath the same style
 		}
@@ -650,6 +667,42 @@ func (s *Impl) SetProjectIcon(ctx context.Context, id string, png []byte, actor 
 		var de *domain.Error
 		if errors.As(err, &de) && de.Code == CodeRevisionConflict && attempt < 3 {
 			continue // someone edited between our read and write: retry on the new revision
+		}
+		break
+	}
+	if err == nil {
+		s.emit(Event{Kind: EventProjectChanged, ProjectID: p.ID})
+	}
+	return p, err
+}
+
+// SetProjectIconDocument implements Service.
+func (s *Impl) SetProjectIconDocument(ctx context.Context, id, path, actor string) (p domain.Project, err error) {
+	defer func() { s.audit(ctx, actor, "project.icon", id, err) }()
+	abs, aerr := filepath.Abs(path)
+	if aerr != nil || !icons.IsIconComposer(abs) {
+		return p, &domain.Error{Code: CodeInvalidInput, Message: "That is not an Icon Composer icon.",
+			Remediation: "Choose a .icon file made with Icon Composer."}
+	}
+	png, perr := s.icons.IconComposerPNG(ctx, abs)
+	if perr != nil {
+		return p, &domain.Error{Code: CodeInvalidInput, Message: "The Icon Composer icon could not be read.",
+			Cause: perr.Error(), Remediation: "Icon Composer icons need a Mac with Xcode 26 or later."}
+	}
+	for attempt := 0; ; attempt++ {
+		cur, gerr := s.store.GetProject(ctx, id)
+		if gerr != nil {
+			return p, gerr
+		}
+		cur.IconPNG = png
+		cur.Config.App.Icon.Source, cur.Config.App.Icon.Path = "file", abs
+		if cur.Config.App.Icon.Style != nil {
+			s.restyle(&cur, png)
+		}
+		p, err = s.store.UpdateProject(ctx, cur, cur.Revision)
+		var de *domain.Error
+		if errors.As(err, &de) && de.Code == CodeRevisionConflict && attempt < 3 {
+			continue
 		}
 		break
 	}

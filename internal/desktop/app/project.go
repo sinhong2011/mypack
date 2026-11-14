@@ -113,8 +113,16 @@ func (a *App) projectIcon(c *ui.Context, pr *domain.Project, size float32) {
 		m.Separator()
 		if m.Item(T("create.icon.choose")).Chosen() {
 			id := pr.ID
-			a.chooseIcon(func(b []byte) {
-				a.do(func(ctx context.Context) error { _, err := a.svc.SetProjectIcon(ctx, id, b, "gui"); return err }, a.toastErr)
+			a.chooseIconDoc(func(b []byte, doc string) {
+				a.do(func(ctx context.Context) error {
+					var err error
+					if doc != "" {
+						_, err = a.svc.SetProjectIconDocument(ctx, id, doc, "gui")
+					} else {
+						_, err = a.svc.SetProjectIcon(ctx, id, b, "gui")
+					}
+					return err
+				}, a.toastErr)
 			})
 		}
 		if pr.Config.App.Source.Type == config.SourceURL && m.Item(T("icon.refresh")).Chosen() {

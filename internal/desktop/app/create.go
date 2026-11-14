@@ -39,6 +39,7 @@ type createState struct {
 
 	iconPNG    []byte
 	iconCustom bool
+	iconDoc    string            // an Icon Composer document (.icon) behind iconPNG
 	iconStyle  *config.IconStyle // from the Icon Studio
 	styledKey  string
 	styled     []byte
@@ -342,8 +343,9 @@ func (a *App) createAndBuild() {
 		meta = &m
 	}
 	var icon []byte
+	var iconDoc string
 	if s.iconCustom {
-		icon = s.iconPNG
+		icon, iconDoc = s.iconPNG, s.iconDoc
 	}
 	style := s.iconStyle
 	var targets []config.Target
@@ -377,7 +379,11 @@ func (a *App) createAndBuild() {
 		projectID = pr.ID
 		auto := s.autoInstall
 		a.win.Update(func() { a.ui.setAutoInstall(pr.ID, auto) })
-		if icon != nil {
+		if iconDoc != "" {
+			if pr, err = a.svc.SetProjectIconDocument(ctx, pr.ID, iconDoc, "gui"); err != nil {
+				return err
+			}
+		} else if icon != nil {
 			if pr, err = a.svc.SetProjectIcon(ctx, pr.ID, icon, "gui"); err != nil {
 				return err
 			}
@@ -455,24 +461,41 @@ func (a *App) createIconFrom(p metadata.IconProvider) {
 			return
 		}
 		if s.normalized == u { // still the same site
-			s.iconPNG, s.iconCustom = got, true
+			s.iconPNG, s.iconCustom, s.iconDoc = got, true, ""
 		}
 	})
 }
 
 // chooseIcon picks a PNG/JPEG/ICNS/ICO file and hands its bytes to set.
 func (a *App) chooseIcon(set func([]byte)) {
+	a.chooseIconDoc(func(b []byte, _ string) { set(b) })
+}
+
+// chooseIconDoc is chooseIcon that also takes Icon Composer documents
+// (.icon): set gets the document's default look and its path.
+func (a *App) chooseIconDoc(set func(png []byte, doc string)) {
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.win, Title: T("create.icon.choose"),
-			Filters: []mygo.FileFilter{{Name: T("create.icon.filter"), Extensions: []string{"png", "jpg", "jpeg", "icns", "ico", "webp"}}}})
+			Filters: []mygo.FileFilter{{Name: T("create.icon.filter"), Extensions: []string{"png", "jpg", "jpeg", "icns", "ico", "webp", "icon"}}}})
 		if err != nil || len(paths) == 0 {
+			return
+		}
+		if mpicons.IsIconComposer(paths[0]) {
+			b, err := mpicons.IconComposerPNG(context.Background(), paths[0])
+			a.win.Update(func() {
+				if err != nil {
+					a.toastErr(fmt.Errorf("%s: %w", filepath.Base(paths[0]), err))
+					return
+				}
+				set(b, paths[0])
+			})
 			return
 		}
 		b, err := os.ReadFile(paths[0])
 		if err != nil {
 			return
 		}
-		a.win.Update(func() { set(b) })
+		a.win.Update(func() { set(b, "") })
 	}()
 }
 

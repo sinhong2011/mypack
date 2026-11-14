@@ -40,7 +40,7 @@ specific website. The Builder injects identity + config:
 
 | Platform | Executable | Config | Icon |
 |---|---|---|---|
-| macOS | `<Name>.app/Contents/MacOS/<Name>` | `Contents/Resources/mypack.json` | `Contents/Resources/AppIcon.icns` + `icon.png` |
+| macOS | `<Name>.app/Contents/MacOS/<Name>` | `Contents/Resources/mypack.json` | `Contents/Resources/AppIcon.icns` + `icon.png` (+ `Assets.car` for Icon Composer icons) |
 | Windows | `<Name>/<Name>.exe` | `<Name>/resources/mypack.json` | `resources/icon.png`, `icon.ico` |
 | Linux | `<Name>/<name>` | `<Name>/resources/mypack.json` | `resources/icon.png` + `.desktop` |
 
@@ -158,6 +158,16 @@ service keeps a styled project's `IconPNG` as the finished icon, so the Library 
 image beneath in `icons/<projectId>.png` beside the DB (`internal/appservice/iconstyle.go`); builds are given that
 image, `UpdateProject` redraws when the style or name changes, and `ProjectIconImage` returns it to the GUI's studio
 (`internal/desktop/app/iconstudio.go`).
+
+## Icon Composer icons
+
+`app.icon.path` may name an Icon Composer document (a `.icon` folder, macOS 26+), picked in the GUI's Choose Icon… or
+written in a mypack.json / Pake `icon`. The macOS assembler compiles it with `xcrun actool` into `Assets.car` and
+`AppIcon.icns` and sets `CFBundleIconName`, so the generated app follows the icon appearance the user picked (Default,
+Dark, Clear, Tinted); older macOS uses the `.icns`. The Library, `icon.png` and the Windows/Linux icons use its default
+look, rendered with Icon Composer's `ictool` (`internal/icons/iconcomposer.go`). It needs Xcode 26+: without it, or
+when an icon studio style is set (the style wins), the build warns and uses the plain picture. Exports and Library sync
+carry only that picture, since the path is local.
 
 ## Runtime registry
 

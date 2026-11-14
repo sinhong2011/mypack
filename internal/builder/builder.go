@@ -115,6 +115,7 @@ type job struct {
 	entry   runtimemanager.Entry
 	hasEnt  bool
 	iconPNG []byte
+	iconCar bool // Contents/Resources/Assets.car holds an Icon Composer icon
 
 	root     string // primary tree root: <Name>.app or <Name>/
 	exePath  string

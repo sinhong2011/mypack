@@ -473,6 +473,30 @@ func (s *Service) SetProjectIcon(ctx context.Context, id string, png []byte, act
 	return out, nil
 }
 
+func (s *Service) SetProjectIconDocument(ctx context.Context, id, path, actor string) (domain.Project, error) {
+	png, err := icons.IconComposerPNG(ctx, path)
+	if err != nil {
+		return domain.Project{}, &domain.Error{Code: appservice.CodeInvalidInput, Message: "The Icon Composer icon could not be read.", Cause: err.Error()}
+	}
+	s.mu.Lock()
+	p, ok := s.projects[id]
+	if !ok {
+		s.mu.Unlock()
+		return domain.Project{}, notFound("The project")
+	}
+	p.Config.App.Icon = config.Icon{Source: "file", Path: path, Style: p.Config.App.Icon.Style}
+	p.IconPNG = png
+	if p.Config.App.Icon.Style != nil {
+		s.restyle(p, png)
+	}
+	p.Revision++
+	p.UpdatedAt = time.Now()
+	out := clone(p)
+	s.mu.Unlock()
+	s.publish(appservice.Event{Kind: appservice.EventProjectChanged, ProjectID: id})
+	return out, nil
+}
+
 func (s *Service) ProjectIconImage(ctx context.Context, id string) ([]byte, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
