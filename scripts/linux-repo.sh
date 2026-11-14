@@ -37,6 +37,10 @@ self_test() {
     echo "linux-repo.sh: release.yml does not publish from linux-repo/" >&2
     return 1
   }
+  grep -F 'repos/${GITHUB_REPOSITORY}/pages' "$workflow" >/dev/null || {
+    echo "linux-repo.sh: release.yml does not enable GitHub Pages" >&2
+    return 1
+  }
 
   tmp=$(mktemp -d)
   trap 'rm -rf "$tmp"' RETURN
