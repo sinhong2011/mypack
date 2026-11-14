@@ -31,9 +31,7 @@ import (
 const (
 	railWidth      = 68
 	railIcon       = 40
-	railTopDarwin  = 40 // room for the traffic lights
-	splitMin       = 0.2
-	dividerWidth   = 6
+	railTopDarwin  = 40  // room for the traffic lights
 	groupSessionID = "." // profileId + "." + member id
 )
 
@@ -62,18 +60,18 @@ type group struct {
 	localSchemes []string
 	localOrigins []string
 
-	mu     sync.Mutex
-	win    *mygo.Window
-	active int
-	split  int // member shown beside the active one, or -1
-	prev   int // the member shown before the active one
-	ratio  float32
+	mu       sync.Mutex
+	win      *mygo.Window
+	active   int
+	split    int     // member shown beside the active one, or -1
+	prev     int     // the member shown before the active one
+	splitPct float32 // first pane share, 0–100
 }
 
 // newGroup prepares the members of cfg's group: a local member's site
 // starts serving here (sessions are made later, on the main thread).
 func (a *App) newGroup() (*group, error) {
-	g := &group{a: a, split: -1, prev: -1, ratio: 0.5}
+	g := &group{a: a, split: -1, prev: -1, splitPct: 50}
 	for i, m := range a.cfg.App.Group.Members {
 		gm := &groupMember{cfg: m, index: len(g.members)}
 		if m.IsLocal() {
@@ -436,8 +434,11 @@ func (g *group) handleIncoming(raw string) bool {
 func (g *group) viewFn(c *ui.Context) {
 	t := c.Theme()
 	g.mu.Lock()
-	active, split, ratio := g.active, g.split, g.ratio
+	active, split, pct := g.active, g.split, g.splitPct
 	g.mu.Unlock()
+	if pct <= 0 || pct > 100 {
+		pct = 50
+	}
 	top := float32(8)
 	if runtime.GOOS == "darwin" && !g.a.menuBarMode() {
 		top = railTopDarwin
@@ -493,18 +494,21 @@ func (g *group) viewFn(c *ui.Context) {
 			col.Children(func() {
 				ui.Box(c.Key("captionstrip")).FillWidth().Height(h).Shrink(0).Background(t.Surface).DragWindow().
 					BorderWidth(0, 0, 1, 0).BorderColor(t.Border)
-				g.drawMembers(c, t, active, split, ratio)
+				g.drawMembers(c, active, split, &pct)
 			})
 			return
 		}
-		g.drawMembers(c, t, active, split, ratio)
+		g.drawMembers(c, active, split, &pct)
 	})
+	g.mu.Lock()
+	g.splitPct = pct
+	g.mu.Unlock()
 	g.a.drawDownloadNotice(c)
 }
 
 // drawMembers draws the shown members: the active one, and the one beside it
 // in a split.
-func (g *group) drawMembers(c *ui.Context, t *ui.Theme, active, split int, ratio float32) {
+func (g *group) drawMembers(c *ui.Context, active, split int, pct *float32) {
 	ui.Box(c.Key("members")).Grow(1).Basis(0).MinWidth(0).MinHeight(0).Row().Gap(0).Children(func() {
 		if active >= len(g.members) || g.members[active].view == nil {
 			ui.Spacer(c)
@@ -514,24 +518,11 @@ func (g *group) drawMembers(c *ui.Context, t *ui.Theme, active, split int, ratio
 			ui.WebView(c, g.members[active].view).Grow(1)
 			return
 		}
-		area := ui.Row(c).Grow(1).FillHeight().Gap(0)
-		area.Children(func() {
-			ui.WebView(c, g.members[active].view).Grow(ratio)
-			div := ui.Box(c.Key("divider")).Width(dividerWidth).FillHeight().Background(t.Border).Cursor(ui.CursorResizeEW).Label("Resize split view")
-			if dx, _, ok := div.Dragged(); ok && dx != 0 {
-				if wdt := area.Bounds().W; wdt > 0 {
-					g.mu.Lock()
-					g.ratio = min(1-splitMin, max(splitMin, g.ratio+dx/wdt))
-					g.mu.Unlock()
-				}
-			}
-			if div.DoubleClicked() {
-				g.mu.Lock()
-				g.ratio = 0.5
-				g.mu.Unlock()
-			}
-			ui.WebView(c, g.members[split].view).Grow(1 - ratio)
-		})
+		ui.SplitPercent(c.Key("split"), pct, func() {
+			ui.WebView(c, g.members[active].view).Fill().MinWidth(0).MinHeight(0)
+		}, func() {
+			ui.WebView(c, g.members[split].view).Fill().MinWidth(0).MinHeight(0)
+		}).SplitReset(50).Grow(1).FillHeight().MinWidth(0).MinHeight(0)
 	})
 }
 

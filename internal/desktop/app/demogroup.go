@@ -58,6 +58,9 @@ func (p *demoPrefs) clamp(n int) {
 	if p.Split == p.Active || p.Split < 0 || p.Split >= n {
 		p.Split = -1
 	}
+	if p.SplitPct <= 0 || p.SplitPct > 100 {
+		p.SplitPct = 50
+	}
 }
 
 func (p *demoPrefs) show(i, n int) {
@@ -242,17 +245,18 @@ func (a *App) demoGroupMembers(c *ui.Context, d demoLaunch, members []config.Gro
 			a.demoMemberPane(c.Key("main"), d, members[active])
 			return
 		}
-		a.demoMemberPane(c.Key("left"), d, members[active])
-		p := design.Of(c)
-		ui.Box(c).Width(6).FillHeight().Background(p.Divider)
-		a.demoMemberPane(c.Key("right"), d, members[split])
+		ui.SplitPercent(c.Key("split"), &pref.SplitPct, func() {
+			a.demoMemberPane(c.Key("left"), d, members[active])
+		}, func() {
+			a.demoMemberPane(c.Key("right"), d, members[split])
+		}).SplitReset(50).Grow(1).FillHeight().MinWidth(0).MinHeight(0)
 	})
 }
 
 func (a *App) demoMemberPane(c *ui.Context, d demoLaunch, m config.GroupMember) {
 	p := design.Of(c)
 	home := memberHome(m)
-	ui.Column(c).Grow(1).FillHeight().MinWidth(0).Background(p.CanvasBot).Center().Gap(14).Padding(28).Children(func() {
+	ui.Column(c).Grow(1).Fill().MinWidth(0).MinHeight(0).Background(p.CanvasBot).Center().Gap(14).Padding(28).Children(func() {
 		kit.AppIconOpts(c, a.memberIcon(m), m.Name, 72, kit.IconOpts{Shadow: true})
 		kit.LargeTitle(c, m.Name)
 		if home != "" {

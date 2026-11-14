@@ -15,7 +15,7 @@ import (
 // Settings. DownloadDir starts from the project or MyPack default and
 // can be changed here. Active and Split are a group window's rail
 // (which site shows, and which sits beside it); Split is -1 when the
-// window is not split.
+// window is not split. SplitPct is the first pane's share (0–100).
 type demoPrefs struct {
 	Title          string
 	AlwaysOnTop    bool
@@ -24,6 +24,7 @@ type demoPrefs struct {
 	DownloadDir    string
 	Active         int
 	Split          int
+	SplitPct       float32
 }
 
 func (a *App) prefsFor(d demoLaunch) *demoPrefs {
@@ -32,7 +33,7 @@ func (a *App) prefsFor(d demoLaunch) *demoPrefs {
 	}
 	p := a.demoPrefs[d.key]
 	if p == nil {
-		p = &demoPrefs{Split: -1}
+		p = &demoPrefs{Split: -1, SplitPct: 50}
 		if d.cfg != nil {
 			p.Title = d.cfg.App.Title
 			p.AlwaysOnTop = d.cfg.Window.AlwaysOnTop

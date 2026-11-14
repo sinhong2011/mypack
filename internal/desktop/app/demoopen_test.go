@@ -110,6 +110,14 @@ func TestDemoFromInstallGroup(t *testing.T) {
 	if p.Split != 0 {
 		t.Fatalf("split with %d", p.Split)
 	}
+	if p.SplitPct != 50 {
+		t.Fatalf("split starts even: %v", p.SplitPct)
+	}
+	p.SplitPct = 0
+	p.clamp(3)
+	if p.SplitPct != 50 {
+		t.Fatalf("empty split share resets: %v", p.SplitPct)
+	}
 	p.show(0, 3) // picking the beside site swaps
 	if p.Active != 0 || p.Split != 2 {
 		t.Fatalf("swap active=%d split=%d", p.Active, p.Split)

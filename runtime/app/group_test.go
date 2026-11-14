@@ -132,6 +132,9 @@ func TestGroupSwitchAndSplit(t *testing.T) {
 	if g.active != 2 {
 		t.Fatalf("step back wraps: %d", g.active)
 	}
+	if g.splitPct != 50 {
+		t.Fatalf("split starts even: %v", g.splitPct)
+	}
 }
 
 func TestBadgeSum(t *testing.T) {
