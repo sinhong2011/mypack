@@ -23,10 +23,14 @@ type GroupRequest struct {
 
 // GroupSite is one website of a new group: a Library project, an address
 // (its name and icon are fetched), or a local folder or HTML file (Path).
+// The same site may come more than once: each is a member with its own
+// session, for using several accounts side by side. Name, when set, names
+// the member (an account label such as "Work").
 type GroupSite struct {
 	ProjectID string
 	URL       string
 	Path      string
+	Name      string
 }
 
 // CreateGroup creates a group project: one app whose window shows the
@@ -48,7 +52,7 @@ func (s *Impl) CreateGroup(ctx context.Context, req GroupRequest) (p domain.Proj
 		members []config.GroupMember
 		pngs    [][]byte
 		taken   = map[string]bool{}
-		seen    = map[string]bool{}
+		fetched = map[string]*Metadata{} // an address that comes again is fetched once
 	)
 	for _, site := range req.Sites {
 		var (
@@ -61,17 +65,7 @@ func (s *Impl) CreateGroup(ctx context.Context, req GroupRequest) (p domain.Proj
 				return p, lerr
 			}
 			m, png = lm, s.icons.Default(lm.Name)
-			if seen[m.Local] {
-				continue
-			}
-			seen[m.Local] = true
-			m.ID = config.MemberID(m.Name, taken)
-			taken[m.ID] = true
-			members = append(members, m)
-			pngs = append(pngs, png)
-			continue
-		}
-		if site.ProjectID != "" {
+		} else if site.ProjectID != "" {
 			mp, gerr := s.store.GetProject(ctx, site.ProjectID)
 			if gerr != nil {
 				return p, gerr
@@ -102,19 +96,28 @@ func (s *Impl) CreateGroup(ctx context.Context, req GroupRequest) (p domain.Proj
 				return p, &domain.Error{Code: CodeInvalidInput, Field: "sites", Message: fmt.Sprintf("%q is not a website address.", site.URL),
 					Remediation: "Enter addresses such as slack.com."}
 			}
-			mctx, cancel := context.WithTimeout(ctx, 12*time.Second)
-			md, ferr := s.FetchMetadata(mctx, u)
-			cancel()
+			md, ok := fetched[u]
+			if !ok {
+				mctx, cancel := context.WithTimeout(ctx, 12*time.Second)
+				got, ferr := s.FetchMetadata(mctx, u)
+				cancel()
+				if ferr == nil {
+					md = &got
+				}
+				fetched[u] = md
+			}
 			title := ""
-			if ferr == nil {
+			if md != nil {
 				title, png = md.Title, md.IconPNG
 			}
 			m = config.GroupMember{Name: firstNonEmpty(cleanName(title), cleanName(titleFromHost(u))), URL: u}
 		}
-		if seen[m.URL+m.Local] {
-			continue
+		// A site that comes again is another account of it: its own
+		// member, numbered unless the request names it.
+		if n := cleanName(site.Name); n != "" {
+			m.Name = n
 		}
-		seen[m.URL+m.Local] = true
+		m.Name = config.RepeatName(m.Name, members)
 		m.ID = config.MemberID(m.Name, taken)
 		taken[m.ID] = true
 		members = append(members, m)
@@ -122,7 +125,7 @@ func (s *Impl) CreateGroup(ctx context.Context, req GroupRequest) (p domain.Proj
 	}
 	if len(members) < config.MinGroupMembers {
 		return p, &domain.Error{Code: CodeInvalidInput, Field: "projectIds",
-			Message: fmt.Sprintf("Add at least %d different websites.", config.MinGroupMembers)}
+			Message: fmt.Sprintf("Add at least %d websites.", config.MinGroupMembers)}
 	}
 	// The project's source: its first website, else its first folder.
 	input := ""

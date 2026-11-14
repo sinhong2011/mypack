@@ -1487,6 +1487,10 @@ func (s *Service) CreateGroup(ctx context.Context, req appservice.GroupRequest) 
 			m = config.GroupMember{Name: name, URL: u}
 			png = demoIcon(name)
 		}
+		if n := strings.TrimSpace(site.Name); n != "" {
+			m.Name = n
+		}
+		m.Name = config.RepeatName(m.Name, members)
 		m.ID = config.MemberID(m.Name, taken)
 		taken[m.ID] = true
 		members = append(members, m)

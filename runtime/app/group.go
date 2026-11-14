@@ -324,21 +324,45 @@ func (g *group) ownerOf(raw string, from *groupMember) *groupMember {
 	if from != nil && (host == from.host || (from.reg != "" && reg == from.reg && !g.exactOther(host, from))) {
 		return nil
 	}
+	var exact []*groupMember
 	for _, m := range g.members {
 		if m != from && m.host == host {
-			return m
+			exact = append(exact, m)
 		}
+	}
+	if len(exact) > 0 {
+		// The same site in the group more than once is several accounts
+		// of it: the one shown wins, else the first.
+		return g.preferShown(exact)
 	}
 	var found *groupMember
 	for _, m := range g.members {
 		if m != from && m.reg == reg {
-			if found != nil {
+			if found != nil && found.home != m.home {
 				return nil // ambiguous: stay where the link was clicked
 			}
-			found = m
+			if found == nil {
+				found = m
+			} else {
+				found = g.preferShown([]*groupMember{found, m})
+			}
 		}
 	}
 	return found
+}
+
+// preferShown picks the shown member among ms (accounts of one site),
+// else the first.
+func (g *group) preferShown(ms []*groupMember) *groupMember {
+	g.mu.Lock()
+	active := g.active
+	g.mu.Unlock()
+	for _, m := range ms {
+		if m.index == active {
+			return m
+		}
+	}
+	return ms[0]
 }
 
 func (g *group) exactOther(host string, from *groupMember) bool {

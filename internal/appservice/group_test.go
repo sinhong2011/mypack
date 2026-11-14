@@ -50,8 +50,15 @@ func TestCreateGroup(t *testing.T) {
 	if _, err := e.svc.CreateGroup(ctx, GroupRequest{Name: "X", Sites: sites(g.ID, ids[0])}); err == nil {
 		t.Fatal("a group joined a group")
 	}
-	if _, err := e.svc.CreateGroup(ctx, GroupRequest{Name: "X", Sites: sites(ids[0], ids[0])}); err == nil {
-		t.Fatal("the same website twice made a group")
+	// The same website twice is two accounts of it, each its own member.
+	two, err := e.svc.CreateGroup(ctx, GroupRequest{Name: "Two Slacks", Sites: sites(ids[0], ids[0])})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tm := two.Config.App.Group.Members; len(tm) != 2 || tm[0].ID == tm[1].ID || tm[1].Name != "Slack 2" {
+		t.Fatalf("two accounts of one site: %+v", tm)
+	} else if err := two.Config.Validate(); err != nil {
+		t.Fatal(err)
 	}
 	if _, err := e.svc.CreateGroup(ctx, GroupRequest{Name: " ", Sites: sites(ids...)}); err == nil {
 		t.Fatal("an unnamed group was made")
@@ -80,11 +87,24 @@ func TestCreateGroupFromAddresses(t *testing.T) {
 		t.Fatal(err)
 	}
 	m := g.Config.App.Group.Members
-	if len(m) != 3 || m[0].URL != "https://discord.example.com/" || m[1].ProjectID != p.ID || m[2].ProjectID != "" {
-		t.Fatalf("members (a repeated address is dropped): %+v", m)
+	// A repeated address is another account of the site: its own member
+	// (and session), numbered.
+	if len(m) != 4 || m[0].URL != "https://discord.example.com/" || m[1].ProjectID != p.ID ||
+		m[2].URL != m[0].URL || m[2].ID == m[0].ID || m[2].Name != m[0].Name+" 2" || m[3].ProjectID != "" {
+		t.Fatalf("members: %+v", m)
 	}
 	if m[0].Name == "" || m[0].ID == "" {
 		t.Fatalf("an address member needs a name and id: %+v", m[0])
+	}
+	acc, err := e.svc.CreateGroup(ctx, GroupRequest{Name: "Accounts", Sites: []GroupSite{
+		{URL: "chat.example.com", Name: "Work"}, {URL: "chat.example.com", Name: "Home"}, {URL: "chat.example.com"},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	am := acc.Config.App.Group.Members
+	if len(am) != 3 || am[0].Name != "Work" || am[1].Name != "Home" || am[0].ID == am[1].ID || am[1].ID == am[2].ID {
+		t.Fatalf("accounts of one site: %+v", am)
 	}
 	if _, err := e.svc.CreateGroup(ctx, GroupRequest{Name: "X", Sites: []GroupSite{{URL: "not a url"}, {URL: "a.example.com"}}}); err == nil {
 		t.Fatal("a bad address was accepted")

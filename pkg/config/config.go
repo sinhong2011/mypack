@@ -121,6 +121,21 @@ func MemberID(name string, taken map[string]bool) string {
 	return id
 }
 
+// RepeatName is the name a member joining members gets: name itself, or,
+// when a member already has it (the same site again, for another
+// account), "name 2", "name 3" and so on.
+func RepeatName(name string, members []GroupMember) string {
+	taken := map[string]bool{}
+	for _, m := range members {
+		taken[strings.ToLower(strings.TrimSpace(m.Name))] = true
+	}
+	out := name
+	for i := 2; taken[strings.ToLower(out)]; i++ {
+		out = fmt.Sprintf("%s %d", name, i)
+	}
+	return out
+}
+
 // SourceType is url, file or dir.
 type SourceType string
 
