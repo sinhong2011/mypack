@@ -106,11 +106,18 @@ func (a *App) launchDemo(d demoLaunch) {
 		if w := a.demoApps[d.key]; w != nil && !w.IsDestroyed() {
 			w.Show()
 			w.Focus()
-			_ = openSiteApp(d.url)
+			if !d.isGroup() {
+				_ = openSiteApp(d.url)
+			}
 			return
 		}
 	}
 	a.openDemoWindow(d)
+	// A group is its own window (a rail of sites). Opening the first
+	// member in Chrome would look like a single-site app.
+	if d.isGroup() {
+		return
+	}
 	if err := openSiteApp(d.url); err != nil && d.url != "" {
 		a.toastErr(err)
 	}
@@ -133,12 +140,17 @@ func (a *App) openDemoWindow(d demoLaunch) {
 	if title == "" {
 		title = state.name
 	}
-	win := mygo.NewWindow(mygo.WindowOptions{
+	opts := mygo.WindowOptions{
 		Title: title, Width: w, Height: h, MinWidth: 480, MinHeight: 360,
 		AlwaysOnTop:     pref.AlwaysOnTop,
 		BackgroundColor: "light-dark(#efefeb, #141415)",
 		Content:         ui.View(func(c *ui.Context) { a.demoAppView(c, state) }),
-	})
+	}
+	if state.isGroup() {
+		opts.TitleBarStyle = mygo.TitleBarHidden
+		opts.HideWindowButtons = ownWindowButtons
+	}
+	win := mygo.NewWindow(opts)
 	setWindowIcon(win, state.icon)
 	menu := a.demoAppMenu(state)
 	win.SetMenu(menu)
@@ -156,6 +168,10 @@ func (a *App) openDemoWindow(d demoLaunch) {
 }
 
 func (a *App) demoAppView(c *ui.Context, d demoLaunch) {
+	if d.isGroup() {
+		a.demoGroupView(c, d)
+		return
+	}
 	p := design.Of(c)
 	design.Apply(c)
 	ui.Column(c).Fill().Background(p.CanvasBot).Center().Gap(18).Padding(40).Children(func() {

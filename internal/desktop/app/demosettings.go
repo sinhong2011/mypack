@@ -13,11 +13,15 @@ import (
 
 // demoPrefs is this built app's Settings overlay. It is not MyPack's
 // Settings. Download folder is not here: that is baked when MyPack builds.
+// Active and Split are a group window's rail (which site shows, and which
+// sits beside it); Split is -1 when the window is not split.
 type demoPrefs struct {
 	Title          string
 	AlwaysOnTop    bool
 	HideOnClose    bool
 	GlobalShortcut string
+	Active         int
+	Split          int
 }
 
 func (a *App) prefsFor(d demoLaunch) *demoPrefs {
@@ -26,7 +30,7 @@ func (a *App) prefsFor(d demoLaunch) *demoPrefs {
 	}
 	p := a.demoPrefs[d.key]
 	if p == nil {
-		p = &demoPrefs{}
+		p = &demoPrefs{Split: -1}
 		if d.cfg != nil {
 			p.Title = d.cfg.App.Title
 			p.AlwaysOnTop = d.cfg.Window.AlwaysOnTop
@@ -72,12 +76,16 @@ func (a *App) demoAppMenu(d demoLaunch) *mygo.Menu {
 	if runtime.GOOS == "darwin" {
 		file = file[2:] // Settings lives in the app menu
 	}
-	return mygo.NewMenu([]*mygo.MenuItem{
+	items := []*mygo.MenuItem{
 		{Label: name, Submenu: appItems},
 		{Label: T("menu.file"), Submenu: file},
 		{Role: mygo.RoleEditMenu},
-		{Role: mygo.RoleWindowMenu},
-	})
+	}
+	if d.isGroup() {
+		items = append(items, a.demoGroupViewMenu(d))
+	}
+	items = append(items, &mygo.MenuItem{Role: mygo.RoleWindowMenu})
+	return mygo.NewMenu(items)
 }
 
 func (a *App) openDemoSettings(d demoLaunch) {
@@ -91,10 +99,14 @@ func (a *App) openDemoSettings(d demoLaunch) {
 	}
 	state := d
 	title := T("demo.settings.title", "name", d.name)
+	h := 560
+	if d.isGroup() {
+		h = 680
+	}
 	win := mygo.NewWindow(mygo.WindowOptions{
 		Title:             title,
 		Width:             640,
-		Height:            560,
+		Height:            h,
 		MinWidth:          480,
 		MinHeight:         400,
 		TitleBarStyle:     mygo.TitleBarHidden,
@@ -151,6 +163,13 @@ func (a *App) demoSettingsView(c *ui.Context, d demoLaunch) {
 						in.Width(220)
 					})
 				})
+				if d.isGroup() {
+					kit.GroupWith(c, T("sites.title"), T("demo.sites.rebuild"), func() {
+						for _, m := range d.members() {
+							kit.SettingRow(c.Key("site-"+m.ID), m.Name, memberHome(m), nil)
+						}
+					})
+				}
 				kit.Group(c, T("set.downloads"), func() {
 					path := a.demoDownloadDir(d)
 					kit.SettingRow(c, T("set.downloads"), "", func() {

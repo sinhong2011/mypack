@@ -175,6 +175,53 @@ func TestSettingsHTMLHasPanes(t *testing.T) {
 	}
 }
 
+func TestSettingsHTMLHasGroupSites(t *testing.T) {
+	html := settingsHTML(settingsBoot{
+		Name: "Workspace", Version: "1.0.0", Identifier: "app.mypack.workspace",
+		Group: []settingsGroupSite{
+			{ID: "linear", Name: "Linear", URL: "https://linear.app/"},
+			{ID: "notion", Name: "Notion", URL: "https://www.notion.so/"},
+		},
+		settingsForm: settingsForm{
+			Window: config.WindowConfig{Width: 1200, Height: 780, Zoom: 100, Tabs: true},
+			Native: settingsNativeForm{Notifications: "allow", Badge: "auto", LinkRouting: true},
+			WebView: settingsWebViewForm{UserAgentPreset: "safari", ExternalByDefault: true,
+				Blocking: &config.BlockingConfig{}},
+		},
+	})
+	for _, s := range []string{"Sites", "Linear", "https://linear.app/", "Add, remove or reorder", "icon rail"} {
+		if !strings.Contains(html, s) {
+			t.Errorf("missing %q", s)
+		}
+	}
+}
+
+func TestSettingsBootIncludesGroup(t *testing.T) {
+	cfg := samplePrefsConfig()
+	cfg.Window.Tabs = true
+	cfg.App.Group = &config.GroupConfig{Members: []config.GroupMember{
+		{ID: "linear", Name: "Linear", URL: "https://linear.app/"},
+		{ID: "notion", Name: "Notion", URL: "https://www.notion.so/"},
+	}}
+	a := &App{cfg: cfg, prefsDir: t.TempDir()}
+	b := a.settingsBoot("")
+	if len(b.Group) != 2 || b.Group[0].Name != "Linear" || b.Window.Tabs {
+		t.Fatalf("%+v tabs=%v", b.Group, b.Window.Tabs)
+	}
+	var next, tabs bool
+	for _, s := range b.Shortcuts {
+		if s.ID == "nextSite" {
+			next = true
+		}
+		if s.ID == "newTab" {
+			tabs = true
+		}
+	}
+	if !next || tabs {
+		t.Fatalf("shortcuts next=%v tabs=%v", next, tabs)
+	}
+}
+
 func TestSettingsNeedReloadAndRestart(t *testing.T) {
 	a := samplePrefsConfig()
 	b := a.Clone()

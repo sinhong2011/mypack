@@ -14,7 +14,7 @@ import (
 // shortcut in this app's Settings.
 func (a *App) acc(s string) string {
 	if a.cfg != nil {
-		for _, d := range runtimeShortcutDefs() {
+		for _, d := range a.shortcutList() {
 			if d.Def == s {
 				s = a.shortcutAccel(d)
 				break

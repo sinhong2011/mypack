@@ -30,6 +30,31 @@ func testGroup(t *testing.T, urls ...string) *group {
 	return g
 }
 
+func TestGroupMenuItemsUsesRemappedAcc(t *testing.T) {
+	g := testGroup(t, "https://a.example", "https://b.example")
+	g.a.group = g
+	g.a.cfg.Native.Shortcuts = map[string]string{"nextSite": "Alt+Tab", "split": ""}
+	items := g.a.groupMenuItems()
+	var next, split string
+	for _, it := range items {
+		if it == nil {
+			continue
+		}
+		switch it.Label {
+		case "Next Site":
+			next = it.Accelerator
+		case "Toggle Split View":
+			split = it.Accelerator
+		}
+	}
+	if next != "Alt+Tab" {
+		t.Fatalf("next %q", next)
+	}
+	if split != "" {
+		t.Fatalf("split off got %q", split)
+	}
+}
+
 func TestGroupOwnerOf(t *testing.T) {
 	g := testGroup(t, "https://app.slack.com", "https://mail.google.com", "https://calendar.google.com", "https://linear.app")
 	slack, gmail, cal, linear := g.members[0], g.members[1], g.members[2], g.members[3]

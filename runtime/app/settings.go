@@ -60,16 +60,24 @@ type settingsNativeForm struct {
 
 type settingsBoot struct {
 	settingsForm
-	Name        string         `json:"name"`
-	Version     string         `json:"version"`
-	Identifier  string         `json:"identifier"`
-	ProfileID   string         `json:"profileId"`
-	ProfileDir  string         `json:"profileDir"`
-	DownloadDir string         `json:"downloadDir"`
-	Lite        bool           `json:"lite"`
-	MenuBar     bool           `json:"menuBar"`
-	RestartHint string         `json:"restartHint"`
-	Shortcuts   []shortcutBoot `json:"shortcuts"`
+	Name        string              `json:"name"`
+	Version     string              `json:"version"`
+	Identifier  string              `json:"identifier"`
+	ProfileID   string              `json:"profileId"`
+	ProfileDir  string              `json:"profileDir"`
+	DownloadDir string              `json:"downloadDir"`
+	Lite        bool                `json:"lite"`
+	MenuBar     bool                `json:"menuBar"`
+	RestartHint string              `json:"restartHint"`
+	Shortcuts   []shortcutBoot      `json:"shortcuts"`
+	Group       []settingsGroupSite `json:"group,omitempty"`
+}
+
+// settingsGroupSite is one member listed in Settings → Sites (read-only).
+type settingsGroupSite struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	URL  string `json:"url"`
 }
 
 func (a *App) openSettings() {
@@ -178,6 +186,16 @@ func (a *App) settingsBoot(restartHint string) settingsBoot {
 	}
 	if b.WebView.Blocking == nil {
 		b.WebView.Blocking = &config.BlockingConfig{}
+	}
+	if cfg.IsGroup() {
+		b.Window.Tabs = false
+		for _, m := range cfg.App.Group.Members {
+			url := m.URL
+			if m.IsLocal() {
+				url = m.Local
+			}
+			b.Group = append(b.Group, settingsGroupSite{ID: m.ID, Name: m.Name, URL: url})
+		}
 	}
 	return b
 }
@@ -339,6 +357,9 @@ func applySettingsForm(cfg *config.Config, f settingsForm) error {
 		cfg.Window.Mode = w.Mode
 	}
 	cfg.Window.Tabs = w.Tabs
+	if cfg.IsGroup() {
+		cfg.Window.Tabs = false
+	}
 	cfg.Window.SidebarEdge = w.SidebarEdge
 	cfg.Window.SidebarAutoHide = w.SidebarAutoHide
 	cfg.Window.PanelWidth, cfg.Window.PanelHeight = w.PanelWidth, w.PanelHeight

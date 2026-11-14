@@ -34,7 +34,32 @@ func runtimeShortcutDefs() []runtimeShortcut {
 		{ID: "layoutWindow", Label: "Window", Group: view, Def: "CmdOrCtrl+Alt+W"},
 		{ID: "layoutCompact", Label: "Compact Window", Group: view, Def: "CmdOrCtrl+Alt+P"},
 		{ID: "layoutSidebar", Label: "Sidebar", Group: view, Def: "CmdOrCtrl+Alt+S"},
+		{ID: "nextSite", Label: "Next Site", Group: view, Def: "Ctrl+Tab"},
+		{ID: "prevSite", Label: "Previous Site", Group: view, Def: "Ctrl+Shift+Tab"},
+		{ID: "split", Label: "Toggle Split View", Group: view, Def: "CmdOrCtrl+\\"},
 	}
+}
+
+// shortcutList is the shortcuts this app's Settings shows: tabs only when
+// the window uses them, group site keys only on a group.
+func (a *App) shortcutList() []runtimeShortcut {
+	group := a != nil && a.cfg != nil && a.cfg.IsGroup()
+	tabs := a != nil && a.cfg != nil && a.cfg.Window.Tabs && !group
+	out := make([]runtimeShortcut, 0, 24)
+	for _, d := range runtimeShortcutDefs() {
+		switch d.ID {
+		case "newTab", "closeTab":
+			if !tabs {
+				continue
+			}
+		case "nextSite", "prevSite", "split":
+			if !group {
+				continue
+			}
+		}
+		out = append(out, d)
+	}
+	return out
 }
 
 func (a *App) shortcutAccel(d runtimeShortcut) string {
@@ -53,8 +78,9 @@ func (a *App) shortcutAccel(d runtimeShortcut) string {
 }
 
 func (a *App) shortcutsBoot() []shortcutBoot {
-	out := make([]shortcutBoot, 0, len(runtimeShortcutDefs()))
-	for _, d := range runtimeShortcutDefs() {
+	list := a.shortcutList()
+	out := make([]shortcutBoot, 0, len(list))
+	for _, d := range list {
 		out = append(out, shortcutBoot{
 			ID: d.ID, Label: d.Label, Group: d.Group, Def: d.Def, Value: a.shortcutAccel(d),
 		})
