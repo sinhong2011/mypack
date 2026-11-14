@@ -88,6 +88,17 @@ type badgeController struct {
 	stop  func()
 }
 
+func (c *badgeController) setAuto(on bool) {
+	c.auto = on
+	if !on {
+		c.mu.Lock()
+		c.applyLocked("")
+		c.mu.Unlock()
+		return
+	}
+	c.refresh()
+}
+
 func newBadgeController(auto bool, set func(string)) *badgeController {
 	return &badgeController{
 		auto: auto, set: set, minGap: 400 * time.Millisecond, now: time.Now,

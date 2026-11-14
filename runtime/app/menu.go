@@ -30,7 +30,13 @@ func (a *App) buildMenu() *mygo.Menu {
 	}
 	zoomIn := func(*mygo.MenuItem, *mygo.Window) { a.setZoom(+10, false) }
 
+	settingsItem := &mygo.MenuItem{Label: "Settings…", Accelerator: a.acc("CmdOrCtrl+,"),
+		Click: func(*mygo.MenuItem, *mygo.Window) { a.openSettings() }}
+
 	file := []*mygo.MenuItem{}
+	if runtime.GOOS != "darwin" {
+		file = append(file, settingsItem, mygo.Separator())
+	}
 	if a.cfg.Window.MultiWindow {
 		file = append(file, &mygo.MenuItem{Label: "New Window", Accelerator: a.acc("CmdOrCtrl+N"),
 			Click: func(*mygo.MenuItem, *mygo.Window) { a.newWindow() }})
@@ -97,13 +103,30 @@ func (a *App) buildMenu() *mygo.Menu {
 			Click: click(func(_ *mygo.Window, p *mygo.Page) { p.ToggleDevTools() })})
 	}
 
-	items := []*mygo.MenuItem{
-		{Role: mygo.RoleAppMenu},
-		{Label: "File", Submenu: file},
-		{Label: "Edit", Submenu: edit},
-		{Label: "View", Submenu: view},
-		{Role: mygo.RoleWindowMenu},
+	items := []*mygo.MenuItem{}
+	if runtime.GOOS == "darwin" {
+		items = append(items, &mygo.MenuItem{Label: a.cfg.App.Name, Submenu: []*mygo.MenuItem{
+			{Role: mygo.RoleAbout},
+			mygo.Separator(),
+			settingsItem,
+			mygo.Separator(),
+			{Role: mygo.RoleServices},
+			mygo.Separator(),
+			{Role: mygo.RoleHide},
+			{Role: mygo.RoleHideOthers},
+			{Role: mygo.RoleUnhide},
+			mygo.Separator(),
+			{Role: mygo.RoleQuit},
+		}})
+	} else {
+		items = append(items, &mygo.MenuItem{Role: mygo.RoleAppMenu})
 	}
+	items = append(items,
+		&mygo.MenuItem{Label: "File", Submenu: file},
+		&mygo.MenuItem{Label: "Edit", Submenu: edit},
+		&mygo.MenuItem{Label: "View", Submenu: view},
+		&mygo.MenuItem{Role: mygo.RoleWindowMenu},
+	)
 	return mygo.NewMenu(items)
 }
 
@@ -113,16 +136,7 @@ func (a *App) createTray() bool {
 	if !ok {
 		return false
 	}
-	menu := mygo.NewMenu([]*mygo.MenuItem{
-		{Label: "Show / Hide", Click: func(*mygo.MenuItem, *mygo.Window) { a.toggleMain() }},
-		{Label: "Reload", Click: func(*mygo.MenuItem, *mygo.Window) {
-			if _, p := a.pageFor(nil); p != nil {
-				p.Reload()
-			}
-		}},
-		mygo.Separator(),
-		{Role: mygo.RoleQuit},
-	})
+	menu := a.trayMenu()
 	t, err := mygo.NewTray(mygo.TrayOptions{ID: a.cfg.App.Identifier, Icon: b, ToolTip: a.title(), Menu: menu})
 	if err != nil {
 		log.Printf("mypack-runtime: tray: %v", err)
@@ -147,4 +161,18 @@ func (a *App) trayIconPNG() ([]byte, bool) {
 		return nil, false
 	}
 	return b, true
+}
+
+func (a *App) trayMenu() *mygo.Menu {
+	return mygo.NewMenu([]*mygo.MenuItem{
+		{Label: "Show / Hide", Click: func(*mygo.MenuItem, *mygo.Window) { a.toggleMain() }},
+		{Label: "Settings…", Click: func(*mygo.MenuItem, *mygo.Window) { a.openSettings() }},
+		{Label: "Reload", Click: func(*mygo.MenuItem, *mygo.Window) {
+			if _, p := a.pageFor(nil); p != nil {
+				p.Reload()
+			}
+		}},
+		mygo.Separator(),
+		{Role: mygo.RoleQuit},
+	})
 }
