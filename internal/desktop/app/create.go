@@ -72,10 +72,26 @@ type createSite struct {
 	projectID string
 	local     string // a folder or HTML file
 	name      string
+	seq       int // tells apart copies of one site (several accounts)
 }
 
+// createSeq numbers the sites added in Create (main thread).
+var createSeq int
+
 // key identifies the site in the list.
-func (x createSite) key() string { return x.url + x.local }
+func (x createSite) key() string {
+	if x.seq > 0 {
+		return itoa(x.seq)
+	}
+	return x.url + x.local
+}
+
+// newCreateSite is x, numbered for the list.
+func newCreateSite(x createSite) createSite {
+	createSeq++
+	x.seq = createSeq
+	return x
+}
 
 // isGroup reports whether the app being created is a group of sites.
 func (s *createState) isGroup() bool { return len(s.more) > 0 }

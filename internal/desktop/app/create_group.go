@@ -13,7 +13,6 @@ import (
 	"mypack.dev/mypack/internal/desktop/design"
 	"mypack.dev/mypack/internal/desktop/kit"
 	"mypack.dev/mypack/internal/desktop/kit/icons"
-	"mypack.dev/mypack/internal/domain"
 	mpicons "mypack.dev/mypack/internal/icons"
 	"mypack.dev/mypack/pkg/config"
 )
@@ -40,7 +39,7 @@ func (a *App) createSites(c *ui.Context) {
 				for i := range s.more {
 					i := i
 					site := s.more[i]
-					a.siteChip(c.Key("m-"+site.key()), a.siteIcon(site), site.name, func() {
+					a.siteChip(c.Key("m-"+site.key()), a.siteIcon(site), a.createSiteName(i), func() {
 						s.more = append(s.more[:i:i], s.more[i+1:]...)
 						a.syncCreateGroup()
 					})
@@ -112,21 +111,13 @@ func (a *App) addSiteButton(c *ui.Context, p *design.Palette) {
 		if m.Item(T("create.addSite.file")).Chosen() {
 			a.pickLocalSite(false, a.addCreateLocal)
 		}
-		have := map[string]bool{s.normalized: true, s.local: true}
-		for _, x := range s.more {
-			have[x.url], have[x.local] = true, true
-		}
-		var cands []*domain.Project
-		for _, pr := range a.groupCandidates() {
-			if !have[pr.Config.App.Source.Value] {
-				cands = append(cands, pr)
-			}
-		}
+		// A site already in the app can come again: another account of it.
+		cands := a.groupCandidates()
 		if len(cands) > 0 {
 			m.Separator()
 			for _, pr := range cands {
 				if m.Item(pr.Config.App.Name).Chosen() {
-					x := createSite{projectID: pr.ID, name: pr.Config.App.Name}
+					x := newCreateSite(createSite{projectID: pr.ID, name: pr.Config.App.Name})
 					if pr.Config.App.Source.Type == config.SourceURL {
 						x.url = pr.Config.App.Source.Value
 					} else {
@@ -148,17 +139,17 @@ func (a *App) addCreateURL(raw string) {
 		a.toast(T("group.badURL"), "", 2)
 		return
 	}
+	// The same address again is another account of the site.
+	name := titleForURL(u)
 	if u == s.normalized {
-		s.addingAddr, s.moreAddr = false, ""
-		return
+		name = s.mainName()
 	}
 	for _, x := range s.more {
 		if x.url == u {
-			s.addingAddr, s.moreAddr = false, ""
-			return
+			name = x.name
 		}
 	}
-	s.more = append(s.more, createSite{url: u, name: titleForURL(u)})
+	s.more = append(s.more, newCreateSite(createSite{url: u, name: name}))
 	s.addingAddr, s.moreAddr = false, ""
 	a.syncCreateGroup()
 	go func() {
@@ -188,15 +179,7 @@ func (a *App) addCreateURL(raw string) {
 // addCreateLocal adds a local folder or HTML file to the app being made.
 func (a *App) addCreateLocal(path string) {
 	s := &a.create
-	if path == s.local {
-		return
-	}
-	for _, x := range s.more {
-		if x.local == path {
-			return
-		}
-	}
-	s.more = append(s.more, createSite{local: path, name: localName(path)})
+	s.more = append(s.more, newCreateSite(createSite{local: path, name: localName(path)}))
 	a.syncCreateGroup()
 }
 
@@ -313,12 +296,23 @@ func (a *App) syncCreateGroup() {
 	taken[main.ID] = true
 	g := &config.GroupConfig{Members: []config.GroupMember{main}}
 	for _, x := range s.more {
-		m := config.GroupMember{Name: x.name, URL: x.url, Local: x.local, ProjectID: x.projectID}
+		// A site in twice gets "Name 2", as the app it builds will.
+		m := config.GroupMember{Name: config.RepeatName(x.name, g.Members), URL: x.url, Local: x.local, ProjectID: x.projectID}
 		m.ID = config.MemberID(m.Name, taken)
 		taken[m.ID] = true
 		g.Members = append(g.Members, m)
 	}
 	cfg.App.Group = g
+}
+
+// createSiteName is the name of added site i as the group has it
+// (numbered when the site is in more than once).
+func (a *App) createSiteName(i int) string {
+	s := &a.create
+	if g := a.ensureCfg().App.Group; g != nil && i+1 < len(g.Members) {
+		return g.Members[i+1].Name
+	}
+	return s.more[i].name
 }
 
 // groupSites is the request's site list: the first site, then the added.

@@ -28,6 +28,27 @@ func testGroup(t *testing.T, urls ...string) *group {
 	return g
 }
 
+// The same site more than once is several accounts of it: a link to it
+// stays in the account it was clicked in, and a link from elsewhere goes
+// to the account shown, else the first.
+func TestGroupOwnerOfAccounts(t *testing.T) {
+	g := testGroup(t, "https://chatgpt.com", "https://chatgpt.com", "https://chatgpt.com", "https://linear.app")
+	work, home, third, linear := g.members[0], g.members[1], g.members[2], g.members[3]
+	if got := g.ownerOf("https://chatgpt.com/c/1", home); got != nil {
+		t.Fatalf("a link in an account left it for %s", got.cfg.ID)
+	}
+	if got := g.ownerOf("https://chatgpt.com/c/1", linear); got != work {
+		t.Fatalf("from another site: got %v, want the first account", got)
+	}
+	g.active = third.index
+	if got := g.ownerOf("https://chatgpt.com/c/1", nil); got != third {
+		t.Fatalf("handed to the app: got %v, want the shown account", got)
+	}
+	if got := g.ownerOf("https://auth.chatgpt.com/x", linear); got != third {
+		t.Fatalf("same domain, accounts of one site: got %v, want the shown account", got)
+	}
+}
+
 func TestGroupOwnerOf(t *testing.T) {
 	g := testGroup(t, "https://app.slack.com", "https://mail.google.com", "https://calendar.google.com", "https://linear.app")
 	slack, gmail, cal, linear := g.members[0], g.members[1], g.members[2], g.members[3]
