@@ -96,6 +96,14 @@ Le runtime est un petit binaire par plateforme qui ne sait rien d’un site web 
 
 ### Installer
 
+<div align="center">
+
+[![Télécharger pour macOS](https://img.shields.io/badge/T%C3%A9l%C3%A9charger_pour-macOS-555555?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/sinhong2011/mypack/releases/latest)
+[![Télécharger pour Windows](https://img.shields.io/badge/T%C3%A9l%C3%A9charger_pour-Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/sinhong2011/mypack/releases/latest)
+[![Télécharger pour Linux](https://img.shields.io/badge/T%C3%A9l%C3%A9charger_pour-Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://github.com/sinhong2011/mypack/releases/latest)
+
+</div>
+
 **macOS** avec [Homebrew](https://brew.sh) :
 
 ```sh

@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.astro/
+.wrangler/
+src/paraglide/
+project.inlang/cache/
+.env
+.env.*

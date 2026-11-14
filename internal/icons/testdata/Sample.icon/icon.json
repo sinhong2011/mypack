@@ -1,0 +1,18 @@
+{
+  "fill" : {
+    "automatic-gradient" : "extended-srgb:0.20000,0.40000,0.90000,1.00000"
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "image-name" : "fg.png",
+          "name" : "fg"
+        }
+      ]
+    }
+  ],
+  "supported-platforms" : {
+    "squares" : "shared"
+  }
+}

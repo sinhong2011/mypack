@@ -1,0 +1,46 @@
+---
+// A plain comparison. Facts about other projects come from their own public pages; keep it kind and current.
+import { m } from "../paraglide/messages.js";
+import { SITE } from "../config";
+
+type Cell = { yes?: boolean; text: string };
+const Y = (text = m.cmp_yes()): Cell => ({ yes: true, text });
+const N = (text = m.cmp_no()): Cell => ({ yes: false, text });
+// The thanks line names Pake once; that mention becomes the link.
+const thanks = m.cmp_thanks().split("Pake");
+const COLS = ["MyPack", "Nativefier", "Pake", "WebCatalog"];
+const ROWS: { label: string; cells: Cell[] }[] = [
+  { label: m.cmp_r_free(), cells: [Y(m.cmp_free_all()), Y(), Y(), N(m.cmp_free_plan())] },
+  { label: m.cmp_r_toolchain(), cells: [Y(m.cmp_tool_none()), N(m.cmp_tool_node()), N(m.cmp_tool_rust()), Y(m.cmp_tool_none())] },
+  { label: m.cmp_r_app(), cells: [Y(m.cmp_app_mypack()), N(m.cmp_cli()), N(m.cmp_cli()), Y()] },
+  { label: m.cmp_r_open(), cells: [Y("Apache-2.0"), Y("MIT"), Y("MIT"), N(m.cmp_proprietary())] },
+  { label: m.cmp_r_maintained(), cells: [Y(), N(m.cmp_archived()), Y(), Y()] },
+];
+---
+<section id="compare" class="section" aria-labelledby="cmp-title" style="padding-top: 0">
+  <div class="wrap">
+    <div class="section-head">
+      <h2 id="cmp-title" class="h2">{m.cmp_title()}</h2>
+      <p class="lede">{m.cmp_lede()}</p>
+    </div>
+    <div class="cmp-scroll" tabindex="0" role="region" aria-labelledby="cmp-title">
+      <table class="cmp">
+        <thead>
+          <tr><td></td>{COLS.map((c, i) => <th scope="col" class={i === 0 ? "us" : ""}>{c}</th>)}</tr>
+        </thead>
+        <tbody>
+          {ROWS.map((r) => (
+            <tr>
+              <th scope="row">{r.label}</th>
+              {r.cells.map((c, i) => <td class={i === 0 ? "us" : ""}><span class={c.yes ? "yes" : "no"}>{c.text}</span></td>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+    <div class="cmp-foot">
+      <p>{thanks[0]}<a href={SITE.pake} rel="noopener">Pake</a>{thanks.slice(1).join("Pake")}</p>
+      <p>{m.cmp_note()} <a href={SITE.issues} rel="noopener">{m.cmp_note_link()}</a></p>
+    </div>
+  </div>
+</section>

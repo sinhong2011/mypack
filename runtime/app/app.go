@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/egoist/mygo"
-	"github.com/egoist/mygo/ui"
 	"mypack.dev/mypack/pkg/config"
 	"mypack.dev/mypack/runtime/inject"
 	"mypack.dev/mypack/runtime/navigation"
@@ -408,22 +407,12 @@ func (a *App) openWindow(main bool, url, stateKey string, hidden bool) (*mygo.Wi
 	strip := a.useStrip()
 	o := a.windowOptions(main, strip)
 	o.Hidden, o.StateKey = hidden, stateKey
-	if !strip {
-		o.URL = url
-		w := safeNewWindow(o)
-		return w, w.Page()
+	if strip {
+		return a.openStripWindow(o, url)
 	}
-	s := a.newShell()
-	o.Content = ui.View(s.viewFn)
+	o.URL = url
 	w := safeNewWindow(o)
-	s.win = w
-	p, err := s.attach(url)
-	if err != nil {
-		log.Printf("mypack-runtime: web view: %v", err)
-		return w, nil
-	}
-	a.registerPage(w, p)
-	return w, p
+	return w, w.Page()
 }
 
 // safeNewWindow tolerates an invalid background color (NewWindow panics).

@@ -619,6 +619,8 @@
   "icon.refresh": "Refresh Icon from Website",
   "icon.refresh.none": "Couldn't get an icon from {name}'s website.",
   "icon.refresh.done": "{name}'s icon is up to date.",
+  "icon.from": "Get Icon from {provider}",
+  "icon.from.done": "{name}'s icon now comes from {provider}.",
   "create.starting": "Starting…",
   "hud.ready": "{name} is ready",
   "hud.ready.sub": "Build finished",

@@ -22,7 +22,7 @@ import (
 const SchemaVersion = 1
 
 // DefaultRuntimeVersion is the runtime version new projects pin (ADR-005).
-const DefaultRuntimeVersion = "1.0.9"
+const DefaultRuntimeVersion = "1.0.10"
 
 // Config is the full mypack.json document.
 type Config struct {
@@ -463,6 +463,54 @@ func (b *BlockingConfig) validate(add func(field, code, msg string)) {
 			break
 		}
 	}
+}
+
+// LiteRuntimeSince is the first runtime version published in both tiers,
+// full and lite. Earlier versions are full only.
+const LiteRuntimeSince = "1.0.10"
+
+// Runtime tiers (see RuntimeTier).
+const (
+	TierFull = "full"
+	TierLite = "lite"
+)
+
+// FullRuntimeFeatures lists the features c turns on that need the full
+// runtime's native UI; empty means the Lite runtime runs c.
+func (c *Config) FullRuntimeFeatures() []string {
+	var r []string
+	w := c.Window
+	frameless := w.Decorations != nil && !*w.Decorations
+	if !frameless && (w.TitleBarStyle == "hidden" || w.TitleBarStyle == "overlay" || w.TitleBarStyle == "glass") {
+		r = append(r, "window.titleBarStyle "+w.TitleBarStyle)
+	}
+	if w.Tabs {
+		r = append(r, "window.tabs")
+	}
+	if c.IsGroup() {
+		r = append(r, "app.group")
+	}
+	if c.WebView.FindInPage {
+		r = append(r, "webview.findInPage")
+	}
+	if c.Network.BasicAuthUser != "" {
+		r = append(r, "network.basicAuthUser")
+	}
+	return r
+}
+
+// RuntimeTier is the runtime tier c builds with: TierLite when c needs none
+// of the full runtime's native UI and its runtime version has a Lite tier,
+// else TierFull. The Lite runtime is the same app without MyGo's UI toolkit,
+// about a quarter smaller (runtime/app/lite.go).
+func (c *Config) RuntimeTier() string {
+	if !versionRe.MatchString(c.Runtime.Version) || !RuntimeAtLeast(c.Runtime.Version, LiteRuntimeSince) {
+		return TierFull
+	}
+	if len(c.FullRuntimeFeatures()) > 0 {
+		return TierFull
+	}
+	return TierLite
 }
 
 // MinRuntime is the earliest runtime that has every feature c turns on.

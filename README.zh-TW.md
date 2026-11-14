@@ -97,6 +97,14 @@ runtime 是每個平台一個小巧的二進位檔，對任何特定網站一無
 
 ### 安裝
 
+<div align="center">
+
+[![下載 macOS 版](https://img.shields.io/badge/%E4%B8%8B%E8%BC%89-macOS_%E7%89%88-555555?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/sinhong2011/mypack/releases/latest)
+[![下載 Windows 版](https://img.shields.io/badge/%E4%B8%8B%E8%BC%89-Windows_%E7%89%88-0078D4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/sinhong2011/mypack/releases/latest)
+[![下載 Linux 版](https://img.shields.io/badge/%E4%B8%8B%E8%BC%89-Linux_%E7%89%88-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://github.com/sinhong2011/mypack/releases/latest)
+
+</div>
+
 **macOS**，使用 [Homebrew](https://brew.sh)：
 
 ```sh

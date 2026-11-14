@@ -52,10 +52,16 @@ type Installer interface {
 type Icons interface {
 	Default(name string) []byte
 	Normalize(data []byte) ([]byte, error)
+	// IconComposerPNG renders an Icon Composer document (.icon folder).
+	IconComposerPNG(ctx context.Context, path string) ([]byte, error)
 }
 
 // MetadataFetcher resolves website metadata (metadata.Fetch).
 type MetadataFetcher func(ctx context.Context, rawURL string) (metadata.Result, error)
+
+// IconFetcher asks a third-party favicon service for a website's icon
+// (metadata.FetchIconFrom).
+type IconFetcher func(ctx context.Context, rawURL string, p metadata.IconProvider) ([]byte, error)
 
 // CapabilityFunc evaluates host -> target support (builder.Capabilities).
 type CapabilityFunc func(host, target config.Target) builder.Capability
@@ -79,6 +85,7 @@ type Options struct {
 	Installer    Installer
 	Icons        Icons
 	Metadata     MetadataFetcher
+	IconFrom     IconFetcher
 	Capabilities CapabilityFunc
 	Host         *config.Target // overrides builder.HostTarget()
 
@@ -118,6 +125,9 @@ type realIcons struct{}
 
 func (realIcons) Default(name string) []byte         { return icons.Default(name) }
 func (realIcons) Normalize(b []byte) ([]byte, error) { return icons.Normalize(b) }
+func (realIcons) IconComposerPNG(ctx context.Context, p string) ([]byte, error) {
+	return icons.IconComposerPNG(ctx, p)
+}
 
 // Compile-time checks that the real packages satisfy the seams.
 var (

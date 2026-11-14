@@ -14,11 +14,18 @@ import (
 )
 
 func TestParseArchiveName(t *testing.T) {
-	v, osName, arch, ok := ParseArchiveName("mypack-runtime-1.0.8-darwin-arm64.tar.gz")
-	if !ok || v != "1.0.8" || osName != "darwin" || arch != "arm64" {
-		t.Fatalf("%s %s %s %v", v, osName, arch, ok)
+	v, osName, arch, tier, ok := ParseArchiveName("mypack-runtime-1.0.8-darwin-arm64.tar.gz")
+	if !ok || v != "1.0.8" || osName != "darwin" || arch != "arm64" || tier != "" {
+		t.Fatalf("%s %s %s %q %v", v, osName, arch, tier, ok)
 	}
-	if _, _, _, ok := ParseArchiveName("mypack-1.0.8-darwin-arm64.tar.gz"); ok {
+	v, osName, arch, tier, ok = ParseArchiveName("mypack-runtime-1.0.10-windows-amd64-lite.tar.gz")
+	if !ok || v != "1.0.10" || osName != "windows" || arch != "amd64" || tier != TierLite {
+		t.Fatalf("lite: %s %s %s %q %v", v, osName, arch, tier, ok)
+	}
+	if got := ArchiveName("1.0.10", "linux-arm64-lite"); got != "mypack-runtime-1.0.10-linux-arm64-lite.tar.gz" {
+		t.Fatal(got)
+	}
+	if _, _, _, _, ok := ParseArchiveName("mypack-1.0.8-darwin-arm64.tar.gz"); ok {
 		t.Fatal("should reject")
 	}
 }
@@ -234,5 +241,75 @@ func TestStatusUnknownVersionFetches(t *testing.T) {
 	}
 	if atomic.LoadInt32(&hits) == 0 {
 		t.Fatal("Status of an unknown version should fetch the registry")
+	}
+}
+
+func TestLiteKeys(t *testing.T) {
+	if k := (Entry{OS: "darwin", Arch: "arm64", Tier: TierLite}).Key(); k != "darwin-arm64-lite" {
+		t.Fatal(k)
+	}
+	if LiteKey("darwin-arm64") != "darwin-arm64-lite" || LiteKey("darwin-arm64-lite") != "darwin-arm64-lite" {
+		t.Fatal("LiteKey")
+	}
+	if o, a, tier, ok := splitKey("windows-arm64-lite"); !ok || o != "windows" || a != "arm64" || tier != TierLite {
+		t.Fatal(o, a, tier, ok)
+	}
+	if ExecutableName("windows-amd64-lite") != "mypack-runtime.exe" {
+		t.Fatal("exe")
+	}
+	if BundledHelperName("darwin-arm64-lite") != "mypack-runtime-lite" || BundledHelperName("darwin-arm64") != "mypack-runtime" ||
+		BundledHelperName("windows-amd64-lite") != "mypack-runtime-lite.exe" {
+		t.Fatal("helper name")
+	}
+}
+
+// The registry lists both tiers; each key resolves to its own entry and
+// cache directory, and the bundled helpers seed both.
+func TestSeedFromDirHelperBothTiers(t *testing.T) {
+	reg, err := testregistry.Create(t.TempDir(), testregistry.Options{Keys: []string{"darwin-arm64", "darwin-arm64-lite"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	runtimes, bin := filepath.Join(root, "runtimes"), filepath.Join(root, "bin")
+	for _, d := range []string{runtimes, bin} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, name := range []string{"registry.json", "registry.json.sig"} {
+		b, err := os.ReadFile(filepath.Join(reg.Dir, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(runtimes, name), b, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(runtimes, "bundled.json"), []byte(`{"version":"1.0.0","keys":["darwin-arm64","darwin-arm64-lite"]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for name, body := range map[string]string{"mypack-runtime": "full-helper", "mypack-runtime-lite": "lite-helper"} {
+		if err := os.WriteFile(filepath.Join(bin, name), []byte(body), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	m := New(t.TempDir(), "http://127.0.0.1:1/registry.json")
+	m.SetTrustedKeys(reg.Public)
+	if err := m.SeedFromDir(runtimes); err != nil {
+		t.Fatal(err)
+	}
+	for key, want := range map[string]string{"darwin-arm64": "full-helper", "darwin-arm64-lite": "lite-helper"} {
+		e, ok := m.CachedEntry("1.0.0", key)
+		if !ok || e.Key() != key {
+			t.Fatalf("%s: entry %+v %v", key, e, ok)
+		}
+		exe, err := m.Ensure(context.Background(), "1.0.0", key, nil)
+		if err != nil {
+			t.Fatal(key, err)
+		}
+		if got, _ := os.ReadFile(exe); string(got) != want {
+			t.Fatalf("%s seeded %q", key, got)
+		}
 	}
 }

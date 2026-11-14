@@ -1,0 +1,50 @@
+---
+import { m } from "../paraglide/messages.js";
+import { SITE } from "../config";
+import { versioned } from "../versioned";
+import Icon from "./Icon.astro";
+
+// The build scene's sites: Discover entries, each with the icon MyPack fetched for it and its brand tint.
+const SITES = [
+  { color: "#5E6AD2", name: "Linear", host: "linear.app", icon: versioned("assets/sites/linear.png") },
+  { color: "#E44332", name: "Todoist", host: "app.todoist.com", icon: versioned("assets/sites/todoist.png") },
+  { color: "#0C66E4", name: "Trello", host: "trello.com", icon: versioned("assets/sites/trello.png") },
+  { color: "#24292F", name: "GitHub", host: "github.com", icon: versioned("assets/sites/github.png") },
+];
+const TITLES = {
+  validating: m.scene_validating(), downloading: m.scene_downloading(), assembling: m.scene_assembling(),
+  signing: m.scene_signing(), verifying: m.scene_verifying(), done: m.scene_done(),
+};
+---
+<section class="hero" data-shader="hero" aria-labelledby="hero-title">
+  <div class="wrap hero__grid">
+    <div>
+      <h1 id="hero-title" class="display">
+        <span class="line-1">{m.hero_title_1()}</span>
+        <span class="line-2">{m.hero_title_2()}</span>
+      </h1>
+      <p class="hero__lede">{m.hero_lede()}</p>
+      <div class="hero__cta">
+        <a class="btn btn-primary" href={SITE.releases} data-dl>
+          <Icon name="download" />
+          <span data-dl-label data-template={m.download_for({ os: "{os}" })}>{m.download()}</span>
+        </a>
+        <a class="btn btn-ghost" href="#install">{m.hero_more()}</a>
+      </div>
+      <p class="hero__note">{m.hero_note()}</p>
+    </div>
+
+    <!-- The app's own build scene (internal/desktop/assets/scene/scene.html), drawn by src/scripts/scene.ts. -->
+    <figure class="scene" data-scene data-sites={JSON.stringify(SITES)} data-titles={JSON.stringify(TITLES)}>
+      <svg viewBox="70 36 260 240" preserveAspectRatio="xMidYMid meet" role="img" aria-label={m.demo_aria()}>
+        <defs>
+          <filter id="mp-lift" x="-40%" y="-40%" width="180%" height="190%"><feDropShadow dx="0" dy="12" stdDeviation="12" flood-color="#030a3a" flood-opacity=".35" /></filter>
+          <filter id="mp-dock-shadow" x="-20%" y="-60%" width="140%" height="260%"><feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#030a3a" flood-opacity=".3" /></filter>
+          <clipPath id="mp-win-clip"><rect data-clip /></clipPath>
+        </defs>
+        <g data-all></g>
+      </svg>
+      <figcaption class="scene__caption" data-caption aria-live="off">{TITLES.validating}</figcaption>
+    </figure>
+  </div>
+</section>

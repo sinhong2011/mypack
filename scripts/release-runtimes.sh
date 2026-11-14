@@ -13,6 +13,9 @@
 #   DIST           output root (default <repo>/dist)
 #   TARGETS        space separated os-arch list (default: all six)
 #   RUNTIME_PKG    Go package of the runtime (default ./runtime/cmd/mypack-runtime)
+#   TIERS          runtime tiers to build (default "full lite"). The lite
+#                  tier is -tags mypack_lite (runtime/app/lite.go) and ships as
+#                  mypack-runtime-<version>-<os>-<arch>-lite.tar.gz
 #   CAPABILITIES   comma separated capabilities advertised in the manifest
 #   EXPIRES_DAYS   manifest validity (default 365)
 #   GOTOOLCHAIN    default "auto" (Go >= 1.27.3 is downloaded on demand)
@@ -34,6 +37,7 @@ VERSION="${VERSION:-1.0.0}"
 DIST="${DIST:-$ROOT/dist}"
 RUNTIME_PKG="${RUNTIME_PKG:-./runtime/cmd/mypack-runtime}"
 TARGETS="${TARGETS:-darwin-arm64 darwin-amd64 windows-amd64 windows-arm64 linux-amd64 linux-arm64}"
+TIERS="${TIERS:-full lite}"
 CAPABILITIES="${CAPABILITIES:-tray,globalShortcut,media,dragDrop,proxy,injection}"
 EXPIRES_DAYS="${EXPIRES_DAYS:-365}"
 export GOTOOLCHAIN="${GOTOOLCHAIN:-auto}"
@@ -59,35 +63,57 @@ go build -trimpath -o "$DIST/tools/signregistry" ./scripts/signregistry
 SIGN="$DIST/tools/signregistry"
 "$SIGN" keygen -keys "$KEYS" >/dev/null
 
+# suffix_for <tier>: the key/archive suffix of a tier ("" or "-lite").
+suffix_for() {
+  case "$1" in
+    full) echo "" ;;
+    lite) echo "-lite" ;;
+    *)
+      echo "unknown tier $1 (want full or lite)" >&2
+      return 1
+      ;;
+  esac
+}
+
 built=""
 for t in $TARGETS; do
+  t="${t%-lite}" # a lite key builds its platform (both tiers, per TIERS)
+  case " $built " in *" $t "*) continue ;; esac
   goos="${t%%-*}"
   goarch="${t#*-}"
   exe="mypack-runtime"
   [ "$goos" = "windows" ] && exe="mypack-runtime.exe"
-  mkdir -p "$WORK/$t"
-  echo "==> building $t"
   LDFLAGS="-s -w -X github.com/egoist/mygo.production=1"
   [ "$goos" = "windows" ] && LDFLAGS="$LDFLAGS -H=windowsgui"
-  CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build -trimpath \
-    -tags mygo_noinspector \
-    -ldflags "$LDFLAGS" \
-    -o "$WORK/$t/$exe" "$RUNTIME_PKG"
-  "$SIGN" pack -bin "$WORK/$t/$exe" -key "$t" -out "$OUT/mypack-runtime-$VERSION-$t.tar.gz"
+  for tier in $TIERS; do
+    sfx="$(suffix_for "$tier")"
+    tags="mygo_noinspector"
+    [ "$tier" = "lite" ] && tags="$tags mypack_lite"
+    mkdir -p "$WORK/$t$sfx"
+    echo "==> building $t ($tier)"
+    CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build -trimpath \
+      -tags "$tags" \
+      -ldflags "$LDFLAGS" \
+      -o "$WORK/$t$sfx/$exe" "$RUNTIME_PKG"
+    "$SIGN" pack -bin "$WORK/$t$sfx/$exe" -key "$t$sfx" -out "$OUT/mypack-runtime-$VERSION-$t$sfx.tar.gz"
+  done
   built="$built $t"
 done
 
-# macOS universal binary, only when lipo is available and both slices were built
-if command -v lipo >/dev/null 2>&1 && [ -f "$WORK/darwin-arm64/mypack-runtime" ] && [ -f "$WORK/darwin-amd64/mypack-runtime" ]; then
-  echo "==> creating darwin-universal"
-  mkdir -p "$WORK/darwin-universal"
-  lipo -create -output "$WORK/darwin-universal/mypack-runtime" \
-    "$WORK/darwin-arm64/mypack-runtime" "$WORK/darwin-amd64/mypack-runtime"
-  "$SIGN" pack -bin "$WORK/darwin-universal/mypack-runtime" -key darwin-universal \
-    -out "$OUT/mypack-runtime-$VERSION-darwin-universal.tar.gz"
-else
-  echo "==> skipping darwin-universal (needs lipo and both darwin builds)"
-fi
+# macOS universal binaries, only when lipo is available and both slices were built
+for tier in $TIERS; do
+  sfx="$(suffix_for "$tier")"
+  if command -v lipo >/dev/null 2>&1 && [ -f "$WORK/darwin-arm64$sfx/mypack-runtime" ] && [ -f "$WORK/darwin-amd64$sfx/mypack-runtime" ]; then
+    echo "==> creating darwin-universal$sfx"
+    mkdir -p "$WORK/darwin-universal$sfx"
+    lipo -create -output "$WORK/darwin-universal$sfx/mypack-runtime" \
+      "$WORK/darwin-arm64$sfx/mypack-runtime" "$WORK/darwin-amd64$sfx/mypack-runtime"
+    "$SIGN" pack -bin "$WORK/darwin-universal$sfx/mypack-runtime" -key "darwin-universal$sfx" \
+      -out "$OUT/mypack-runtime-$VERSION-darwin-universal$sfx.tar.gz"
+  else
+    echo "==> skipping darwin-universal$sfx (needs lipo and both darwin builds)"
+  fi
+done
 
 echo "==> signing registry"
 PUB="$("$SIGN" registry -dir "$REG" -keys "$KEYS" -capabilities "$CAPABILITIES" -expires-days "$EXPIRES_DAYS" ${REGISTRY_FLAGS:-})"

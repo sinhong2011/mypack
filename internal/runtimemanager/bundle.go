@@ -24,15 +24,38 @@ type bundledHelper struct {
 	Keys    []string `json:"keys"`
 }
 
-var archiveNameRe = regexp.MustCompile(`^mypack-runtime-(\d+(?:\.\d+){0,3})-(darwin|windows|linux)-(amd64|arm64|universal)\.tar\.gz$`)
+var archiveNameRe = regexp.MustCompile(`^mypack-runtime-(\d+(?:\.\d+){0,3})-(darwin|windows|linux)-(amd64|arm64|universal)(-lite)?\.tar\.gz$`)
 
-// ParseArchiveName reads version, OS and arch from a runtime archive filename.
-func ParseArchiveName(name string) (version, osName, arch string, ok bool) {
+// ParseArchiveName reads version, OS, arch and tier ("" or TierLite) from a
+// runtime archive filename: mypack-runtime-1.0.10-darwin-arm64[-lite].tar.gz.
+func ParseArchiveName(name string) (version, osName, arch, tier string, ok bool) {
 	m := archiveNameRe.FindStringSubmatch(name)
 	if m == nil {
-		return "", "", "", false
+		return "", "", "", "", false
 	}
-	return m[1], m[2], m[3], true
+	if m[4] != "" {
+		tier = TierLite
+	}
+	return m[1], m[2], m[3], tier, true
+}
+
+// ArchiveName is the archive filename of the runtime version/key.
+func ArchiveName(version, key string) string {
+	return "mypack-runtime-" + version + "-" + key + ".tar.gz"
+}
+
+// BundledHelperName is the file name of the bundled macOS helper for key:
+// bin/mypack-runtime, or bin/mypack-runtime-lite for a lite key.
+func BundledHelperName(key string) string {
+	name := ExecutableName(key)
+	if IsLiteKey(key) {
+		base, ext := strings.TrimSuffix(name, ".exe"), ""
+		if base != name {
+			ext = ".exe"
+		}
+		name = base + liteSuffix + ext
+	}
+	return name
 }
 
 // DefaultBundledDir is the runtime bundle shipped inside this install, or
@@ -101,11 +124,12 @@ func (m *Manager) SeedFromDir(dir string) error {
 		if e.IsDir() {
 			continue
 		}
-		version, osName, arch, ok := ParseArchiveName(e.Name())
+		version, osName, arch, tier, ok := ParseArchiveName(e.Name())
 		if !ok {
 			continue
 		}
-		if _, err := m.installFromFile(filepath.Join(dir, e.Name()), version, osName+"-"+arch); err != nil && first == nil {
+		key := Entry{OS: osName, Arch: arch, Tier: tier}.Key()
+		if _, err := m.installFromFile(filepath.Join(dir, e.Name()), version, key); err != nil && first == nil {
 			first = err
 		}
 	}
@@ -124,12 +148,17 @@ func (m *Manager) seedHelper(dir string) error {
 	if err := json.Unmarshal(b, &spec); err != nil || spec.Version == "" || len(spec.Keys) == 0 {
 		return newErr("RUNTIME_VERIFY_FAILED", "The bundled runtime helper metadata is invalid", err, "Rebuild the installer.")
 	}
-	src := filepath.Join(filepath.Dir(dir), "bin", ExecutableName(spec.Keys[0]))
-	if _, err := os.Stat(src); err != nil {
-		return newErr("RUNTIME_VERIFY_FAILED", "The bundled runtime helper is missing", err, "Rebuild the installer so it ships bin/mypack-runtime.")
-	}
 	var first error
 	for _, key := range spec.Keys {
+		// One helper per tier: bin/mypack-runtime and bin/mypack-runtime-lite.
+		name := BundledHelperName(key)
+		src := filepath.Join(filepath.Dir(dir), "bin", name)
+		if _, err := os.Stat(src); err != nil {
+			if first == nil {
+				first = newErr("RUNTIME_VERIFY_FAILED", "The bundled runtime helper is missing", err, "Rebuild the installer so it ships bin/"+name+".")
+			}
+			continue
+		}
 		if _, err := m.installFromBinary(src, spec.Version, key); err != nil && first == nil {
 			first = err
 		}
@@ -159,12 +188,16 @@ func (m *Manager) seedManifest(raw, sig []byte) error {
 	return nil
 }
 
-func splitKey(key string) (osName, arch string, ok bool) {
+// splitKey parses "<os>-<arch>[-lite]".
+func splitKey(key string) (osName, arch, tier string, ok bool) {
+	if IsLiteKey(key) {
+		key, tier = strings.TrimSuffix(key, liteSuffix), TierLite
+	}
 	i := strings.LastIndex(key, "-")
 	if i <= 0 || i == len(key)-1 {
-		return "", "", false
+		return "", "", "", false
 	}
-	return key[:i], key[i+1:], true
+	return key[:i], key[i+1:], tier, true
 }
 
 func (m *Manager) installFromFile(archive, version, key string) (string, error) {
@@ -175,11 +208,11 @@ func (m *Manager) installFromFile(archive, version, key string) (string, error) 
 	if err != nil {
 		return "", err
 	}
-	osName, arch, ok := splitKey(key)
+	osName, arch, tier, ok := splitKey(key)
 	if !ok {
 		return "", newErr("RUNTIME_NOT_FOUND", "Invalid runtime platform "+key, nil, "Use a platform key like darwin-arm64.")
 	}
-	e := Entry{Version: version, OS: osName, Arch: arch, Filename: filepath.Base(archive), SHA256: sum, Size: size}
+	e := Entry{Version: version, OS: osName, Arch: arch, Tier: tier, Filename: filepath.Base(archive), SHA256: sum, Size: size}
 	if ce, ok := m.CachedEntry(version, key); ok {
 		if !strings.EqualFold(ce.SHA256, sum) || ce.Size != size {
 			return "", newErr("RUNTIME_VERIFY_FAILED", "The bundled runtime does not match the registry manifest",
@@ -212,12 +245,12 @@ func (m *Manager) installFromBinary(src, version, key string) (string, error) {
 	if err := checkVK(version, key); err != nil {
 		return "", err
 	}
-	osName, arch, ok := splitKey(key)
+	osName, arch, tier, ok := splitKey(key)
 	if !ok {
 		return "", newErr("RUNTIME_NOT_FOUND", "Invalid runtime platform "+key, nil, "Use a platform key like darwin-arm64.")
 	}
 	exeName := ExecutableName(key)
-	e := Entry{Version: version, OS: osName, Arch: arch, Filename: exeName}
+	e := Entry{Version: version, OS: osName, Arch: arch, Tier: tier, Filename: exeName}
 	if ce, ok := m.CachedEntry(version, key); ok {
 		e = ce
 	} else {
@@ -245,7 +278,7 @@ func (m *Manager) installFromBinary(src, version, key string) (string, error) {
 		return "", newErr("RUNTIME_DOWNLOAD_FAILED", "Cannot create a temporary directory", err, "")
 	}
 	dst := filepath.Join(extracted, exeName)
-	if err := copyFile(src, dst, 0o755); err != nil {
+	if err := copyHelper(src, dst, key); err != nil {
 		return "", newErr("RUNTIME_DOWNLOAD_FAILED", "Cannot copy the bundled runtime helper", err, "")
 	}
 	bsum, bsize, err := hashFile(dst)

@@ -3,6 +3,8 @@ package appservice
 import (
 	"bytes"
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"mypack.dev/mypack/pkg/config"
@@ -65,5 +67,32 @@ func TestIconStyleRoundTrip(t *testing.T) {
 	}
 	if !bytes.Equal(p.IconPNG, orig) {
 		t.Fatal("removing the style did not restore the icon")
+	}
+}
+
+func TestSetProjectIconDocument(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	p := e.project(t)
+	doc := filepath.Join(t.TempDir(), "Brand.icon")
+	os.MkdirAll(doc, 0o755)
+	if _, err := e.svc.SetProjectIconDocument(ctx, p.ID, doc, "gui"); err == nil {
+		t.Fatal("a .icon folder without icon.json must be refused")
+	}
+	os.WriteFile(filepath.Join(doc, "icon.json"), []byte("{}"), 0o644)
+	got, err := e.svc.SetProjectIconDocument(ctx, p.ID, doc, "gui")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ic := got.Config.App.Icon; ic.Source != "file" || ic.Path != doc || string(got.IconPNG) != "iconcomposer:Brand.icon" {
+		t.Fatalf("icon %+v %q", ic, got.IconPNG)
+	}
+	// A new picture replaces the document, so builds stop compiling it.
+	got, err = e.svc.SetProjectIcon(ctx, p.ID, []byte("img"), "gui")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ic := got.Config.App.Icon; ic.Path != "" || ic.Source != "default" {
+		t.Fatalf("after a new picture: %+v", ic)
 	}
 }

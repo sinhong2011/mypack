@@ -5,7 +5,6 @@ import (
 	"runtime"
 
 	"github.com/egoist/mygo"
-	"github.com/egoist/mygo/ui"
 	"mypack.dev/mypack/pkg/config"
 )
 
@@ -42,7 +41,7 @@ func (a *App) startMenuBar(startURL string) bool {
 		Hidden:    true,
 	}
 	if a.group != nil {
-		fo.Content = ui.View(a.group.viewFn)
+		fo.Content = a.group.content()
 	} else {
 		fo.URL, fo.Page = startURL, a.pageOptions()
 	}
