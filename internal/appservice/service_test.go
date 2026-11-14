@@ -924,6 +924,7 @@ func TestUnsubscribe(t *testing.T) {
 }
 
 func TestWatchExternal(t *testing.T) {
+	// The open GUI starts this poll itself (app.watchExternalChanges).
 	e := newEnv(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

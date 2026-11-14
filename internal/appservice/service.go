@@ -168,8 +168,11 @@ func (s *Impl) Store() *storage.Store { return s.store }
 // WatchExternal polls the database change counter and, when another process
 // (CLI, MCP, GUI) has written, emits generic project/job/installation change
 // events so subscribers re-read state. Spec §12.9 calls IPC notification-only;
-// polling is the v1 transport. It blocks until ctx is done, so run it in a
-// goroutine. interval <= 0 means 1s.
+// polling is the v1 transport. It blocks until ctx or the service is done, so
+// run it in a goroutine. interval <= 0 means 1s.
+//
+// The open desktop app starts this poll. Without it, that process still has
+// the lists it loaded at startup and never hears about CLI or MCP writes.
 func (s *Impl) WatchExternal(ctx context.Context, interval time.Duration) {
 	if interval <= 0 {
 		interval = time.Second
