@@ -13,6 +13,7 @@ import (
 const (
 	camUsage = "This app needs access to the camera for websites that request it."
 	micUsage = "This app needs access to the microphone for websites that request it."
+	dlUsage  = "This app saves files you download from the website to your Downloads folder."
 
 	// menuBarRuntime is the first runtime with window.mode "menubar".
 	menuBarRuntime = "1.0.6"
@@ -36,6 +37,7 @@ func (j *job) infoPlist() []byte {
 		"NSSupportsAutomaticGraphicsSwitching": true,
 		"LSApplicationCategoryType":            "public.app-category.productivity",
 		"NSAppTransportSecurity":               map[string]any{"NSAllowsArbitraryLoadsInWebContent": true},
+		"NSDownloadsFolderUsageDescription":    dlUsage,
 		"MyPackManaged":                        true,
 		"MyPackRuntimeVersion":                 c.Runtime.Version,
 	}

@@ -606,6 +606,7 @@ func (t *tabSet) viewFn(c *ui.Context) {
 		} else {
 			ui.Spacer(c)
 		}
+		t.a.drawDownloadNotice(c)
 	})
 }
 

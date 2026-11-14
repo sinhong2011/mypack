@@ -57,6 +57,7 @@ type App struct {
 	lay      layoutState // the main window's layout (layout.go)
 	group    *group      // app.group: the member websites (group.go), or nil
 	tabs     *tabSet     // window.tabs: the main window's tabs (tabs.go), or nil
+	dlNotice *dlNotice   // last download's in-app result, or nil
 }
 
 type credEntry struct {

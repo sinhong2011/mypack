@@ -171,6 +171,7 @@ func (s *shell) viewFn(c *ui.Context) {
 			if h > 0 {
 				ui.Row(c).Absolute().Top(0).Left(0).Right(0).Height(h).Material(glass.Glass{Native: true}).DragWindow()
 			}
+			s.a.drawDownloadNotice(c)
 		})
 		return
 	}
@@ -185,6 +186,7 @@ func (s *shell) viewFn(c *ui.Context) {
 		if v := s.view.Load(); v != nil {
 			ui.WebView(c, v).Grow(1)
 		}
+		s.a.drawDownloadNotice(c)
 	})
 }
 

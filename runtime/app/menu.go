@@ -36,6 +36,9 @@ func (a *App) buildMenu() *mygo.Menu {
 			Click: func(*mygo.MenuItem, *mygo.Window) { a.newWindow() }})
 		file = append(file, mygo.Separator())
 	}
+	file = append(file, &mygo.MenuItem{Label: "Show Downloads", Accelerator: a.acc("CmdOrCtrl+Shift+J"),
+		Click: func(*mygo.MenuItem, *mygo.Window) { go a.revealDownloads() }})
+	file = append(file, mygo.Separator())
 	if a.tabsOn() {
 		file = append(file, a.tabMenuItems()...)
 	} else {

@@ -467,6 +467,7 @@ func (g *group) viewFn(c *ui.Context) {
 		}
 		g.drawMembers(c, t, active, split, ratio)
 	})
+	g.a.drawDownloadNotice(c)
 }
 
 // drawMembers draws the shown members: the active one, and the one beside it

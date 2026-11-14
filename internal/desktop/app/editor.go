@@ -740,15 +740,32 @@ func (a *App) settingGroups(c *ui.Context, ed *editorState, pr *domain.Project) 
 			tidyBlocking(cfg)
 		}},
 		{label: T("set.downloads"), desc: T("set.downloads.desc"), control: func() {
-			text("dl", &cfg.Network.DownloadDirectory, T("set.downloads"), "~/Downloads", 200)
-			if kit.Button(k("dlc"), T("common.choose"), kit.ButtonOpts{}).Clicked() {
-				go func() {
-					paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.win, Directory: true, CreateDirectories: true})
-					if err == nil && len(paths) > 0 {
-						a.win.Update(func() { cfg.Network.DownloadDirectory = paths[0]; ed.changed() })
+			ui.Column(c).Gap(6).Children(func() {
+				ui.Row(c).Gap(6).AlignItems(ui.Center).Wrap().Children(func() {
+					in := kit.TextField(k("dl"), &cfg.Network.DownloadDirectory, T("set.downloads"), kit.FieldOpts{Placeholder: "~/Downloads"})
+					in.Width(200)
+					if in.Changed() {
+						ed.changed()
 					}
-				}()
-			}
+					if kit.Button(k("dlc"), T("common.choose"), kit.ButtonOpts{}).Clicked() {
+						go func() {
+							paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.win, Directory: true, CreateDirectories: true})
+							if err == nil && len(paths) > 0 {
+								a.win.Update(func() { cfg.Network.DownloadDirectory = paths[0]; ed.changed() })
+							}
+						}()
+					}
+				})
+				resolved, ok := downloadFolderStatus(cfg.Network.DownloadDirectory)
+				switch {
+				case cfg.Network.DownloadDirectory == "":
+					kit.Caption(c, T("set.downloads.system"))
+				case !ok:
+					ui.Text(c, T("set.downloads.unusable")).FontSize(design.FontSmall).TextColor(p.Danger)
+				default:
+					kit.Caption(c, T("set.downloads.using", "path", shortPath(resolved)))
+				}
+			})
 		}},
 	}}
 
