@@ -533,6 +533,7 @@ func (g *group) viewFn(c *ui.Context) {
 			if !horizontal {
 				ui.Spacer(c).Grow(1)
 			}
+			g.railSplit(c, split >= 0, vert, horizontal)
 			g.railSettings(c, horizontal)
 		})
 		if horizontal {
@@ -589,7 +590,6 @@ func (g *group) drawMembers(c *ui.Context, active, split int, pct *float32, vert
 			ui.WebView(c, g.members[active].view).Grow(1)
 			return
 		}
-		g.drawSplitChrome(c, vert)
 		first := func() { g.memberPane(c.Key("a"), g.members[active], true) }
 		second := func() { g.memberPane(c.Key("b"), g.members[split], false) }
 		// Separate keys so rotating does not reuse a Split of the other axis.
@@ -616,36 +616,41 @@ func (g *group) memberPane(c *ui.Context, m *groupMember, focused bool) {
 	})
 }
 
-// drawSplitChrome is Arc/Chrome's split controls: orientation, swap, close.
-func (g *group) drawSplitChrome(c *ui.Context, vert bool) {
-	t := c.Theme()
-	ui.Row(c.Key("splitbar")).FillWidth().Height(36).Shrink(0).Gap(4).AlignItems(ui.Center).
-		Padding(0, 8).Background(t.Surface).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
-		g.splitChromeBtn(c, "side", "Side by side", columnsGlyph, !vert, func() { g.setSplitVert(false) })
-		g.splitChromeBtn(c, "stack", "Top and bottom", rowsGlyph, vert, func() { g.setSplitVert(true) })
-		ui.Spacer(c).Grow(1)
-		g.splitChromeBtn(c, "swap", "Swap sides", swapGlyph, false, g.swapSplit)
-		g.splitChromeBtn(c, "unsplit", "Close split", closeGlyph, false, g.toggleSplit)
-	})
+// railSplit is the split controls on the rail (Chrome/Arc/Zen: orientation,
+// swap, close), above Settings so they do not cover the pages.
+func (g *group) railSplit(c *ui.Context, on, vert, horizontal bool) {
+	btns := func() {
+		g.splitRailBtn(c, "side", "Side by side", columnsGlyph, on && !vert, false, func() { g.setSplitVert(false) })
+		g.splitRailBtn(c, "stack", "Top and bottom", rowsGlyph, on && vert, false, func() { g.setSplitVert(true) })
+		g.splitRailBtn(c, "swap", "Swap sides", swapGlyph, false, !on, g.swapSplit)
+		g.splitRailBtn(c, "unsplit", "Close split", closeGlyph, false, !on, g.toggleSplit)
+	}
+	if horizontal {
+		ui.Row(c.Key("split")).Gap(2).AlignItems(ui.Center).Shrink(0).Children(btns)
+		return
+	}
+	ui.Column(c.Key("split")).Gap(2).AlignItems(ui.Center).Shrink(0).Padding(0, 0, 4, 0).Children(btns)
 }
 
-func (g *group) splitChromeBtn(c *ui.Context, key, label string, glyph *ui.SVG, on bool, click func()) {
+func (g *group) splitRailBtn(c *ui.Context, key, label string, glyph *ui.SVG, on, disabled bool, click func()) {
 	t := c.Theme()
 	b := ui.Box(c.Key(key)).Size(28, 28).Radius(8).Role(ui.RoleButton).Label(label).Tooltip(label).Focusable().
 		AlignItems(ui.Center).Justify(ui.Center)
-	if on {
+	if disabled {
+		b.Opacity(0.35)
+	} else if on {
 		b.Background(t.Accent.Alpha(0.18))
 	} else if b.Hovered() || b.FocusVisible() {
 		b.Background(t.SurfaceHover)
 	}
 	b.Children(func() {
 		col := t.TextMuted
-		if on {
+		if on && !disabled {
 			col = t.Accent
 		}
 		ui.Icon(c, glyph).FontSize(16).TextColor(col)
 	})
-	if b.Clicked() {
+	if !disabled && b.Clicked() {
 		click()
 	}
 }

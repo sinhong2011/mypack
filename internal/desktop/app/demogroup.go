@@ -215,6 +215,7 @@ func (a *App) demoGroupView(c *ui.Context, d demoLaunch) {
 				a.demoRailItem(c.Key("m-"+m.ID), d, m, i, i == pref.Active, i == pref.Split)
 			}
 			ui.Spacer(c).Grow(1)
+			a.demoRailSplit(c, d, pref)
 			a.demoRailSettings(c, d)
 		})
 		ui.Box(c).Width(1).FillHeight().Background(p.Divider)
@@ -294,7 +295,6 @@ func (a *App) demoRailItem(c *ui.Context, d demoLaunch, m config.GroupMember, i 
 
 func (a *App) demoGroupMembers(c *ui.Context, d demoLaunch, members []config.GroupMember, pref *demoPrefs) {
 	active, split, vert := pref.Active, pref.Split, pref.SplitVert
-	n := len(members)
 	ui.Box(c.Key("members")).Grow(1).Basis(0).MinWidth(0).MinHeight(0).Column().Gap(0).Children(func() {
 		if active < 0 || active >= len(members) {
 			ui.Spacer(c)
@@ -304,7 +304,6 @@ func (a *App) demoGroupMembers(c *ui.Context, d demoLaunch, members []config.Gro
 			a.demoMemberPane(c.Key("main"), d, members[active], true)
 			return
 		}
-		a.demoSplitChrome(c, d, pref, n, vert)
 		first := func() { a.demoMemberPane(c.Key("left"), d, members[active], true) }
 		second := func() { a.demoMemberPane(c.Key("right"), d, members[split], false) }
 		var panes ui.Element
@@ -317,38 +316,38 @@ func (a *App) demoGroupMembers(c *ui.Context, d demoLaunch, members []config.Gro
 	})
 }
 
-func (a *App) demoSplitChrome(c *ui.Context, d demoLaunch, pref *demoPrefs, n int, vert bool) {
-	p := design.Of(c)
-	ui.Row(c.Key("splitbar")).FillWidth().Height(36).Shrink(0).Gap(4).AlignItems(ui.Center).
-		Padding(0, 8).Background(p.Raised).Children(func() {
-		a.demoSplitBtn(c, "side", icons.Columns2, T("group.split.side"), !vert, func() {
+func (a *App) demoRailSplit(c *ui.Context, d demoLaunch, pref *demoPrefs) {
+	n := len(d.members())
+	on := pref.Split >= 0
+	ui.Column(c.Key("split")).Gap(2).AlignItems(ui.Center).Shrink(0).Padding(0, 0, 4, 0).Children(func() {
+		a.demoSplitBtn(c, "side", icons.Columns2, T("group.split.side"), on && !pref.SplitVert, false, func() {
 			pref.setSplitVert(false, n)
 			a.invalidateDemo(d)
 		})
-		a.demoSplitBtn(c, "stack", icons.Rows2, T("group.split.stack"), vert, func() {
+		a.demoSplitBtn(c, "stack", icons.Rows2, T("group.split.stack"), on && pref.SplitVert, false, func() {
 			pref.setSplitVert(true, n)
 			a.invalidateDemo(d)
 		})
-		ui.Spacer(c).Grow(1)
-		a.demoSplitBtn(c, "swap", icons.Swap, T("group.split.swap"), false, func() {
+		a.demoSplitBtn(c, "swap", icons.Swap, T("group.split.swap"), false, !on, func() {
 			pref.swapSplit()
 			a.invalidateDemo(d)
 		})
-		a.demoSplitBtn(c, "unsplit", icons.Close, T("group.split.close"), false, func() {
+		a.demoSplitBtn(c, "unsplit", icons.Close, T("group.split.close"), false, !on, func() {
 			pref.toggleSplit(n)
 			a.invalidateDemo(d)
 		})
 	})
-	ui.Box(c).Height(1).FillWidth().Background(p.Divider)
 }
 
-func (a *App) demoSplitBtn(c *ui.Context, key string, ic *ui.SVG, title string, on bool, click func()) {
+func (a *App) demoSplitBtn(c *ui.Context, key string, ic *ui.SVG, title string, on, disabled bool, click func()) {
 	p := design.Of(c)
 	b := kit.IconButton(c.Key(key), ic, title)
-	if on {
+	if disabled {
+		b.Opacity(0.35)
+	} else if on {
 		b.Background(p.Accent.Alpha(0.18))
 	}
-	if b.Clicked() {
+	if !disabled && b.Clicked() {
 		click()
 	}
 }
