@@ -147,3 +147,47 @@ func TestOpenSiteAppEmpty(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestBrowserURL(t *testing.T) {
+	if got := browserURL("https://linear.app/"); got != "https://linear.app/" {
+		t.Fatalf("https %q", got)
+	}
+	if got := browserURL("linear.app"); got != "https://linear.app" {
+		t.Fatalf("host %q", got)
+	}
+	if browserURL("javascript:alert(1)") != "" {
+		t.Fatal("javascript")
+	}
+	if browserURL("file:///etc/passwd") != "" {
+		t.Fatal("file")
+	}
+	if browserURL("   ") != "" {
+		t.Fatal("blank")
+	}
+}
+
+func TestOpenInBrowserEmpty(t *testing.T) {
+	if err := openInBrowser(""); err != nil {
+		t.Fatal(err)
+	}
+	if err := openInBrowser("javascript:alert(1)"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDemoBrowserURLUsesActiveMember(t *testing.T) {
+	cfg := config.New("Workspace", config.Source{Type: config.SourceURL, Value: "https://linear.app/"}, config.Target{OS: "linux", Arch: "amd64"})
+	cfg.App.Group = &config.GroupConfig{Members: []config.GroupMember{
+		{ID: "linear", Name: "Linear", URL: "https://linear.app/"},
+		{ID: "notion", Name: "Notion", URL: "https://www.notion.so/"},
+	}}
+	a := &App{}
+	d := demoLaunch{key: "g", cfg: cfg, url: "https://linear.app/"}
+	if got := a.demoBrowserURL(d); got != "https://linear.app/" {
+		t.Fatalf("first %q", got)
+	}
+	a.prefsFor(d).show(1, 2)
+	if got := a.demoBrowserURL(d); got != "https://www.notion.so/" {
+		t.Fatalf("active %q", got)
+	}
+}

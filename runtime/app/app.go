@@ -634,6 +634,7 @@ func (a *App) wirePage(w *mygo.Window, p *mygo.Page, nav func(*mygo.NavigateEven
 	p.OnDidNavigate(func(string) { rt.settled() })
 	p.OnDidFailLoad(func(*mygo.LoadError) { rt.settled() })
 	p.SetWindowOpenHandler(open)
+	p.OnContextMenu(func(e *mygo.ContextMenuEvent) { a.decorateContextMenu(p, e) })
 	p.SetPermissionHandler(a.onPermission)
 	p.SetAuthHandler(func(req mygo.AuthRequest) mygo.AuthResponse { return a.onAuth(w, req) })
 	p.OnWillDownload(a.onWillDownload)

@@ -61,6 +61,22 @@ func TestBuildMenuIncludesSettings(t *testing.T) {
 	if runtime.GOOS != "darwin" && !fileHas {
 		t.Fatal("Settings… should be in File on Windows and Linux")
 	}
+	browser := false
+	walk = func(items []*mygo.MenuItem) {
+		for _, it := range items {
+			if it == nil {
+				continue
+			}
+			if it.Label == "Open in Browser" {
+				browser = true
+			}
+			walk(it.Submenu)
+		}
+	}
+	walk(m.Items())
+	if !browser {
+		t.Fatal("Open in Browser is missing from the menu")
+	}
 }
 
 func TestApplySettingsForm(t *testing.T) {

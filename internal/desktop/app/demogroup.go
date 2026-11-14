@@ -285,9 +285,7 @@ func (a *App) demoRailItem(c *ui.Context, d demoLaunch, m config.GroupMember, i 
 			}
 			menu.Separator()
 			if home := memberHome(m); home != "" && menu.Item(T("demo.open.browser")).Chosen() {
-				if err := openSiteApp(home); err != nil {
-					a.toastErr(err)
-				}
+				a.tryOpenInBrowser(home)
 			}
 		})
 	})
@@ -372,9 +370,7 @@ func (a *App) demoMemberPane(c *ui.Context, d demoLaunch, m config.GroupMember, 
 	col.Children(func() {
 		kit.AppIconOpts(c, a.memberIcon(m), m.Name, 72, kit.IconOpts{Shadow: true})
 		kit.LargeTitle(c, m.Name)
-		if home != "" {
-			kit.Secondary(c, home).SingleLine()
-		}
+		a.demoSiteLink(c, home)
 		kit.Caption(c, T("demo.group.body"))
 		ui.Row(c).Gap(10).Children(func() {
 			if kit.Button(c.Key("set"), T("demo.settings"), kit.ButtonOpts{Size: design.ControlLG, Icon: icons.Settings}).Clicked() {
@@ -382,9 +378,7 @@ func (a *App) demoMemberPane(c *ui.Context, d demoLaunch, m config.GroupMember, 
 			}
 			if home != "" {
 				if kit.Button(c.Key("open"), T("demo.open.browser"), kit.ButtonOpts{Variant: kit.Primary, Size: design.ControlLG, Icon: icons.Globe}).Clicked() {
-					if err := openSiteApp(home); err != nil {
-						a.toastErr(err)
-					}
+					a.tryOpenInBrowser(home)
 				}
 			}
 		})

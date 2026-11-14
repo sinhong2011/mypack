@@ -732,6 +732,17 @@ func (g *group) railItem(c *ui.Context, m *groupMember, active, beside, horizont
 				g.toggleSplit()
 			}
 			menu.Separator()
+			if menu.Item("Open in Browser").Chosen() {
+				u := m.home
+				if m.page != nil {
+					if cur := m.page.URL(); isWebURL(cur) {
+						u = cur
+					}
+				}
+				if isWebURL(u) {
+					openExternal(u)
+				}
+			}
 			if menu.Item("Reload").Chosen() && m.page != nil {
 				m.page.Reload()
 			}

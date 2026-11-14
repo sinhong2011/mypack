@@ -1,6 +1,7 @@
 package app
 
 import (
+	"net/url"
 	"os"
 	"os/exec"
 	"strings"
@@ -177,9 +178,7 @@ func (a *App) demoAppView(c *ui.Context, d demoLaunch) {
 	ui.Column(c).Fill().Background(p.CanvasBot).Center().Gap(18).Padding(40).Children(func() {
 		kit.AppIconOpts(c, d.icon, d.name, 96, kit.IconOpts{Shadow: true})
 		kit.LargeTitle(c, d.name)
-		if d.url != "" {
-			kit.Secondary(c, d.url).SingleLine()
-		}
+		a.demoSiteLink(c, d.url)
 		kit.Caption(c, T("demo.open.body"))
 		ui.Row(c).Gap(10).Children(func() {
 			if kit.Button(c.Key("set"), T("demo.settings"), kit.ButtonOpts{Size: design.ControlLG, Icon: icons.Settings}).Clicked() {
@@ -187,22 +186,90 @@ func (a *App) demoAppView(c *ui.Context, d demoLaunch) {
 			}
 			if d.url != "" {
 				if kit.Button(c.Key("open"), T("demo.open.browser"), kit.ButtonOpts{Variant: kit.Primary, Size: design.ControlLG, Icon: icons.Globe}).Clicked() {
-					if err := openSiteApp(d.url); err != nil {
-						a.toastErr(err)
-					}
+					a.tryOpenInBrowser(d.url)
 				}
 			}
 		})
 	})
 }
 
-func openSiteApp(raw string) error {
+// browserURL is an http(s) address for the default browser. Non-web
+// schemes (javascript:, file:) are refused.
+func browserURL(raw string) string {
 	u := strings.TrimSpace(raw)
+	if u == "" || strings.ContainsAny(u, " \t\r\n") {
+		return ""
+	}
+	if !strings.Contains(u, "://") {
+		if i := strings.IndexByte(u, ':'); i > 0 {
+			return "" // javascript:, mailto:, data:
+		}
+		u = "https://" + u
+	}
+	parsed, err := url.Parse(u)
+	if err != nil {
+		return ""
+	}
+	scheme := strings.ToLower(parsed.Scheme)
+	if (scheme != "http" && scheme != "https") || parsed.Hostname() == "" {
+		return ""
+	}
+	return u
+}
+
+func (a *App) demoBrowserURL(d demoLaunch) string {
+	if d.isGroup() {
+		members := d.members()
+		pref := a.prefsFor(d)
+		pref.clamp(len(members))
+		if pref.Active >= 0 && pref.Active < len(members) {
+			return browserURL(memberHome(members[pref.Active]))
+		}
+	}
+	return browserURL(d.url)
+}
+
+func (a *App) tryOpenInBrowser(raw string) {
+	if err := openInBrowser(raw); err != nil {
+		a.toastErr(err)
+	}
+}
+
+func (a *App) demoSiteLink(c *ui.Context, raw string) {
+	href := browserURL(raw)
+	if href == "" {
+		if strings.TrimSpace(raw) != "" {
+			kit.Secondary(c, raw).SingleLine()
+		}
+		return
+	}
+	p := design.Of(c)
+	link := ui.ButtonBase(c.Key("href")).Label(raw).Role(ui.RoleLink).Cursor(ui.CursorPointer).
+		FocusRing(false).Tooltip(T("demo.open.browser"))
+	link.Children(func() {
+		ui.Text(c, raw).FontSize(design.FontBody).TextColor(p.AccentText).SingleLine()
+	})
+	if link.Clicked() {
+		a.tryOpenInBrowser(href)
+	}
+}
+
+// openInBrowser opens an http(s) URL in the default browser, not as a
+// Chrome --app window. The preview's "Open in browser" is this; launching
+// a single-site preview still uses openSiteApp so it looks like the built
+// app.
+func openInBrowser(raw string) error {
+	u := browserURL(raw)
 	if u == "" {
 		return nil
 	}
-	if !strings.HasPrefix(strings.ToLower(u), "http://") && !strings.HasPrefix(strings.ToLower(u), "https://") {
-		u = "https://" + u
+	return installer.OpenURL(u)
+}
+
+func openSiteApp(raw string) error {
+	u := browserURL(raw)
+	if u == "" {
+		return nil
 	}
 	for _, name := range chromeAppBins {
 		bin, err := exec.LookPath(name)

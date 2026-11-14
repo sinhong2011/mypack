@@ -65,6 +65,7 @@ func (a *App) demoDownloadDir(d demoLaunch) string {
 
 func (a *App) demoAppMenu(d demoLaunch) *mygo.Menu {
 	settings := func(*mygo.MenuItem, *mygo.Window) { a.openDemoSettings(d) }
+	openBrowser := func(*mygo.MenuItem, *mygo.Window) { a.tryOpenInBrowser(a.demoBrowserURL(d)) }
 	name := d.name
 	if name == "" {
 		name = "App"
@@ -82,6 +83,8 @@ func (a *App) demoAppMenu(d demoLaunch) *mygo.Menu {
 	}
 	file := []*mygo.MenuItem{
 		{Label: T("menu.settings"), Click: settings},
+		mygo.Separator(),
+		{Label: T("demo.open.browser"), Click: openBrowser},
 		mygo.Separator(),
 		{Role: mygo.RoleClose},
 	}
