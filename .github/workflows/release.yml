@@ -423,6 +423,7 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: write # the gh-pages branch
+      pages: write    # turn Pages on if wget of mypack.gpg would 404
     env:
       GPG_KEY: ${{ secrets.LINUX_REPO_GPG_KEY }}
     steps:
@@ -457,3 +458,12 @@ jobs:
           git add -A
           git commit -q -m "MyPack ${GITHUB_REF_NAME#v} packages"
           git push --force "$remote" gh-pages
+          # The branch can exist while Pages is still off: wget/curl of
+          # https://sinhong2011.github.io/mypack/mypack.gpg then 404s.
+          if gh api "repos/${GITHUB_REPOSITORY}/pages" >/dev/null 2>&1; then
+            echo "GitHub Pages is on"
+          else
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/pages" \
+              -f source[branch]=gh-pages -f source[path]='/'
+            echo "enabled GitHub Pages from gh-pages"
+          fi

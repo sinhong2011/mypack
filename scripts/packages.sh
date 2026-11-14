@@ -120,13 +120,15 @@ winget() {
   local w="$out/winget/manifests/m/MyPack/MyPack/$version"
   mkdir -p "$w"
   cat >"$w/$winget_id.yaml" <<EOF
+# yaml-language-server: \$schema=https://aka.ms/winget-manifest.version.1.12.0.schema.json
 PackageIdentifier: $winget_id
 PackageVersion: $version
 DefaultLocale: en-US
 ManifestType: version
-ManifestVersion: 1.6.0
+ManifestVersion: 1.12.0
 EOF
   cat >"$w/$winget_id.installer.yaml" <<EOF
+# yaml-language-server: \$schema=https://aka.ms/winget-manifest.installer.1.12.0.schema.json
 PackageIdentifier: $winget_id
 PackageVersion: $version
 InstallerType: nullsoft
@@ -135,6 +137,8 @@ InstallModes:
   - interactive
   - silent
 UpgradeBehavior: install
+Commands:
+  - mypack
 Protocols:
   - mypack
 ProductCode: dev.mypack.builder
@@ -146,27 +150,31 @@ Installers:
     InstallerUrl: $base/$exe_arm64
     InstallerSha256: $(sha256 "$dir/$exe_arm64" | tr a-f A-F)
 ManifestType: installer
-ManifestVersion: 1.6.0
+ManifestVersion: 1.12.0
 EOF
   cat >"$w/$winget_id.locale.en-US.yaml" <<EOF
+# yaml-language-server: \$schema=https://aka.ms/winget-manifest.defaultLocale.1.12.0.schema.json
 PackageIdentifier: $winget_id
 PackageVersion: $version
 PackageLocale: en-US
 Publisher: MyPack
 PublisherUrl: $homepage
 PublisherSupportUrl: $homepage/issues
+Author: MyPack contributors
 PackageName: MyPack
 PackageUrl: $homepage
 License: Apache-2.0
 LicenseUrl: $homepage/blob/main/LICENSE
+Copyright: Copyright (c) 2026 MyPack contributors
 ShortDescription: $desc.
+Moniker: mypack
 Tags:
   - desktop-app
   - webview
   - website
 ReleaseNotesUrl: $homepage/releases/tag/v$version
 ManifestType: defaultLocale
-ManifestVersion: 1.6.0
+ManifestVersion: 1.12.0
 EOF
 }
 
