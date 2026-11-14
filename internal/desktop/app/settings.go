@@ -22,19 +22,29 @@ type settingsState struct {
 
 	pane settingsPane // the category on show
 	scrl ui.ScrollState
+
+	// recording is the shortcut taking the next keys pressed, "" none;
+	// recFocused, that its field had the keyboard; recErr, why the last
+	// keys were refused (shortcuts.go).
+	recording  string
+	recFocused bool
+	recErr     string
+	recErrID   string // the shortcut recErr is about
+	recHover   string // the shortcut whose ✕ is under the pointer
 }
 
 // settingsPane is one category of Settings, listed in its sidebar.
 type settingsPane string
 
 const (
-	paneGeneral  settingsPane = "general"
-	paneUpdates  settingsPane = "updates"
-	paneSync     settingsPane = "sync"
-	paneBuilds   settingsPane = "builds"
-	paneAgents   settingsPane = "agents"
-	paneAdvanced settingsPane = "advanced"
-	paneAbout    settingsPane = "about"
+	paneGeneral   settingsPane = "general"
+	paneUpdates   settingsPane = "updates"
+	paneSync      settingsPane = "sync"
+	paneBuilds    settingsPane = "builds"
+	paneShortcuts settingsPane = "shortcuts"
+	paneAgents    settingsPane = "agents"
+	paneAdvanced  settingsPane = "advanced"
+	paneAbout     settingsPane = "about"
 )
 
 type paneInfo struct {
@@ -50,6 +60,7 @@ func settingsPanes() []paneInfo {
 		{paneUpdates, icons.Download, "update.group"},
 		{paneSync, icons.Refresh, "settings.sync"},
 		{paneBuilds, icons.Build, "settings.builds"},
+		{paneShortcuts, icons.Keyboard, "settings.shortcuts"},
 		{paneAgents, icons.Agent, "settings.agents"},
 		{paneAdvanced, icons.Code, "settings.advanced"},
 		{paneAbout, icons.About, "settings.about"},
@@ -175,7 +186,7 @@ func (a *App) settingsWindowView(c *ui.Context) {
 	if a.setWin != nil && a.setWin.IsFocused() {
 		a.drainToasts(c)
 	}
-	if c.Shortcut(0, ui.KeyEscape) && !kit.ModalOpen() {
+	if a.set.recording == "" && !kit.ModalOpen() && c.Shortcut(0, ui.KeyEscape) {
 		a.setWin.Close()
 	}
 }
@@ -234,6 +245,8 @@ func (a *App) settingsView(c *ui.Context) {
 				a.transferGroup(c)
 			case paneBuilds:
 				a.settingsBuilds(c)
+			case paneShortcuts:
+				a.settingsShortcuts(c)
 			case paneAgents:
 				a.settingsAgents(c)
 			case paneAdvanced:
@@ -317,20 +330,6 @@ func (a *App) settingsBuilds(c *ui.Context) {
 			if on != old {
 				a.ui.AutoInstallDefault = &on
 				a.ui.save()
-			}
-		})
-		launchOn := a.launcherEnabled()
-		launchDesc := T("launcher.setting.desc", "keys", launcherKeys())
-		if launchOn && a.launcher.registered == "" {
-			launchDesc = T("launcher.setting.taken", "keys", launcherKeys())
-		}
-		kit.SettingIconRow(c.Key("launcher"), icons.Search, ui.Color{}, T("launcher.setting"), launchDesc, func() {
-			old := launchOn
-			kit.Switch(c.Key("sw-launcher"), &launchOn, T("launcher.setting"))
-			if launchOn != old {
-				a.ui.LauncherOff = !launchOn
-				a.ui.save()
-				a.syncLauncherShortcut()
 			}
 		})
 		hudOn := a.ui.ShowHUD == nil || *a.ui.ShowHUD

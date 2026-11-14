@@ -95,38 +95,128 @@ var MonoFont = func() string {
 	return "monospace"
 }()
 
-// HotkeyText renders "mod+shift+n" the platform way: ⇧⌘N on macOS,
-// Ctrl+Shift+N elsewhere.
+// HotkeyText renders "mod+shift+n", or an accelerator such as
+// "CmdOrCtrl+Shift+N" or "Alt+Space", the platform way: ⇧⌘N and ⌥Space
+// on macOS, Ctrl+Shift+N and Alt+Space elsewhere.
 func HotkeyText(keys string) string {
-	if keys == "" {
-		return ""
+	return hotkeyText(keys, runtime.GOOS == "darwin")
+}
+
+// HotkeyParts is a hotkey's keys one by one, as keycaps show them: ⌥ ⇧
+// Space on macOS, Alt Shift Space elsewhere.
+func HotkeyParts(keys string) []string {
+	return hotkeyParts(keys, runtime.GOOS == "darwin")
+}
+
+func hotkeyText(keys string, mac bool) string {
+	if mac {
+		return strings.Join(hotkeyParts(keys, mac), "")
 	}
-	parts := strings.Split(strings.ToLower(keys), "+")
-	mac := runtime.GOOS == "darwin"
-	var mods, key string
+	return strings.Join(hotkeyParts(keys, mac), "+")
+}
+
+func hotkeyParts(keys string, mac bool) []string {
+	if keys == "" {
+		return nil
+	}
+	parts := strings.Split(keys, "+")
+	if strings.HasSuffix(keys, "++") { // "Ctrl++" is Ctrl and the + key
+		parts = append(parts[:len(parts)-2], "+")
+	}
+	var cmd, ctrl, alt, shift, super bool
+	key := ""
 	for _, k := range parts {
-		switch k {
-		case "mod", "cmd":
+		switch strings.ToLower(k) {
+		case "mod", "cmdorctrl", "commandorcontrol":
+			cmd = true
+		case "cmd", "command":
+			// "cmd" has always been the platform's modifier here.
+			cmd = true
+		case "super", "meta", "win":
 			if mac {
-				mods += "⌘"
+				cmd = true
 			} else {
-				mods += "Ctrl+"
+				super = true
+			}
+		case "ctrl", "control":
+			if mac {
+				ctrl = true
+			} else {
+				cmd = true
 			}
 		case "shift":
-			if mac {
-				mods = "⇧" + mods
-			} else {
-				mods += "Shift+"
-			}
-		case "alt", "opt":
-			if mac {
-				mods = "⌥" + mods
-			} else {
-				mods += "Alt+"
-			}
+			shift = true
+		case "alt", "opt", "option":
+			alt = true
 		default:
-			key = strings.ToUpper(k)
+			key = keyText(k, mac)
 		}
 	}
-	return mods + key
+	type mod struct {
+		on bool
+		s  string
+	}
+	order := []mod{{cmd, "Ctrl"}, {super, "Win"}, {alt, "Alt"}, {shift, "Shift"}}
+	if mac {
+		order = []mod{{ctrl, "⌃"}, {alt, "⌥"}, {shift, "⇧"}, {cmd, "⌘"}}
+	}
+	var out []string
+	for _, m := range order {
+		if m.on {
+			out = append(out, m.s)
+		}
+	}
+	if key != "" {
+		out = append(out, key)
+	}
+	return out
+}
+
+// keyText is one key of a hotkey as a keycap shows it.
+func keyText(k string, mac bool) string {
+	switch strings.ToLower(k) {
+	case "space":
+		return "Space"
+	case "enter", "return":
+		if mac {
+			return "↩"
+		}
+		return "Enter"
+	case "escape", "esc":
+		return "Esc"
+	case "tab":
+		if mac {
+			return "⇥"
+		}
+		return "Tab"
+	case "backspace":
+		if mac {
+			return "⌫"
+		}
+		return "Backspace"
+	case "delete", "del":
+		if mac {
+			return "⌦"
+		}
+		return "Delete"
+	case "up":
+		return "↑"
+	case "down":
+		return "↓"
+	case "left":
+		return "←"
+	case "right":
+		return "→"
+	case "pageup":
+		return "PgUp"
+	case "pagedown":
+		return "PgDn"
+	case "home":
+		return "Home"
+	case "end":
+		return "End"
+	case "plus":
+		return "+"
+	}
+	return strings.ToUpper(k)
 }

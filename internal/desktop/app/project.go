@@ -166,7 +166,7 @@ func (a *App) projectToolbar(c *ui.Context) {
 		label = T("action.rebuild")
 	}
 	if kit.Button(c.Key("build"), label, kit.ButtonOpts{Variant: kit.Primary, Size: design.ToolbarControl, Icon: icons.Build,
-		Disabled: busy, Loading: busy, Hotkey: "mod+b"}).Clicked() {
+		Disabled: busy, Loading: busy, Hotkey: a.accel(scBuild)}).Clicked() {
 		a.startBuild(pr.ID, nil)
 		a.projTab = 0 // the build's progress shows on Overview
 	}
