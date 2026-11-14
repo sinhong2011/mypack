@@ -571,6 +571,20 @@ type NativeConfig struct {
 	// LinkRouting (default true) opens links that belong to another
 	// installed MyPack app in that app instead of the default browser.
 	LinkRouting *bool `json:"linkRouting,omitempty"`
+	// Shortcuts remaps this app's menu keys by id (settings, reload, …).
+	// A missing id keeps the built-in default; "" turns that shortcut off.
+	// Saved in the app's profile, not MyPack.
+	Shortcuts map[string]string `json:"shortcuts,omitempty"`
+}
+
+// ApplyDownloadDirDefault fills an empty download folder from the Builder's
+// default. The Builder calls this when assembling an app so the path is
+// baked in; changing it later is a rebuild.
+func ApplyDownloadDirDefault(cfg *Config, defaultDir string) {
+	if cfg == nil || strings.TrimSpace(cfg.Network.DownloadDirectory) != "" {
+		return
+	}
+	cfg.Network.DownloadDirectory = strings.TrimSpace(defaultDir)
 }
 
 // User-agent presets (webview.userAgentPreset).

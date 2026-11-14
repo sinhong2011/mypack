@@ -110,6 +110,7 @@ const panes = [
   ["pages", "Pages"],
   ["downloads", "Downloads"],
   ["privacy", "Privacy"],
+  ["shortcuts", "Shortcuts"],
   ["native", "Native"],
   ["customize", "Customize"],
   ["about", "About"],
@@ -134,8 +135,10 @@ S.webview.blocking = Object.assign({ trackers: false, cookieBanners: false, allo
 S.network = Object.assign({ downloadDirectory: "", proxy: "", basicAuthUser: "" }, boot.network || {});
 S.native = Object.assign({
   tray: false, startToTray: false, globalShortcut: "", camera: false, microphone: false,
-  dragDrop: false, notifications: "allow", badge: "auto", linkRouting: true
+  dragDrop: false, notifications: "allow", badge: "auto", linkRouting: true, shortcuts: {}
 }, boot.native || {});
+S.shortcutList = Array.isArray(boot.shortcuts) ? boot.shortcuts.map(s => Object.assign({}, s)) : [];
+let recID = "";
 
 let pane = "general", saveT = 0;
 const field = (id, inner) => `<div class="row" id="row-${id}">${inner}</div>`;
@@ -207,16 +210,35 @@ const views = {
     </div>`;
   },
   downloads() {
-    return `<h1>Downloads</h1><div class="card">
-      ${field("dl", lab("Save files to", "Empty uses the system Downloads folder.") + `
-        <div>
-          <div class="ctrl grow">${txt("downloadDirectory", "~/Downloads")}<button class="btn" id="chooseDl" type="button">Choose…</button></div>
-          <div class="note" style="margin-top:6px">${boot.downloadDir ? "Currently " + boot.downloadDir : "No folder is available yet."}</div>
-        </div>`)}
+    const path = boot.downloadDir || "the system Downloads folder";
+    return `<h1>Downloads</h1>
+      <p class="note">This folder is set in MyPack when the app is built. Rebuild the app to change it. Other settings on this page apply immediately.</p>
+      <div class="card">
+      ${field("dl", lab("Save files to", "Baked in at build time.") + `<div class="note">${esc(path)}</div>`)}
       ${field("proxy", lab("Proxy", "Web pages follow the system proxy. This value is kept for tools that read it.") + `<div class="ctrl grow">${txt("proxy", "http://127.0.0.1:7890")}</div>`)}
       ${field("auth", lab("Saved username", "Used when a site asks for a sign-in. The password is never stored.") + `<div class="ctrl grow">${txt("basicAuthUser")}</div>`)}
     </div>
     <p class="note" style="margin-top:14px"><button class="btn" id="showDl" type="button">Show downloads folder</button></p>`;
+  },
+  shortcuts() {
+    let g = "";
+    let rows = "";
+    for (const s of S.shortcutList) {
+      if (s.group !== g) {
+        if (rows) rows += `</div>`;
+        g = s.group;
+        rows += `<h2>${esc(g)}</h2><div class="card">`;
+      }
+      const shown = recID === s.id ? "Type a shortcut…" : (s.value || (s.id === "global" ? s.def : "Off"));
+      rows += field("sc-"+s.id, lab(s.label, s.def ? "Default " + s.def : "") +
+        `<div class="ctrl"><button class="btn" type="button" data-sc="${esc(s.id)}">${esc(shown)}</button>
+         ${s.value && s.value !== s.def ? `<button class="btn" type="button" data-reset="${esc(s.id)}">Reset</button>` : ""}
+         ${s.value ? `<button class="btn" type="button" data-off="${esc(s.id)}">Off</button>` : ""}</div>`);
+    }
+    if (rows) rows += `</div>`;
+    return `<h1>Shortcuts</h1>
+      <p class="note">These keys belong to this app, not to MyPack. Click a shortcut, then press the new keys.</p>
+      ${rows}`;
   },
   privacy() {
     return `<h1>Privacy</h1><div class="card">
@@ -237,7 +259,6 @@ const views = {
     return `<h1>Native</h1><div class="card">
       ${mb ? "" : field("tray", lab("Menu bar / tray icon") + tog("tray"))}
       ${mb ? "" : field("stt", lab("Start hidden in the tray") + tog("startToTray"))}
-      ${field("gs", lab("Global shortcut", "Bring the app forward from anywhere.") + `<div class="ctrl grow">${txt("globalShortcut", "CmdOrCtrl+Shift+Space")}</div>`)}
       ${field("lr", lab("Open links in other MyPack apps") + tog("linkRouting"))}
       ${field("dd", lab("Allow drag and drop") + tog("dragDrop"))}
       ${field("cam", lab("Camera", "macOS still needs this turned on when the app is built.") + tog("camera"))}
@@ -287,15 +308,17 @@ function bind() {
    "width","height","minWidth","minHeight","mode","panelWidth","panelHeight","sidebarEdge",
    "sidebarAutoHide","titleBarStyle","tabs","fullscreen","multiWindow",
    "externalByDefault","popups","userAgentPreset","userAgent","restoreLastUrl","findInPage","devTools",
-   "internalUrlRegex","downloadDirectory","proxy","basicAuthUser",
-   "incognito","trackers","cookieBanners","tray","startToTray","globalShortcut","linkRouting",
+   "internalUrlRegex","proxy","basicAuthUser",
+   "incognito","trackers","cookieBanners","tray","startToTray","linkRouting",
    "dragDrop","camera","microphone","css","js"].forEach(id => on(id, () => {
      read();
      if (id==="mode"||id==="userAgentPreset") render();
      touch();
    }));
-  click("chooseDl", () => say("mypack:settings:folder"));
   click("showDl", () => say("mypack:settings:downloads"));
+  document.querySelectorAll("[data-sc]").forEach(b => b.onclick = () => { recID = b.dataset.sc; render(); });
+  document.querySelectorAll("[data-reset]").forEach(b => b.onclick = () => setShortcut(b.dataset.reset, null));
+  document.querySelectorAll("[data-off]").forEach(b => b.onclick = () => setShortcut(b.dataset.off, ""));
   click("openProfile", () => say("mypack:settings:profile"));
   click("reset", () => { if (confirm("Restore the settings this app was built with?")) say("mypack:settings:reset"); });
   click("domainBtn", () => addChip("domainAdd", S.webview.navigation.safeDomains, render));
@@ -340,14 +363,12 @@ function fill() {
   set("findInPage", S.webview.findInPage);
   set("devTools", S.webview.devTools);
   set("internalUrlRegex", S.webview.navigation.internalUrlRegex || "");
-  set("downloadDirectory", S.network.downloadDirectory || "");
   set("proxy", S.network.proxy || "");
   set("basicAuthUser", S.network.basicAuthUser || "");
   set("incognito", S.webview.incognito);
   set("trackers", S.webview.blocking.trackers);
   set("cookieBanners", S.webview.blocking.cookieBanners);
   set("tray", S.native.tray); set("startToTray", S.native.startToTray);
-  set("globalShortcut", S.native.globalShortcut || "");
   set("linkRouting", S.native.linkRouting);
   set("dragDrop", S.native.dragDrop);
   set("camera", S.native.camera); set("microphone", S.native.microphone);
@@ -390,7 +411,6 @@ function read() {
   if ($("findInPage")) S.webview.findInPage = chk("findInPage", false);
   if ($("devTools")) S.webview.devTools = chk("devTools", false);
   if ($("internalUrlRegex")) S.webview.navigation.internalUrlRegex = val("internalUrlRegex", "");
-  if ($("downloadDirectory")) S.network.downloadDirectory = val("downloadDirectory", "");
   if ($("proxy")) S.network.proxy = val("proxy", "");
   if ($("basicAuthUser")) S.network.basicAuthUser = val("basicAuthUser", "");
   if ($("incognito")) S.webview.incognito = chk("incognito", false);
@@ -398,7 +418,6 @@ function read() {
   if ($("cookieBanners")) S.webview.blocking.cookieBanners = chk("cookieBanners", false);
   if ($("tray")) S.native.tray = chk("tray", false);
   if ($("startToTray")) S.native.startToTray = chk("startToTray", false);
-  if ($("globalShortcut")) S.native.globalShortcut = val("globalShortcut", "");
   if ($("linkRouting")) S.native.linkRouting = chk("linkRouting", true);
   if ($("dragDrop")) S.native.dragDrop = chk("dragDrop", false);
   if ($("camera")) S.native.camera = chk("camera", false);
@@ -425,10 +444,56 @@ function collect() {
       blocking: S.webview.blocking,
       externalByDefault: S.webview.externalByDefault
     },
-    network: S.network,
-    native: S.native
+    network: { proxy: S.network.proxy, basicAuthUser: S.network.basicAuthUser },
+    native: Object.assign({}, S.native, { shortcuts: shortcutMap(), globalShortcut: S.native.globalShortcut || "" })
   };
 }
+
+function shortcutMap() {
+  const m = {};
+  for (const s of S.shortcutList) {
+    if (s.id === "global") continue;
+    if (s.value !== s.def) m[s.id] = s.value || "";
+  }
+  return m;
+}
+function shortcutValue(id) {
+  const s = S.shortcutList.find(x => x.id === id);
+  return s ? (s.value || "") : "";
+}
+function setShortcut(id, value) {
+  recID = "";
+  const s = S.shortcutList.find(x => x.id === id);
+  if (!s) return;
+  s.value = value === null ? s.def : value;
+  if (id === "global") S.native.globalShortcut = s.value;
+  render();
+  scheduleSave();
+}
+function accelFromEvent(e) {
+  const skip = { Control:1, Shift:1, Alt:1, Meta:1, CapsLock:1, Tab:1 };
+  if (skip[e.key]) return "";
+  const parts = [];
+  if (e.metaKey || e.ctrlKey) parts.push("CmdOrCtrl");
+  if (e.altKey) parts.push("Alt");
+  if (e.shiftKey) parts.push("Shift");
+  let k = e.key;
+  if (k === " ") k = "Space";
+  else if (k === ",") k = ",";
+  else if (k.length === 1) k = k.toUpperCase();
+  else k = k.replace(/^Arrow/, "");
+  if (!parts.length && !/F\d+/.test(k)) return "";
+  parts.push(k);
+  return parts.join("+");
+}
+document.addEventListener("keydown", e => {
+  if (!recID) return;
+  if (e.key === "Escape") { recID = ""; render(); e.preventDefault(); return; }
+  const acc = accelFromEvent(e);
+  if (!acc) return;
+  e.preventDefault();
+  setShortcut(recID, acc);
+});
 
 function scheduleSave() {
   clearTimeout(saveT);
@@ -437,8 +502,7 @@ function scheduleSave() {
 
 window.MP = {
   collect,
-  error(msg) { const e = $("error"); e.textContent = msg; e.classList.remove("hidden"); },
-  setDownloadDir(p) { S.network.downloadDirectory = p; const el = $("downloadDirectory"); if (el) el.value = p; scheduleSave(); }
+  error(msg) { const e = $("error"); e.textContent = msg; e.classList.remove("hidden"); }
 };
 
 render();

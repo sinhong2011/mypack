@@ -32,14 +32,20 @@ func windowOrder() []string {
 
 // watchWindowChrome redraws w when its controls change look: maximized or
 // restored, focused or not.
-func watchWindowChrome(w *mygo.Window) {
+func (a *App) watchWindowChrome(w *mygo.Window, extra ...func()) {
+	redraw := func() { w.Invalidate() }
+	w.OnFocus(func() {
+		a.installMenu()
+		for _, f := range extra {
+			f()
+		}
+		redraw()
+	})
 	if !ownWindowButtons {
 		return
 	}
-	redraw := func() { w.Invalidate() }
 	w.OnMaximize(redraw)
 	w.OnUnmaximize(redraw)
-	w.OnFocus(redraw)
 	w.OnBlur(redraw)
 }
 

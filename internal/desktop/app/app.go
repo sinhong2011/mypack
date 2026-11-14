@@ -90,6 +90,8 @@ type App struct {
 	setWin    *mygo.Window // Settings, once opened
 	flyoutURL string
 	demoApps  map[string]*mygo.Window // fake Open windows, keyed by install/artifact id
+	demoPrefs map[string]*demoPrefs   // per-app Settings overlays (not MyPack's)
+	demoSet   map[string]*mygo.Window // each demo app's Settings window
 
 	lib     libState
 	create  createState
@@ -202,7 +204,7 @@ func Run(svc appservice.Service) error {
 			Content:              ui.View(a.view),
 		})
 		setWindowIcon(a.win, brandWindowIcon())
-		watchWindowChrome(a.win)
+		a.watchWindowChrome(a.win)
 		a.win.OnClose(func(e *mygo.CloseEvent) {
 			if !a.quitting {
 				e.PreventDefault()

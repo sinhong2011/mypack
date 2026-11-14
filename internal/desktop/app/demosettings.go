@@ -1,0 +1,184 @@
+package app
+
+import (
+	"runtime"
+	"strings"
+
+	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/ui"
+
+	"mypack.dev/mypack/internal/desktop/design"
+	"mypack.dev/mypack/internal/desktop/kit"
+)
+
+// demoPrefs is this built app's Settings overlay. It is not MyPack's
+// Settings. Download folder is not here: that is baked when MyPack builds.
+type demoPrefs struct {
+	Title          string
+	AlwaysOnTop    bool
+	HideOnClose    bool
+	GlobalShortcut string
+}
+
+func (a *App) prefsFor(d demoLaunch) *demoPrefs {
+	if a.demoPrefs == nil {
+		a.demoPrefs = map[string]*demoPrefs{}
+	}
+	p := a.demoPrefs[d.key]
+	if p == nil {
+		p = &demoPrefs{}
+		if d.cfg != nil {
+			p.Title = d.cfg.App.Title
+			p.AlwaysOnTop = d.cfg.Window.AlwaysOnTop
+			p.HideOnClose = d.cfg.Window.HideOnClose
+			p.GlobalShortcut = d.cfg.Native.GlobalShortcut
+		}
+		if d.key != "" {
+			a.demoPrefs[d.key] = p
+		}
+	}
+	return p
+}
+
+func (a *App) demoDownloadDir(d demoLaunch) string {
+	if d.cfg != nil && strings.TrimSpace(d.cfg.Network.DownloadDirectory) != "" {
+		return d.cfg.Network.DownloadDirectory
+	}
+	return strings.TrimSpace(a.settings.DownloadDir)
+}
+
+func (a *App) demoAppMenu(d demoLaunch) *mygo.Menu {
+	settings := func(*mygo.MenuItem, *mygo.Window) { a.openDemoSettings(d) }
+	name := d.name
+	if name == "" {
+		name = "App"
+	}
+	appItems := []*mygo.MenuItem{
+		{Label: T("menu.about"), Click: settings},
+		mygo.Separator(),
+		{Label: T("menu.settings"), Accelerator: "CmdOrCtrl+,", Click: settings},
+		mygo.Separator(),
+		{Label: T("common.close"), Accelerator: "CmdOrCtrl+W", Click: func(_ *mygo.MenuItem, w *mygo.Window) {
+			if w != nil {
+				w.Close()
+			}
+		}},
+	}
+	file := []*mygo.MenuItem{
+		{Label: T("menu.settings"), Click: settings},
+		mygo.Separator(),
+		{Role: mygo.RoleClose},
+	}
+	if runtime.GOOS == "darwin" {
+		file = file[2:] // Settings lives in the app menu
+	}
+	return mygo.NewMenu([]*mygo.MenuItem{
+		{Label: name, Submenu: appItems},
+		{Label: T("menu.file"), Submenu: file},
+		{Role: mygo.RoleEditMenu},
+		{Role: mygo.RoleWindowMenu},
+	})
+}
+
+func (a *App) openDemoSettings(d demoLaunch) {
+	if a.demoSet == nil {
+		a.demoSet = map[string]*mygo.Window{}
+	}
+	if w := a.demoSet[d.key]; w != nil && !w.IsDestroyed() {
+		w.Show()
+		w.Focus()
+		return
+	}
+	state := d
+	title := T("demo.settings.title", "name", d.name)
+	win := mygo.NewWindow(mygo.WindowOptions{
+		Title:             title,
+		Width:             640,
+		Height:            560,
+		MinWidth:          480,
+		MinHeight:         400,
+		TitleBarStyle:     mygo.TitleBarHidden,
+		HideWindowButtons: ownWindowButtons,
+		BackgroundColor:   "light-dark(#efefeb, #141415)",
+		Content:           ui.View(func(c *ui.Context) { a.demoSettingsView(c, state) }),
+	})
+	setWindowIcon(win, d.icon)
+	menu := a.demoAppMenu(d)
+	win.SetMenu(menu)
+	win.OnFocus(func() { mygo.App.SetMenu(menu) })
+	if d.key != "" {
+		key := d.key
+		a.demoSet[key] = win
+		win.OnClose(func(*mygo.CloseEvent) { delete(a.demoSet, key) })
+	}
+}
+
+func (a *App) demoSettingsView(c *ui.Context, d demoLaunch) {
+	p := design.Of(c)
+	design.Apply(c)
+	pref := a.prefsFor(d)
+	ui.Column(c).Fill().Background(p.CanvasBot).Children(func() {
+		ui.Row(c).Padding(16, 20).Gap(12).AlignItems(ui.Center).Children(func() {
+			kit.AppIconOpts(c, d.icon, d.name, 36, kit.IconOpts{Shadow: true})
+			ui.Column(c).Gap(2).Grow(1).MinWidth(0).Children(func() {
+				kit.Headline(c, T("demo.settings.title", "name", d.name))
+				kit.Caption(c, T("demo.open.body"))
+			})
+			windowButtons(c, a.demoSet[d.key])
+		})
+		ui.Scroll(c).Fill().Children(func() {
+			ui.Column(c).Padding(8, 20, 28, 20).Gap(16).Children(func() {
+				kit.Group(c, T("settings.general"), func() {
+					kit.SettingRow(c, T("set.title"), T("set.title.desc"), func() {
+						in := kit.TextField(c.Key("title"), &pref.Title, T("set.title"), kit.FieldOpts{Placeholder: d.name})
+						in.Width(220)
+						if in.Changed() {
+							a.applyDemoWindow(d)
+						}
+					})
+					kit.SettingRow(c, T("set.alwaysOnTop"), "", func() {
+						old := pref.AlwaysOnTop
+						kit.Switch(c.Key("aot"), &pref.AlwaysOnTop, T("set.alwaysOnTop"))
+						if pref.AlwaysOnTop != old {
+							a.applyDemoWindow(d)
+						}
+					})
+					kit.SettingRow(c, T("set.hideOnClose"), T("set.hideOnClose.desc"), func() {
+						kit.Switch(c.Key("hoc"), &pref.HideOnClose, T("set.hideOnClose"))
+					})
+					kit.SettingRow(c, T("set.shortcut"), T("set.shortcut.desc"), func() {
+						in := kit.TextField(c.Key("gs"), &pref.GlobalShortcut, T("set.shortcut"), kit.FieldOpts{Placeholder: "CmdOrCtrl+Shift+Space"})
+						in.Width(220)
+					})
+				})
+				kit.Group(c, T("set.downloads"), func() {
+					path := a.demoDownloadDir(d)
+					kit.SettingRow(c, T("set.downloads"), "", func() {
+						if path == "" {
+							kit.Caption(c, T("demo.downloads.empty"))
+						} else {
+							kit.Mono(c, shortPath(path)).SingleLine().MaxWidth(280)
+						}
+					})
+					if path != "" {
+						kit.Caption(c, T("demo.downloads.baked"))
+					}
+				})
+			})
+		})
+	})
+}
+
+func (a *App) applyDemoWindow(d demoLaunch) {
+	w := a.demoApps[d.key]
+	if w == nil || w.IsDestroyed() {
+		return
+	}
+	p := a.prefsFor(d)
+	title := strings.TrimSpace(p.Title)
+	if title == "" {
+		title = d.name
+	}
+	w.SetTitle(title)
+	w.SetAlwaysOnTop(p.AlwaysOnTop)
+}

@@ -223,10 +223,13 @@ type Storage struct {
 
 // Settings are global user preferences.
 type Settings struct {
-	Language        string `json:"language"`   // "system" or a locale ID
-	Appearance      string `json:"appearance"` // "system" | "light" | "dark"
-	OutputDir       string `json:"outputDir"`
-	InstallDir      string `json:"installDir"`
+	Language   string `json:"language"`   // "system" or a locale ID
+	Appearance string `json:"appearance"` // "system" | "light" | "dark"
+	OutputDir  string `json:"outputDir"`
+	InstallDir string `json:"installDir"`
+	// DownloadDir is the default folder baked into apps that do not set
+	// their own network.downloadDirectory. Empty = the system Downloads folder.
+	DownloadDir     string `json:"downloadDir,omitempty"`
 	RegistryURL     string `json:"registryUrl"`
 	ShowMenuBarIcon bool   `json:"showMenuBarIcon"`
 	CheckUpdates    bool   `json:"checkUpdates"`

@@ -87,10 +87,11 @@ func TestApplySettingsForm(t *testing.T) {
 				Allow:    []string{"https://www.cdn.example/x"},
 			},
 		},
-		Network: config.NetworkConfig{DownloadDirectory: "~/Downloads"},
+		Network: config.NetworkConfig{Proxy: "http://127.0.0.1:7890"},
 		Native: settingsNativeForm{
 			Tray: true, Notifications: "ask", Badge: "off", LinkRouting: false,
 			GlobalShortcut: "CmdOrCtrl+Shift+M",
+			Shortcuts:      map[string]string{"reload": "Alt+R", "settings": "CmdOrCtrl+,"},
 		},
 	}
 	if err := applySettingsForm(cfg, f); err != nil {
@@ -117,8 +118,17 @@ func TestApplySettingsForm(t *testing.T) {
 	if cfg.WebView.Blocking == nil || !cfg.WebView.Blocking.Trackers || cfg.WebView.Blocking.Allow[0] != "cdn.example" {
 		t.Fatalf("blocking: %+v", cfg.WebView.Blocking)
 	}
-	if cfg.Network.DownloadDirectory != "~/Downloads" {
-		t.Fatal(cfg.Network.DownloadDirectory)
+	if cfg.Network.DownloadDirectory != "" {
+		t.Fatalf("download folder is baked at build: %q", cfg.Network.DownloadDirectory)
+	}
+	if cfg.Network.Proxy != "http://127.0.0.1:7890" {
+		t.Fatal(cfg.Network.Proxy)
+	}
+	if cfg.Native.Shortcuts["reload"] != "Alt+R" {
+		t.Fatalf("shortcuts: %+v", cfg.Native.Shortcuts)
+	}
+	if _, ok := cfg.Native.Shortcuts["settings"]; ok {
+		t.Fatal("default shortcut should not be stored")
 	}
 	if cfg.Native.NotificationsMode() != "ask" || cfg.Native.BadgeMode() != "off" || cfg.Native.LinkRoutingEnabled() {
 		t.Fatalf("native: %+v", cfg.Native)
@@ -152,7 +162,7 @@ func TestSettingsHTMLHasPanes(t *testing.T) {
 				Blocking: &config.BlockingConfig{}},
 		},
 	})
-	for _, s := range []string{"Settings", "Downloads", "Safe domains", "Custom CSS", "Settings…", "mypack:settings:save"} {
+	for _, s := range []string{"Settings", "Downloads", "Shortcuts", "Rebuild the app to change it", "Safe domains", "Custom CSS", "mypack:settings:save"} {
 		if s == "Settings…" {
 			continue
 		}

@@ -105,9 +105,7 @@ func (a *App) openSettings(pane settingsPane) {
 			Content:              ui.View(a.settingsWindowView),
 		})
 		setWindowIcon(a.setWin, brandWindowIcon())
-		// Coming forward re-reads what the system does at login.
-		a.setWin.OnFocus(a.refreshLogin)
-		watchWindowChrome(a.setWin)
+		a.watchWindowChrome(a.setWin, a.refreshLogin)
 		// Closing hides it, so it opens again where it was.
 		a.setWin.OnClose(func(e *mygo.CloseEvent) {
 			if !a.quitting {
@@ -345,6 +343,7 @@ func (a *App) settingsBuilds(c *ui.Context) {
 		})
 		dir("out", T("settings.outputDir"), T("settings.outputDir.desc"), &a.settings.OutputDir, ui.Color{})
 		dir("inst", T("settings.installDir"), T("settings.installDir.desc"), &a.settings.InstallDir, ui.Color{})
+		dir("dl", T("settings.downloadDir"), T("settings.downloadDir.desc"), &a.settings.DownloadDir, ui.Color{})
 	})
 }
 

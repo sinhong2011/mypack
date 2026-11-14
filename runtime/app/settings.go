@@ -17,7 +17,6 @@ import (
 
 const (
 	settingsTitleSave    = "mypack:settings:save"
-	settingsTitleFolder  = "mypack:settings:folder"
 	settingsTitleReset   = "mypack:settings:reset"
 	settingsTitleProfile = "mypack:settings:profile"
 	settingsTitleReveal  = "mypack:settings:downloads"
@@ -47,28 +46,30 @@ type settingsWebViewForm struct {
 }
 
 type settingsNativeForm struct {
-	Tray           bool   `json:"tray"`
-	StartToTray    bool   `json:"startToTray"`
-	GlobalShortcut string `json:"globalShortcut"`
-	Camera         bool   `json:"camera"`
-	Microphone     bool   `json:"microphone"`
-	DragDrop       bool   `json:"dragDrop"`
-	Notifications  string `json:"notifications"`
-	Badge          string `json:"badge"`
-	LinkRouting    bool   `json:"linkRouting"`
+	Tray           bool              `json:"tray"`
+	StartToTray    bool              `json:"startToTray"`
+	GlobalShortcut string            `json:"globalShortcut"`
+	Camera         bool              `json:"camera"`
+	Microphone     bool              `json:"microphone"`
+	DragDrop       bool              `json:"dragDrop"`
+	Notifications  string            `json:"notifications"`
+	Badge          string            `json:"badge"`
+	LinkRouting    bool              `json:"linkRouting"`
+	Shortcuts      map[string]string `json:"shortcuts,omitempty"`
 }
 
 type settingsBoot struct {
 	settingsForm
-	Name        string `json:"name"`
-	Version     string `json:"version"`
-	Identifier  string `json:"identifier"`
-	ProfileID   string `json:"profileId"`
-	ProfileDir  string `json:"profileDir"`
-	DownloadDir string `json:"downloadDir"`
-	Lite        bool   `json:"lite"`
-	MenuBar     bool   `json:"menuBar"`
-	RestartHint string `json:"restartHint"`
+	Name        string         `json:"name"`
+	Version     string         `json:"version"`
+	Identifier  string         `json:"identifier"`
+	ProfileID   string         `json:"profileId"`
+	ProfileDir  string         `json:"profileDir"`
+	DownloadDir string         `json:"downloadDir"`
+	Lite        bool           `json:"lite"`
+	MenuBar     bool           `json:"menuBar"`
+	RestartHint string         `json:"restartHint"`
+	Shortcuts   []shortcutBoot `json:"shortcuts"`
 }
 
 func (a *App) openSettings() {
@@ -105,14 +106,12 @@ func (a *App) openSettings() {
 	}
 	p.OnPageTitleUpdated(func(e *mygo.TitleEvent) {
 		switch e.Title {
-		case settingsTitleSave, settingsTitleFolder, settingsTitleReset, settingsTitleProfile, settingsTitleReveal:
+		case settingsTitleSave, settingsTitleReset, settingsTitleProfile, settingsTitleReveal:
 			e.PreventDefault()
 		}
 		switch e.Title {
 		case settingsTitleSave:
 			go a.settingsSave(p)
-		case settingsTitleFolder:
-			go a.settingsChooseFolder(p)
 		case settingsTitleReset:
 			mygo.RunOnMain(func() { a.resetSettings(p) })
 		case settingsTitleProfile:
@@ -143,6 +142,7 @@ func (a *App) settingsBoot(restartHint string) settingsBoot {
 		ProfileID:   cfg.App.ProfileID,
 		ProfileDir:  a.prefsDir,
 		DownloadDir: a.downloadDir(),
+		Shortcuts:   a.shortcutsBoot(),
 		Lite:        Lite,
 		MenuBar:     a.menuBarMode(),
 		RestartHint: restartHint,
@@ -241,22 +241,6 @@ func (a *App) settingsReloadPage(p *mygo.Page, hint string) {
 func (a *App) settingsError(p *mygo.Page, msg string) {
 	js, _ := jsonString(msg)
 	_, _ = p.Eval(`window.MP && window.MP.error(` + js + `)`)
-}
-
-func (a *App) settingsChooseFolder(p *mygo.Page) {
-	parent := a.setWin
-	paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
-		Parent: parent, Directory: true, CreateDirectories: true,
-	})
-	if err != nil || len(paths) == 0 {
-		return
-	}
-	js, _ := jsonString(paths[0])
-	mygo.RunOnMain(func() {
-		if _, err := p.Eval(`window.MP.setDownloadDir(` + js + `)`); err != nil {
-			log.Printf("mypack-runtime: settings: folder: %v", err)
-		}
-	})
 }
 
 func (a *App) revealProfile() {
@@ -383,14 +367,22 @@ func applySettingsForm(cfg *config.Config, f settingsForm) error {
 	setInlineInjection(cfg, "js", f.WebView.JS)
 	wv.Blocking = tidyBlocking(f.WebView.Blocking)
 
-	cfg.Network.DownloadDirectory = strings.TrimSpace(f.Network.DownloadDirectory)
+	// Download folder is baked at build time in MyPack; the running app
+	// cannot change it here.
 	cfg.Network.Proxy = strings.TrimSpace(f.Network.Proxy)
 	cfg.Network.BasicAuthUser = strings.TrimSpace(f.Network.BasicAuthUser)
 
 	n := &cfg.Native
 	n.Tray = f.Native.Tray
 	n.StartToTray = f.Native.StartToTray && f.Native.Tray
+	n.Shortcuts = tidyShortcuts(f.Native.Shortcuts)
 	n.GlobalShortcut = strings.TrimSpace(f.Native.GlobalShortcut)
+	if n.Shortcuts != nil {
+		if g, ok := n.Shortcuts["global"]; ok {
+			n.GlobalShortcut = g
+			delete(n.Shortcuts, "global")
+		}
+	}
 	n.Camera = f.Native.Camera
 	n.Microphone = f.Native.Microphone
 	n.DragDrop = f.Native.DragDrop
@@ -411,6 +403,32 @@ func applySettingsForm(cfg *config.Config, f settingsForm) error {
 		n.LinkRouting = &off
 	}
 	return nil
+}
+
+func tidyShortcuts(in map[string]string) map[string]string {
+	if len(in) == 0 {
+		return nil
+	}
+	known := map[string]string{}
+	for _, d := range runtimeShortcutDefs() {
+		known[d.ID] = d.Def
+	}
+	out := map[string]string{}
+	for id, acc := range in {
+		def, ok := known[id]
+		if !ok || id == "global" {
+			continue
+		}
+		acc = strings.TrimSpace(acc)
+		if acc == def {
+			continue
+		}
+		out[id] = acc
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func cleanDomains(in []string) []string {

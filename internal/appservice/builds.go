@@ -445,6 +445,9 @@ func (s *Impl) runJob(ctx context.Context, st *jobState) {
 	// be baked into the generated app's mypack.json.
 	engineCfg := cur.Snapshot.Clone()
 	engineCfg.App.Source.Project, engineCfg.App.Source.Build = "", nil
+	if set, err := s.Settings(ctx); err == nil {
+		config.ApplyDownloadDirDefault(engineCfg, set.DownloadDir)
+	}
 
 	arts, berr := s.engine.Build(ctx, builder.Request{
 		Config: engineCfg, IconPNG: icon, Targets: cur.Targets, OutputDir: meta.OutputDir,

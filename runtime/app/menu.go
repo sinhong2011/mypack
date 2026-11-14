@@ -10,8 +10,20 @@ import (
 	"mypack.dev/mypack/runtime/inject"
 )
 
-// acc returns an accelerator unless the user disabled that shortcut.
+// acc returns an accelerator unless the user remapped or turned off that
+// shortcut in this app's Settings.
 func (a *App) acc(s string) string {
+	if a.cfg != nil {
+		for _, d := range runtimeShortcutDefs() {
+			if d.Def == s {
+				s = a.shortcutAccel(d)
+				break
+			}
+		}
+	}
+	if s == "" {
+		return ""
+	}
 	if a.disabled[inject.Normalize(s)] {
 		return ""
 	}

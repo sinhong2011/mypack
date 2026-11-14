@@ -32,6 +32,25 @@ func TestDemoFromInstallUsesProject(t *testing.T) {
 	if string(d.icon) != "icon" {
 		t.Fatalf("icon %q", d.icon)
 	}
+	if d.cfg == nil || d.cfg.App.Name != "Linear" {
+		t.Fatalf("cfg %+v", d.cfg)
+	}
+}
+
+func TestDemoDownloadDirUsesMyPackDefault(t *testing.T) {
+	a := &App{}
+	d := demoLaunch{cfg: &config.Config{}}
+	if a.demoDownloadDir(d) != "" {
+		t.Fatal("empty")
+	}
+	a.settings.DownloadDir = "~/Inbox"
+	if a.demoDownloadDir(d) != "~/Inbox" {
+		t.Fatal(a.demoDownloadDir(d))
+	}
+	d.cfg.Network.DownloadDirectory = "~/Linear"
+	if a.demoDownloadDir(d) != "~/Linear" {
+		t.Fatal("project folder should win")
+	}
 }
 
 func TestDemoFromArtifactUsesSnapshot(t *testing.T) {

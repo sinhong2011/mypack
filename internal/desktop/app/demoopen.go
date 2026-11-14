@@ -13,6 +13,7 @@ import (
 	"mypack.dev/mypack/internal/desktop/kit/icons"
 	"mypack.dev/mypack/internal/domain"
 	"mypack.dev/mypack/internal/installer"
+	"mypack.dev/mypack/pkg/config"
 )
 
 // chromeAppBins are browsers that open a URL as its own window (--app).
@@ -22,6 +23,7 @@ type demoLaunch struct {
 	key, name, url, path string
 	icon                 []byte
 	width, height        int
+	cfg                  *config.Config
 }
 
 func (a *App) installByID(id string) *domain.Installation {
@@ -83,6 +85,7 @@ func (d *demoLaunch) applyProject(pr *domain.Project) {
 	if w, h := pr.Config.Window.Width, pr.Config.Window.Height; w > 0 && h > 0 {
 		d.width, d.height = w, h
 	}
+	d.cfg = pr.Config
 }
 
 func (a *App) launchDemo(d demoLaunch) {
@@ -125,16 +128,30 @@ func (a *App) openDemoWindow(d demoLaunch) {
 		h = 700
 	}
 	state := d
+	pref := a.prefsFor(state)
+	title := strings.TrimSpace(pref.Title)
+	if title == "" {
+		title = state.name
+	}
 	win := mygo.NewWindow(mygo.WindowOptions{
-		Title: state.name, Width: w, Height: h, MinWidth: 480, MinHeight: 360,
+		Title: title, Width: w, Height: h, MinWidth: 480, MinHeight: 360,
+		AlwaysOnTop:     pref.AlwaysOnTop,
 		BackgroundColor: "light-dark(#efefeb, #141415)",
 		Content:         ui.View(func(c *ui.Context) { a.demoAppView(c, state) }),
 	})
 	setWindowIcon(win, state.icon)
+	menu := a.demoAppMenu(state)
+	win.SetMenu(menu)
+	win.OnFocus(func() { mygo.App.SetMenu(menu) })
 	if d.key != "" {
 		key := d.key
 		a.demoApps[key] = win
-		win.OnClose(func(*mygo.CloseEvent) { delete(a.demoApps, key) })
+		win.OnClose(func(*mygo.CloseEvent) {
+			delete(a.demoApps, key)
+			if a.win != nil && a.win.IsFocused() {
+				a.installMenu()
+			}
+		})
 	}
 }
 
@@ -148,13 +165,18 @@ func (a *App) demoAppView(c *ui.Context, d demoLaunch) {
 			kit.Secondary(c, d.url).SingleLine()
 		}
 		kit.Caption(c, T("demo.open.body"))
-		if d.url != "" {
-			if kit.Button(c.Key("open"), T("demo.open.browser"), kit.ButtonOpts{Variant: kit.Primary, Size: design.ControlLG, Icon: icons.Globe}).Clicked() {
-				if err := openSiteApp(d.url); err != nil {
-					a.toastErr(err)
+		ui.Row(c).Gap(10).Children(func() {
+			if kit.Button(c.Key("set"), T("demo.settings"), kit.ButtonOpts{Size: design.ControlLG, Icon: icons.Settings}).Clicked() {
+				a.openDemoSettings(d)
+			}
+			if d.url != "" {
+				if kit.Button(c.Key("open"), T("demo.open.browser"), kit.ButtonOpts{Variant: kit.Primary, Size: design.ControlLG, Icon: icons.Globe}).Clicked() {
+					if err := openSiteApp(d.url); err != nil {
+						a.toastErr(err)
+					}
 				}
 			}
-		}
+		})
 	})
 }
 

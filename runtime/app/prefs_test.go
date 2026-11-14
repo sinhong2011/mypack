@@ -15,7 +15,7 @@ func TestApplyUserPrefsKeepsIdentity(t *testing.T) {
 		"app":{"name":"Hacked","title":"My title","identifier":"evil.id","source":{"type":"url","value":"https://evil.example"}},
 		"runtime":{"version":"0.0.1"},
 		"window":{"alwaysOnTop":true,"width":1400},
-		"network":{"downloadDirectory":"~/Downloads"},
+		"network":{"proxy":"http://127.0.0.1:9"},
 		"build":{"targets":[{"os":"linux","arch":"amd64","format":"zip"}]}
 	}`)
 	if err := applyUserPrefs(cfg, raw); err != nil {
@@ -30,8 +30,11 @@ func TestApplyUserPrefsKeepsIdentity(t *testing.T) {
 	if cfg.App.Title != "My title" || !cfg.Window.AlwaysOnTop || cfg.Window.Width != 1400 {
 		t.Fatalf("overlay not applied: title=%q aot=%v w=%d", cfg.App.Title, cfg.Window.AlwaysOnTop, cfg.Window.Width)
 	}
-	if cfg.Network.DownloadDirectory != "~/Downloads" {
-		t.Fatalf("downloads: %q", cfg.Network.DownloadDirectory)
+	if cfg.Network.DownloadDirectory != "" {
+		t.Fatalf("download folder must stay baked: %q", cfg.Network.DownloadDirectory)
+	}
+	if cfg.Network.Proxy != "http://127.0.0.1:9" {
+		t.Fatalf("proxy: %q", cfg.Network.Proxy)
 	}
 	if cfg.Window.Height != 780 {
 		t.Fatalf("unmentioned height must stay: %d", cfg.Window.Height)
@@ -44,8 +47,9 @@ func TestPrefsOverlayRoundTrip(t *testing.T) {
 	cur.App.Title = "Work"
 	cur.Window.AlwaysOnTop = true
 	cur.Window.Zoom = 125
-	cur.Network.DownloadDirectory = "~/Downloads"
+	cur.Network.Proxy = "http://127.0.0.1:9"
 	cur.Native.Notifications = "ask"
+	cur.Native.Shortcuts = map[string]string{"reload": "Alt+R"}
 	off := false
 	cur.Native.LinkRouting = &off
 	cur.WebView.Navigation.Popups = "external"
@@ -73,11 +77,17 @@ func TestPrefsOverlayRoundTrip(t *testing.T) {
 	if restored.App.Title != "Work" || !restored.Window.AlwaysOnTop || restored.Window.Zoom != 125 {
 		t.Fatalf("round trip window: %+v", restored.Window)
 	}
-	if restored.Network.DownloadDirectory != "~/Downloads" {
-		t.Fatal(restored.Network.DownloadDirectory)
+	if restored.Network.DownloadDirectory != bundled.Network.DownloadDirectory {
+		t.Fatalf("download folder must stay baked: %q", restored.Network.DownloadDirectory)
+	}
+	if restored.Network.Proxy != "http://127.0.0.1:9" {
+		t.Fatal(restored.Network.Proxy)
 	}
 	if restored.Native.Notifications != "ask" || restored.Native.LinkRoutingEnabled() {
 		t.Fatalf("native: %+v", restored.Native)
+	}
+	if restored.Native.Shortcuts["reload"] != "Alt+R" {
+		t.Fatalf("shortcuts: %+v", restored.Native.Shortcuts)
 	}
 	if restored.WebView.Navigation.Popups != "external" || len(restored.WebView.Navigation.SafeDomains) != 2 {
 		t.Fatalf("nav: %+v", restored.WebView.Navigation)
@@ -117,16 +127,19 @@ func TestSaveUserPrefsRoundTripFile(t *testing.T) {
 	dir := t.TempDir()
 	bundled := samplePrefsConfig()
 	cur := bundled.Clone()
-	cur.Network.DownloadDirectory = "/tmp/dl"
+	cur.Network.Proxy = "http://127.0.0.1:9"
 	if err := saveUserPrefs(bundled, cur, dir); err != nil {
 		t.Fatal(err)
 	}
 	loaded := bundled.Clone()
 	loadUserPrefs(loaded, dir)
-	if loaded.Network.DownloadDirectory != "/tmp/dl" {
-		t.Fatalf("loaded %q", loaded.Network.DownloadDirectory)
+	if loaded.Network.Proxy != "http://127.0.0.1:9" {
+		t.Fatalf("loaded %q", loaded.Network.Proxy)
 	}
-	cur.Network.DownloadDirectory = bundled.Network.DownloadDirectory
+	if loaded.Network.DownloadDirectory != bundled.Network.DownloadDirectory {
+		t.Fatalf("download folder must stay baked: %q", loaded.Network.DownloadDirectory)
+	}
+	cur.Network.Proxy = bundled.Network.Proxy
 	if err := saveUserPrefs(bundled, cur, dir); err != nil {
 		t.Fatal(err)
 	}

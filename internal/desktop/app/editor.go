@@ -784,7 +784,11 @@ func (a *App) settingGroups(c *ui.Context, ed *editorState, pr *domain.Project) 
 		{label: T("set.downloads"), desc: T("set.downloads.desc"), control: func() {
 			ui.Column(c).Gap(6).Children(func() {
 				ui.Row(c).Gap(6).AlignItems(ui.Center).Wrap().Children(func() {
-					in := kit.TextField(k("dl"), &cfg.Network.DownloadDirectory, T("set.downloads"), kit.FieldOpts{Placeholder: "~/Downloads"})
+					ph := a.settings.DownloadDir
+					if ph == "" {
+						ph = "~/Downloads"
+					}
+					in := kit.TextField(k("dl"), &cfg.Network.DownloadDirectory, T("set.downloads"), kit.FieldOpts{Placeholder: ph})
 					in.Width(200)
 					if in.Changed() {
 						ed.changed()
@@ -801,7 +805,11 @@ func (a *App) settingGroups(c *ui.Context, ed *editorState, pr *domain.Project) 
 				resolved, ok := downloadFolderStatus(cfg.Network.DownloadDirectory)
 				switch {
 				case cfg.Network.DownloadDirectory == "":
-					kit.Caption(c, T("set.downloads.system"))
+					if a.settings.DownloadDir != "" {
+						kit.Caption(c, T("set.downloads.rebuild", "path", shortPath(a.settings.DownloadDir)))
+					} else {
+						kit.Caption(c, T("set.downloads.system"))
+					}
 				case !ok:
 					ui.Text(c, T("set.downloads.unusable")).FontSize(design.FontSmall).TextColor(p.Danger)
 				default:
