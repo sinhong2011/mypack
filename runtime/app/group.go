@@ -635,7 +635,7 @@ func (a *App) openGroupWindow(stateKey string, hidden bool) (*mygo.Window, *mygo
 		o.TitleBarHeight = 32
 	}
 	o.Content = a.group.content()
-	w := safeNewWindow(o)
+	w := a.makeWindow(o)
 	a.mu.Lock()
 	a.windows[w] = nil // marks it an app window before its pages exist
 	a.mu.Unlock()

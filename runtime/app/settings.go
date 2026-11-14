@@ -94,7 +94,7 @@ func (a *App) openSettings() {
 			DevTools: mygo.DevToolsDisabled,
 		},
 	}
-	win := safeNewWindow(opts)
+	win := a.makeWindow(opts)
 	p := win.Page()
 	a.mu.Lock()
 	a.openingSettings = false

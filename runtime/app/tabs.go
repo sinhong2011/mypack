@@ -81,7 +81,7 @@ func (a *App) openTabsWindow(startURL, stateKey string, hidden bool) (*mygo.Wind
 		o.TitleBarHeight = tabBarH
 	}
 	o.Content = ui.View(t.viewFn)
-	w := safeNewWindow(o)
+	w := a.makeWindow(o)
 	a.mu.Lock()
 	a.windows[w] = nil // an app window before its pages exist
 	a.mu.Unlock()

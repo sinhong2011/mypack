@@ -89,6 +89,7 @@ type App struct {
 	flyout    *mygo.Window
 	setWin    *mygo.Window // Settings, once opened
 	flyoutURL string
+	demoApps  map[string]*mygo.Window // fake Open windows, keyed by install/artifact id
 
 	lib     libState
 	create  createState
@@ -186,6 +187,7 @@ func Run(svc appservice.Service) error {
 	a.installMenu()
 
 	mygo.App.WhenReady(func() {
+		setBrandAppIcon()
 		a.win = mygo.NewWindow(mygo.WindowOptions{
 			Title:                "MyPack",
 			Width:                1200,
@@ -199,6 +201,7 @@ func Run(svc appservice.Service) error {
 			HideWindowButtons:    ownWindowButtons,
 			Content:              ui.View(a.view),
 		})
+		setWindowIcon(a.win, brandWindowIcon())
 		watchWindowChrome(a.win)
 		a.win.OnClose(func(e *mygo.CloseEvent) {
 			if !a.quitting {

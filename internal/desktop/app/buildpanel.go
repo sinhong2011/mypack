@@ -454,6 +454,10 @@ func (a *App) installArtifactThen(artifactID string, replace bool, name string, 
 }
 
 func (a *App) openInstall(id string) {
+	if isFake() {
+		a.launchDemo(a.demoFromInstall(id))
+		return
+	}
 	a.do(func(ctx context.Context) error { return a.svc.OpenInstallation(ctx, id) }, a.toastErr)
 }
 

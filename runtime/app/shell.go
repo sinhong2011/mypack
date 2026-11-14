@@ -55,7 +55,7 @@ func (a *App) stripHeight() int {
 func (a *App) openStripWindow(o mygo.WindowOptions, url string) (*mygo.Window, *mygo.Page) {
 	s := a.newShell()
 	o.Content = ui.View(s.viewFn)
-	w := safeNewWindow(o)
+	w := a.makeWindow(o)
 	s.win = w
 	p, err := s.attach(url)
 	if err != nil {

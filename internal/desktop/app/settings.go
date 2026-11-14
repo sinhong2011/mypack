@@ -104,6 +104,7 @@ func (a *App) openSettings(pane settingsPane) {
 			HideWindowButtons:    ownWindowButtons,
 			Content:              ui.View(a.settingsWindowView),
 		})
+		setWindowIcon(a.setWin, brandWindowIcon())
 		// Coming forward re-reads what the system does at login.
 		a.setWin.OnFocus(a.refreshLogin)
 		watchWindowChrome(a.setWin)

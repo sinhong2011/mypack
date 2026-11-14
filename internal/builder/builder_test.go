@@ -539,14 +539,29 @@ func TestLinuxPortableAndDeb(t *testing.T) {
 			t.Errorf("data.tar.gz missing %s (have %v)", f, keys(data))
 		}
 	}
-	if !strings.Contains(string(data["./usr/share/applications/cool-site.desktop"]), `Exec="/opt/cool-site/cool-site"`) {
+	desktop := string(data["./usr/share/applications/cool-site.desktop"])
+	if !strings.Contains(desktop, `Exec="/opt/cool-site/cool-site"`) {
 		t.Error("desktop Exec wrong")
+	}
+	if !strings.Contains(desktop, "StartupWMClass=cool-site\n") {
+		t.Errorf("desktop StartupWMClass should be the executable, got:\n%s", desktop)
 	}
 	if !strings.Contains(string(ctl["./md5sums"]), "opt/cool-site/cool-site") {
 		t.Error("md5sums")
 	}
 	if arts[1].SHA256 == "" || arts[1].Size == 0 {
 		t.Fatal("hash/size")
+	}
+}
+
+func TestDesktopStartupWMClassMatchesExecutable(t *testing.T) {
+	j := &job{slug: "cool-site", cfg: testConfig("Cool Site")}
+	got := string(j.desktopFile("/opt/cool-site/cool-site", "cool-site"))
+	if !strings.Contains(got, "StartupWMClass=cool-site\n") {
+		t.Fatalf("want the executable slug, got:\n%s", got)
+	}
+	if strings.Contains(got, "StartupWMClass=Cool Site") {
+		t.Fatalf("must not use the display name:\n%s", got)
 	}
 }
 

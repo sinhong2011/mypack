@@ -62,6 +62,7 @@ type App struct {
 	dlNotice        *dlNotice    // last download's in-app result, or nil
 	setWin          *mygo.Window // Settings, once opened
 	openingSettings bool
+	iconPNG         []byte // Contents/Resources/icon.png, for the dock / taskbar
 }
 
 type credEntry struct {
@@ -216,6 +217,7 @@ func (a *App) Run() error {
 	})
 	a.installAppMenu()
 	mygo.App.WhenReady(func() {
+		a.setAppIcon()
 		a.compileBlocking() // before the first page, so it loads blocked
 		a.start()
 	})
@@ -418,7 +420,7 @@ func (a *App) openWindow(main bool, url, stateKey string, hidden bool) (*mygo.Wi
 		return a.openStripWindow(o, url)
 	}
 	o.URL = url
-	w := safeNewWindow(o)
+	w := a.makeWindow(o)
 	return w, w.Page()
 }
 
@@ -435,6 +437,47 @@ func safeNewWindow(o mygo.WindowOptions) (w *mygo.Window) {
 		}
 	}()
 	return mygo.NewWindow(o)
+}
+
+func (a *App) makeWindow(o mygo.WindowOptions) *mygo.Window {
+	w := safeNewWindow(o)
+	a.setWindowIcon(w)
+	return w
+}
+
+func (a *App) setAppIcon() {
+	b, ok := a.appIconPNG()
+	if !ok {
+		return
+	}
+	if err := mygo.App.Dock.SetIcon(b); err != nil {
+		log.Printf("mypack-runtime: dock icon: %v", err)
+	}
+}
+
+func (a *App) setWindowIcon(w *mygo.Window) {
+	if w == nil {
+		return
+	}
+	b, ok := a.appIconPNG()
+	if !ok {
+		return
+	}
+	if err := w.SetIcon(b); err != nil {
+		log.Printf("mypack-runtime: window icon: %v", err)
+	}
+}
+
+func (a *App) appIconPNG() ([]byte, bool) {
+	if len(a.iconPNG) > 0 {
+		return a.iconPNG, true
+	}
+	b, err := os.ReadFile(filepath.Join(a.cfgDir, "icon.png"))
+	if err != nil {
+		return nil, false
+	}
+	a.iconPNG = b
+	return b, true
 }
 
 func (a *App) start() {
