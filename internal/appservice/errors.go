@@ -23,6 +23,8 @@ const (
 	CodeCancelled        = "BUILD_CANCELLED"
 	CodeBuildFailed      = "BUILD_FAILED"
 	CodeInternal         = "INTERNAL"
+	// CodeIconNotFound: no icon could be found for a website.
+	CodeIconNotFound = "ICON_NOT_FOUND"
 	// CodeNotSameApp: RelocateInstallation was pointed at a different app.
 	CodeNotSameApp = "NOT_SAME_APP"
 

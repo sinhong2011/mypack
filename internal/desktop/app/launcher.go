@@ -16,17 +16,23 @@ import (
 	"mypack.dev/mypack/pkg/config"
 )
 
-// The quick launcher: a global shortcut (⌥Space; Ctrl+Alt+Space off
-// macOS) brings up a small panel over whatever app is in front, as
-// Spotlight does, to open one of your apps by typing a few letters.
+// The quick launcher: a global shortcut (⌥⇧Space; Ctrl+Alt+Space off
+// macOS; Settings › Shortcuts changes it) brings up a small panel over
+// whatever app is in front, as Spotlight does, to open one of your apps by typing a few letters.
 // Pinned apps come first. Enter opens the app, ⌘Enter shows it in
 // MyPack; Esc, or clicking elsewhere, puts it away. It is a panel window,
 // so the app the user was in stays active and gets the keyboard back.
-// Settings › General turns it off.
+// Settings › Shortcuts turns it off.
 
 const (
 	launcherW    = 640
 	launcherRows = 8
+	// The launcher's parts, whose heights size its window.
+	launcherFieldH  = 56
+	launcherRowH    = 46
+	launcherRowGap  = 1
+	launcherListPad = 6
+	launcherFootH   = 32
 )
 
 type launcherState struct {
@@ -36,23 +42,23 @@ type launcherState struct {
 	sel        int
 	input      ui.Handle
 	registered string // the accelerator held, "" none
+	height     int    // the window's content height last given
 }
 
-// launcherAccel is the shortcut: Option-Space on macOS; Alt-Space opens
-// the window menu on Windows, so Ctrl+Alt+Space elsewhere.
-func launcherAccel() string {
-	if runtime.GOOS == "darwin" {
-		return "Alt+Space"
+// launcherHeight is the height of the launcher showing rows results:
+// the field alone when there is nothing to list (rows < 0), or a line
+// saying nothing matched (rows == 0). A window of native UI does not
+// take its content's size by itself (mygo's FitContent is for pages), so
+// the launcher gives its window this height as its results change.
+func launcherHeight(rows int) int {
+	if rows < 0 {
+		return launcherFieldH
 	}
-	return "Ctrl+Alt+Space"
-}
-
-// launcherKeys is the shortcut as the UI shows it.
-func launcherKeys() string {
-	if runtime.GOOS == "darwin" {
-		return "⌥Space"
+	list := 2*launcherListPad + launcherRowH // the empty line
+	if rows > 0 {
+		list = 2*launcherListPad + rows*launcherRowH + (rows-1)*launcherRowGap
 	}
-	return "Ctrl+Alt+Space"
+	return launcherFieldH + 1 + list + launcherFootH // 1: the hairline, rounded up
 }
 
 func (a *App) launcherEnabled() bool { return !a.ui.LauncherOff }
@@ -62,8 +68,8 @@ func (a *App) launcherEnabled() bool { return !a.ui.LauncherOff }
 func (a *App) syncLauncherShortcut() {
 	l := &a.launcher
 	want := ""
-	if a.launcherEnabled() {
-		want = launcherAccel()
+	if a.launcherEnabled() && a.set.recording == "" {
+		want = a.accel(scLauncher)
 	}
 	if l.registered == want {
 		return
@@ -95,13 +101,14 @@ func (a *App) toggleLauncher() {
 	}
 	if l.win == nil {
 		l.win = mygo.NewWindow(mygo.WindowOptions{
-			Title: "MyPack", Width: launcherW, Height: 120, FitContent: true,
+			Title: "MyPack", Width: launcherW, Height: launcherFieldH,
 			Frameless: true, Panel: true, CornerRadius: 14, Hidden: true, DisableResize: true,
 			Content: ui.View(a.launcherView),
 		})
 		l.win.OnBlur(func() { a.hideLauncher() })
 	}
 	l.query, l.sel = "", 0
+	l.fit(len(a.launcherItems("")), "")
 	d := mygo.Screen.DisplayNearestPoint(mygo.Screen.CursorScreenPoint())
 	l.win.SetPosition(d.WorkArea.X+(d.WorkArea.Width-launcherW)/2, d.WorkArea.Y+d.WorkArea.Height/5)
 	l.shown = true
@@ -109,6 +116,18 @@ func (a *App) toggleLauncher() {
 	l.win.Focus()
 	l.input.Focus()
 	l.win.Invalidate()
+}
+
+// fit sizes the launcher's window to n results for query q.
+func (l *launcherState) fit(n int, q string) {
+	rows := n
+	if n == 0 && strings.TrimSpace(q) == "" {
+		rows = -1
+	}
+	if h := launcherHeight(rows); l.win != nil && h != l.height {
+		l.height = h
+		l.win.SetContentSize(launcherW, h)
+	}
 }
 
 func (a *App) hideLauncher() {
@@ -242,8 +261,9 @@ func (a *App) launcherView(c *ui.Context) {
 	if c.Shortcut(0, ui.KeyEscape) {
 		a.hideLauncher()
 	}
-	ui.Column(c).Width(launcherW).Children(func() {
-		ui.Row(c).Height(56).Padding(0, 18).Gap(12).AlignItems(ui.Center).DragWindow().Children(func() {
+	l.fit(len(items), l.query)
+	ui.Column(c).Width(launcherW).Shrink(0).Children(func() {
+		ui.Row(c).Height(launcherFieldH).Shrink(0).Padding(0, 18).Gap(12).AlignItems(ui.Center).DragWindow().Children(func() {
 			kit.Glyph(c, icons.Search, 19, p.TextTertiary)
 			in := ui.TextInputBase(c.Key("q"), &l.query).Bind(&l.input).Grow(1).MinWidth(0).FocusRing(false).FontSize(design.FontTitle2).
 				Placeholder(T("launcher.placeholder")).PlaceholderColor(p.TextTertiary).TextColor(p.Text).Label(T("launcher.placeholder"))
@@ -273,15 +293,17 @@ func (a *App) launcherView(c *ui.Context) {
 			return // no apps yet: just the field
 		}
 		kit.Hairline(c)
-		ui.Column(c).Padding(6).Gap(1).Role(ui.RoleListBox).Label(T("launcher.results")).Children(func() {
+		ui.Column(c).Padding(launcherListPad).Gap(launcherRowGap).Shrink(0).Role(ui.RoleListBox).Label(T("launcher.results")).Children(func() {
 			if len(items) == 0 {
-				ui.Text(c, T("palette.empty")).FontSize(design.FontBody).TextColor(p.TextTertiary).Padding(16, 14)
+				ui.Row(c).Height(launcherRowH).PaddingX(14).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, T("palette.empty")).FontSize(design.FontBody).TextColor(p.TextTertiary)
+				})
 				return
 			}
 			for i, it := range items {
 				i, it := i, it
 				on := i == l.sel
-				row := ui.ButtonBase(c.Key(it.key)).Label(it.name).Row().Justify(ui.Start).Height(46).PaddingX(12).Gap(12).
+				row := ui.ButtonBase(c.Key(it.key)).Label(it.name).Row().Justify(ui.Start).Height(launcherRowH).Shrink(0).PaddingX(12).Gap(12).
 					AlignItems(ui.Center).Radius(design.RadiusCard - 2).Cursor(ui.CursorPointer).Role(ui.RoleOption).Selected(on).
 					FocusRing(false).Description(it.sub)
 				if on {
@@ -316,7 +338,7 @@ func (a *App) launcherView(c *ui.Context) {
 				}
 			}
 		})
-		ui.Row(c).Height(32).Padding(0, 16).Gap(14).AlignItems(ui.Center).Background(p.Sunken).Children(func() {
+		ui.Row(c).MinHeight(launcherFootH).Grow(1).Shrink(0).Padding(0, 16).Gap(14).AlignItems(ui.Center).Background(p.Sunken).Children(func() {
 			for _, h := range [][2]string{{"↩", T("action.open")}, {cmdEnter(), T("launcher.showInMyPack")}, {"esc", T("launcher.close")}} {
 				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 					ui.Text(c, h[0]).FontSize(design.FontCaption).FontWeight(design.WeightSemibold).TextColor(p.TextSecondary).

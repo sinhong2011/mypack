@@ -1,0 +1,61 @@
+---
+import Base from "../layouts/Base.astro";
+import { m } from "../paraglide/messages.js";
+import { SITE, asset } from "../config";
+import { currentLocale, localeHref } from "../i18n";
+import { latestVersion } from "../release";
+import Nav from "./Nav.astro";
+import Hero from "./Hero.astro";
+import Steps from "./Steps.astro";
+import Why from "./Why.astro";
+import Gallery from "./Gallery.astro";
+import Features from "./Features.astro";
+import Compare from "./Compare.astro";
+import Install from "./Install.astro";
+import Developers from "./Developers.astro";
+import Closing from "./Closing.astro";
+import Footer from "./Footer.astro";
+
+// What search engines read about the app (schema.org, as JSON-LD in <head>).
+const locale = currentLocale();
+const origin = Astro.site?.origin ?? "";
+const version = await latestVersion();
+const jsonLd = [
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: "MyPack",
+    url: `${origin}${localeHref(locale)}`,
+    description: m.meta_description(),
+    applicationCategory: "DeveloperApplication",
+    operatingSystem: "macOS, Windows, Linux",
+    ...(version ? { softwareVersion: version } : {}),
+    downloadUrl: SITE.releases,
+    installUrl: SITE.releases,
+    image: `${origin}${asset("assets/og.jpg")}`,
+    screenshot: `${origin}${asset("assets/shots/light-library.webp")}`,
+    inLanguage: locale.lang,
+    license: "https://www.apache.org/licenses/LICENSE-2.0",
+    isAccessibleForFree: true,
+    offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+    author: { "@type": "Person", name: "sinhong2011", url: "https://github.com/sinhong2011" },
+  },
+];
+---
+<Base title={m.meta_title()} description={m.meta_description()} jsonLd={jsonLd}>
+  <Nav />
+  <main id="main">
+    <Hero />
+    <Steps />
+    <Why />
+    <Gallery />
+    <Features />
+    <Compare />
+    <Install />
+    <Developers />
+    <Closing />
+  </main>
+  <Footer />
+</Base>
+
+<script>import "../scripts/page";</script>

@@ -15,6 +15,7 @@ import (
 	"mypack.dev/mypack/internal/appservice"
 	"mypack.dev/mypack/internal/domain"
 	mpicons "mypack.dev/mypack/internal/icons"
+	"mypack.dev/mypack/internal/metadata"
 	"mypack.dev/mypack/pkg/config"
 )
 
@@ -38,6 +39,7 @@ type createState struct {
 
 	iconPNG    []byte
 	iconCustom bool
+	iconDoc    string            // an Icon Composer document (.icon) behind iconPNG
 	iconStyle  *config.IconStyle // from the Icon Studio
 	styledKey  string
 	styled     []byte
@@ -263,6 +265,18 @@ func (a *App) maybeFetchMetadata(c *ui.Context) {
 	}()
 }
 
+// siteUnreachable reports that the current site's lookup failed, so its
+// name and icon are placeholders.
+func (s *createState) siteUnreachable() bool {
+	return s.meta != nil && s.meta.Fallback && s.metaFor == s.normalized
+}
+
+// refetchMetadata forgets the current site's lookup so maybeFetchMetadata
+// runs it again on the next frame, without the typing debounce.
+func (s *createState) refetchMetadata() {
+	s.meta, s.metaFor, s.lastEdit = nil, "", time.Time{}
+}
+
 // ensureCfg returns the pending settings for the new app, made on first use.
 func (a *App) ensureCfg() *config.Config {
 	s := &a.create
@@ -329,8 +343,9 @@ func (a *App) createAndBuild() {
 		meta = &m
 	}
 	var icon []byte
+	var iconDoc string
 	if s.iconCustom {
-		icon = s.iconPNG
+		icon, iconDoc = s.iconPNG, s.iconDoc
 	}
 	style := s.iconStyle
 	var targets []config.Target
@@ -364,7 +379,11 @@ func (a *App) createAndBuild() {
 		projectID = pr.ID
 		auto := s.autoInstall
 		a.win.Update(func() { a.ui.setAutoInstall(pr.ID, auto) })
-		if icon != nil {
+		if iconDoc != "" {
+			if pr, err = a.svc.SetProjectIconDocument(ctx, pr.ID, iconDoc, "gui"); err != nil {
+				return err
+			}
+		} else if icon != nil {
 			if pr, err = a.svc.SetProjectIcon(ctx, pr.ID, icon, "gui"); err != nil {
 				return err
 			}
@@ -427,19 +446,56 @@ func (a *App) chooseLocalSource() {
 	}()
 }
 
+// createIconFrom sets the new app's icon from a favicon service.
+func (a *App) createIconFrom(p metadata.IconProvider) {
+	s := &a.create
+	u := s.normalized
+	var got []byte
+	a.do(func(ctx context.Context) error {
+		b, err := a.svc.FetchIconFrom(ctx, u, p)
+		got = b
+		return err
+	}, func(err error) {
+		if err != nil {
+			a.toastErr(err)
+			return
+		}
+		if s.normalized == u { // still the same site
+			s.iconPNG, s.iconCustom, s.iconDoc = got, true, ""
+		}
+	})
+}
+
 // chooseIcon picks a PNG/JPEG/ICNS/ICO file and hands its bytes to set.
 func (a *App) chooseIcon(set func([]byte)) {
+	a.chooseIconDoc(func(b []byte, _ string) { set(b) })
+}
+
+// chooseIconDoc is chooseIcon that also takes Icon Composer documents
+// (.icon): set gets the document's default look and its path.
+func (a *App) chooseIconDoc(set func(png []byte, doc string)) {
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.win, Title: T("create.icon.choose"),
-			Filters: []mygo.FileFilter{{Name: T("create.icon.filter"), Extensions: []string{"png", "jpg", "jpeg", "icns", "ico", "webp"}}}})
+			Filters: []mygo.FileFilter{{Name: T("create.icon.filter"), Extensions: []string{"png", "jpg", "jpeg", "icns", "ico", "webp", "icon"}}}})
 		if err != nil || len(paths) == 0 {
+			return
+		}
+		if mpicons.IsIconComposer(paths[0]) {
+			b, err := mpicons.IconComposerPNG(context.Background(), paths[0])
+			a.win.Update(func() {
+				if err != nil {
+					a.toastErr(fmt.Errorf("%s: %w", filepath.Base(paths[0]), err))
+					return
+				}
+				set(b, paths[0])
+			})
 			return
 		}
 		b, err := os.ReadFile(paths[0])
 		if err != nil {
 			return
 		}
-		a.win.Update(func() { set(b) })
+		a.win.Update(func() { set(b, "") })
 	}()
 }
 

@@ -1,0 +1,5 @@
+# Cloudflare Pages project for mypack's website. CI publishes it (.github/workflows/site.yml): every push to main
+# that touches site/ builds with SITE_URL set and runs `wrangler pages deploy`. See README.md › Deploy.
+name = "mypack"
+compatibility_date = "2026-10-08"
+pages_build_output_dir = "./dist"

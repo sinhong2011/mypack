@@ -40,6 +40,10 @@ func (j *job) checkConfigFile() error {
 	if err != nil {
 		return fmt.Errorf("mypack.json does not parse: %w", err)
 	}
+	// The runtime refuses to start with a config that does not validate.
+	if err := c.Validate(); err != nil {
+		return fmt.Errorf("the generated app would not start: %w", err)
+	}
 	if c.App.Identifier != j.cfg.App.Identifier || c.App.Name != j.cfg.App.Name {
 		return errors.New("mypack.json does not match the requested app")
 	}

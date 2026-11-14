@@ -40,7 +40,7 @@ specific website. The Builder injects identity + config:
 
 | Platform | Executable | Config | Icon |
 |---|---|---|---|
-| macOS | `<Name>.app/Contents/MacOS/<Name>` | `Contents/Resources/mypack.json` | `Contents/Resources/AppIcon.icns` + `icon.png` |
+| macOS | `<Name>.app/Contents/MacOS/<Name>` | `Contents/Resources/mypack.json` | `Contents/Resources/AppIcon.icns` + `icon.png` (+ `Assets.car` for Icon Composer icons) |
 | Windows | `<Name>/<Name>.exe` | `<Name>/resources/mypack.json` | `resources/icon.png`, `icon.ico` |
 | Linux | `<Name>/<name>` | `<Name>/resources/mypack.json` | `resources/icon.png` + `.desktop` |
 
@@ -99,6 +99,26 @@ Feature pins: `Config.MinRuntime()` is the earliest runtime a config's features 
 blocking 1.0.7, tabs 1.0.8, Glass title bar 1.0.9), and `ApplyDefaults` raises a lower `runtime.version` to it, so turning a feature on in an existing
 project never builds an app that quietly lacks it. Pins are never lowered.
 
+## Runtime tiers (1.0.10)
+
+From 1.0.10 every runtime version ships in two tiers, built from the same `runtime/app` package:
+
+- **Full** (`mypack-runtime-<v>-<os>-<arch>.tar.gz`): everything, including the native UI drawn with MyGo's UI
+  toolkit: the title-bar strip (`shell.go`), tabs (`tabs.go`), site groups (`group.go`) and the find bar and
+  sign-in dialog (`dialogs.go`).
+- **Lite** (`…-<arch>-lite.tar.gz`, built with `-tags mypack_lite`): the same app without those files, so the
+  UI toolkit, Glass and the GPU, text and font code under them are not linked. Every window is a plain native window
+  around one page. `lite.go` stands in for the left-out code and shows the HTTP sign-in prompt as a small local web
+  page. About 27% smaller (macOS arm64: 12.8 MB, 5.0 MB gzipped, against 17.5 MB, 6.9 MB). Notifications, badges,
+  media keys, downloads, content blocking, redirects, link routing, tray, menu-bar mode and local sites all remain.
+
+`Config.RuntimeTier()` picks Lite unless `FullRuntimeFeatures()` lists one: `titleBarStyle` hidden, overlay or glass
+(not frameless), `window.tabs`, `app.group`, `webview.findInPage` or `network.basicAuthUser`. In the runtime manager
+a Lite runtime is the key `<os>-<arch>-lite` (`Entry.Tier`), with its own cache directory. `builder.RuntimeKey` chooses
+the key for the build and for its download preflight alike: Lite when cached, else Full when cached (never a new
+download just to save size), else Lite when the registry lists it, else Full. The registry lists each Full entry before
+its Lite twin, because older Builders ignore `tier` and take the first entry of a version and platform.
+
 ## Tabs (1.0.8)
 
 `window.tabs` gives the main window a native tab bar (`runtime/app/tabs.go`) and one web view per tab, all in the
@@ -138,6 +158,16 @@ service keeps a styled project's `IconPNG` as the finished icon, so the Library 
 image beneath in `icons/<projectId>.png` beside the DB (`internal/appservice/iconstyle.go`); builds are given that
 image, `UpdateProject` redraws when the style or name changes, and `ProjectIconImage` returns it to the GUI's studio
 (`internal/desktop/app/iconstudio.go`).
+
+## Icon Composer icons
+
+`app.icon.path` may name an Icon Composer document (a `.icon` folder, macOS 26+), picked in the GUI's Choose Icon… or
+written in a mypack.json / Pake `icon`. The macOS assembler compiles it with `xcrun actool` into `Assets.car` and
+`AppIcon.icns` and sets `CFBundleIconName`, so the generated app follows the icon appearance the user picked (Default,
+Dark, Clear, Tinted); older macOS uses the `.icns`. The Library, `icon.png` and the Windows/Linux icons use its default
+look, rendered with Icon Composer's `ictool` (`internal/icons/iconcomposer.go`). It needs Xcode 26+: without it, or
+when an icon studio style is set (the style wins), the build warns and uses the plain picture. Exports and Library sync
+carry only that picture, since the path is local.
 
 ## Runtime registry
 
