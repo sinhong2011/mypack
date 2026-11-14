@@ -131,3 +131,15 @@ func TestFilterShortcuts(t *testing.T) {
 		t.Errorf("no match: %+v", got)
 	}
 }
+
+func TestSplitShortcuts(t *testing.T) {
+	sec := func(n int) scSection { return scSection{lines: make([]scLine, n)} }
+	// 3+5+6+7 | 6+4: the heights a = 21, b = 10 → better 14 | 17.
+	secs := []scSection{sec(1), sec(3), sec(4), sec(5), sec(4), sec(2)}
+	if got := splitShortcuts(secs); got != 3 {
+		t.Errorf("split = %d, want 3", got)
+	}
+	if got := splitShortcuts(secs[:1]); got != 1 {
+		t.Errorf("one section stays in the first column, got %d", got)
+	}
+}

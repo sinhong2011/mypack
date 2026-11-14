@@ -217,6 +217,10 @@ func Run(svc appservice.Service) error {
 			// Demo/screenshots: open the menu bar flyout once loaded.
 			time.AfterFunc(7*time.Second, func() { mygo.RunOnMain(a.toggleFlyout) })
 		}
+		if isFake() && os.Getenv("MYPACK_FAKE_LAUNCHER") == "1" {
+			// Demo/screenshots: show the quick launcher once loaded.
+			time.AfterFunc(3*time.Second, func() { mygo.RunOnMain(a.toggleLauncher) })
+		}
 	})
 	return mygo.App.Run()
 }

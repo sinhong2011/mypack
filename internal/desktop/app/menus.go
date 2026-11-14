@@ -86,7 +86,7 @@ func (a *App) helpMenu(on func(func()) func(*mygo.MenuItem, *mygo.Window)) *mygo
 	}
 	m := &mygo.MenuItem{Label: T("menu.help"), Submenu: []*mygo.MenuItem{
 		// No key here: View › Command Palette has it.
-		{Label: T("shortcuts.palette"), Click: on(func() {
+		{Label: T("menu.palette"), Click: on(func() {
 			a.showWindow()
 			if !a.palette.open {
 				a.togglePalette()

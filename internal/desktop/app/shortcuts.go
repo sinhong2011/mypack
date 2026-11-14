@@ -310,7 +310,7 @@ func (a *App) stopRecording() {
 	if a.set.recording == "" {
 		return
 	}
-	a.set.recording, a.set.recFocused = "", false
+	a.set.recording, a.set.recFocused, a.set.recErr = "", false, ""
 	a.applyShortcuts()
 }
 
@@ -448,7 +448,11 @@ func (a *App) shortcutRecorder(c *ui.Context, id string) {
 func (a *App) settingsShortcuts(c *ui.Context) {
 	s := &a.set
 	row := func(d shortcutDef) {
-		kit.SettingRow(c.Key("sc-"+d.id), T(d.label), "", func() {
+		label := T(d.label)
+		if d.id == scLauncher {
+			label = T("shortcuts.launcherKeys") // under the launcher's own row
+		}
+		kit.SettingRow(c.Key("sc-"+d.id), label, "", func() {
 			if a.shortcutCustomized(d.id) && s.recording != d.id {
 				if kit.IconButton(c.Key("reset"), icons.Undo, T("shortcuts.reset", "keys", kit.HotkeyText(d.def))).Size(24, 24).Clicked() {
 					s.recErr = ""
@@ -580,6 +584,25 @@ func filterShortcuts(secs []scSection, q string) []scSection {
 	return out
 }
 
+// splitShortcuts is where the reference's second column starts: the
+// section that leaves the two columns closest in height (a section's
+// heading counts as two lines).
+func splitShortcuts(secs []scSection) int {
+	h := func(s []scSection) (n int) {
+		for _, x := range s {
+			n += len(x.lines) + 2
+		}
+		return n
+	}
+	best, bestH := len(secs), h(secs)
+	for i := 1; i < len(secs); i++ {
+		if m := max(h(secs[:i]), h(secs[i:])); m < bestH {
+			best, bestH = i, m
+		}
+	}
+	return best
+}
+
 // shortcutsSheet is Help › Keyboard Shortcuts: a filterable two-column
 // list of every key, drawn as keycaps, with what the modifier symbols
 // mean.
@@ -603,19 +626,7 @@ func (a *App) shortcutsSheet(c *ui.Context) {
 				kit.Secondary(c, T("palette.empty")).Padding(24, 0)
 				return
 			}
-			// Two columns, the sections down each in turn, by line count.
-			total := 0
-			for _, s := range secs {
-				total += len(s.lines) + 2
-			}
-			split, run := len(secs), 0
-			for i, s := range secs {
-				if run >= total/2 {
-					split = i
-					break
-				}
-				run += len(s.lines) + 2
-			}
+			split := splitShortcuts(secs)
 			ui.Row(c).Gap(28).AlignItems(ui.Start).Children(func() {
 				for col, part := range [][]scSection{secs[:split], secs[split:]} {
 					ui.Column(c.Key(col)).Grow(1).Basis(0).MinWidth(0).Gap(16).Children(func() {
