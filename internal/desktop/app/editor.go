@@ -49,6 +49,7 @@ type editorState struct {
 	cssBuf   string
 	jsBuf    string
 	nums     map[string]string // number fields' text while being edited
+	rtCustom bool              // Runtime version picker is on Custom
 	inited   bool
 }
 
@@ -70,7 +71,7 @@ func (a *App) syncEditors() {
 			continue
 		}
 		if pr.Revision > ed.rev && !ed.dirty && !ed.saving {
-			ed.cfg, ed.rev, ed.inited = pr.Config.Clone(), pr.Revision, false
+			ed.cfg, ed.rev, ed.inited, ed.rtCustom = pr.Config.Clone(), pr.Revision, false, false
 		}
 	}
 }
@@ -488,6 +489,8 @@ func (a *App) describeGroups(ed *editorState, groups []settingGroup) {
 			g.summary = func() string { return cfg.App.Identifier + " · " + cfg.App.Version }
 		case "runtime":
 			g.summary = func() string { return T("editor.sum.runtime", "version", cfg.Runtime.Version) }
+			g.modified = func() bool { return cfg.Runtime.Version != def.Runtime.Version }
+			g.reset = func() { cfg.Runtime = def.Runtime; ed.rtCustom = false }
 		}
 	}
 }
@@ -513,6 +516,49 @@ func setInjection(cfg *config.Config, typ, content string) {
 		out = append(out, config.Injection{Type: typ, Content: content})
 	}
 	cfg.WebView.Injections = out
+}
+
+// runtimeVersionPicker is the Advanced Settings runtime control: every
+// published version, a Custom field for any other pin, and a note when the
+// current settings need a newer runtime than the one chosen.
+func (a *App) runtimeVersionPicker(c *ui.Context, ed *editorState) {
+	p := design.Of(c)
+	cfg := ed.cfg
+	listed := runtimeVersionOptions(a.runtimes, cfg.Runtime.Version, config.DefaultRuntimeVersion)
+	known := make(map[string]bool, len(listed))
+	for _, o := range listed {
+		known[o.Value] = true
+	}
+	opts := append(listed, kit.Option{Value: runtimeCustomValue, Label: T("set.runtime.custom")})
+	sel := cfg.Runtime.Version
+	if ed.rtCustom || !known[sel] {
+		sel = runtimeCustomValue
+	}
+	old := sel
+	kit.PopUp(c.Key("rt"), &sel, opts, T("set.runtime")).Width(240)
+	if sel != old {
+		ed.rtCustom = sel == runtimeCustomValue
+		if !ed.rtCustom && cfg.Runtime.Version != sel {
+			cfg.Runtime.Version = sel
+			ed.changed()
+		}
+	}
+	if sel == runtimeCustomValue {
+		ver := strings.TrimSpace(cfg.Runtime.Version)
+		bad := !runtimeVerRe.MatchString(ver)
+		in := kit.TextField(c.Key("rt-custom"), &cfg.Runtime.Version, T("set.runtime"), kit.FieldOpts{
+			Placeholder: config.DefaultRuntimeVersion, Invalid: bad, Mono: true,
+		}).Width(240)
+		if in.Changed() {
+			ed.changed()
+		}
+		if bad {
+			ui.Text(c, T("set.runtime.invalid")).FontSize(design.FontSmall).TextColor(p.Danger)
+		}
+	}
+	if min := cfg.MinRuntime(); min != "" && runtimeVerRe.MatchString(strings.TrimSpace(cfg.Runtime.Version)) && !config.RuntimeAtLeast(cfg.Runtime.Version, min) {
+		ui.Text(c, T("set.runtime.min", "version", min)).FontSize(design.FontSmall).TextColor(p.Warning)
+	}
 }
 
 var sizePresets = []struct {
@@ -587,14 +633,10 @@ func (a *App) settingGroups(c *ui.Context, ed *editorState, pr *domain.Project) 
 		}},
 	}}
 
-	// Runtime & Compatibility.
-	rtVersions := []kit.Option{{Value: config.DefaultRuntimeVersion, Label: config.DefaultRuntimeVersion + " · " + T("set.runtime.recommended")}}
-	if cfg.Runtime.Version != config.DefaultRuntimeVersion {
-		rtVersions = append(rtVersions, kit.Option{Value: cfg.Runtime.Version, Label: cfg.Runtime.Version})
-	}
+	// Runtime & Compatibility: every published version, plus Custom to type one.
 	webview := map[string]string{"darwin": "WKWebView (WebKit)", "windows": "WebView2 (Edge)", "linux": "WebKitGTK"}[a.host.OS]
 	runtimeG := settingGroup{id: "runtime", title: T("group.runtime"), icon: icons.Runtimes, rows: []setting{
-		{label: T("set.runtime"), desc: T("set.runtime.desc"), control: func() { sel("rt", &cfg.Runtime.Version, rtVersions, T("set.runtime"), 220) }},
+		{label: T("set.runtime"), desc: T("set.runtime.desc"), wide: true, control: func() { a.runtimeVersionPicker(c, ed) }},
 		{label: T("set.webview"), desc: T("set.webview.desc"), control: func() { kit.Secondary(c, webview) }},
 		{label: T("set.minOS"), control: func() {
 			kit.Secondary(c, map[string]string{"darwin": "macOS 12", "windows": "Windows 10", "linux": "glibc 2.31"}[a.host.OS])
@@ -740,15 +782,32 @@ func (a *App) settingGroups(c *ui.Context, ed *editorState, pr *domain.Project) 
 			tidyBlocking(cfg)
 		}},
 		{label: T("set.downloads"), desc: T("set.downloads.desc"), control: func() {
-			text("dl", &cfg.Network.DownloadDirectory, T("set.downloads"), "~/Downloads", 200)
-			if kit.Button(k("dlc"), T("common.choose"), kit.ButtonOpts{}).Clicked() {
-				go func() {
-					paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.win, Directory: true, CreateDirectories: true})
-					if err == nil && len(paths) > 0 {
-						a.win.Update(func() { cfg.Network.DownloadDirectory = paths[0]; ed.changed() })
+			ui.Column(c).Gap(6).Children(func() {
+				ui.Row(c).Gap(6).AlignItems(ui.Center).Wrap().Children(func() {
+					in := kit.TextField(k("dl"), &cfg.Network.DownloadDirectory, T("set.downloads"), kit.FieldOpts{Placeholder: "~/Downloads"})
+					in.Width(200)
+					if in.Changed() {
+						ed.changed()
 					}
-				}()
-			}
+					if kit.Button(k("dlc"), T("common.choose"), kit.ButtonOpts{}).Clicked() {
+						go func() {
+							paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.win, Directory: true, CreateDirectories: true})
+							if err == nil && len(paths) > 0 {
+								a.win.Update(func() { cfg.Network.DownloadDirectory = paths[0]; ed.changed() })
+							}
+						}()
+					}
+				})
+				resolved, ok := downloadFolderStatus(cfg.Network.DownloadDirectory)
+				switch {
+				case cfg.Network.DownloadDirectory == "":
+					kit.Caption(c, T("set.downloads.system"))
+				case !ok:
+					ui.Text(c, T("set.downloads.unusable")).FontSize(design.FontSmall).TextColor(p.Danger)
+				default:
+					kit.Caption(c, T("set.downloads.using", "path", shortPath(resolved)))
+				}
+			})
 		}},
 	}}
 

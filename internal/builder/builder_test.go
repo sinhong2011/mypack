@@ -222,6 +222,9 @@ func TestDarwinAppBuild(t *testing.T) {
 	if !strings.Contains(string(pl), "NSAllowsArbitraryLoadsInWebContent") {
 		t.Error("ATS key missing")
 	}
+	if p["NSDownloadsFolderUsageDescription"] == "" {
+		t.Error("NSDownloadsFolderUsageDescription missing")
+	}
 	if b, _ := os.ReadFile(filepath.Join(app, "Contents", "PkgInfo")); string(b) != "APPL????" {
 		t.Errorf("PkgInfo %q", b)
 	}

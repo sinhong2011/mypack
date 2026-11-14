@@ -50,6 +50,7 @@ type App struct {
 	projectID  string
 	projTab    int     // 0 overview, 1 settings
 	toolbarW   float32 // the toolbar's width last frame (compact controls when narrow)
+	inspDrag   bool    // the settings column's left edge is being dragged
 	hud        hudState
 	status     map[string]*statusState // the build status blocks, per job
 	steps      map[string]*stepTrack   // the build step lists, per job

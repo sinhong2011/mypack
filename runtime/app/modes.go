@@ -127,6 +127,8 @@ func (a *App) menuBarMenu() *mygo.Menu {
 		{Label: "Reload", Click: page(func(p *mygo.Page) { p.Reload() })},
 		{Label: "Home", Click: page(func(p *mygo.Page) { _ = p.LoadURL(a.homeOf(p)) })},
 		mygo.Separator(),
+		{Label: "Settings…", Click: func(*mygo.MenuItem, *mygo.Window) { a.openSettings() }},
+		mygo.Separator(),
 		{Label: "Quit " + a.title(), Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Quit() }},
 	})
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -154,6 +155,28 @@ func shortPath(p string) string {
 		return "…/" + strings.Join(parts[len(parts)-2:], "/")
 	}
 	return p
+}
+
+// downloadFolderStatus expands a configured download folder and reports
+// whether it looks usable (exists as a directory, or its parent does).
+func downloadFolderStatus(configured string) (resolved string, ok bool) {
+	resolved = config.ExpandUserPath(strings.TrimSpace(configured))
+	if resolved == "" {
+		return "", true
+	}
+	if !filepath.IsAbs(resolved) {
+		if home, err := os.UserHomeDir(); err == nil {
+			resolved = filepath.Join(home, resolved)
+		}
+	}
+	if !filepath.IsAbs(resolved) {
+		return resolved, false
+	}
+	if st, err := os.Stat(resolved); err == nil {
+		return resolved, st.IsDir()
+	}
+	parent, err := os.Stat(filepath.Dir(resolved))
+	return resolved, err == nil && parent.IsDir()
 }
 
 // errInfo extracts a domain error.

@@ -23,10 +23,12 @@ import (
 
 // App holds the running application state.
 type App struct {
-	cfg    *config.Config
-	cfgDir string
-	policy *navigation.Policy
-	state  *Store
+	cfg      *config.Config
+	bundled  *config.Config // mypack.json as built, before user settings
+	cfgDir   string
+	prefsDir string
+	policy   *navigation.Policy
+	state    *Store
 
 	session  *mygo.Session
 	site     *Site
@@ -42,21 +44,24 @@ type App struct {
 	media  *mediaController // media keys and Now Playing; nil where the webview has them
 	routes *routing.Table   // link routing between MyPack apps
 
-	mu       sync.Mutex
-	main     *mygo.Window
-	windows  map[*mygo.Window]*mygo.Page // app windows -> their web page
-	zoom     int
-	quitting bool
-	started  bool // the main window was created
-	shown    bool
-	creds    map[string]credEntry
-	prompts  map[string]bool
-	finds    map[*mygo.Window]*mygo.Window
-	tray     *mygo.Tray
-	menu     *mygo.Menu  // the application menu
-	lay      layoutState // the main window's layout (layout.go)
-	group    *group      // app.group: the member websites (group.go), or nil
-	tabs     *tabSet     // window.tabs: the main window's tabs (tabs.go), or nil
+	mu              sync.Mutex
+	main            *mygo.Window
+	windows         map[*mygo.Window]*mygo.Page // app windows -> their web page
+	zoom            int
+	quitting        bool
+	started         bool // the main window was created
+	shown           bool
+	creds           map[string]credEntry
+	prompts         map[string]bool
+	finds           map[*mygo.Window]*mygo.Window
+	tray            *mygo.Tray
+	menu            *mygo.Menu   // the application menu
+	lay             layoutState  // the main window's layout (layout.go)
+	group           *group       // app.group: the member websites (group.go), or nil
+	tabs            *tabSet      // window.tabs: the main window's tabs (tabs.go), or nil
+	dlNotice        *dlNotice    // last download's in-app result, or nil
+	setWin          *mygo.Window // Settings, once opened
+	openingSettings bool
 }
 
 type credEntry struct {
@@ -132,6 +137,9 @@ func (a *App) Run() error {
 	}
 	mygo.App.SetPath(mygo.PathUserData, profile)
 	a.state = OpenStore(profile)
+	a.prefsDir = profile
+	a.bundled = cfg.Clone()
+	loadUserPrefs(cfg, profile)
 
 	if runtime.GOOS == "windows" && os.Getenv("WEBVIEW2_USER_DATA_FOLDER") == "" {
 		// Own WebView2 profile per app, outside the bundle (APP-05).
@@ -206,8 +214,7 @@ func (a *App) Run() error {
 			a.showMain()
 		}
 	})
-	a.menu = a.buildMenu()
-	mygo.App.SetMenu(a.menu)
+	a.installAppMenu()
 	mygo.App.WhenReady(func() {
 		a.compileBlocking() // before the first page, so it loads blocked
 		a.start()
@@ -519,6 +526,13 @@ func (a *App) attachMainPage(w *mygo.Window, p *mygo.Page) {
 // Windows showing native UI (the strip layout) register their page from
 // openWindow instead.
 func (a *App) setupWindow(w *mygo.Window) {
+	a.mu.Lock()
+	skip := a.openingSettings || w == a.setWin
+	a.mu.Unlock()
+	if skip {
+		return
+	}
+	a.applyWindowMenu(w)
 	if p := w.Page(); p != nil {
 		a.registerPage(w, p)
 	}

@@ -165,6 +165,9 @@ func blockingRules(b *config.BlockingConfig) string {
 func (a *App) compileBlocking() {
 	rules := blockingRules(a.cfg.WebView.Blocking)
 	if rules == "" {
+		a.mu.Lock()
+		a.blocking = nil
+		a.mu.Unlock()
 		return
 	}
 	cr, err := mygo.CompileContentRules("mypack-blocking", rules)
