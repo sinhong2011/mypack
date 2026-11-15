@@ -189,6 +189,8 @@ func catLabel(cat string) string {
 		return T("discover.cat.media")
 	case "social":
 		return T("discover.cat.social")
+	case "video":
+		return T("discover.cat.video")
 	}
 	return T("discover.cat.chat")
 }
