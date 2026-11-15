@@ -8,9 +8,10 @@ make that core flow faster, clearer or more reliable are the most welcome.
 
 - **Add a site to Discover.** Edit [`catalog/discover.json`](catalog/discover.json):
   add `name`, an `https://` `url` and a `category` (`work`, `dev`, `chat`,
-  `ai`, `design` or `media`), then run `go test ./catalog`. Once merged, the
-  site shows up in everyone's Discover page within a day, no release needed.
-  Entries only fill in an address; they can't carry scripts or settings.
+  `social`, `ai`, `design`, `media` or `video`), then run `go test ./catalog`.
+  Once merged, the site shows up in everyone's Discover page within a day, no
+  release needed. Entries only fill in an address; they can't carry scripts or
+  settings.
 - **Website compatibility reports.** A site that doesn't log in, loses its
   session, opens links in the wrong place or looks broken in a generated app.
   Use the *Website compatibility* issue form.
