@@ -1,0 +1,7 @@
+[mypack]
+name=MyPack
+baseurl=https://sinhong2011.github.io/mypack/rpm
+enabled=1
+gpgcheck=0
+repo_gpgcheck=1
+gpgkey=https://sinhong2011.github.io/mypack/mypack.asc
