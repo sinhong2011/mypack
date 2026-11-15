@@ -865,12 +865,12 @@ func TestSettings(t *testing.T) {
 		s.RegistryURL != DefaultRegistryURL {
 		t.Errorf("defaults = %+v", s)
 	}
-	s.Appearance, s.ShowMenuBarIcon, s.RegistryURL = "dark", false, "file:///tmp/registry.json"
+	s.Appearance, s.ShowMenuBarIcon, s.RegistryURL, s.DownloadDir = "dark", false, "file:///tmp/registry.json", "~/Inbox"
 	if err := e.svc.SaveSettings(ctx, s); err != nil {
 		t.Fatal(err)
 	}
 	g, _ := e.svc.Settings(ctx)
-	if g.Appearance != "dark" || g.ShowMenuBarIcon || e.rt.registry != "file:///tmp/registry.json" {
+	if g.Appearance != "dark" || g.ShowMenuBarIcon || e.rt.registry != "file:///tmp/registry.json" || g.DownloadDir != "~/Inbox" {
 		t.Errorf("saved = %+v registry=%q", g, e.rt.registry)
 	}
 	s.Appearance = "purple"
@@ -880,6 +880,24 @@ func TestSettings(t *testing.T) {
 	s.Appearance, s.RegistryURL = "dark", "ftp://x"
 	if err := e.svc.SaveSettings(ctx, s); code(err) != CodeInvalidInput {
 		t.Errorf("bad registry: %v", err)
+	}
+}
+
+func TestBuildBakesDownloadDir(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	set, err := e.svc.Settings(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	set.DownloadDir = "~/Inbox"
+	if err := e.svc.SaveSettings(ctx, set); err != nil {
+		t.Fatal(err)
+	}
+	p := e.project(t)
+	buildAndWait(t, e, p)
+	if got := e.eng.reqs[0].Config.Network.DownloadDirectory; got != "~/Inbox" {
+		t.Fatalf("baked download dir %q", got)
 	}
 }
 

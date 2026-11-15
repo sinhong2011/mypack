@@ -25,16 +25,28 @@ import (
 // so each notifies and badges while another shows; the rail shows each
 // member's unread count and the Dock the total. A link to another
 // member's site opens in that member. Split view shows two members side
-// by side, with a divider to drag. The group works in every window.mode:
-// a window, compact, sidebar or the menu-bar panel.
+// by side or stacked, with a divider to drag and controls to rotate,
+// swap, or close (Chrome, Arc, Zen, Firefox). The group works in every
+// window.mode: a window, compact, sidebar or the menu-bar panel.
 
 const (
 	railWidth      = 68
 	railIcon       = 40
-	railTopDarwin  = 40 // room for the traffic lights
-	splitMin       = 0.2
-	dividerWidth   = 6
+	railTopDarwin  = 40  // room for the traffic lights
 	groupSessionID = "." // profileId + "." + member id
+)
+
+// lucideGlyph is one Lucide icon the rail and split chrome use
+// (title-bar-hidden windows have no GTK/Win32 menu, so Settings lives
+// here).
+func lucideGlyph(shapes string) *ui.SVG {
+	return ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">` + shapes + `</svg>`))
+}
+
+var (
+	settingsGlyph = lucideGlyph(`<path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/>`)
+	columnsGlyph  = lucideGlyph(`<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 3v18"/>`)
+	rowsGlyph     = lucideGlyph(`<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 12h18"/>`)
 )
 
 type groupMember struct {
@@ -58,18 +70,19 @@ type group struct {
 	localSchemes []string
 	localOrigins []string
 
-	mu     sync.Mutex
-	win    *mygo.Window
-	active int
-	split  int // member shown beside the active one, or -1
-	prev   int // the member shown before the active one
-	ratio  float32
+	mu        sync.Mutex
+	win       *mygo.Window
+	active    int
+	split     int     // member shown beside the active one, or -1
+	prev      int     // the member shown before the active one
+	splitPct  float32 // first pane share, 0–100
+	splitVert bool    // true: stacked (top/bottom), like Chrome/Arc/Zen
 }
 
 // newGroup prepares the members of cfg's group: a local member's site
 // starts serving here (sessions are made later, on the main thread).
 func (a *App) newGroup() (*group, error) {
-	g := &group{a: a, split: -1, prev: -1, ratio: 0.5}
+	g := &group{a: a, split: -1, prev: -1, splitPct: 50}
 	for i, m := range a.cfg.App.Group.Members {
 		gm := &groupMember{cfg: m, index: len(g.members)}
 		if m.IsLocal() {
@@ -277,18 +290,29 @@ func (g *group) step(d int) {
 }
 
 // toggleSplit shows the member shown before (else the next one) beside the
-// active one, or closes the split.
+// active one, or closes the split. A new split keeps the last orientation.
 func (g *group) toggleSplit() {
 	g.mu.Lock()
 	if g.split >= 0 {
 		g.split = -1
-	} else if len(g.members) > 1 {
-		o := g.prev
-		if o < 0 || o == g.active || o >= len(g.members) {
-			o = (g.active + 1) % len(g.members)
-		}
-		g.split = o
+	} else {
+		g.openSplitLocked()
 	}
+	g.invalidateLocked()
+}
+
+func (g *group) openSplitLocked() {
+	if g.split >= 0 || len(g.members) < 2 {
+		return
+	}
+	o := g.prev
+	if o < 0 || o == g.active || o >= len(g.members) {
+		o = (g.active + 1) % len(g.members)
+	}
+	g.split = o
+}
+
+func (g *group) invalidateLocked() {
 	w := g.win
 	g.mu.Unlock()
 	if w != nil {
@@ -296,19 +320,66 @@ func (g *group) toggleSplit() {
 	}
 }
 
-// splitWith shows member i beside the active one.
-func (g *group) splitWith(i int) {
+// setSplitVert sets side-by-side (false) or stacked (true), opening a
+// split if needed — Chrome's "change to stacked or side-by-side".
+func (g *group) setSplitVert(vert bool) {
 	g.mu.Lock()
-	if i == g.active {
+	g.openSplitLocked()
+	if g.split >= 0 {
+		g.splitVert = vert
+	}
+	g.invalidateLocked()
+}
+
+// rotateSplit flips side-by-side ↔ stacked. With no split it opens stacked
+// (Zen/Arc: a dedicated vertical split, Cmd+Shift+\).
+func (g *group) rotateSplit() {
+	g.mu.Lock()
+	if g.split < 0 {
+		g.openSplitLocked()
+		g.splitVert = true
+	} else {
+		g.splitVert = !g.splitVert
+	}
+	g.invalidateLocked()
+}
+
+// swapSplit exchanges the two panes (Chrome reverse, Firefox reverse).
+func (g *group) swapSplit() {
+	g.mu.Lock()
+	if g.split < 0 {
+		g.mu.Unlock()
+		return
+	}
+	g.active, g.split = g.split, g.active
+	w := g.win
+	m := g.members[g.active]
+	g.mu.Unlock()
+	a := g.a
+	if w != nil && m.page != nil {
+		a.mu.Lock()
+		if _, ok := a.windows[w]; ok || a.main == w {
+			a.windows[w] = m.page
+		}
+		a.mu.Unlock()
+		w.Invalidate()
+		if m.view != nil {
+			m.view.Focus()
+		}
+	}
+	a.state.Update(func(s *State) { s.GroupActive = m.cfg.ID })
+}
+
+// splitWith shows member i beside the active one. vert is stacked.
+func (g *group) splitWith(i int, vert bool) {
+	g.mu.Lock()
+	if i == g.active || i < 0 || i >= len(g.members) {
 		g.mu.Unlock()
 		return
 	}
 	g.split = i
-	w := g.win
-	g.mu.Unlock()
-	if w != nil {
-		w.Invalidate()
-	}
+	g.splitVert = vert
+	g.invalidateLocked()
 }
 
 // ownerOf returns the member whose site raw belongs to, other than from
@@ -432,8 +503,11 @@ func (g *group) handleIncoming(raw string) bool {
 func (g *group) viewFn(c *ui.Context) {
 	t := c.Theme()
 	g.mu.Lock()
-	active, split, ratio := g.active, g.split, g.ratio
+	active, split, pct, vert := g.active, g.split, g.splitPct, g.splitVert
 	g.mu.Unlock()
+	if pct <= 0 || pct > 100 {
+		pct = 50
+	}
 	top := float32(8)
 	if runtime.GOOS == "darwin" && !g.a.menuBarMode() {
 		top = railTopDarwin
@@ -454,6 +528,11 @@ func (g *group) viewFn(c *ui.Context) {
 			for i, m := range g.members {
 				g.railItem(c.Key("m-"+m.cfg.ID), m, i == active, i == split, horizontal)
 			}
+			if !horizontal {
+				ui.Spacer(c).Grow(1)
+			}
+			g.railSplit(c, split >= 0, vert, horizontal)
+			g.railSettings(c, horizontal)
 		})
 		if horizontal {
 			ui.Box(c).Height(1).FillWidth().Background(t.Border)
@@ -485,18 +564,22 @@ func (g *group) viewFn(c *ui.Context) {
 			col.Children(func() {
 				ui.Box(c.Key("captionstrip")).FillWidth().Height(h).Shrink(0).Background(t.Surface).DragWindow().
 					BorderWidth(0, 0, 1, 0).BorderColor(t.Border)
-				g.drawMembers(c, t, active, split, ratio)
+				g.drawMembers(c, active, split, &pct, vert)
 			})
 			return
 		}
-		g.drawMembers(c, t, active, split, ratio)
+		g.drawMembers(c, active, split, &pct, vert)
 	})
+	g.mu.Lock()
+	g.splitPct = pct
+	g.mu.Unlock()
+	g.a.drawDownloadNotice(c)
 }
 
-// drawMembers draws the shown members: the active one, and the one beside it
-// in a split.
-func (g *group) drawMembers(c *ui.Context, t *ui.Theme, active, split int, ratio float32) {
-	ui.Box(c.Key("members")).Grow(1).Basis(0).MinWidth(0).MinHeight(0).Row().Gap(0).Children(func() {
+// drawMembers draws the shown members: the active one, and the one beside
+// it in a split (side-by-side or stacked).
+func (g *group) drawMembers(c *ui.Context, active, split int, pct *float32, vert bool) {
+	ui.Box(c.Key("members")).Grow(1).Basis(0).MinWidth(0).MinHeight(0).Column().Gap(0).Children(func() {
 		if active >= len(g.members) || g.members[active].view == nil {
 			ui.Spacer(c)
 			return
@@ -505,25 +588,89 @@ func (g *group) drawMembers(c *ui.Context, t *ui.Theme, active, split int, ratio
 			ui.WebView(c, g.members[active].view).Grow(1)
 			return
 		}
-		area := ui.Row(c).Grow(1).FillHeight().Gap(0)
-		area.Children(func() {
-			ui.WebView(c, g.members[active].view).Grow(ratio)
-			div := ui.Box(c.Key("divider")).Width(dividerWidth).FillHeight().Background(t.Border).Cursor(ui.CursorResizeEW).Label("Resize split view")
-			if dx, _, ok := div.Dragged(); ok && dx != 0 {
-				if wdt := area.Bounds().W; wdt > 0 {
-					g.mu.Lock()
-					g.ratio = min(1-splitMin, max(splitMin, g.ratio+dx/wdt))
-					g.mu.Unlock()
-				}
-			}
-			if div.DoubleClicked() {
-				g.mu.Lock()
-				g.ratio = 0.5
-				g.mu.Unlock()
-			}
-			ui.WebView(c, g.members[split].view).Grow(1 - ratio)
-		})
+		first := func() { g.memberPane(c.Key("a"), g.members[active]) }
+		second := func() { g.memberPane(c.Key("b"), g.members[split]) }
+		// Separate keys so rotating does not reuse a Split of the other axis.
+		var panes ui.Element
+		if vert {
+			panes = ui.SplitVerticalPercent(c.Key("split-v"), pct, first, second)
+		} else {
+			panes = ui.SplitPercent(c.Key("split-h"), pct, first, second)
+		}
+		panes.SplitReset(50).Grow(1).FillWidth().FillHeight().MinWidth(0).MinHeight(0)
 	})
+}
+
+func (g *group) memberPane(c *ui.Context, m *groupMember) {
+	ui.WebView(c, m.view).Fill().MinWidth(0).MinHeight(0)
+}
+
+// railSplit is one Split View control on the rail, above Settings. Click
+// opens the menu (side by side, top and bottom, swap, close), as Chrome
+// and Firefox group split on a single button.
+func (g *group) railSplit(c *ui.Context, on, vert, horizontal bool) {
+	t := c.Theme()
+	slotW := float32(railWidth)
+	if horizontal {
+		slotW = railIcon + 8
+	}
+	glyph := columnsGlyph
+	if on && vert {
+		glyph = rowsGlyph
+	}
+	btn := ui.ButtonBase(c.Key("split")).Size(slotW, railIcon).Radius(10).
+		Label("Split View").Tooltip("Split View").FocusRing(false).Cursor(ui.CursorPointer).
+		AlignItems(ui.Center).Justify(ui.Center)
+	if on {
+		btn.Background(t.Accent.Alpha(0.18))
+	} else if btn.Hovered() || btn.FocusVisible() {
+		btn.Background(t.SurfaceHover)
+	}
+	btn.Children(func() {
+		col := t.TextMuted
+		if on {
+			col = t.Accent
+		}
+		ui.Icon(c, glyph).FontSize(18).TextColor(col)
+	})
+	btn.PopoverMenuButton(func(m *ui.Menu) {
+		if m.Item("Split Side by Side").Radio(on && !vert).Chosen() {
+			g.setSplitVert(false)
+		}
+		if m.Item("Split Top and Bottom").Radio(on && vert).Chosen() {
+			g.setSplitVert(true)
+		}
+		m.Separator()
+		if m.Item("Swap Sides").Disabled(!on).Chosen() {
+			g.swapSplit()
+		}
+		if m.Item("Close Split View").Disabled(!on).Chosen() {
+			g.toggleSplit()
+		}
+	}, ui.PopoverMenuButtonOptions{At: ui.AnchorTopEnd, Self: ui.AnchorTopStart})
+}
+
+// railSettings is the Settings control at the end of the rail. Group
+// windows hide the title bar, so Linux/Windows would otherwise have no
+// menu-bar Settings.
+func (g *group) railSettings(c *ui.Context, horizontal bool) {
+	t := c.Theme()
+	slotW := float32(railWidth)
+	if horizontal {
+		slotW = railIcon + 8
+	}
+	btn := ui.Box(c.Key("settings")).Size(slotW, railIcon).Radius(10).
+		Role(ui.RoleButton).Label("Settings").Tooltip("Settings…").Focusable().
+		AlignItems(ui.Center).Justify(ui.Center)
+	if btn.Hovered() {
+		btn.Background(t.SurfaceHover)
+	}
+	btn.Children(func() {
+		ui.Icon(c, settingsGlyph).FontSize(18).TextColor(t.TextMuted)
+	})
+	if btn.Clicked() {
+		g.a.openSettings()
+	}
 }
 
 // railItem is a member's icon: its picture (else its initial), a marker
@@ -566,13 +713,27 @@ func (g *group) railItem(c *ui.Context, m *groupMember, active, beside, horizont
 			g.show(m.index, true)
 		}
 		btn.ContextMenu(func(menu *ui.Menu) {
-			if menu.Item("Open in Split View").Disabled(active).Chosen() {
-				g.splitWith(m.index)
+			if menu.Item("Split to the Right").Disabled(active).Chosen() {
+				g.splitWith(m.index, false)
+			}
+			if menu.Item("Split Below").Disabled(active).Chosen() {
+				g.splitWith(m.index, true)
 			}
 			if beside && menu.Item("Close Split View").Chosen() {
 				g.toggleSplit()
 			}
 			menu.Separator()
+			if menu.Item("Open in Browser").Chosen() {
+				u := m.home
+				if m.page != nil {
+					if cur := m.page.URL(); isWebURL(cur) {
+						u = cur
+					}
+				}
+				if isWebURL(u) {
+					openExternal(u)
+				}
+			}
 			if menu.Item("Reload").Chosen() && m.page != nil {
 				m.page.Reload()
 			}
@@ -614,10 +775,26 @@ func (a *App) groupMenuItems() []*mygo.MenuItem {
 		}
 		items = append(items, it)
 	}
+	g.mu.Lock()
+	splitOn, splitVert := g.split >= 0, g.splitVert
+	g.mu.Unlock()
 	items = append(items,
 		&mygo.MenuItem{Label: "Next Site", Accelerator: a.acc("Ctrl+Tab"), Click: func(*mygo.MenuItem, *mygo.Window) { g.step(+1) }},
 		&mygo.MenuItem{Label: "Previous Site", Accelerator: a.acc("Ctrl+Shift+Tab"), Click: func(*mygo.MenuItem, *mygo.Window) { g.step(-1) }},
+		mygo.Separator(),
 		&mygo.MenuItem{Label: "Toggle Split View", Accelerator: a.acc("CmdOrCtrl+\\"), Click: func(*mygo.MenuItem, *mygo.Window) { g.toggleSplit() }},
+		&mygo.MenuItem{Label: "Split Side by Side", Type: mygo.MenuItemRadio, Checked: splitOn && !splitVert, Click: func(*mygo.MenuItem, *mygo.Window) { g.setSplitVert(false) }},
+		&mygo.MenuItem{Label: "Split Top and Bottom", Type: mygo.MenuItemRadio, Checked: splitOn && splitVert, Click: func(*mygo.MenuItem, *mygo.Window) { g.setSplitVert(true) }},
+		&mygo.MenuItem{Label: "Rotate Split", Accelerator: a.acc("CmdOrCtrl+Shift+\\"), Click: func(*mygo.MenuItem, *mygo.Window) { g.rotateSplit() }},
+		&mygo.MenuItem{Label: "Swap Sides", Click: func(*mygo.MenuItem, *mygo.Window) { g.swapSplit() }},
+		&mygo.MenuItem{Label: "Close Split View", Click: func(*mygo.MenuItem, *mygo.Window) {
+			g.mu.Lock()
+			on := g.split >= 0
+			g.mu.Unlock()
+			if on {
+				g.toggleSplit()
+			}
+		}},
 	)
 	return items
 }
@@ -634,7 +811,7 @@ func (a *App) openGroupWindow(stateKey string, hidden bool) (*mygo.Window, *mygo
 		o.TitleBarHeight = 32
 	}
 	o.Content = a.group.content()
-	w := safeNewWindow(o)
+	w := a.makeWindow(o)
 	a.mu.Lock()
 	a.windows[w] = nil // marks it an app window before its pages exist
 	a.mu.Unlock()

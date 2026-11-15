@@ -77,6 +77,57 @@ func isWebURL(s string) bool {
 	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != "" && !strings.ContainsAny(s, " \t\r\n")
 }
 
+// decoratePageContextMenu puts "Open in Browser" on a page's context menu:
+// a link's item at the top, the stock "Open Link in New Window" so it
+// actually leaves the app, and "Open Page in Browser" for the current
+// address. Sites often ship their own "Open in browser" link to the same
+// host; that stays inside the app. These items always use the default
+// browser.
+func decoratePageContextMenu(menu *mygo.Menu, linkURL, pageURL string, open func(string)) {
+	if menu == nil || open == nil {
+		return
+	}
+	if isWebURL(linkURL) {
+		menu.Insert(0, &mygo.MenuItem{
+			Label: "Open Link in Browser",
+			Click: func(*mygo.MenuItem, *mygo.Window) { open(linkURL) },
+		})
+		if it := menu.ItemByID(mygo.ContextMenuOpenLinkInNewWindow); it != nil {
+			it.Click = func(*mygo.MenuItem, *mygo.Window) { open(linkURL) }
+		}
+	}
+	if isWebURL(pageURL) {
+		menu.Append(mygo.Separator(), &mygo.MenuItem{
+			Label: "Open Page in Browser",
+			Click: func(*mygo.MenuItem, *mygo.Window) { open(pageURL) },
+		})
+	}
+}
+
+func (a *App) decorateContextMenu(p *mygo.Page, e *mygo.ContextMenuEvent) {
+	if a == nil || e == nil {
+		return
+	}
+	pageURL := ""
+	if p != nil {
+		pageURL = p.URL()
+	}
+	decoratePageContextMenu(e.Menu, e.LinkURL, pageURL, openExternal)
+	if e.Menu == nil || a.policy == nil || !isWebURL(e.LinkURL) {
+		return
+	}
+	// WebKitGTK's "Open Link" is often not a user gesture, so the
+	// navigation policy would keep another site inside the app. When the
+	// link would leave on a click, make the stock item do that.
+	if a.policy.Navigate(e.LinkURL, true) != navigation.External {
+		return
+	}
+	if it := e.Menu.ItemByID(mygo.ContextMenuOpenLink); it != nil {
+		u := e.LinkURL
+		it.Click = func(*mygo.MenuItem, *mygo.Window) { a.openLink(u) }
+	}
+}
+
 // incomingAction decides what to do with a URL another app handed to this one:
 // open it in the main window when it belongs to this app, else in the
 // browser. It is never routed on to a third app (no hand-off loops).

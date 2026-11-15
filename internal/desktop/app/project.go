@@ -338,6 +338,10 @@ func (a *App) projectLaunch(pr *domain.Project) (label string, ic *ui.SVG, run f
 }
 
 func (a *App) openArtifact(id string) {
+	if isFake() {
+		a.launchDemo(a.demoFromArtifact(id))
+		return
+	}
 	a.do(func(ctx context.Context) error { return a.svc.OpenArtifact(ctx, id) }, a.toastErr)
 }
 

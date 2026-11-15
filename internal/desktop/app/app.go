@@ -50,6 +50,7 @@ type App struct {
 	projectID  string
 	projTab    int     // 0 overview, 1 settings
 	toolbarW   float32 // the toolbar's width last frame (compact controls when narrow)
+	inspDrag   bool    // the settings column's left edge is being dragged
 	hud        hudState
 	status     map[string]*statusState // the build status blocks, per job
 	steps      map[string]*stepTrack   // the build step lists, per job
@@ -88,6 +89,9 @@ type App struct {
 	flyout    *mygo.Window
 	setWin    *mygo.Window // Settings, once opened
 	flyoutURL string
+	demoApps  map[string]*mygo.Window // fake Open windows, keyed by install/artifact id
+	demoPrefs map[string]*demoPrefs   // per-app Settings overlays (not MyPack's)
+	demoSet   map[string]*mygo.Window // each demo app's Settings window
 
 	lib     libState
 	create  createState
@@ -185,6 +189,7 @@ func Run(svc appservice.Service) error {
 	a.installMenu()
 
 	mygo.App.WhenReady(func() {
+		setBrandAppIcon()
 		a.win = mygo.NewWindow(mygo.WindowOptions{
 			Title:                "MyPack",
 			Width:                1200,
@@ -198,7 +203,8 @@ func Run(svc appservice.Service) error {
 			HideWindowButtons:    ownWindowButtons,
 			Content:              ui.View(a.view),
 		})
-		watchWindowChrome(a.win)
+		setWindowIcon(a.win, brandWindowIcon())
+		a.watchWindowChrome(a.win)
 		a.win.OnClose(func(e *mygo.CloseEvent) {
 			if !a.quitting {
 				e.PreventDefault()

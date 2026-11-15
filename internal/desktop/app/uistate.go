@@ -27,6 +27,10 @@ type uiState struct {
 	Shortcuts    map[string]string `json:"shortcuts,omitempty"`
 	SettingsOpen map[string]bool   `json:"advancedOpen,omitempty"`
 	SettingsPane string            `json:"settingsPane,omitempty"` // Settings' category on show
+	// InspectorWidth is the settings column in Create and a project's
+	// Settings, in points. Zero uses the default (~38 % of the content
+	// area, 400–480). Drag the column's left edge to change it.
+	InspectorWidth float32 `json:"inspectorWidth,omitempty"`
 	// AutoInstall is, per project, whether a successful build for this
 	// device is installed and opened at once; AutoInstallDefault (nil =
 	// on) seeds new projects.

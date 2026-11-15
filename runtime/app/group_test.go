@@ -30,6 +30,48 @@ func testGroup(t *testing.T, urls ...string) *group {
 	return g
 }
 
+func TestGroupMenuItemsUsesRemappedAcc(t *testing.T) {
+	g := testGroup(t, "https://a.example", "https://b.example")
+	g.a.group = g
+	g.a.cfg.Native.Shortcuts = map[string]string{"nextSite": "Alt+Tab", "split": "", "splitStack": "Alt+\\"}
+	items := g.a.groupMenuItems()
+	var next, split, rotate string
+	var sawSide, sawStack, sawSwap, sawClose bool
+	for _, it := range items {
+		if it == nil {
+			continue
+		}
+		switch it.Label {
+		case "Next Site":
+			next = it.Accelerator
+		case "Toggle Split View":
+			split = it.Accelerator
+		case "Rotate Split":
+			rotate = it.Accelerator
+		case "Split Side by Side":
+			sawSide = true
+		case "Split Top and Bottom":
+			sawStack = true
+		case "Swap Sides":
+			sawSwap = true
+		case "Close Split View":
+			sawClose = true
+		}
+	}
+	if next != "Alt+Tab" {
+		t.Fatalf("next %q", next)
+	}
+	if split != "" {
+		t.Fatalf("split off got %q", split)
+	}
+	if rotate != "Alt+\\" {
+		t.Fatalf("rotate %q", rotate)
+	}
+	if !sawSide || !sawStack || !sawSwap || !sawClose {
+		t.Fatal("missing split menu items")
+	}
+}
+
 // The same site more than once is several accounts of it: a link to it
 // stays in the account it was clicked in, and a link from elsewhere goes
 // to the account shown, else the first.
@@ -98,7 +140,7 @@ func TestGroupSwitchAndSplit(t *testing.T) {
 	if g.active != 0 || g.split != 1 {
 		t.Fatalf("swap: active=%d split=%d", g.active, g.split)
 	}
-	g.splitWith(2)
+	g.splitWith(2, false)
 	g.toggleSplit()
 	if g.split != -1 {
 		t.Fatal("toggle closes the split")
@@ -106,6 +148,38 @@ func TestGroupSwitchAndSplit(t *testing.T) {
 	g.step(-1)
 	if g.active != 2 {
 		t.Fatalf("step back wraps: %d", g.active)
+	}
+	if g.splitPct != 50 {
+		t.Fatalf("split starts even: %v", g.splitPct)
+	}
+}
+
+func TestGroupSplitOrientationAndSwap(t *testing.T) {
+	g := testGroup(t, "https://a.example", "https://b.example", "https://c.example")
+	g.show(0, false)
+	g.setSplitVert(true)
+	if g.split != 1 || !g.splitVert {
+		t.Fatalf("stacked open: split=%d vert=%v", g.split, g.splitVert)
+	}
+	g.rotateSplit()
+	if g.splitVert {
+		t.Fatal("rotate returns to side by side")
+	}
+	g.swapSplit()
+	if g.active != 1 || g.split != 0 {
+		t.Fatalf("swap: active=%d split=%d", g.active, g.split)
+	}
+	g.toggleSplit()
+	if g.split != -1 {
+		t.Fatal("close")
+	}
+	g.rotateSplit()
+	if g.split < 0 || !g.splitVert {
+		t.Fatalf("rotate opens stacked: split=%d vert=%v", g.split, g.splitVert)
+	}
+	g.splitWith(2, false)
+	if g.split != 2 || g.splitVert {
+		t.Fatalf("split to the right: split=%d vert=%v", g.split, g.splitVert)
 	}
 }
 

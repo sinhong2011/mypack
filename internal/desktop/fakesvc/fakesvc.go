@@ -87,15 +87,18 @@ func New() *Service {
 		RegistryURL:     "https://runtimes.mypack.dev/registry.json",
 		ShowMenuBarIcon: true, CheckUpdates: true, LibraryView: "grid",
 	}
-	for _, k := range []string{"darwin-arm64", "darwin-amd64", "windows-amd64", "windows-arm64", "linux-amd64", "linux-arm64"} {
-		size := int64(9_800_000)
-		if strings.HasPrefix(k, "windows") {
-			size = 8_400_000
-		} else if strings.HasPrefix(k, "linux") {
-			size = 7_900_000
-		}
-		s.runtimes[runtimeVersion+"/"+k] = &domain.RuntimeInfo{
-			Version: runtimeVersion, Key: k, Size: size, Source: "runtimes.mypack.dev",
+	keys := []string{"darwin-arm64", "darwin-amd64", "windows-amd64", "windows-arm64", "linux-amd64", "linux-arm64"}
+	for _, ver := range []string{"1.0.6", "1.0.7", "1.0.8", "1.0.9", runtimeVersion} {
+		for _, k := range keys {
+			size := int64(9_800_000)
+			if strings.HasPrefix(k, "windows") {
+				size = 8_400_000
+			} else if strings.HasPrefix(k, "linux") {
+				size = 7_900_000
+			}
+			s.runtimes[ver+"/"+k] = &domain.RuntimeInfo{
+				Version: ver, Key: k, Size: size, Source: "runtimes.mypack.dev",
+			}
 		}
 	}
 	if ap := os.Getenv("MYPACK_FAKE_APPEARANCE"); ap != "" {
@@ -648,13 +651,23 @@ func (s *Service) FetchIconFrom(ctx context.Context, rawURL string, provider met
 
 // ---- builds -----------------------------------------------------------------
 
-func (s *Service) runtimeFor(t config.Target) *domain.RuntimeInfo {
-	return s.runtimes[runtimeVersion+"/"+t.Key()]
+func runtimePin(cfg *config.Config) string {
+	if cfg != nil && cfg.Runtime.Version != "" {
+		return cfg.Runtime.Version
+	}
+	return runtimeVersion
 }
 
-func (s *Service) capability(t config.Target) appservice.TargetPreflight {
+func (s *Service) runtimeFor(t config.Target, version string) *domain.RuntimeInfo {
+	if version == "" {
+		version = runtimeVersion
+	}
+	return s.runtimes[version+"/"+t.Key()]
+}
+
+func (s *Service) capability(t config.Target, version string) appservice.TargetPreflight {
 	tp := appservice.TargetPreflight{Target: t, Supported: true, Level: "portable", Signing: "unsigned"}
-	if rt := s.runtimeFor(t); rt != nil {
+	if rt := s.runtimeFor(t, version); rt != nil {
 		tp.Runtime = *rt
 	} else {
 		tp.Supported = false
@@ -690,9 +703,13 @@ func (s *Service) Preflight(ctx context.Context, projectID string, targets []con
 	if len(targets) == 0 {
 		targets = []config.Target{config.DefaultTarget(s.host)}
 	}
-	pf := appservice.Preflight{OutputDir: s.settings.OutputDir, RuntimeVersion: runtimeVersion}
+	ver := runtimePin(nil)
+	if p != nil {
+		ver = runtimePin(p.Config)
+	}
+	pf := appservice.Preflight{OutputDir: s.settings.OutputDir, RuntimeVersion: ver}
 	for _, t := range targets {
-		tp := s.capability(t)
+		tp := s.capability(t, ver)
 		if tp.Supported && !tp.Runtime.Cached {
 			pf.DownloadBytes += tp.Runtime.Size
 		}
@@ -715,18 +732,19 @@ func (s *Service) StartBuild(ctx context.Context, req appservice.BuildRequest) (
 	if len(targets) == 0 {
 		targets = []config.Target{config.DefaultTarget(s.host)}
 	}
+	ver := runtimePin(p.Config)
 	for _, t := range targets {
-		if tp := s.capability(t); !tp.Supported {
+		if tp := s.capability(t, ver); !tp.Supported {
 			s.mu.Unlock()
 			return domain.BuildJob{}, &domain.Error{Code: appservice.CodeTargetUnsupp, Message: tp.Reason}
 		}
 	}
 	job := &domain.BuildJob{ID: s.id("job"), ProjectID: p.ID, ProjectRev: p.Revision, Snapshot: p.Config.Clone(),
-		Targets: targets, RuntimeVersion: runtimeVersion, Status: domain.JobQueued, Stage: domain.StageQueued,
+		Targets: targets, RuntimeVersion: ver, Status: domain.JobQueued, Stage: domain.StageQueued,
 		Progress: -1, Actor: actorOr(req.Actor), CreatedAt: time.Now()}
 	needDownload := false
 	for _, t := range targets {
-		if rt := s.runtimeFor(t); rt != nil && !rt.Cached {
+		if rt := s.runtimeFor(t, ver); rt != nil && !rt.Cached {
 			needDownload = true
 		}
 	}
@@ -751,7 +769,7 @@ func (s *Service) StartBuild(ctx context.Context, req appservice.BuildRequest) (
 		job.Error = &domain.Error{Code: appservice.CodeDownloadRequired,
 			Message:     "A runtime must be downloaded before this build can continue.",
 			Remediation: "Approve the download to continue."}
-		job.Approval = &domain.ApprovalRequest{Kind: "runtime_download", Command: "Download MyPack runtime " + runtimeVersion,
+		job.Approval = &domain.ApprovalRequest{Kind: "runtime_download", Command: "Download MyPack runtime " + ver,
 			Detail: "A small, signed component is needed to build apps for this computer. It's downloaded once and reused."}
 		out := *job
 		s.mu.Unlock()
@@ -965,14 +983,15 @@ func (s *Service) run(id string) {
 		cancelled()
 		return
 	}
-	if stage(domain.StageResolving, 400*time.Millisecond, "Resolving runtime "+runtimeVersion) != nil {
+	ver := runtimePin(snap)
+	if stage(domain.StageResolving, 400*time.Millisecond, "Resolving runtime "+ver) != nil {
 		cancelled()
 		return
 	}
 	// Download what's missing, with real (simulated) byte progress.
 	for _, t := range targets {
 		s.mu.Lock()
-		rt := s.runtimeFor(t)
+		rt := s.runtimeFor(t, ver)
 		missing := rt != nil && !rt.Cached
 		s.mu.Unlock()
 		if strings.Contains(key, "nonet") && rt != nil {
@@ -1120,7 +1139,7 @@ func (s *Service) InstallAndOpen(ctx context.Context, req appservice.InstallRequ
 	inst.ArtifactID, inst.Name, inst.Identifier = a.ID, j.Snapshot.App.Name, j.Snapshot.App.Identifier
 	inst.SourceURL = j.Snapshot.App.Source.Value
 	inst.Path = filepath.Join(s.settings.InstallDir, name+".app")
-	inst.Version, inst.RuntimeVersion = j.Snapshot.App.Version, runtimeVersion
+	inst.Version, inst.RuntimeVersion = j.Snapshot.App.Version, runtimePin(j.Snapshot)
 	inst.ProfileDir = "~/Library/Application Support/mypack-apps/" + j.Snapshot.App.ProfileID
 	inst.State, inst.UpdateReason, inst.LastManagedAt = domain.InstallManaged, "", time.Now()
 	if p != nil {
