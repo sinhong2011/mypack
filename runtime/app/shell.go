@@ -5,6 +5,7 @@ package app
 import (
 	"image/color"
 	"log"
+	"math"
 	"runtime"
 	"strconv"
 	"strings"
@@ -169,8 +170,8 @@ func (s *shell) viewFn(c *ui.Context) {
 				ui.WebView(c, v).Fill()
 			}
 			if h > 0 {
-				ui.Row(c).Absolute().Top(0).Left(0).Right(0).Height(h).Material(glass.Glass{Native: true}).DragWindow().Children(func() {
-					s.drawStripSettings(c)
+				ui.Row(c).Absolute().Top(0).Left(0).Right(0).Height(h).AlignItems(ui.Center).Material(glass.Glass{Native: true}).DragWindow().Children(func() {
+					s.drawStripSettings(c, target, h)
 				})
 			}
 			s.a.drawDownloadNotice(c)
@@ -179,13 +180,13 @@ func (s *shell) viewFn(c *ui.Context) {
 	}
 	s.setInset(0)
 	ui.Column(c).Fill().Gap(0).Children(func() {
-		strip := ui.Row(c).FillWidth().Height(h).Shrink(0)
+		strip := ui.Row(c).FillWidth().Height(h).Shrink(0).AlignItems(ui.Center)
 		col := target
 		if !c.Preferences().ReduceMotion {
 			col = strip.AnimateColor("tint", target, ui.Animation{Duration: tintAnimation, Ease: ui.EaseInOut})
 		}
 		strip.Background(col).DragWindow().Children(func() {
-			s.drawStripSettings(c)
+			s.drawStripSettings(c, col, h)
 		})
 		if v := s.view.Load(); v != nil {
 			ui.WebView(c, v).Grow(1)
@@ -194,25 +195,84 @@ func (s *shell) viewFn(c *ui.Context) {
 	})
 }
 
-// drawStripSettings puts Settings on the native strip. Linux and Windows
-// hide the GTK/Win32 menu bar when the title bar is hidden, so Seamless
-// and Glass windows would otherwise have no Settings entry at all.
-func (s *shell) drawStripSettings(c *ui.Context) {
+// drawStripSettings lays out the native strip: room for the window
+// controls, a drag region between them, and on Linux and Windows
+// (where a hidden title bar hides the menu) the settings control.
+// macOS keeps Settings in the menu bar, so the strip stays clear of
+// the traffic lights.
+//
+// The control is a compact gear at the trailing end of the free band,
+// just before the trailing caption inset (bar.Right). On Windows that
+// is immediately left of minimize, maximize and close. Linux layouts
+// that put those buttons on the left keep the gear at the trailing
+// end, so it covers neither the buttons nor the site's header. A
+// "Settings" label at the leading edge sits on that header (the
+// YouTube logo, for example) because the strip is tinted to the page.
+// The gear is the same icon as the group rail. Full screen hides the
+// strip (h == 0) and the control with it.
+func (s *shell) drawStripSettings(c *ui.Context, bg ui.Color, h float32) {
 	bar := c.TitleBar()
 	ui.Box(c).Width(max(bar.Left, 8)).Shrink(0)
-	if runtime.GOOS != "darwin" {
-		t := c.Theme()
-		hit := ui.Box(c.Key("settings")).Padding(0, 10).FillHeight().AlignItems(ui.Center).
-			Role(ui.RoleButton).Label("Settings").Tooltip("Settings…").Focusable()
-		hit.Children(func() {
-			ui.Text(c, "Settings").FontSize(12).TextColor(t.Text)
-		})
-		if hit.Clicked() {
-			s.a.openSettings()
-		}
-	}
 	ui.Spacer(c).Grow(1)
+	if runtime.GOOS != "darwin" && h >= stripSettingsSide {
+		s.stripSettingsButton(c, bg)
+	}
 	ui.Box(c).Width(max(bar.Right, 8)).Shrink(0)
+}
+
+// stripSettingsSide is the gear's box. Visible strips are at least 32
+// DIPs on Linux and Windows, so the control stays inside the caption
+// band and does not spill over the page.
+const stripSettingsSide = 28
+
+// stripSettingsButton opens the same Settings window as the menu item.
+// It is quiet at rest (no label, no fill) and washes on hover or
+// keyboard focus. Ink follows the strip, which is the page's color,
+// so a dark site stays readable on a light desktop and the reverse.
+func (s *shell) stripSettingsButton(c *ui.Context, bg ui.Color) {
+	rest, hot, wash, pressed := stripIconColors(bg)
+	btn := ui.ButtonBase(c.Key("settings")).Size(stripSettingsSide, stripSettingsSide).Radius(8).
+		Margin(0, 4, 0, 0).Center().
+		Label("Settings").Tooltip("Settings…").FocusRing(false).Cursor(ui.CursorPointer)
+	fg := rest
+	switch {
+	case btn.Pressed():
+		btn.Background(pressed)
+		fg = hot
+	case btn.Hovered() || btn.FocusVisible():
+		btn.Background(wash)
+		fg = hot
+	}
+	btn.Children(func() {
+		ui.Icon(c, settingsGlyph).FontSize(16).TextColor(fg)
+	})
+	if btn.Clicked() {
+		s.a.openSettings()
+	}
+}
+
+// stripIconColors picks a caption gear for a strip tinted bg. Light
+// pages get dark ink; dark pages get light ink. The wash is a hover
+// or press scrim in the same direction.
+func stripIconColors(bg ui.Color) (rest, hot, wash, pressed ui.Color) {
+	if stripLuma(bg) >= 0.55 {
+		return ui.RGBA(28, 28, 30, 0.88), ui.RGB(28, 28, 30),
+			ui.RGBA(0, 0, 0, 0.08), ui.RGBA(0, 0, 0, 0.14)
+	}
+	return ui.RGBA(255, 255, 255, 0.92), ui.RGB(255, 255, 255),
+		ui.RGBA(255, 255, 255, 0.14), ui.RGBA(255, 255, 255, 0.22)
+}
+
+// stripLuma is the relative luminance of c, 0 for black and 1 for white.
+func stripLuma(c ui.Color) float64 {
+	lin := func(v uint8) float64 {
+		x := float64(v) / 255
+		if x <= 0.04045 {
+			return x / 12.92
+		}
+		return math.Pow((x+0.055)/1.055, 2.4)
+	}
+	return 0.2126*lin(c.R) + 0.7152*lin(c.G) + 0.0722*lin(c.B)
 }
 
 // attach creates the web view once the window exists.
