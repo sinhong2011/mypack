@@ -25,3 +25,7 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
 )
+
+// Temporary: MyGo v0.9.0 plus egoist/mygo#1872 (Windows page full screen,
+// sinhong2011/mypack#70). Drop this once a MyGo release includes #1872.
+replace github.com/egoist/mygo => github.com/sinhong2011/mygo v0.9.1-0.20261119162715-9c731a3b9326
