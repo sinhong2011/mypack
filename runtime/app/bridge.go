@@ -34,6 +34,7 @@ type bridgeService struct {
 	click  func(page *mygo.Page, jsID string)
 	badges *badgeController
 	media  *mediaController // nil: no media keys
+	gm     *gmService       // userscripts' GM_* API; nil: no userscripts
 	now    func() time.Time
 
 	mu    sync.Mutex

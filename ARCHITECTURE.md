@@ -110,6 +110,27 @@ first shown. Favicons are fetched by the runtime from the page's `<link rel=icon
 Tab ⌘⇧T, Close Tab ⌘W, Close Window ⌘⇧W; View: ⌃Tab / ⌃⇧Tab, ⌘1…⌘9. Not in group apps (validation) or the menu-bar
 panel.
 
+## Userscripts (1.0.10)
+
+Userscripts in the Greasemonkey format (`// ==UserScript==`) run in every app the user picks, without a rebuild. The
+store is one folder shared by all apps, `<UserConfigDir>/mypack-apps/userscripts/` (`runtime/userscript`):
+`index.json` (state, scope by app identifier, empty = all apps) and `<id>/script.user.js` with its `@require` and
+`@resource` files, downloaded at install time. Running apps never fetch them. `mypack scripts` installs, updates,
+scopes, turns on/off and removes scripts. There is no GUI for scripts yet.
+
+At launch the runtime reads the scripts for its identifier (`runtime/app/userscripts.go`) and adds a dispatcher to the
+preload (`runtime/inject/userscripts.go`). On every main-frame document it tests `location.href` against each
+script's `@match`/`@include`/`@exclude` (compiled to regular expressions both Go and JS accept), then runs the script
+at its `@run-at` in its own function, with the GM API as parameters. Scripts share the page's JavaScript world
+(`unsafeWindow === window`); MyGo has no isolated worlds. `GM_getValue/setValue/deleteValue/listValues`,
+`GM_xmlhttpRequest` and `GM_setClipboard` go to the bound `mypack` service with a per-launch token per script. The
+token lives only in the preload's closure. Go refuses unknown tokens, pages outside the app (navigation policy) and
+APIs the script did not `@grant`. Values are per app and per script in `<profile>/userscripts/<id>.json` and are read
+before the script starts, so `GM_getValue` stays synchronous. `GM_xmlhttpRequest` is made by the runtime without the
+app's cookies, only to the page's own host or the script's `@connect` hosts (`*` = any). `GM_addStyle`,
+`GM_notification` (the Notification shim), `GM_openInTab`, `GM_getResource*`, `GM_info` and the `GM.*` promise forms
+work page-side. `GM_registerMenuCommand` is a no-op for now. Example: `examples/userscripts/`.
+
 ## Moving apps between computers
 
 A `.mypack` file (`internal/appservice/library.go`) holds one or more apps: each config plus the pictures a config only

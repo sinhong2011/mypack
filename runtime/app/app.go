@@ -36,6 +36,8 @@ type App struct {
 	startURL string             // URL the first window loads
 	preload  string
 
+	userScripts []inject.UserScript // installed userscripts that run in this app
+
 	disabled map[string]bool // normalized disabled accelerators
 
 	bridge *bridgeService   // page -> Go calls: notifications, badge
@@ -190,6 +192,7 @@ func (a *App) Run() error {
 	a.media = a.newMedia()
 	a.bridge = a.newBridge()
 	mygo.BindAs("mypack", a.bridge)
+	a.userScripts = a.loadUserScripts(profile)
 	a.preload = a.buildPreload()
 	if u := firstWebURL(os.Args[1:]); u != "" {
 		a.useLaunchURL(u)
@@ -313,8 +316,9 @@ func (a *App) buildPreload() string {
 	perms := a.state.Get().Notify
 	return inject.Build(inject.Options{
 		JS: js, CSS: css, DragStrip: a.framelessBar(), DisabledShortcuts: a.cfg.WebView.DisabledKeys,
-		WebAPIs: inject.WebAPIs{Notifications: a.cfg.Native.NotificationsMode(), Perms: perms, Badge: a.cfg.Native.BadgeMode() != "off"},
-		Media:   a.media != nil,
+		WebAPIs:     inject.WebAPIs{Notifications: a.cfg.Native.NotificationsMode(), Perms: perms, Badge: a.cfg.Native.BadgeMode() != "off"},
+		Media:       a.media != nil,
+		UserScripts: a.userScripts,
 	})
 }
 
