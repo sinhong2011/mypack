@@ -28,13 +28,14 @@ var Version = "0.1.0-dev"
 type section string
 
 const (
-	secLibrary  section = "library"
-	secDiscover section = "discover"
-	secBuilds   section = "builds"
-	secRuntimes section = "runtimes"
-	secCreate   section = "create"
-	secProject  section = "project"
-	secGallery  section = "gallery" // MYPACK_KIT_GALLERY=1
+	secLibrary    section = "library"
+	secDiscover   section = "discover"
+	secExtensions section = "extensions"
+	secBuilds     section = "builds"
+	secRuntimes   section = "runtimes"
+	secCreate     section = "create"
+	secProject    section = "project"
+	secGallery    section = "gallery" // MYPACK_KIT_GALLERY=1
 )
 
 // App is the GUI state.
@@ -101,7 +102,8 @@ type App struct {
 
 	toasts []toastReq
 
-	catalogBusy bool // Discover's refresh is fetching the catalog
+	catalogBusy bool     // Discover's refresh is fetching the catalog
+	ext         extState // Extensions: installed userscripts and the hub
 
 	reloadMu   sync.Mutex
 	reloadWant map[string]bool
@@ -130,7 +132,7 @@ func Run(svc appservice.Service) error {
 	}
 	a.section = section(a.ui.Section)
 	switch a.section {
-	case secLibrary, secDiscover, secBuilds, secRuntimes:
+	case secLibrary, secDiscover, secExtensions, secBuilds, secRuntimes:
 	case secProject:
 		a.projectID = a.ui.ProjectID
 		if a.projectID == "" {
@@ -209,6 +211,7 @@ func Run(svc appservice.Service) error {
 		a.reload("projects", "installs", "jobs", "runtimes", "storage")
 		a.startLibrarySync()
 		a.loadCatalog()
+		a.loadExtensions()
 		a.watchWindow()
 		a.syncTray()
 		a.syncLauncherShortcut()

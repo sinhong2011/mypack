@@ -116,7 +116,12 @@ Userscripts in the Greasemonkey format (`// ==UserScript==`) run in every app th
 store is one folder shared by all apps, `<UserConfigDir>/mypack-apps/userscripts/` (`runtime/userscript`):
 `index.json` (state, scope by app identifier, empty = all apps) and `<id>/script.user.js` with its `@require` and
 `@resource` files, downloaded at install time. Running apps never fetch them. `mypack scripts` installs, updates,
-scopes, turns on/off and removes scripts. There is no GUI for scripts yet.
+scopes, turns on/off and removes scripts. In the GUI, the Extensions page (`internal/desktop/app/extensions.go`, ⌘5)
+lists the installed scripts (on/off, update, remove), the hub and install from an address or file. Every install
+first shows a review sheet: where the script runs, what it may use and where it may connect. The hub is
+`catalog/scripts.json`, fetched from `main` like Discover. Each entry pins a commit URL and a SHA-256, so a reviewed
+script cannot change after review, and `TestBundledScriptHashes` fails when an entry no longer matches the file in the
+repository.
 
 At launch the runtime reads the scripts for its identifier (`runtime/app/userscripts.go`) and adds a dispatcher to the
 preload (`runtime/inject/userscripts.go`). On every main-frame document it tests `location.href` against each

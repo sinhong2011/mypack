@@ -146,6 +146,7 @@ func (a *App) sidebar(c *ui.Context) {
 			}
 			a.navItem(c, secLibrary, icons.Library, T("nav.library"), badge)
 			a.navItem(c, secDiscover, icons.Discover, T("nav.discover"), "")
+			a.navItem(c, secExtensions, icons.Puzzle, T("nav.extensions"), "")
 			// Builds running: a spinner, and their count when more than one.
 			running := ""
 			if n := len(a.activeJobs()); n == 1 {
@@ -334,6 +335,11 @@ func (a *App) toolbarTitle(c *ui.Context) {
 	case secDiscover:
 		title = T("nav.discover")
 		sub = T("group.sites", "n", len(templates))
+	case secExtensions:
+		title = T("nav.extensions")
+		if n := len(a.ext.installed); n > 0 {
+			sub = T("ext.subtitle", "count", n)
+		}
 	case secBuilds:
 		title = T("nav.builds")
 		sub = T("builds.count", "count", len(a.jobs))
@@ -380,6 +386,8 @@ func (a *App) pageView(c *ui.Context) {
 			a.libraryView(c)
 		case secDiscover:
 			a.discoverView(c)
+		case secExtensions:
+			a.extensionsView(c)
 		case secBuilds:
 			a.buildsView(c)
 		case secRuntimes:

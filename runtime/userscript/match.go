@@ -137,3 +137,36 @@ func globBody(p string) string {
 	}
 	return strings.Join(parts, ".*")
 }
+
+// Sites are the hosts a script's @match/@include name, for display
+// ("x.com", "*.example.com"); "all sites" when it runs everywhere.
+func (m Meta) Sites() []string {
+	var out []string
+	seen := map[string]bool{}
+	add := func(h string) {
+		if h != "" && !seen[h] {
+			seen[h] = true
+			out = append(out, h)
+		}
+	}
+	for _, p := range append(append([]string{}, m.Match...), m.Include...) {
+		p = strings.TrimSpace(p)
+		if p == "<all_urls>" || p == "*" || p == "*://*/*" {
+			return []string{"*"}
+		}
+		if i := strings.Index(p, "://"); i >= 0 {
+			h := p[i+3:]
+			if j := strings.IndexAny(h, "/?#"); j >= 0 {
+				h = h[:j]
+			}
+			if h == "*" {
+				return []string{"*"}
+			}
+			add(h)
+		}
+	}
+	if len(m.Match) == 0 && len(m.Include) == 0 {
+		return []string{"*"}
+	}
+	return out
+}

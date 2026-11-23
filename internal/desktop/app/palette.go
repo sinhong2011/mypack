@@ -136,6 +136,7 @@ func (a *App) paletteActions() []cmdItem {
 		act(goTo, icons.Discover, T("nav.discover"), "mod+2", func() { a.nav(secDiscover) }),
 		act(goTo, icons.Builds, T("nav.builds"), "mod+3", func() { a.nav(secBuilds) }),
 		act(goTo, icons.Runtimes, T("nav.runtimes"), "mod+4", func() { a.nav(secRuntimes) }),
+		act(goTo, icons.Puzzle, T("nav.extensions"), "mod+5", func() { a.nav(secExtensions) }),
 		act(goTo, icons.Settings, T("nav.settings"), "mod+,", func() { a.openSettings("") }),
 		act(settings, icons.Appearance, T("palette.appearance", "mode", T("appearance.light")), "", func() { a.setAppearance("light") }),
 		act(settings, icons.Appearance, T("palette.appearance", "mode", T("appearance.dark")), "", func() { a.setAppearance("dark") }),

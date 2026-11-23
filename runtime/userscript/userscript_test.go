@@ -157,3 +157,25 @@ func TestInstallFailedDownloadKeepsOld(t *testing.T) {
 		t.Fatalf("old copy lost: %+v", got)
 	}
 }
+
+func TestInstallHashAndSites(t *testing.T) {
+	s := Store{Dir: t.TempDir()}
+	none := func(context.Context, string) ([]byte, string, error) { return []byte("x"), "", nil }
+	if _, _, err := s.Install(context.Background(), []byte(sample), InstallOptions{Fetch: none, SHA256: strings.Repeat("0", 64)}); !errors.Is(err, ErrHashMismatch) {
+		t.Fatalf("hash mismatch: %v", err)
+	}
+	e, _, err := s.Install(context.Background(), []byte(sample), InstallOptions{Fetch: none, SHA256: "d9ed1c8b3a8cbd5cc8d4f5b06f8d5c0b2fb8e61dd27dcd2d0c4b4d6c6b0f0b61"})
+	if err == nil {
+		t.Fatalf("a wrong hash installed %s", e.ID)
+	}
+	m, _ := Parse(sample)
+	if got := strings.Join(m.Sites(), ","); got != "x.com,*.twitter.com" {
+		t.Fatalf("sites = %q", got)
+	}
+	if _, _, err := s.Install(context.Background(), []byte(sample), InstallOptions{Fetch: none}); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.ReadMeta(m.ID()); err != nil || got.Name != m.Name {
+		t.Fatalf("ReadMeta = %+v %v", got, err)
+	}
+}

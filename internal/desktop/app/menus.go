@@ -63,6 +63,7 @@ func (a *App) installMenu() {
 			{Label: T("nav.discover"), Accelerator: "CmdOrCtrl+2", Click: on(func() { a.nav(secDiscover) })},
 			{Label: T("nav.builds"), Accelerator: "CmdOrCtrl+3", Click: on(func() { a.nav(secBuilds) })},
 			{Label: T("nav.runtimes"), Accelerator: "CmdOrCtrl+4", Click: on(func() { a.nav(secRuntimes) })},
+			{Label: T("nav.extensions"), Accelerator: "CmdOrCtrl+5", Click: on(func() { a.nav(secExtensions) })},
 			mygo.Separator(),
 			{Label: T("menu.palette"), Accelerator: "CmdOrCtrl+K", Click: on(a.togglePalette)},
 			{Label: T("menu.find"), Accelerator: "CmdOrCtrl+F", Click: on(func() { a.nav(secLibrary); a.lib.focusSearch = true })},

@@ -2,6 +2,8 @@ package userscript
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -179,7 +181,13 @@ type InstallOptions struct {
 	SourceURL string   // where the script came from (base for relative @require; used by update)
 	Apps      []string // nil keeps the scope of an installed copy (new: all apps)
 	Fetch     Fetcher  // nil: HTTPFetcher(nil)
+	// SHA256, when set, is the hex SHA-256 the script must have (a reviewed
+	// hub entry); a different file is refused.
+	SHA256 string
 }
+
+// ErrHashMismatch means the script is not the reviewed file.
+var ErrHashMismatch = errors.New("the script does not match the reviewed version (SHA-256 differs)")
 
 // Install adds or replaces a script (same @namespace and @name). It
 // downloads @require and @resource files first, so a failed download leaves
@@ -187,6 +195,12 @@ type InstallOptions struct {
 func (s Store) Install(ctx context.Context, src []byte, o InstallOptions) (Entry, Meta, error) {
 	if len(src) > MaxScriptBytes {
 		return Entry{}, Meta{}, fmt.Errorf("the script is larger than %d MB", MaxScriptBytes>>20)
+	}
+	if o.SHA256 != "" {
+		sum := sha256.Sum256(src)
+		if !strings.EqualFold(hex.EncodeToString(sum[:]), o.SHA256) {
+			return Entry{}, Meta{}, ErrHashMismatch
+		}
 	}
 	m, err := Parse(string(src))
 	if err != nil {
@@ -438,4 +452,13 @@ func (s Store) loadOne(e Entry) (Script, error) {
 		sc.Resources = append(sc.Resources, LoadedResource{Name: r.Name, MIME: r.MIME, Data: b})
 	}
 	return sc, nil
+}
+
+// ReadMeta parses the header of an installed script.
+func (s Store) ReadMeta(id string) (Meta, error) {
+	src, err := os.ReadFile(filepath.Join(s.Dir, filepath.Base(id), "script.user.js"))
+	if err != nil {
+		return Meta{}, err
+	}
+	return Parse(string(src))
 }
