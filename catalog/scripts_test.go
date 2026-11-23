@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"os"
@@ -40,6 +41,9 @@ func TestBundledScriptHashes(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", sc.Name, err)
 		}
+		// GitHub serves the file with LF endings; a Windows checkout may
+		// have CRLF.
+		b = bytes.ReplaceAll(b, []byte("\r\n"), []byte("\n"))
 		sum := sha256.Sum256(b)
 		if got := hex.EncodeToString(sum[:]); got != sc.SHA256 {
 			t.Errorf("%s: the file in the repo has sha256 %s, the hub says %s (update the pin and hash)", sc.Name, got, sc.SHA256)
