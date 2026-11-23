@@ -32,6 +32,8 @@ type extState struct {
 	addr      string          // "Install from address" field
 	addrBusy  bool
 	review    extReview
+	detail    extDetail
+	query     string // the page's search
 }
 
 // extReview is the sheet shown before anything is installed.
@@ -229,17 +231,44 @@ func (a *App) extensionsView(c *ui.Context) {
 	page(c, func() {
 		kit.Secondary(c, T("ext.body")).LineHeight(1.45)
 		kit.Note(c, icons.Info, T("ext.runtimeNote"), kit.ToneNeutral)
+		if len(a.ext.installed)+len(a.ext.hub) > 3 || a.ext.query != "" {
+			kit.SearchField(c.Key("q"), &a.ext.query, T("ext.search"), nil, 0)
+		}
 		a.extInstalledSection(c)
 		a.extHubSection(c)
 		a.extAddSection(c)
 	})
 	a.extReviewSheet(c)
+	a.extDetailSheet(c)
 }
 
 func (a *App) extInstalledSection(c *ui.Context) {
 	p := design.Of(c)
 	ui.Column(c.Key("installed")).Gap(10).Children(func() {
-		kit.Eyebrow(c, T("ext.installed")).Padding(0, 2)
+		var shown []userscript.Entry
+		for _, e := range a.ext.installed {
+			m := a.ext.metas[e.ID]
+			if extMatches(a.ext.query, e.Name, e.Description, strings.Join(m.Sites(), " ")) {
+				shown = append(shown, e)
+			}
+		}
+		title := T("ext.installed")
+		if n := len(a.ext.installed); n > 0 {
+			on := 0
+			for _, e := range a.ext.installed {
+				if e.Enabled {
+					on++
+				}
+			}
+			title = T("ext.installed.count", "on", on, "n", n)
+		}
+		kit.Eyebrow(c, title).Padding(0, 2)
+		if len(a.ext.installed) > 0 && len(shown) == 0 {
+			kit.GroupBox(c).Children(func() {
+				ui.Text(c, T("ext.search.none")).FontSize(design.FontBody).TextColor(p.TextSecondary).Padding(14)
+			})
+			return
+		}
 		if len(a.ext.installed) == 0 {
 			kit.GroupBox(c).Children(func() {
 				ui.Text(c, T("ext.installed.none")).FontSize(design.FontBody).TextColor(p.TextSecondary).Padding(14)
@@ -247,7 +276,7 @@ func (a *App) extInstalledSection(c *ui.Context) {
 			return
 		}
 		kit.GroupBox(c).Children(func() {
-			for _, e := range a.ext.installed {
+			for _, e := range shown {
 				e := e
 				m := a.ext.metas[e.ID]
 				ui.Row(c.Key(e.ID)).MinHeight(design.Row+18).Padding(12, 14).Gap(12).AlignItems(ui.Center).Children(func() {
@@ -267,13 +296,9 @@ func (a *App) extInstalledSection(c *ui.Context) {
 					})
 					if a.extBusy(e.ID) {
 						kit.Spinner(c, 14, p.TextSecondary)
-					} else if e.SourceURL != "" {
-						if kit.IconButton(c.Key("upd"), icons.Refresh, T("ext.update")).Clicked() {
-							a.updateExtension(e)
-						}
 					}
-					if kit.IconButton(c.Key("rm"), icons.Trash, T("ext.remove")).Clicked() {
-						a.removeExtension(e)
+					if kit.Button(c.Key("more"), T("ext.details"), kit.ButtonOpts{Variant: kit.Ghost, Size: design.ControlSM, Trailing: icons.ChevronRt}).Clicked() {
+						a.openExtDetail(e.ID, "")
 					}
 					on := e.Enabled
 					kit.Switch(c.Key("on"), &on, T("ext.enabled", "name", e.Name))
@@ -291,8 +316,13 @@ func (a *App) extHubSection(c *ui.Context) {
 	ui.Column(c.Key("hub")).Gap(10).Children(func() {
 		kit.Eyebrow(c, T("ext.hub")).Padding(0, 2)
 		ui.Row(c).Gap(12).Wrap().AlignItems(ui.Stretch).Children(func() {
+			n := 0
 			for _, s := range a.ext.hub {
 				s := s
+				if !extMatches(a.ext.query, s.Name, s.Description, s.Author, strings.Join(s.Sites, " ")) {
+					continue
+				}
+				n++
 				inst := a.hubInstalled(s)
 				card := kit.Card(c.Key(s.URL)).Width(300).Padding(16).Gap(10)
 				card.Children(func() {
@@ -311,6 +341,13 @@ func (a *App) extHubSection(c *ui.Context) {
 					ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 						kit.Glyph(c, icons.Globe, 13, p.TextTertiary)
 						ui.Text(c, strings.Join(s.Sites, ", ")).FontSize(design.FontCaption).TextColor(p.TextTertiary).SingleLine().Grow(1).MinWidth(0)
+						if kit.Button(c.Key("info"), T("ext.details"), kit.ButtonOpts{Variant: kit.Ghost, Size: design.ControlSM}).Clicked() {
+							id := ""
+							if inst != nil {
+								id = inst.ID
+							}
+							a.openExtDetail(id, s.URL)
+						}
 						switch {
 						case inst != nil:
 							kit.StatusPill(c, T("ext.installed.pill"), kit.ToneSuccess)
@@ -322,6 +359,9 @@ func (a *App) extHubSection(c *ui.Context) {
 						}
 					})
 				})
+			}
+			if n == 0 {
+				ui.Text(c, T("ext.search.none")).FontSize(design.FontBody).TextColor(p.TextSecondary).Padding(4, 2)
 			}
 		})
 	})

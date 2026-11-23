@@ -42,6 +42,7 @@ type Meta struct {
 	NoFrames     bool       `json:"noframes,omitempty"`
 	UpdateURL    string     `json:"updateURL,omitempty"`
 	DownloadURL  string     `json:"downloadURL,omitempty"`
+	Homepage     string     `json:"homepage,omitempty"`
 }
 
 // Resource is one @resource line.
@@ -118,6 +119,10 @@ func Parse(src string) (Meta, error) {
 			m.UpdateURL = val
 		case "downloadURL":
 			m.DownloadURL = val
+		case "homepage", "homepageURL", "website", "source":
+			if m.Homepage == "" && (strings.HasPrefix(val, "https://") || strings.HasPrefix(val, "http://")) {
+				m.Homepage = val
+			}
 		}
 	}
 	if !in || !done {

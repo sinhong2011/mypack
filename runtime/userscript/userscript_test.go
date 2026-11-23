@@ -179,3 +179,14 @@ func TestInstallHashAndSites(t *testing.T) {
 		t.Fatalf("ReadMeta = %+v %v", got, err)
 	}
 }
+
+func TestParseHomepage(t *testing.T) {
+	m, err := Parse("// ==UserScript==\n// @name a\n// @homepageURL https://example.dev/a\n// @website https://other.dev\n// @source javascript:alert(1)\n// ==/UserScript==\n")
+	if err != nil || m.Homepage != "https://example.dev/a" {
+		t.Fatalf("homepage = %q %v", m.Homepage, err)
+	}
+	m, _ = Parse("// ==UserScript==\n// @name a\n// @homepage javascript:alert(1)\n// ==/UserScript==\n")
+	if m.Homepage != "" {
+		t.Fatalf("non-http homepage kept: %q", m.Homepage)
+	}
+}
