@@ -179,7 +179,7 @@ That Release holds `registry.json`, its signature `registry.json.sig`, and every
 **Publishing a runtime version.** Bump `DefaultRuntimeVersion` in `pkg/config/config.go` whenever `Config.MinRuntime()` asks for a newer runtime (`TestDefaultRuntimeCoversEveryFeature` fails until you do), or the installer bundles a runtime too old for that feature and its projects download one on first build. Then run the workflow before you tag an app release that asks for that version:
 
 ```sh
-gh workflow run runtimes.yml -f version=1.0.11
+gh workflow run runtimes.yml -f version=1.0.10
 ```
 
 Each target is built twice, full and lite (`TIERS`, default `full lite`; the lite build adds `-tags mypack_lite`), so a version publishes `mypack-runtime-<v>-<os>-<arch>.tar.gz` and `…-<arch>-lite.tar.gz`. Installers bundle both tiers from `LiteRuntimeSince` on: Windows and Linux ship both archives; macOS ships `bin/mypack-runtime` and `bin/mypack-runtime-lite`, both signed by `mygo build`. See ARCHITECTURE.md › Runtime tiers.
