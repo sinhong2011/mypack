@@ -158,6 +158,9 @@ type fakeIcons struct{}
 
 func (fakeIcons) Default(name string) []byte         { return []byte("default:" + name) }
 func (fakeIcons) Normalize(b []byte) ([]byte, error) { return append([]byte("norm:"), b...), nil }
+func (fakeIcons) IconComposerPNG(_ context.Context, p string) ([]byte, error) {
+	return []byte("iconcomposer:" + filepath.Base(p)), nil
+}
 
 type env struct {
 	svc  *Impl
@@ -862,12 +865,12 @@ func TestSettings(t *testing.T) {
 		s.RegistryURL != DefaultRegistryURL {
 		t.Errorf("defaults = %+v", s)
 	}
-	s.Appearance, s.ShowMenuBarIcon, s.RegistryURL = "dark", false, "file:///tmp/registry.json"
+	s.Appearance, s.ShowMenuBarIcon, s.RegistryURL, s.DownloadDir = "dark", false, "file:///tmp/registry.json", "~/Inbox"
 	if err := e.svc.SaveSettings(ctx, s); err != nil {
 		t.Fatal(err)
 	}
 	g, _ := e.svc.Settings(ctx)
-	if g.Appearance != "dark" || g.ShowMenuBarIcon || e.rt.registry != "file:///tmp/registry.json" {
+	if g.Appearance != "dark" || g.ShowMenuBarIcon || e.rt.registry != "file:///tmp/registry.json" || g.DownloadDir != "~/Inbox" {
 		t.Errorf("saved = %+v registry=%q", g, e.rt.registry)
 	}
 	s.Appearance = "purple"
@@ -877,6 +880,24 @@ func TestSettings(t *testing.T) {
 	s.Appearance, s.RegistryURL = "dark", "ftp://x"
 	if err := e.svc.SaveSettings(ctx, s); code(err) != CodeInvalidInput {
 		t.Errorf("bad registry: %v", err)
+	}
+}
+
+func TestBuildBakesDownloadDir(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	set, err := e.svc.Settings(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	set.DownloadDir = "~/Inbox"
+	if err := e.svc.SaveSettings(ctx, set); err != nil {
+		t.Fatal(err)
+	}
+	p := e.project(t)
+	buildAndWait(t, e, p)
+	if got := e.eng.reqs[0].Config.Network.DownloadDirectory; got != "~/Inbox" {
+		t.Fatalf("baked download dir %q", got)
 	}
 }
 
@@ -921,6 +942,7 @@ func TestUnsubscribe(t *testing.T) {
 }
 
 func TestWatchExternal(t *testing.T) {
+	// The open GUI starts this poll itself (app.watchExternalChanges).
 	e := newEnv(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -995,5 +1017,32 @@ func TestOpenArtifactLaunchesInPlace(t *testing.T) {
 	_ = os.RemoveAll(art.Path)
 	if err := e.svc.OpenArtifact(ctx, art.ID); err == nil {
 		t.Fatal("opening a removed artifact succeeded")
+	}
+}
+
+func TestFetchIconFrom(t *testing.T) {
+	var got []string
+	e := newEnv(t, func(o *Options) {
+		o.IconFrom = func(ctx context.Context, u string, p metadata.IconProvider) ([]byte, error) {
+			got = append(got, string(p)+" "+u)
+			if p == metadata.IconGoogle {
+				return []byte("PNG"), nil
+			}
+			return nil, metadata.ErrNoProviderIcon
+		}
+	})
+	ctx := context.Background()
+	if b, err := e.svc.FetchIconFrom(ctx, "acme.example", metadata.IconGoogle); err != nil || string(b) != "PNG" {
+		t.Fatalf("google: %q %v", b, err)
+	}
+	var de *domain.Error
+	if _, err := e.svc.FetchIconFrom(ctx, "acme.example", metadata.IconDuckDuckGo); !errors.As(err, &de) || de.Code != CodeIconNotFound {
+		t.Fatalf("duckduckgo: %v", err)
+	}
+	if _, err := e.svc.FetchIconFrom(ctx, "", metadata.IconGoogle); !errors.As(err, &de) || de.Code != CodeInvalidInput {
+		t.Fatalf("empty: %v", err)
+	}
+	if len(got) != 2 || got[0] != "google https://acme.example/" {
+		t.Fatalf("calls %q", got)
 	}
 }

@@ -1,0 +1,27 @@
+---
+import { m } from "../paraglide/messages.js";
+import { SITE } from "../config";
+import { versioned } from "../versioned";
+const credit = (s: string, name: string, href: string) => { const [a, ...b] = s.split(name); return { a, b: b.join(name), name, href }; };
+const mygo = credit(m.foot_mygo(), "MyGo", SITE.mygo);
+const pake = credit(m.foot_pake(), "Pake", SITE.pake);
+---
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot__row">
+      <div class="foot__brand"><img src={versioned("assets/icon-256.png")} alt="" width="28" height="28" loading="lazy" />MyPack</div>
+      <nav aria-label={m.foot_label()}>
+        <a href={SITE.repo} rel="noopener">GitHub</a>
+        <a href={SITE.releases} rel="noopener">{m.foot_releases()}</a>
+        <a href={SITE.contributing} rel="noopener">{m.foot_contributing()}</a>
+        <a href={SITE.discover} rel="noopener">{m.foot_discover()}</a>
+        <a href={SITE.architecture} rel="noopener">{m.foot_architecture()}</a>
+        <a href={SITE.security} rel="noopener">{m.foot_security()}</a>
+      </nav>
+    </div>
+    <div class="foot__legal">
+      <p>{mygo.a}<a href={mygo.href} rel="noopener">{mygo.name}</a>{mygo.b} {pake.a}<a href={pake.href} rel="noopener">{pake.name}</a>{pake.b}</p>
+      <p>{m.foot_license_1()} <a href={SITE.license} rel="noopener">Apache License 2.0</a>. {m.foot_trademark()} <a href={SITE.trademarks} rel="noopener">TRADEMARKS.md</a></p>
+    </div>
+  </div>
+</footer>

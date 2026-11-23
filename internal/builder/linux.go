@@ -20,6 +20,10 @@ import (
 
 // desktopTemplate is the portable .desktop file. __INSTALL_DIR__ is replaced
 // by the installer (internal/installer) with the real install directory.
+//
+// StartupWMClass is the executable basename (the slug). GTK names the
+// window class from os.Executable(), so "Linear" would not match "linear"
+// and the dock would show an empty tile.
 func (j *job) desktopFile(exec, icon string) []byte {
 	return []byte(fmt.Sprintf(`[Desktop Entry]
 Type=Application
@@ -30,7 +34,7 @@ Icon=%s
 Terminal=false
 Categories=Network;
 StartupWMClass=%s
-`, j.cfg.App.Name, exec, icon, j.cfg.App.Name))
+`, j.cfg.App.Name, exec, icon, j.slug))
 }
 
 func (j *job) customizeLinux() error {

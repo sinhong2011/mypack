@@ -5,7 +5,6 @@ import (
 	"runtime"
 
 	"github.com/egoist/mygo"
-	"github.com/egoist/mygo/ui"
 	"mypack.dev/mypack/pkg/config"
 )
 
@@ -42,7 +41,7 @@ func (a *App) startMenuBar(startURL string) bool {
 		Hidden:    true,
 	}
 	if a.group != nil {
-		fo.Content = ui.View(a.group.viewFn)
+		fo.Content = a.group.content()
 	} else {
 		fo.URL, fo.Page = startURL, a.pageOptions()
 	}
@@ -127,6 +126,8 @@ func (a *App) menuBarMenu() *mygo.Menu {
 		mygo.Separator(),
 		{Label: "Reload", Click: page(func(p *mygo.Page) { p.Reload() })},
 		{Label: "Home", Click: page(func(p *mygo.Page) { _ = p.LoadURL(a.homeOf(p)) })},
+		mygo.Separator(),
+		{Label: "Settings…", Click: func(*mygo.MenuItem, *mygo.Window) { a.openSettings() }},
 		mygo.Separator(),
 		{Label: "Quit " + a.title(), Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Quit() }},
 	})

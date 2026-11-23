@@ -10,6 +10,7 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"github.com/egoist/mygo"
 	"mypack.dev/mypack/pkg/config"
 )
 
@@ -163,6 +164,37 @@ func TestUniquePath(t *testing.T) {
 	os.WriteFile(p, nil, 0o644)
 	if got := UniquePath(p); got != filepath.Join(d, "a (2).txt") {
 		t.Error(got)
+	}
+}
+
+func TestDownloadBody(t *testing.T) {
+	if got := downloadBody(&mygo.Download{Path: "/tmp/report.csv"}); got != "Downloaded report.csv" {
+		t.Fatal(got)
+	}
+	if got := downloadBody(&mygo.Download{Err: errNoDownloadDir}); !strings.Contains(got, "Download failed") {
+		t.Fatal(got)
+	}
+}
+
+func TestOnWillDownloadSetsPath(t *testing.T) {
+	dir := t.TempDir()
+	a := &App{cfg: &config.Config{}}
+	a.cfg.Network.DownloadDirectory = dir
+	e := &mygo.DownloadEvent{SuggestedName: "report.csv"}
+	a.onWillDownload(e)
+	if e.Path != filepath.Join(dir, "report.csv") {
+		t.Fatalf("path = %q", e.Path)
+	}
+	os.WriteFile(e.Path, nil, 0o644)
+	e2 := &mygo.DownloadEvent{SuggestedName: "report.csv"}
+	a.onWillDownload(e2)
+	if e2.Path != filepath.Join(dir, "report (2).csv") {
+		t.Fatalf("unique = %q", e2.Path)
+	}
+	unsafe := &mygo.DownloadEvent{SuggestedName: "../../etc/passwd"}
+	a.onWillDownload(unsafe)
+	if filepath.Dir(unsafe.Path) != dir || filepath.Base(unsafe.Path) != "passwd" {
+		t.Fatalf("unsafe name: %q", unsafe.Path)
 	}
 }
 

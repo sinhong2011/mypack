@@ -1,4 +1,4 @@
-//go:build e2e
+//go:build e2e && !mypack_lite
 
 package app
 
@@ -84,6 +84,14 @@ func (a *App) e2eAppHook() {
 				out = a.e2eGroupInfo()
 			case "split": // View > Toggle Split View
 				mygo.RunOnMain(a.group.toggleSplit)
+				time.Sleep(600 * time.Millisecond)
+				out = a.e2eGroupInfo()
+			case "splitstack": // View > Rotate Split / Split Top and Bottom
+				mygo.RunOnMain(a.group.rotateSplit)
+				time.Sleep(600 * time.Millisecond)
+				out = a.e2eGroupInfo()
+			case "splitswap":
+				mygo.RunOnMain(a.group.swapSplit)
 				time.Sleep(600 * time.Millisecond)
 				out = a.e2eGroupInfo()
 			case "geval": // "geval <index> <js>" in a member's page
@@ -174,9 +182,13 @@ func (a *App) e2eInfo() string {
 func (a *App) e2eGroupInfo() string {
 	g := a.group
 	g.mu.Lock()
-	active, split := g.active, g.split
+	active, split, vert := g.active, g.split, g.splitVert
 	g.mu.Unlock()
-	out := fmt.Sprintf("active=%d split=%d dock=%q", active, split, a.badges.compute2())
+	axis := "side"
+	if vert {
+		axis = "stack"
+	}
+	out := fmt.Sprintf("active=%d split=%d axis=%s dock=%q", active, split, axis, a.badges.compute2())
 	for _, m := range g.members {
 		u := ""
 		if m.page != nil {

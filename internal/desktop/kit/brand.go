@@ -2,6 +2,7 @@ package kit
 
 import (
 	"bytes"
+	"fmt"
 	"hash/fnv"
 	"image"
 	"image/color"
@@ -9,11 +10,15 @@ import (
 	_ "image/jpeg"
 	"image/png"
 	"math"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"unicode"
 
 	"github.com/egoist/mygo/ui"
+	xdraw "golang.org/x/image/draw"
 
 	"mypack.dev/mypack/internal/desktop/assets"
 	"mypack.dev/mypack/internal/desktop/design"
@@ -108,15 +113,20 @@ type iconArt struct {
 // Icons arrive in every shape: circles, bare logos on transparency, tiny
 // favicons, squares on their own plates. Every icon is normalized to the
 // same full-bleed art (icons.MacAppIcon) and then masked to one squircle,
-// so all tiles share a silhouette. Normalizing runs off the main thread;
-// until it lands the raw art shows, cropped to its body.
+// so all tiles share a silhouette. Normalizing and decoding the result run
+// off the main thread, a few at a time; until it lands the raw art shows,
+// cropped to its body. PrepareIcon does the whole job ahead of time, so a
+// screen of many icons (Discover) opens without decoding any on its frame.
 
 var (
 	artCache  = map[*byte]*iconArt{}  // by slice identity (fast path)
 	artByHash = map[uint64]*iconArt{} // by content
 	normMu    sync.Mutex
-	normDone  = map[uint64][]byte{} // normalized PNGs waiting to be decoded
+	normDone  = map[uint64]*iconArt{} // prepared art waiting to be picked up
 	normBusy  = map[uint64]bool{}
+	// normSem bounds the normalizers so a screenful of new icons never
+	// takes every core from the UI thread.
+	normSem = make(chan struct{}, max(1, runtime.NumCPU()/2))
 )
 
 // Invalidate redraws the window once a normalized icon is ready (set by
@@ -127,6 +137,101 @@ func contentHash(data []byte) uint64 {
 	h := fnv.New64a()
 	h.Write(data)
 	return h.Sum64()
+}
+
+// artPx is the side of the normalized art kept for display: no tile is
+// drawn larger than about 130 pt, so 384 px stays sharp on Retina at a
+// seventh of the memory and decode time of the 1024 px normalized icon.
+const artPx = 384
+
+// artCacheDir holds normalized art on disk by source content, so an icon
+// is normalized once ever rather than once per launch.
+func artCacheDir() string {
+	d, err := os.UserCacheDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(d, "mypack", "icon-art")
+}
+
+// normalizedArt returns icon data normalized and scaled to artPx, from the
+// disk cache when it has it.
+func normalizedArt(data []byte) []byte {
+	dir := artCacheDir()
+	path := ""
+	if dir != "" {
+		path = filepath.Join(dir, fmt.Sprintf("v1-%016x.png", contentHash(data)))
+		if b, err := os.ReadFile(path); err == nil && len(b) > 0 {
+			return b
+		}
+	}
+	out, err := appicons.MacAppIcon(data)
+	if err != nil || len(out) == 0 {
+		return nil
+	}
+	img, _, err := image.Decode(bytes.NewReader(out))
+	if err != nil {
+		return nil
+	}
+	if b := img.Bounds(); b.Dx() > artPx || b.Dy() > artPx {
+		dst := image.NewNRGBA(image.Rect(0, 0, artPx, artPx))
+		xdraw.CatmullRom.Scale(dst, dst.Bounds(), img, b, xdraw.Src, nil)
+		var buf bytes.Buffer
+		if err := (&png.Encoder{CompressionLevel: png.BestSpeed}).Encode(&buf, dst); err != nil {
+			return nil
+		}
+		out = buf.Bytes()
+	}
+	if path != "" && os.MkdirAll(dir, 0o755) == nil {
+		tmp := path + ".tmp"
+		if os.WriteFile(tmp, out, 0o644) == nil {
+			_ = os.Rename(tmp, path)
+		}
+	}
+	return out
+}
+
+// prepareArt normalizes and decodes an icon (call off the main thread).
+func prepareArt(data []byte) *iconArt {
+	normSem <- struct{}{}
+	defer func() { <-normSem }()
+	var a *iconArt
+	if out := normalizedArt(data); len(out) > 0 {
+		if a = decodeArt(out); a != nil {
+			if raw := decodeArt(data); raw != nil {
+				a.tint = raw.tint
+			}
+		}
+	}
+	if a == nil {
+		// It couldn't be normalized: keep the raw art for good.
+		a = decodeArt(data)
+	}
+	if a != nil {
+		a.normalized = true
+	}
+	return a
+}
+
+// PrepareIcon normalizes and decodes an icon now, on the calling goroutine,
+// so its first frame on screen does no work. Call it off the main thread.
+func PrepareIcon(data []byte) {
+	if len(data) == 0 {
+		return
+	}
+	hash := contentHash(data)
+	normMu.Lock()
+	if _, ok := normDone[hash]; ok || normBusy[hash] {
+		normMu.Unlock()
+		return
+	}
+	normBusy[hash] = true
+	normMu.Unlock()
+	a := prepareArt(data)
+	normMu.Lock()
+	normDone[hash] = a
+	delete(normBusy, hash)
+	normMu.Unlock()
 }
 
 func artFor(data []byte) *iconArt {
@@ -141,46 +246,28 @@ func artFor(data []byte) *iconArt {
 		artCache = map[*byte]*iconArt{}
 	}
 	hash := contentHash(data)
-	if a, ok := artByHash[hash]; ok && a.normalized {
+	if a, ok := artByHash[hash]; ok && (a == nil || a.normalized) {
 		artCache[k] = a
 		return a
 	}
 	normMu.Lock()
-	norm, ready := normDone[hash]
+	a, ready := normDone[hash]
 	if ready {
 		delete(normDone, hash)
 	} else if !normBusy[hash] {
 		normBusy[hash] = true
 		src := append([]byte(nil), data...)
 		go func() {
-			out, err := appicons.MacAppIcon(src)
+			a := prepareArt(src)
 			normMu.Lock()
-			if err != nil {
-				out = nil
-			}
-			normDone[hash] = out
+			normDone[hash] = a
+			delete(normBusy, hash)
 			normMu.Unlock()
 			Invalidate()
 		}()
 	}
 	normMu.Unlock()
 	if ready {
-		if len(norm) > 0 {
-			if a := decodeArt(norm); a != nil {
-				a.normalized = true
-				if raw := decodeArt(data); raw != nil {
-					a.tint = raw.tint
-				}
-				artByHash[hash] = a
-				artCache[k] = a
-				return a
-			}
-		}
-		// It couldn't be normalized: keep the raw art for good.
-		a := decodeArt(data)
-		if a != nil {
-			a.normalized = true
-		}
 		artByHash[hash] = a
 		artCache[k] = a
 		return a
@@ -188,7 +275,7 @@ func artFor(data []byte) *iconArt {
 	if a, ok := artByHash[hash]; ok {
 		return a
 	}
-	a := decodeArt(data)
+	a = decodeArt(data)
 	artByHash[hash] = a
 	artCache[k] = a
 	return a

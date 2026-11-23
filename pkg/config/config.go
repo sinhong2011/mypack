@@ -22,7 +22,7 @@ import (
 const SchemaVersion = 1
 
 // DefaultRuntimeVersion is the runtime version new projects pin (ADR-005).
-const DefaultRuntimeVersion = "1.0.9"
+const DefaultRuntimeVersion = "1.0.10"
 
 // Config is the full mypack.json document.
 type Config struct {
@@ -119,6 +119,21 @@ func MemberID(name string, taken map[string]bool) string {
 		id = fmt.Sprintf("%s-%d", base, i)
 	}
 	return id
+}
+
+// RepeatName is the name a member joining members gets: name itself, or,
+// when a member already has it (the same site again, for another
+// account), "name 2", "name 3" and so on.
+func RepeatName(name string, members []GroupMember) string {
+	taken := map[string]bool{}
+	for _, m := range members {
+		taken[strings.ToLower(strings.TrimSpace(m.Name))] = true
+	}
+	out := name
+	for i := 2; taken[strings.ToLower(out)]; i++ {
+		out = fmt.Sprintf("%s %d", name, i)
+	}
+	return out
 }
 
 // SourceType is url, file or dir.
@@ -465,6 +480,54 @@ func (b *BlockingConfig) validate(add func(field, code, msg string)) {
 	}
 }
 
+// LiteRuntimeSince is the first runtime version published in both tiers,
+// full and lite. Earlier versions are full only.
+const LiteRuntimeSince = "1.0.10"
+
+// Runtime tiers (see RuntimeTier).
+const (
+	TierFull = "full"
+	TierLite = "lite"
+)
+
+// FullRuntimeFeatures lists the features c turns on that need the full
+// runtime's native UI; empty means the Lite runtime runs c.
+func (c *Config) FullRuntimeFeatures() []string {
+	var r []string
+	w := c.Window
+	frameless := w.Decorations != nil && !*w.Decorations
+	if !frameless && (w.TitleBarStyle == "hidden" || w.TitleBarStyle == "overlay" || w.TitleBarStyle == "glass") {
+		r = append(r, "window.titleBarStyle "+w.TitleBarStyle)
+	}
+	if w.Tabs {
+		r = append(r, "window.tabs")
+	}
+	if c.IsGroup() {
+		r = append(r, "app.group")
+	}
+	if c.WebView.FindInPage {
+		r = append(r, "webview.findInPage")
+	}
+	if c.Network.BasicAuthUser != "" {
+		r = append(r, "network.basicAuthUser")
+	}
+	return r
+}
+
+// RuntimeTier is the runtime tier c builds with: TierLite when c needs none
+// of the full runtime's native UI and its runtime version has a Lite tier,
+// else TierFull. The Lite runtime is the same app without MyGo's UI toolkit,
+// about a quarter smaller (runtime/app/lite.go).
+func (c *Config) RuntimeTier() string {
+	if !versionRe.MatchString(c.Runtime.Version) || !RuntimeAtLeast(c.Runtime.Version, LiteRuntimeSince) {
+		return TierFull
+	}
+	if len(c.FullRuntimeFeatures()) > 0 {
+		return TierFull
+	}
+	return TierLite
+}
+
 // MinRuntime is the earliest runtime that has every feature c turns on.
 func (c *Config) MinRuntime() string {
 	switch {
@@ -523,6 +586,20 @@ type NativeConfig struct {
 	// LinkRouting (default true) opens links that belong to another
 	// installed MyPack app in that app instead of the default browser.
 	LinkRouting *bool `json:"linkRouting,omitempty"`
+	// Shortcuts remaps this app's menu keys by id (settings, reload, …).
+	// A missing id keeps the built-in default; "" turns that shortcut off.
+	// Saved in the app's profile, not MyPack.
+	Shortcuts map[string]string `json:"shortcuts,omitempty"`
+}
+
+// ApplyDownloadDirDefault fills an empty download folder from the Builder's
+// default. The Builder calls this when assembling an app so new builds start
+// with that path; the running app can still change it in its own Settings.
+func ApplyDownloadDirDefault(cfg *Config, defaultDir string) {
+	if cfg == nil || strings.TrimSpace(cfg.Network.DownloadDirectory) != "" {
+		return
+	}
+	cfg.Network.DownloadDirectory = strings.TrimSpace(defaultDir)
 }
 
 // User-agent presets (webview.userAgentPreset).

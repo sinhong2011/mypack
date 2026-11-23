@@ -1,0 +1,10 @@
+---
+import Home from "../../components/Home.astro";
+import { LOCALES } from "../../i18n";
+
+// English lives at the root; every other language gets its own prefix.
+export function getStaticPaths() {
+  return LOCALES.filter((l) => l.id !== "en").map((l) => ({ params: { locale: l.id } }));
+}
+---
+<Home />

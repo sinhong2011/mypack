@@ -1,6 +1,6 @@
 # Example userscripts
 
-Userscripts in the Greasemonkey format that MyPack apps (runtime 1.0.10+) run. They also work in Violentmonkey,
+Userscripts in the Greasemonkey format that MyPack apps (runtime 1.0.11+) run. They also work in Violentmonkey,
 Tampermonkey and ScriptCat.
 
 | Script | What it does |

@@ -38,6 +38,27 @@ func presetCacheDir() string {
 	return filepath.Join(d, "mypack", "preset-icons")
 }
 
+func (pi *presetIcons) init() {
+	if pi.icons == nil {
+		pi.icons, pi.busy, pi.sem = map[string][]byte{}, map[string]bool{}, make(chan struct{}, 3)
+	}
+}
+
+// cachedPresetIcon reads host's icon from the disk cache while it is fresh.
+func cachedPresetIcon(dir, host string) []byte {
+	if dir == "" {
+		return nil
+	}
+	path := filepath.Join(dir, host+".png")
+	if st, err := os.Stat(path); err != nil || time.Since(st.ModTime()) >= presetTTL {
+		return nil
+	}
+	if b, err := os.ReadFile(path); err == nil && len(b) > 0 {
+		return b
+	}
+	return nil
+}
+
 // presetIcon returns the icon for preset t, or nil while it is being
 // resolved (show a skeleton), or empty bytes for the letter fallback.
 func (a *App) presetIcon(t template) []byte {
@@ -45,20 +66,9 @@ func (a *App) presetIcon(t template) []byte {
 	host := hostOf(t.url)
 	pi.mu.Lock()
 	defer pi.mu.Unlock()
-	if pi.icons == nil {
-		pi.icons, pi.busy, pi.sem = map[string][]byte{}, map[string]bool{}, make(chan struct{}, 3)
-	}
+	pi.init()
 	if b, ok := pi.icons[host]; ok {
 		return b
-	}
-	if dir := presetCacheDir(); dir != "" {
-		path := filepath.Join(dir, host+".png")
-		if st, err := os.Stat(path); err == nil && time.Since(st.ModTime()) < presetTTL {
-			if b, err := os.ReadFile(path); err == nil && len(b) > 0 {
-				pi.icons[host] = b
-				return b
-			}
-		}
 	}
 	if pi.busy[host] {
 		return nil
@@ -68,7 +78,25 @@ func (a *App) presetIcon(t template) []byte {
 	}
 	pi.busy[host] = true
 	ctx, url := pi.ctx, t.url
+	// Everything slow runs here, off the UI thread: the disk cache, the
+	// network, and normalizing and decoding the icon (kit.PrepareIcon), so
+	// opening Discover never stalls on its 60-odd tiles.
 	go func() {
+		done := func(icon []byte) {
+			kit.PrepareIcon(icon)
+			pi.mu.Lock()
+			delete(pi.busy, host)
+			pi.icons[host] = icon
+			pi.mu.Unlock()
+			if a.win != nil {
+				a.win.Invalidate()
+			}
+		}
+		dir := presetCacheDir()
+		if b := cachedPresetIcon(dir, host); b != nil {
+			done(b)
+			return
+		}
 		select {
 		case pi.sem <- struct{}{}:
 		case <-ctx.Done():
@@ -77,28 +105,24 @@ func (a *App) presetIcon(t template) []byte {
 			pi.mu.Unlock()
 			return
 		}
-		defer func() { <-pi.sem }()
 		fctx, cancel := context.WithTimeout(ctx, 12*time.Second)
-		defer cancel()
 		m, err := a.svc.FetchMetadata(fctx, url)
-		pi.mu.Lock()
-		delete(pi.busy, host)
+		cancel()
+		<-pi.sem
 		if ctx.Err() != nil {
+			pi.mu.Lock()
+			delete(pi.busy, host)
 			pi.mu.Unlock()
 			return // left the screen: try again next time
 		}
 		icon := []byte{}
 		if err == nil && !m.Fallback && len(m.IconPNG) > 0 {
 			icon = m.IconPNG
-			if dir := presetCacheDir(); dir != "" && os.MkdirAll(dir, 0o755) == nil {
+			if dir != "" && os.MkdirAll(dir, 0o755) == nil {
 				_ = os.WriteFile(filepath.Join(dir, host+".png"), icon, 0o644)
 			}
 		}
-		pi.icons[host] = icon
-		pi.mu.Unlock()
-		if a.win != nil {
-			a.win.Invalidate()
-		}
+		done(icon)
 	}()
 	return nil
 }

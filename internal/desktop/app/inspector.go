@@ -11,19 +11,45 @@ import (
 // off by a hairline, with its primary action pinned in a footer. Below
 // ~900 pt the inspector moves under the preview in one column. Tab order
 // follows: the preview's controls, then the inspector's, then its footer.
+//
+// The inspector's left edge is a drag handle. A double-click restores the
+// default width. The chosen width is kept in ui-state.json.
 
-const inspectorNarrow float32 = 960 // window width below which it is one column
+const (
+	inspectorNarrow     float32 = 960 // window width below which it is one column
+	inspectorMin        float32 = 400
+	inspectorDefaultMax float32 = 480 // cap of the automatic width
+	inspectorMax        float32 = 720 // farthest a drag may go
+	inspectorPreviewMin float32 = 460 // preview keeps at least this beside it
+	inspectorResizeGrip float32 = 6
+)
 
-// inspectorWidth is ~38 % of the content area, kept between 400 and 480 pt.
+// inspectorWidth is the settings column: a remembered drag, else ~38 % of
+// the content area between inspectorMin and inspectorDefaultMax.
 func (a *App) inspectorWidth() float32 {
-	return min(max(a.toolbarW*0.38, 400), 480)
+	if a.ui.InspectorWidth > 0 {
+		return a.clampInspectorWidth(a.ui.InspectorWidth)
+	}
+	return a.clampInspectorWidth(min(max(a.toolbarW*0.38, inspectorMin), inspectorDefaultMax))
+}
+
+func (a *App) clampInspectorWidth(w float32) float32 {
+	maxW := inspectorMax
+	if a.toolbarW > 0 {
+		maxW = min(maxW, max(a.toolbarW-inspectorPreviewMin, inspectorMin))
+	}
+	return min(max(w, inspectorMin), maxW)
+}
+
+func (a *App) setInspectorWidth(w float32) {
+	a.ui.InspectorWidth = a.clampInspectorWidth(w)
 }
 
 // head, when given, is pinned above the inspector's scroll (its search).
 // inspectorNarrow reports whether preview and inspector stack in one
 // column (no room for both side by side).
 func (a *App) inspectorNarrow() bool {
-	return a.toolbarW > 0 && (a.toolbarW < inspectorNarrow-design.SidebarWidth-design.CanvasInset || a.toolbarW-a.inspectorWidth() < 460)
+	return a.toolbarW > 0 && (a.toolbarW < inspectorNarrow-design.SidebarWidth-design.CanvasInset || a.toolbarW-a.inspectorWidth() < inspectorPreviewMin)
 }
 
 func (a *App) previewInspector(c *ui.Context, preview, inspector, footer func(), head ...func()) {
@@ -60,6 +86,7 @@ func (a *App) previewInspector(c *ui.Context, preview, inspector, footer func(),
 		})
 		// The inspector: a hairline, its own scroll, a pinned footer.
 		ui.Column(c).Width(a.inspectorWidth()).Shrink(0).BorderWidth(0, 0, 0, 1).BorderColor(p.Divider).Children(func() {
+			a.inspectorResize(c)
 			top, inset := design.TitleBarH+12, design.TitleBarH
 			if len(head) > 0 {
 				// Pinned under the title bar, level with the preview's first row.
@@ -75,4 +102,26 @@ func (a *App) previewInspector(c *ui.Context, preview, inspector, footer func(),
 			}
 		})
 	})
+}
+
+// inspectorResize is the settings column's left edge: drag to resize,
+// double-click to restore the default width.
+func (a *App) inspectorResize(c *ui.Context) {
+	p := design.Of(c)
+	edge := ui.Box(c.Key("insp-resize")).Absolute().Left(-inspectorResizeGrip / 2).Top(0).Width(inspectorResizeGrip).FillHeight().
+		Cursor(ui.CursorResizeEW).Role(ui.RoleSeparator).Label(T("inspector.resize"))
+	if edge.Hovered() || a.inspDrag {
+		edge.Background(p.Accent)
+	}
+	dx, _, held := edge.Dragged()
+	if held && dx != 0 {
+		a.setInspectorWidth(a.inspectorWidth() - dx)
+	}
+	if edge.DoubleClicked() {
+		a.ui.InspectorWidth = 0
+		a.ui.save()
+	} else if a.inspDrag && !held {
+		a.ui.save()
+	}
+	a.inspDrag = held
 }

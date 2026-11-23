@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -13,6 +15,59 @@ import (
 	"mypack.dev/mypack/internal/domain"
 	"mypack.dev/mypack/pkg/config"
 )
+
+// runtimeCustomValue is the Advanced Settings picker choice that reveals a
+// text field for any version, published or not.
+const runtimeCustomValue = "custom"
+
+// runtimeVerRe matches config.versionRe: a runtime pin like 1.0.10.
+var runtimeVerRe = regexp.MustCompile(`^\d+(\.\d+){0,3}$`)
+
+// runtimeVersionOptions is every unique published runtime, newest first,
+// plus the project's current pin and the recommended default so a version
+// that is already chosen never disappears from the list. Advanced Settings
+// appends a Custom choice on top of this.
+func runtimeVersionOptions(all []domain.RuntimeInfo, current, recommended string) []kit.Option {
+	seen := map[string]bool{}
+	var vers []string
+	add := func(v string) {
+		v = strings.TrimSpace(v)
+		if v == "" || v == runtimeCustomValue || seen[v] || !runtimeVerRe.MatchString(v) {
+			return
+		}
+		seen[v] = true
+		vers = append(vers, v)
+	}
+	add(recommended)
+	add(current)
+	for _, rt := range all {
+		add(rt.Version)
+	}
+	sort.Slice(vers, func(i, j int) bool { return versionNewer(vers[i], vers[j]) })
+	opts := make([]kit.Option, 0, len(vers))
+	for _, v := range vers {
+		label := v
+		if v == recommended {
+			label = v + " · " + T("set.runtime.recommended")
+		}
+		opts = append(opts, kit.Option{Value: v, Label: label})
+	}
+	return opts
+}
+
+// versionNewer reports whether a should sort before b (newest first).
+func versionNewer(a, b string) bool {
+	if a == b {
+		return false
+	}
+	if config.RuntimeAtLeast(a, b) {
+		return true
+	}
+	if config.RuntimeAtLeast(b, a) {
+		return false
+	}
+	return a > b
+}
 
 // shownRuntimes keeps every platform of the runtime this MyPack pins new
 // projects to, and older or newer versions only where a copy is on disk.

@@ -152,6 +152,14 @@ particular website. MyPack copies it, adds your app's name, icon and
 
 ### Install
 
+<div align="center">
+
+[![Download for macOS](https://img.shields.io/badge/Download_for-macOS-555555?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/sinhong2011/mypack/releases/latest)
+[![Download for Windows](https://img.shields.io/badge/Download_for-Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/sinhong2011/mypack/releases/latest)
+[![Download for Linux](https://img.shields.io/badge/Download_for-Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://github.com/sinhong2011/mypack/releases/latest)
+
+</div>
+
 **macOS** with [Homebrew](https://brew.sh):
 
 ```sh

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/egoist/mygo"
 	"mypack.dev/mypack/pkg/config"
 	"mypack.dev/mypack/runtime/navigation"
 	"mypack.dev/mypack/runtime/routing"
@@ -131,6 +132,75 @@ func TestHandleIncomingBeforeWindow(t *testing.T) {
 	a.handleIncomingURL("https://self.example/deep/link")
 	if a.startURL != "https://self.example/deep/link" {
 		t.Fatalf("startURL = %q", a.startURL)
+	}
+}
+
+func TestDecoratePageContextMenu(t *testing.T) {
+	menu := mygo.NewMenu([]*mygo.MenuItem{
+		{ID: mygo.ContextMenuOpenLink, Label: "Open Link"},
+		{ID: mygo.ContextMenuOpenLinkInNewWindow, Label: "Open Link in New Window"},
+		{ID: mygo.ContextMenuCopyLink, Label: "Copy Link"},
+	})
+	var opened []string
+	open := func(u string) { opened = append(opened, u) }
+	decoratePageContextMenu(menu, "https://news.ycombinator.com/item?id=1", "https://linear.app/", open)
+	items := menu.Items()
+	if len(items) < 1 || items[0].Label != "Open Link in Browser" {
+		t.Fatalf("first item %+v", items)
+	}
+	items[0].Click(items[0], nil)
+	if len(opened) != 1 || opened[0] != "https://news.ycombinator.com/item?id=1" {
+		t.Fatalf("link click %q", opened)
+	}
+	it := menu.ItemByID(mygo.ContextMenuOpenLinkInNewWindow)
+	if it == nil || it.Click == nil {
+		t.Fatal("stock Open Link in New Window should open the browser")
+	}
+	it.Click(it, nil)
+	if len(opened) != 2 || opened[1] != "https://news.ycombinator.com/item?id=1" {
+		t.Fatalf("new window %q", opened)
+	}
+	var page *mygo.MenuItem
+	for _, x := range menu.Items() {
+		if x != nil && x.Label == "Open Page in Browser" {
+			page = x
+		}
+	}
+	if page == nil || page.Click == nil {
+		t.Fatal("missing Open Page in Browser")
+	}
+	page.Click(page, nil)
+	if len(opened) != 3 || opened[2] != "https://linear.app/" {
+		t.Fatalf("page click %q", opened)
+	}
+
+	blank := mygo.NewMenu([]*mygo.MenuItem{{Label: "Reload"}})
+	decoratePageContextMenu(blank, "javascript:alert(1)", "file:///etc/passwd", open)
+	for _, x := range blank.Items() {
+		if x != nil && (x.Label == "Open Link in Browser" || x.Label == "Open Page in Browser") {
+			t.Fatalf("non-web URL added %q", x.Label)
+		}
+	}
+}
+
+func TestDecorateContextMenuOpenLinkLeavesApp(t *testing.T) {
+	a := testApp(t, "")
+	menu := mygo.NewMenu([]*mygo.MenuItem{
+		{ID: mygo.ContextMenuOpenLink, Label: "Open Link"},
+	})
+	e := &mygo.ContextMenuEvent{LinkURL: "https://news.ycombinator.com/", Menu: menu}
+	a.decorateContextMenu(nil, e)
+	it := menu.ItemByID(mygo.ContextMenuOpenLink)
+	if it == nil || it.Click == nil {
+		t.Fatal("Open Link to another site should leave the app")
+	}
+	same := mygo.NewMenu([]*mygo.MenuItem{
+		{ID: mygo.ContextMenuOpenLink, Label: "Open Link"},
+	})
+	a.decorateContextMenu(nil, &mygo.ContextMenuEvent{LinkURL: "https://self.example/inbox", Menu: same})
+	it = same.ItemByID(mygo.ContextMenuOpenLink)
+	if it == nil || it.Click != nil {
+		t.Fatal("Open Link on this site should keep the web view's own action")
 	}
 }
 

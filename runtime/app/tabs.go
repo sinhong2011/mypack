@@ -1,3 +1,5 @@
+//go:build !mypack_lite
+
 package app
 
 import (
@@ -40,13 +42,6 @@ const (
 	maxTabs       = 40
 )
 
-// SavedTab is a tab kept in state.json.
-type SavedTab struct {
-	URL    string `json:"url"`
-	Title  string `json:"title,omitempty"`
-	Pinned bool   `json:"pinned,omitempty"`
-}
-
 type tab struct {
 	id     int
 	url    string // the page shown (or to load, before its view exists)
@@ -86,7 +81,7 @@ func (a *App) openTabsWindow(startURL, stateKey string, hidden bool) (*mygo.Wind
 		o.TitleBarHeight = tabBarH
 	}
 	o.Content = ui.View(t.viewFn)
-	w := safeNewWindow(o)
+	w := a.makeWindow(o)
 	a.mu.Lock()
 	a.windows[w] = nil // an app window before its pages exist
 	a.mu.Unlock()
@@ -601,8 +596,19 @@ func (t *tabSet) viewFn(c *ui.Context) {
 				t.newTab()
 			}
 			ui.Spacer(c)
+			set := ui.Box(c.Key("settings")).Padding(0, 8).FillHeight().AlignItems(ui.Center).Shrink(0).
+				Role(ui.RoleButton).Label("Settings").Tooltip("Settings…").Focusable()
+			if set.Hovered() {
+				set.Background(th.SurfaceHover)
+			}
+			set.Children(func() { ui.Text(c, "Settings").FontSize(12).TextColor(th.TextMuted) })
+			if set.Clicked() {
+				t.a.openSettings()
+			}
 		})
-		if bar.DoubleClicked() {
+		// WindowDoubleClicked, not DoubleClicked: the latter makes the bar a
+		// button, and a button never moves the window.
+		if bar.WindowDoubleClicked() {
 			t.newTab()
 		}
 		ui.Box(c).Height(1).FillWidth().Background(th.Border)
@@ -611,6 +617,7 @@ func (t *tabSet) viewFn(c *ui.Context) {
 		} else {
 			ui.Spacer(c)
 		}
+		t.a.drawDownloadNotice(c)
 	})
 }
 

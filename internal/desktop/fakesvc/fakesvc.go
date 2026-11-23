@@ -87,15 +87,18 @@ func New() *Service {
 		RegistryURL:     "https://runtimes.mypack.dev/registry.json",
 		ShowMenuBarIcon: true, CheckUpdates: true, LibraryView: "grid",
 	}
-	for _, k := range []string{"darwin-arm64", "darwin-amd64", "windows-amd64", "windows-arm64", "linux-amd64", "linux-arm64"} {
-		size := int64(9_800_000)
-		if strings.HasPrefix(k, "windows") {
-			size = 8_400_000
-		} else if strings.HasPrefix(k, "linux") {
-			size = 7_900_000
-		}
-		s.runtimes[runtimeVersion+"/"+k] = &domain.RuntimeInfo{
-			Version: runtimeVersion, Key: k, Size: size, Source: "runtimes.mypack.dev",
+	keys := []string{"darwin-arm64", "darwin-amd64", "windows-amd64", "windows-arm64", "linux-amd64", "linux-arm64"}
+	for _, ver := range []string{"1.0.6", "1.0.7", "1.0.8", "1.0.9", runtimeVersion} {
+		for _, k := range keys {
+			size := int64(9_800_000)
+			if strings.HasPrefix(k, "windows") {
+				size = 8_400_000
+			} else if strings.HasPrefix(k, "linux") {
+				size = 7_900_000
+			}
+			s.runtimes[ver+"/"+k] = &domain.RuntimeInfo{
+				Version: ver, Key: k, Size: size, Source: "runtimes.mypack.dev",
+			}
 		}
 	}
 	if ap := os.Getenv("MYPACK_FAKE_APPEARANCE"); ap != "" {
@@ -473,6 +476,30 @@ func (s *Service) SetProjectIcon(ctx context.Context, id string, png []byte, act
 	return out, nil
 }
 
+func (s *Service) SetProjectIconDocument(ctx context.Context, id, path, actor string) (domain.Project, error) {
+	png, err := icons.IconComposerPNG(ctx, path)
+	if err != nil {
+		return domain.Project{}, &domain.Error{Code: appservice.CodeInvalidInput, Message: "The Icon Composer icon could not be read.", Cause: err.Error()}
+	}
+	s.mu.Lock()
+	p, ok := s.projects[id]
+	if !ok {
+		s.mu.Unlock()
+		return domain.Project{}, notFound("The project")
+	}
+	p.Config.App.Icon = config.Icon{Source: "file", Path: path, Style: p.Config.App.Icon.Style}
+	p.IconPNG = png
+	if p.Config.App.Icon.Style != nil {
+		s.restyle(p, png)
+	}
+	p.Revision++
+	p.UpdatedAt = time.Now()
+	out := clone(p)
+	s.mu.Unlock()
+	s.publish(appservice.Event{Kind: appservice.EventProjectChanged, ProjectID: id})
+	return out, nil
+}
+
 func (s *Service) ProjectIconImage(ctx context.Context, id string) ([]byte, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -602,15 +629,45 @@ func (s *Service) FetchMetadata(ctx context.Context, rawURL string) (appservice.
 		IconURL: "https://" + host + "/favicon.ico", IconPNG: icon}, nil
 }
 
-// ---- builds -----------------------------------------------------------------
-
-func (s *Service) runtimeFor(t config.Target) *domain.RuntimeInfo {
-	return s.runtimes[runtimeVersion+"/"+t.Key()]
+// FetchIconFrom asks the real provider, like realIcon does for FetchMetadata,
+// and falls back to a demo icon so the demo works offline.
+func (s *Service) FetchIconFrom(ctx context.Context, rawURL string, provider metadata.IconProvider) ([]byte, error) {
+	u, err := config.NormalizeURL(rawURL)
+	if err != nil {
+		return nil, &domain.Error{Code: appservice.CodeInvalidInput, Message: err.Error(), Field: "url"}
+	}
+	host := config.RegistrableHost(u)
+	if err := s.sleep(ctx, 500*time.Millisecond); err != nil {
+		return nil, err
+	}
+	if strings.Contains(host, "offline") || strings.HasSuffix(host, ".invalid") {
+		return nil, &domain.Error{Code: appservice.CodeIconNotFound, Message: provider.Name() + " has no icon for " + host + "."}
+	}
+	if b, err := metadata.FetchIconFrom(ctx, u, provider); err == nil {
+		return b, nil
+	}
+	return demoIcon(titleForHost(host)), nil
 }
 
-func (s *Service) capability(t config.Target) appservice.TargetPreflight {
+// ---- builds -----------------------------------------------------------------
+
+func runtimePin(cfg *config.Config) string {
+	if cfg != nil && cfg.Runtime.Version != "" {
+		return cfg.Runtime.Version
+	}
+	return runtimeVersion
+}
+
+func (s *Service) runtimeFor(t config.Target, version string) *domain.RuntimeInfo {
+	if version == "" {
+		version = runtimeVersion
+	}
+	return s.runtimes[version+"/"+t.Key()]
+}
+
+func (s *Service) capability(t config.Target, version string) appservice.TargetPreflight {
 	tp := appservice.TargetPreflight{Target: t, Supported: true, Level: "portable", Signing: "unsigned"}
-	if rt := s.runtimeFor(t); rt != nil {
+	if rt := s.runtimeFor(t, version); rt != nil {
 		tp.Runtime = *rt
 	} else {
 		tp.Supported = false
@@ -646,9 +703,13 @@ func (s *Service) Preflight(ctx context.Context, projectID string, targets []con
 	if len(targets) == 0 {
 		targets = []config.Target{config.DefaultTarget(s.host)}
 	}
-	pf := appservice.Preflight{OutputDir: s.settings.OutputDir, RuntimeVersion: runtimeVersion}
+	ver := runtimePin(nil)
+	if p != nil {
+		ver = runtimePin(p.Config)
+	}
+	pf := appservice.Preflight{OutputDir: s.settings.OutputDir, RuntimeVersion: ver}
 	for _, t := range targets {
-		tp := s.capability(t)
+		tp := s.capability(t, ver)
 		if tp.Supported && !tp.Runtime.Cached {
 			pf.DownloadBytes += tp.Runtime.Size
 		}
@@ -671,18 +732,19 @@ func (s *Service) StartBuild(ctx context.Context, req appservice.BuildRequest) (
 	if len(targets) == 0 {
 		targets = []config.Target{config.DefaultTarget(s.host)}
 	}
+	ver := runtimePin(p.Config)
 	for _, t := range targets {
-		if tp := s.capability(t); !tp.Supported {
+		if tp := s.capability(t, ver); !tp.Supported {
 			s.mu.Unlock()
 			return domain.BuildJob{}, &domain.Error{Code: appservice.CodeTargetUnsupp, Message: tp.Reason}
 		}
 	}
 	job := &domain.BuildJob{ID: s.id("job"), ProjectID: p.ID, ProjectRev: p.Revision, Snapshot: p.Config.Clone(),
-		Targets: targets, RuntimeVersion: runtimeVersion, Status: domain.JobQueued, Stage: domain.StageQueued,
+		Targets: targets, RuntimeVersion: ver, Status: domain.JobQueued, Stage: domain.StageQueued,
 		Progress: -1, Actor: actorOr(req.Actor), CreatedAt: time.Now()}
 	needDownload := false
 	for _, t := range targets {
-		if rt := s.runtimeFor(t); rt != nil && !rt.Cached {
+		if rt := s.runtimeFor(t, ver); rt != nil && !rt.Cached {
 			needDownload = true
 		}
 	}
@@ -707,7 +769,7 @@ func (s *Service) StartBuild(ctx context.Context, req appservice.BuildRequest) (
 		job.Error = &domain.Error{Code: appservice.CodeDownloadRequired,
 			Message:     "A runtime must be downloaded before this build can continue.",
 			Remediation: "Approve the download to continue."}
-		job.Approval = &domain.ApprovalRequest{Kind: "runtime_download", Command: "Download MyPack runtime " + runtimeVersion,
+		job.Approval = &domain.ApprovalRequest{Kind: "runtime_download", Command: "Download MyPack runtime " + ver,
 			Detail: "A small, signed component is needed to build apps for this computer. It's downloaded once and reused."}
 		out := *job
 		s.mu.Unlock()
@@ -921,14 +983,15 @@ func (s *Service) run(id string) {
 		cancelled()
 		return
 	}
-	if stage(domain.StageResolving, 400*time.Millisecond, "Resolving runtime "+runtimeVersion) != nil {
+	ver := runtimePin(snap)
+	if stage(domain.StageResolving, 400*time.Millisecond, "Resolving runtime "+ver) != nil {
 		cancelled()
 		return
 	}
 	// Download what's missing, with real (simulated) byte progress.
 	for _, t := range targets {
 		s.mu.Lock()
-		rt := s.runtimeFor(t)
+		rt := s.runtimeFor(t, ver)
 		missing := rt != nil && !rt.Cached
 		s.mu.Unlock()
 		if strings.Contains(key, "nonet") && rt != nil {
@@ -1076,7 +1139,7 @@ func (s *Service) InstallAndOpen(ctx context.Context, req appservice.InstallRequ
 	inst.ArtifactID, inst.Name, inst.Identifier = a.ID, j.Snapshot.App.Name, j.Snapshot.App.Identifier
 	inst.SourceURL = j.Snapshot.App.Source.Value
 	inst.Path = filepath.Join(s.settings.InstallDir, name+".app")
-	inst.Version, inst.RuntimeVersion = j.Snapshot.App.Version, runtimeVersion
+	inst.Version, inst.RuntimeVersion = j.Snapshot.App.Version, runtimePin(j.Snapshot)
 	inst.ProfileDir = "~/Library/Application Support/mypack-apps/" + j.Snapshot.App.ProfileID
 	inst.State, inst.UpdateReason, inst.LastManagedAt = domain.InstallManaged, "", time.Now()
 	if p != nil {
@@ -1443,6 +1506,10 @@ func (s *Service) CreateGroup(ctx context.Context, req appservice.GroupRequest) 
 			m = config.GroupMember{Name: name, URL: u}
 			png = demoIcon(name)
 		}
+		if n := strings.TrimSpace(site.Name); n != "" {
+			m.Name = n
+		}
+		m.Name = config.RepeatName(m.Name, members)
 		m.ID = config.MemberID(m.Name, taken)
 		taken[m.ID] = true
 		members = append(members, m)

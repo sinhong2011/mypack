@@ -1,0 +1,27 @@
+---
+// The CLI and MCP server, from README.md › CLI and AI agents. Commands stay in English: they are code.
+import { m } from "../paraglide/messages.js";
+---
+<section id="developers" class="section" aria-labelledby="dev-title" style="padding-top: 0">
+  <div class="wrap dev">
+    <div>
+      <div class="section-head" style="margin-bottom: 28px">
+        <h2 id="dev-title" class="h2">{m.dev_title()}</h2>
+      </div>
+      <p>{m.dev_p1()}</p>
+      <p>{m.dev_p2()}</p>
+      <p>{m.dev_p3()}</p>
+    </div>
+    <div class="term" role="group" aria-label={m.dev_term()}>
+      <div class="term__bar"><div class="dots" aria-hidden="true"><i></i><i></i><i></i></div>zsh</div>
+<pre><code><span class="c"># {m.dev_c_create()}</span>
+<span class="p">$ </span>mypack create github.com --json
+<span class="p">$ </span>mypack build &lt;project-id&gt; --yes --json
+<span class="p">$ </span>mypack install &lt;artifact-id&gt; --open
+<span class="p">$ </span>mypack apps list
+
+<span class="c"># {m.dev_c_mcp()}</span>
+<span class="p">$ </span>claude mcp add mypack -- mypack mcp serve</code></pre>
+    </div>
+  </div>
+</section>

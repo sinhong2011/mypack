@@ -2,6 +2,9 @@ package app
 
 import (
 	"testing"
+	"time"
+
+	"mypack.dev/mypack/internal/appservice"
 
 	"mypack.dev/mypack/pkg/config"
 )
@@ -23,5 +26,21 @@ func TestCreateBuildKeepsTheView(t *testing.T) {
 	}
 	if s.name != "TraderMemos" || !s.nameEdited || !s.autoInstall {
 		t.Errorf("name or settings reset: %+v", s)
+	}
+}
+
+func TestRefetchMetadataAfterUnreachableSite(t *testing.T) {
+	s := &createState{normalized: "https://chatgpt.com/", lastEdit: time.Now()}
+	s.metaFor = s.normalized
+	s.meta = &appservice.Metadata{URL: s.normalized, Fallback: true}
+	if !s.siteUnreachable() {
+		t.Fatal("a fallback lookup should count as unreachable")
+	}
+	s.refetchMetadata()
+	if s.siteUnreachable() || s.meta != nil || s.metaFor != "" {
+		t.Fatalf("refetch should forget the lookup, got meta=%v metaFor=%q", s.meta, s.metaFor)
+	}
+	if time.Since(s.lastEdit) < time.Second {
+		t.Fatal("refetch should skip the typing debounce")
 	}
 }

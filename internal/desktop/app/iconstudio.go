@@ -561,7 +561,7 @@ func (a *App) applyIconStudio() {
 	if s.projectID == "" {
 		a.create.iconStyle = st
 		if s.baseNew {
-			a.create.iconPNG, a.create.iconCustom = s.base, true
+			a.create.iconPNG, a.create.iconCustom, a.create.iconDoc = s.base, true, ""
 		}
 		return
 	}

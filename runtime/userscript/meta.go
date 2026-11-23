@@ -1,6 +1,6 @@
 // Package userscript is MyPack's userscript store: scripts in the
 // Greasemonkey / Tampermonkey format (a "// ==UserScript==" header) that every
-// generated app with runtime 1.0.10+ runs on the pages they match.
+// generated app with runtime 1.0.11+ runs on the pages they match.
 //
 // The store is one folder shared by all apps, next to routes.json:
 //
