@@ -51,8 +51,11 @@ type Entry struct {
 	Description string `json:"description,omitempty"`
 	Enabled     bool   `json:"enabled"`
 	// Apps are the app identifiers the script runs in; empty means all apps.
-	Apps      []string         `json:"apps,omitempty"`
-	SourceURL string           `json:"sourceUrl,omitempty"`
+	Apps      []string `json:"apps,omitempty"`
+	SourceURL string   `json:"sourceUrl,omitempty"`
+	// Edited is set when the script was changed in MyPack's editor: it is
+	// no longer the file at SourceURL (nor a reviewed hub version).
+	Edited    bool             `json:"edited,omitempty"`
 	Requires  []string         `json:"requires,omitempty"` // files in the script folder, in order
 	Resources []StoredResource `json:"resources,omitempty"`
 	Installed time.Time        `json:"installed"`
@@ -184,6 +187,8 @@ type InstallOptions struct {
 	// SHA256, when set, is the hex SHA-256 the script must have (a reviewed
 	// hub entry); a different file is refused.
 	SHA256 string
+	// Edited marks a save from the editor (see Entry.Edited).
+	Edited bool
 }
 
 // ErrHashMismatch means the script is not the reviewed file.
@@ -226,7 +231,7 @@ func (s Store) Install(ctx context.Context, src []byte, o InstallOptions) (Entry
 	defer os.RemoveAll(stage)
 
 	e := Entry{ID: id, Name: m.Name, Namespace: m.Namespace, Version: m.Version, Description: m.Description,
-		Enabled: true, Apps: o.Apps, SourceURL: o.SourceURL}
+		Enabled: true, Apps: o.Apps, SourceURL: o.SourceURL, Edited: o.Edited}
 	if err := os.WriteFile(filepath.Join(stage, "script.user.js"), src, 0o644); err != nil {
 		return Entry{}, Meta{}, err
 	}
@@ -461,4 +466,47 @@ func (s Store) ReadMeta(id string) (Meta, error) {
 		return Meta{}, err
 	}
 	return Parse(string(src))
+}
+
+// LocalFetcher serves the @require and @resource files an installed script
+// already has from disk, by their address, and the rest from next. Saving
+// an edit then downloads only what the edit added.
+func (s Store) LocalFetcher(id string, next Fetcher) Fetcher {
+	known := map[string]string{} // resolved address -> file
+	ix, err := s.Read()
+	if err == nil {
+		for _, e := range ix.Scripts {
+			if e.ID != id {
+				continue
+			}
+			m, err := s.ReadMeta(id)
+			if err != nil {
+				break
+			}
+			for i, r := range m.Require {
+				if i < len(e.Requires) {
+					known[resolve(e.SourceURL, r)] = e.Requires[i]
+				}
+			}
+			for _, r := range m.Resource {
+				for _, sr := range e.Resources {
+					if sr.Name == r.Name {
+						known[resolve(e.SourceURL, r.URL)] = sr.File
+					}
+				}
+			}
+		}
+	}
+	dir := filepath.Join(s.Dir, filepath.Base(id))
+	return func(ctx context.Context, rawURL string) ([]byte, string, error) {
+		if f, ok := known[rawURL]; ok {
+			if b, err := os.ReadFile(filepath.Join(dir, filepath.Base(f))); err == nil {
+				return b, "", nil
+			}
+		}
+		if next == nil {
+			next = HTTPFetcher(nil)
+		}
+		return next(ctx, rawURL)
+	}
 }

@@ -203,7 +203,9 @@ func (a *App) extDetailSheet(c *ui.Context) {
 				if desc != "" {
 					kit.SheetBody(c, desc)
 				}
-				if hub != nil {
+				if e != nil && e.Edited {
+					kit.Note(c, icons.Edit, T("ext.detail.edited"), kit.ToneAccent)
+				} else if hub != nil {
 					kit.Note(c, icons.Shield, T("ext.review.reviewed"), kit.ToneSuccess)
 				} else if e != nil {
 					kit.Note(c, icons.Warning, T("ext.detail.unreviewed"), kit.ToneWarning)
@@ -390,6 +392,9 @@ func (a *App) extFactsGroup(c *ui.Context, e *userscript.Entry, hub *catalog.Scr
 			}
 		}
 		if e != nil {
+			if kit.Button(c.Key("code"), T("ext.detail.editCode"), kit.ButtonOpts{Variant: kit.Ghost, Size: design.ControlSM, Icon: icons.Code}).Clicked() {
+				a.openExtEditor(e.ID)
+			}
 			if kit.Button(c.Key("reveal"), T("ext.detail.reveal"), kit.ButtonOpts{Variant: kit.Ghost, Size: design.ControlSM, Icon: icons.Folder}).Clicked() {
 				a.reveal(filepath.Join(userscript.Dir(), e.ID, "script.user.js"))
 			}

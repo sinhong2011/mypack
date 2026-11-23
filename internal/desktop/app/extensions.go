@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"errors"
-	"net/url"
 	"os"
 	"strings"
 
@@ -33,7 +32,10 @@ type extState struct {
 	addrBusy  bool
 	review    extReview
 	detail    extDetail
+	edit      extEditor
 	query     string // the page's search
+	tab       int    // 0 installed, 1 hub
+	adding    bool   // the Add Extension sheet
 }
 
 // extReview is the sheet shown before anything is installed.
@@ -136,6 +138,7 @@ func (a *App) openReview(src []byte, sourceURL, sha string, reviewed bool) {
 	for _, e := range a.ext.installed {
 		update = update || e.ID == m.ID()
 	}
+	a.ext.adding = false
 	a.ext.review = extReview{open: true, src: src, meta: m, sourceURL: sourceURL, sha: sha, reviewed: reviewed, update: update}
 }
 
@@ -224,173 +227,6 @@ func sitesLabel(sites []string) string {
 	return strings.Join(sites, ", ")
 }
 
-func (a *App) extensionsView(c *ui.Context) {
-	if !a.ext.loaded {
-		a.reloadInstalledExtensions()
-	}
-	page(c, func() {
-		kit.Secondary(c, T("ext.body")).LineHeight(1.45)
-		kit.Note(c, icons.Info, T("ext.runtimeNote"), kit.ToneNeutral)
-		if len(a.ext.installed)+len(a.ext.hub) > 3 || a.ext.query != "" {
-			kit.SearchField(c.Key("q"), &a.ext.query, T("ext.search"), nil, 0)
-		}
-		a.extInstalledSection(c)
-		a.extHubSection(c)
-		a.extAddSection(c)
-	})
-	a.extReviewSheet(c)
-	a.extDetailSheet(c)
-}
-
-func (a *App) extInstalledSection(c *ui.Context) {
-	p := design.Of(c)
-	ui.Column(c.Key("installed")).Gap(10).Children(func() {
-		var shown []userscript.Entry
-		for _, e := range a.ext.installed {
-			m := a.ext.metas[e.ID]
-			if extMatches(a.ext.query, e.Name, e.Description, strings.Join(m.Sites(), " ")) {
-				shown = append(shown, e)
-			}
-		}
-		title := T("ext.installed")
-		if n := len(a.ext.installed); n > 0 {
-			on := 0
-			for _, e := range a.ext.installed {
-				if e.Enabled {
-					on++
-				}
-			}
-			title = T("ext.installed.count", "on", on, "n", n)
-		}
-		kit.Eyebrow(c, title).Padding(0, 2)
-		if len(a.ext.installed) > 0 && len(shown) == 0 {
-			kit.GroupBox(c).Children(func() {
-				ui.Text(c, T("ext.search.none")).FontSize(design.FontBody).TextColor(p.TextSecondary).Padding(14)
-			})
-			return
-		}
-		if len(a.ext.installed) == 0 {
-			kit.GroupBox(c).Children(func() {
-				ui.Text(c, T("ext.installed.none")).FontSize(design.FontBody).TextColor(p.TextSecondary).Padding(14)
-			})
-			return
-		}
-		kit.GroupBox(c).Children(func() {
-			for _, e := range shown {
-				e := e
-				m := a.ext.metas[e.ID]
-				ui.Row(c.Key(e.ID)).MinHeight(design.Row+18).Padding(12, 14).Gap(12).AlignItems(ui.Center).Children(func() {
-					kit.Placeholder(c, e.Name, 32)
-					ui.Column(c).Grow(1).Basis(0).MinWidth(0).Gap(2).Children(func() {
-						ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-							ui.Text(c, e.Name).FontSize(design.FontBody).FontWeight(design.WeightSemibold).TextColor(p.Text).SingleLine()
-							if e.Version != "" {
-								ui.Text(c, e.Version).FontSize(design.FontCaption).TextColor(p.TextTertiary).SingleLine()
-							}
-						})
-						scope := T("ext.scope.all")
-						if len(e.Apps) > 0 {
-							scope = T("ext.scope.some", "n", len(e.Apps))
-						}
-						ui.Text(c, sitesLabel(m.Sites())+" · "+scope).FontSize(design.FontCaption).TextColor(p.TextSecondary).SingleLine()
-					})
-					if a.extBusy(e.ID) {
-						kit.Spinner(c, 14, p.TextSecondary)
-					}
-					if kit.Button(c.Key("more"), T("ext.details"), kit.ButtonOpts{Variant: kit.Ghost, Size: design.ControlSM, Trailing: icons.ChevronRt}).Clicked() {
-						a.openExtDetail(e.ID, "")
-					}
-					on := e.Enabled
-					kit.Switch(c.Key("on"), &on, T("ext.enabled", "name", e.Name))
-					if on != e.Enabled {
-						a.setExtEnabled(e.ID, on)
-					}
-				})
-			}
-		})
-	})
-}
-
-func (a *App) extHubSection(c *ui.Context) {
-	p := design.Of(c)
-	ui.Column(c.Key("hub")).Gap(10).Children(func() {
-		kit.Eyebrow(c, T("ext.hub")).Padding(0, 2)
-		ui.Row(c).Gap(12).Wrap().AlignItems(ui.Stretch).Children(func() {
-			n := 0
-			for _, s := range a.ext.hub {
-				s := s
-				if !extMatches(a.ext.query, s.Name, s.Description, s.Author, strings.Join(s.Sites, " ")) {
-					continue
-				}
-				n++
-				inst := a.hubInstalled(s)
-				card := kit.Card(c.Key(s.URL)).Width(300).Padding(16).Gap(10)
-				card.Children(func() {
-					ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-						kit.Placeholder(c, s.Name, 36)
-						ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {
-							ui.Text(c, s.Name).FontSize(design.FontBody).FontWeight(design.WeightSemibold).TextColor(p.Text).SingleLine()
-							author := s.Author
-							if author == "" {
-								author = T("ext.reviewed")
-							}
-							ui.Text(c, author).FontSize(design.FontCaption).TextColor(p.TextTertiary).SingleLine()
-						})
-					})
-					ui.Text(c, s.Description).FontSize(design.FontSmall).TextColor(p.TextSecondary).LineHeight(1.4).MaxLines(3).Grow(1)
-					ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-						kit.Glyph(c, icons.Globe, 13, p.TextTertiary)
-						ui.Text(c, strings.Join(s.Sites, ", ")).FontSize(design.FontCaption).TextColor(p.TextTertiary).SingleLine().Grow(1).MinWidth(0)
-						if kit.Button(c.Key("info"), T("ext.details"), kit.ButtonOpts{Variant: kit.Ghost, Size: design.ControlSM}).Clicked() {
-							id := ""
-							if inst != nil {
-								id = inst.ID
-							}
-							a.openExtDetail(id, s.URL)
-						}
-						switch {
-						case inst != nil:
-							kit.StatusPill(c, T("ext.installed.pill"), kit.ToneSuccess)
-						default:
-							if kit.Button(c.Key("get"), T("ext.install"), kit.ButtonOpts{Variant: kit.Primary, Size: design.ControlSM,
-								Loading: a.extBusy(s.URL)}).Clicked() {
-								a.fetchForReview(s.URL, s.URL, s.SHA256, true)
-							}
-						}
-					})
-				})
-			}
-			if n == 0 {
-				ui.Text(c, T("ext.search.none")).FontSize(design.FontBody).TextColor(p.TextSecondary).Padding(4, 2)
-			}
-		})
-	})
-}
-
-func (a *App) extAddSection(c *ui.Context) {
-	ui.Column(c.Key("add")).Gap(10).Children(func() {
-		kit.Eyebrow(c, T("ext.add")).Padding(0, 2)
-		kit.GroupBox(c).Children(func() {
-			ui.Column(c).Padding(14).Gap(10).Children(func() {
-				kit.Caption(c, T("ext.add.body")).LineHeight(1.4)
-				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-					kit.TextField(c.Key("addr"), &a.ext.addr, T("ext.add.url"), kit.FieldOpts{Placeholder: "https://greasyfork.org/…/script.user.js"}).Grow(1)
-					u, err := url.Parse(strings.TrimSpace(a.ext.addr))
-					valid := err == nil && (u.Scheme == "https" || u.Scheme == "http") && u.Host != ""
-					if kit.Button(c.Key("go"), T("ext.add.fetch"), kit.ButtonOpts{Disabled: !valid, Loading: a.ext.addrBusy}).Clicked() ||
-						(valid && !a.ext.addrBusy && c.Shortcut(0, ui.KeyEnter)) {
-						a.ext.addrBusy = true
-						a.fetchForReview("addr", strings.TrimSpace(a.ext.addr), "", false)
-					}
-					if kit.Button(c.Key("file"), T("ext.add.file"), kit.ButtonOpts{Icon: icons.File}).Clicked() {
-						a.chooseScriptFile()
-					}
-				})
-			})
-		})
-	})
-}
-
 // extReviewSheet says what a script will do before it is installed.
 func (a *App) extReviewSheet(c *ui.Context) {
 	r := &a.ext.review
@@ -408,6 +244,11 @@ func (a *App) extReviewSheet(c *ui.Context) {
 		ui.Column(c).Gap(12).Children(func() {
 			if m.Description != "" {
 				kit.SheetBody(c, m.Description)
+			}
+			if r.update {
+				if e := a.installedByID(m.ID()); e != nil && e.Edited {
+					kit.Note(c, icons.Warning, T("ext.review.replacesEdits"), kit.ToneWarning)
+				}
 			}
 			if r.reviewed {
 				kit.Note(c, icons.Shield, T("ext.review.reviewed"), kit.ToneSuccess)

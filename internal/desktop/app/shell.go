@@ -285,7 +285,7 @@ func (a *App) toolbar(c *ui.Context) {
 			a.discoverToolbar(c)
 		}
 		switch a.section {
-		case secLibrary, secProject, secCreate, secGallery:
+		case secLibrary, secProject, secCreate, secGallery, secExtensions:
 		default:
 			// Elsewhere the search pill opens the palette.
 			kit.ToolbarSearch(c.Key("search"), kit.ToolbarSearchOpts{Placeholder: T("library.search"), Hotkey: a.accel(scPalette), OnPalette: a.togglePalette})
@@ -297,6 +297,8 @@ func (a *App) toolbar(c *ui.Context) {
 			if a.create.ready() && !a.inspectorNarrow() {
 				a.createToolbar(c)
 			}
+		case a.section == secExtensions:
+			a.extToolbar(c)
 		case a.section == secProject || a.section == secCreate:
 			// The project's own Build is the primary here.
 			// The project's Build is the primary here, so New App is a
@@ -340,6 +342,9 @@ func (a *App) toolbarTitle(c *ui.Context) {
 		if n := len(a.ext.installed); n > 0 {
 			sub = T("ext.subtitle", "count", n)
 		}
+		if a.ext.edit.open {
+			title, sub = a.extEditorTitle()
+		}
 	case secBuilds:
 		title = T("nav.builds")
 		sub = T("builds.count", "count", len(a.jobs))
@@ -354,6 +359,11 @@ func (a *App) toolbarTitle(c *ui.Context) {
 		if a.section == secProject || a.section == secCreate {
 			if kit.ToolbarIcon(c.Key("back"), icons.ChevronLeft, T("nav.back")).Clicked() {
 				a.nav(secLibrary)
+			}
+		}
+		if a.section == secExtensions && a.ext.edit.open {
+			if kit.ToolbarIcon(c.Key("back"), icons.ChevronLeft, T("nav.back")).Clicked() {
+				a.closeExtEditor(false)
 			}
 		}
 		if title == "" {

@@ -190,3 +190,62 @@ func TestParseHomepage(t *testing.T) {
 		t.Fatalf("non-http homepage kept: %q", m.Homepage)
 	}
 }
+
+func TestEditedSaveReusesFiles(t *testing.T) {
+	s := Store{Dir: t.TempDir()}
+	calls := 0
+	net := func(_ context.Context, u string) ([]byte, string, error) {
+		calls++
+		return []byte("/*" + u + "*/"), "text/css", nil
+	}
+	e, _, err := s.Install(context.Background(), []byte(sample), InstallOptions{SourceURL: "https://example.com/s/a.user.js", Fetch: net})
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := calls
+	edited := strings.Replace(sample, "console.log('hi');", "console.log('edited');", 1)
+	e2, _, err := s.Install(context.Background(), []byte(edited), InstallOptions{SourceURL: e.SourceURL, Edited: true, Fetch: s.LocalFetcher(e.ID, net)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if calls != before {
+		t.Fatalf("saving an edit downloaded %d files again", calls-before)
+	}
+	if !e2.Edited || e2.ID != e.ID {
+		t.Fatalf("edited entry = %+v", e2)
+	}
+	got, _ := s.Load("any")
+	if len(got) != 1 || !strings.Contains(got[0].Code, "edited") || got[0].Requires[0] != "/*https://example.com/s/lib.js*/" {
+		t.Fatalf("load after edit = %+v", got)
+	}
+	// Reinstalling from the source clears Edited.
+	e3, _, _ := s.Install(context.Background(), []byte(sample), InstallOptions{SourceURL: e.SourceURL, Fetch: net})
+	if e3.Edited {
+		t.Fatal("reinstall kept Edited")
+	}
+}
+
+func TestCheck(t *testing.T) {
+	if ps := Check(sample); len(ps) != 0 {
+		t.Fatalf("sample has problems: %+v", ps)
+	}
+	for src, want := range map[string]string{
+		"console.log(1)": "No // ==UserScript==",
+		"// ==UserScript==\n// @name a\n":                                     "not closed",
+		"// ==UserScript==\n// @version 1\n// ==/UserScript==\n":               "no @name",
+		"// ==UserScript==\n// @name a\n// @match x.com/*\n// ==/UserScript==": "not a match pattern",
+	} {
+		ps := Check(src)
+		if len(ps) == 0 || !strings.Contains(ps[0].Message, want) || !HasErrors(ps) {
+			t.Errorf("Check(%q) = %+v, want %q", src, ps, want)
+		}
+	}
+	ps := Check("// ==UserScript==\n// @name a\n// @match x.com/*\n// ==/UserScript==")
+	if ps[0].Line != 2 {
+		t.Errorf("bad @match on line %d, want 2", ps[0].Line)
+	}
+	w := Check("// ==UserScript==\n// @name a\n// @grant GM_xmlhttpRequest\n// @run-at soon\n// ==/UserScript==")
+	if len(w) != 2 || HasErrors(w) {
+		t.Errorf("warnings = %+v", w)
+	}
+}
