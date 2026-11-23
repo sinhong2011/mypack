@@ -126,7 +126,8 @@ func PillSegmented(c *ui.Context, sel *int, segs []PillSegment, label string, gl
 	grp.Children(func() {
 		for i, s := range segs {
 			on := *sel == i
-			b := ui.ButtonBase(c.Key(i)).Height(tb - 6).Radius(PillRadius(tb - 6)).Center().Cursor(ui.CursorPointer).FocusRing(false)
+			b := ui.ButtonBase(c.Key(i)).Height(tb - 6).Radius(PillRadius(tb - 6)).Center().Cursor(ui.CursorPointer).FocusRing(false).
+				Transition(design.Transition(c)) // the hover fill fades
 			if s.Icon != nil {
 				b.Width(32).Label(s.Label).Tooltip(s.Label)
 			} else {
@@ -157,11 +158,7 @@ func PillSegmented(c *ui.Context, sel *int, segs []PillSegment, label string, gl
 				if s.Icon != nil {
 					Glyph(c, s.Icon, 14, fg)
 				} else {
-					w := design.WeightMedium
-					if on {
-						w = design.WeightSemibold
-					}
-					ui.Text(c, s.Label).FontSize(design.FontBody).FontWeight(w).TextColor(fg).SingleLine()
+					pillLabel(c, s.Label, on, fg)
 				}
 			})
 			if b.Clicked() && !on {
@@ -201,4 +198,22 @@ func ToolbarIcon(c *ui.Context, ic *ui.SVG, title string) ui.Element {
 	b.Children(func() { Glyph(c, ic, 16, fg); FocusMark(c, b.FocusVisible(), 9) })
 	b.Tooltip(title)
 	return b
+}
+
+// pillLabel is a segment's label. The chosen one is semibold; an invisible
+// semibold copy holds every label's width, so the segments keep their
+// sizes as the choice moves and the thumb glides to a still target. The
+// color fades with the thumb.
+func pillLabel(c *ui.Context, label string, on bool, fg ui.Color) {
+	w := design.WeightMedium
+	if on {
+		w = design.WeightSemibold
+	}
+	fade := design.Tween(design.MotionFast, design.EaseStd)
+	ui.Box(c).Children(func() {
+		ui.Text(c, label).FontSize(design.FontBody).FontWeight(design.WeightSemibold).SingleLine().Opacity(0).AccessHidden(true)
+		ui.Text(c, label).FontSize(design.FontBody).FontWeight(w).TextColor(fg).SingleLine().
+			Absolute().Left(0).Right(0).Top(0).TextAlign(ui.Center).
+			Transition(ui.ElementTransition{Animation: &fade, Colors: true})
+	})
 }

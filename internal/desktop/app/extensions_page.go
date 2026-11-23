@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"net/url"
 	"strings"
 
@@ -17,6 +18,9 @@ import (
 // "Updates" and "Discover", with one search over the tab shown. Rows and
 // cards open the Details sheet; the toolbar's Add Extension opens a sheet
 // with the three ways to add one (address, file, write it).
+
+// extTabsGlide pairs the tabs' thumb across its segments (kit.Glide).
+type extTabsGlide struct{}
 
 // extToolbar is the page's primary action, where New App is elsewhere.
 func (a *App) extToolbar(c *ui.Context) {
@@ -39,11 +43,14 @@ func (a *App) extensionsView(c *ui.Context) {
 	}
 	page(c, func() {
 		a.extTabsRow(c)
-		if a.ext.tab == 0 {
-			a.extInstalledTab(c)
-		} else {
-			a.extHubTab(c)
-		}
+		body := ui.Column(c.Key(fmt.Sprint("tab", a.ext.tab))).Gap(24)
+		kit.TabSwap(body, a.ext.tabDir).Children(func() {
+			if a.ext.tab == 0 {
+				a.extInstalledTab(c)
+			} else {
+				a.extHubTab(c)
+			}
+		})
 	})
 	a.extAddSheet(c)
 	a.extReviewSheet(c)
@@ -57,7 +64,13 @@ func (a *App) extTabsRow(c *ui.Context) {
 			{Label: T("ext.tab.installed", "n", len(a.ext.installed))},
 			{Label: T("ext.tab.hub", "n", len(a.ext.hub))},
 		}
-		kit.PillSegmented(c.Key("tabs"), &a.ext.tab, segs, T("nav.extensions"), struct{}{}, true)
+		was := a.ext.tab
+		if kit.PillSegmented(c.Key("tabs"), &a.ext.tab, segs, T("nav.extensions"), extTabsGlide{}, true) {
+			a.ext.tabDir = 1
+			if a.ext.tab < was {
+				a.ext.tabDir = -1
+			}
+		}
 		ui.Spacer(c)
 		ph := T("ext.search.installed")
 		if a.ext.tab == 1 {
@@ -74,7 +87,7 @@ func (a *App) extInstalledTab(c *ui.Context) {
 	if len(a.ext.installed) == 0 {
 		kit.EmptyState(c, icons.Puzzle, T("ext.empty.title"), T("ext.empty.body"), func() {
 			if kit.Button(c.Key("browse"), T("ext.empty.browse"), kit.ButtonOpts{Variant: kit.Primary}).Clicked() {
-				a.ext.tab = 1
+				a.ext.tab, a.ext.tabDir = 1, 1
 			}
 			if kit.Button(c.Key("add"), T("ext.add.title"), kit.ButtonOpts{Icon: icons.Plus}).Clicked() {
 				a.ext.adding = true

@@ -35,6 +35,7 @@ type extState struct {
 	edit      extEditor
 	query     string // the page's search
 	tab       int    // 0 installed, 1 hub
+	tabDir    int    // the side the last tab change came from
 	adding    bool   // the Add Extension sheet
 }
 
