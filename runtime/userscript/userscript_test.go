@@ -230,8 +230,8 @@ func TestCheck(t *testing.T) {
 		t.Fatalf("sample has problems: %+v", ps)
 	}
 	for src, want := range map[string]string{
-		"console.log(1)": "No // ==UserScript==",
-		"// ==UserScript==\n// @name a\n":                                     "not closed",
+		"console.log(1)":                                                       "No // ==UserScript==",
+		"// ==UserScript==\n// @name a\n":                                      "not closed",
 		"// ==UserScript==\n// @version 1\n// ==/UserScript==\n":               "no @name",
 		"// ==UserScript==\n// @name a\n// @match x.com/*\n// ==/UserScript==": "not a match pattern",
 	} {
