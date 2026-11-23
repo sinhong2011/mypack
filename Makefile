@@ -74,8 +74,11 @@ installers:
 	mv -f build/mygo.json.orig mygo.json; \
 	exit $$status
 
+# run builds apps with runtimes compiled from this checkout (MYPACK_DEV_RUNTIME);
+# `make run MYPACK_DEV_RUNTIME=0` uses published runtimes instead.
+MYPACK_DEV_RUNTIME ?= 1
 run:
-	MYPACK_REGISTRY=$(REGISTRY) MYPACK_DEV_TRUST=1 go run ./cmd/mypack
+	MYPACK_REGISTRY=$(REGISTRY) MYPACK_DEV_TRUST=1 MYPACK_DEV_RUNTIME=$(MYPACK_DEV_RUNTIME) go run ./cmd/mypack
 
 run-fake:
 	MYPACK_FAKE=1 go run ./cmd/mypack

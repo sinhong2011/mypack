@@ -156,6 +156,16 @@ app's cookies, only to the page's own host or the script's `@connect` hosts (`*`
 `GM_notification` (the Notification shim), `GM_openInTab`, `GM_getResource*`, `GM_info` and the `GM.*` promise forms
 work page-side. `GM_registerMenuCommand` is a no-op for now. Example: `examples/userscripts/`.
 
+## Runtimes from source (development)
+
+`MYPACK_DEV_RUNTIME=1` (or a path to a MyPack checkout) makes the runtime manager build every runtime for this
+computer's platform, any version and both tiers, from that checkout with `go build`, using the flags
+`scripts/release-runtimes.sh` uses (`internal/runtimemanager/devsource.go`). That way apps built while developing
+carry the checkout's runtime code, say `main` before it is published. Source builds go to `<cache>/_dev/<key>/`, never
+into the verified cache, so a source build can never pose as a published version later; cross builds still use the
+registry. The build log says "Building runtime … from source". `make run` turns it on (`MYPACK_DEV_RUNTIME=0` to
+use published runtimes).
+
 ## Moving apps between computers
 
 A `.mypack` file (`internal/appservice/library.go`) holds one or more apps: each config plus the pictures a config only
