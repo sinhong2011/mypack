@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         X Thread View
 // @namespace    https://mypack.dev/userscripts
-// @version      0.7.0
+// @version      0.8.0
 // @description  Open posts and their nested replies full screen over the page, in X's look and icons, without leaving where you are.
 // @match        https://x.com/*
 // @match        https://twitter.com/*
@@ -387,7 +387,7 @@
 position:absolute;inset:0;background:var(--bg);color:var(--fg);display:flex;flex-direction:column;overflow:hidden;will-change:transform;\
 font:15px/20px TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;box-shadow:-10px 0 30px rgba(0,0,0,.18)}\
 .xtv-dlg.dim{--bg:#15202b;--fg:#f7f9f9;--sub:#8b98a5;--line:#38444d;--thread:#38444d;--hover:rgba(255,255,255,.03);--btnhover:rgba(239,243,244,.1);--bar:rgba(21,32,43,.75);--skel:rgba(255,255,255,.07)}\
-.xtv-dlg.dark{--bg:#000;--fg:#e7e9ea;--sub:#71767b;--line:#2f3336;--thread:#333639;--hover:rgba(255,255,255,.03);--btnhover:rgba(239,243,244,.1);--bar:rgba(0,0,0,.65);--skel:rgba(255,255,255,.07);box-shadow:-10px 0 30px rgba(0,0,0,.6)}\
+.xtv-dlg.dark{--bg:#000;--fg:#e7e9ea;--sub:#71767b;--line:#2f3336;--thread:#333639;--hover:rgba(255,255,255,.03);--btnhover:rgba(239,243,244,.1);--bar:rgba(0,0,0,.65);--skel:rgba(255,255,255,.07);box-shadow:0 -10px 30px rgba(0,0,0,.6)}\
 .xtv-dlg.under{pointer-events:none}\
 .xtv-shade{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .34s cubic-bezier(.2,.8,.2,1)}\
 .xtv-dlg.under .xtv-shade{opacity:.35}\
@@ -574,10 +574,6 @@ font:15px/20px TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,H
     // A hidden window pauses animations: never wait on one longer than it lasts.
     var cap = new Promise(function (r) { setTimeout(r, (opts.duration || 0) + (opts.delay || 0) + 150); });
     return { finished: Promise.race([done.catch(function () {}), cap]).then(function () { if (a.playState !== 'finished') a.finish && a.finish(); }) };
-  }
-  function insetOf(r) {
-    var vw = window.innerWidth, vh = window.innerHeight;
-    return 'inset(' + Math.max(0, r.top) + 'px ' + Math.max(0, vw - r.right) + 'px ' + Math.max(0, vh - r.bottom) + 'px ' + Math.max(0, r.left) + 'px round 16px)';
   }
   function onScreen(node) {
     if (!node || !node.isConnected) return null;
@@ -863,8 +859,8 @@ font:15px/20px TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,H
     return box;
   }
 
-  // openSheet shows post id full screen: from the post that was clicked
-  // (it grows out of it), or pushed in from the right over the level below.
+  // openSheet shows post id full screen: it rises from the bottom of the
+  // screen, over the page or over the level below (which steps back).
   function openSheet(id, from) {
     ensureStyle();
     var prev = sheets[sheets.length - 1];
@@ -903,28 +899,35 @@ font:15px/20px TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,H
     var s = { id: id, el: sheet, body: body, shade: shade, name: '', from: from || null };
     sheets.push(s);
     crumb();
+    // Each level rises from the bottom of the screen into place, over a
+    // dimming page; the level under it steps back.
     if (!prev) {
-      var r = onScreen(from);
-      if (r) {
-        anim(sheet, [{ clipPath: insetOf(r) }, { clipPath: 'inset(0px 0px 0px 0px round 0px)' }], { duration: 420, easing: EASE });
-        anim(col, [{ opacity: 0.2, transform: 'translateY(' + Math.round(Math.min(120, Math.max(-120, r.top - 60))) + 'px)' }, { opacity: 1, transform: 'none' }], { duration: 420, easing: EASE });
-      } else {
-        anim(sheet, [{ opacity: 0, transform: 'translateY(28px)' }, { opacity: 1, transform: 'none' }], { duration: 300, easing: EASE });
-      }
+      anim(layer.root, [{ backgroundColor: 'rgba(0,0,0,0)' }, { backgroundColor: 'rgba(0,0,0,.4)' }], { duration: RISE, easing: EASE_OUT });
     } else {
       park(prev, true);
-      anim(sheet, [{ transform: 'translateX(100%)' }, { transform: 'translateX(0)' }], { duration: 360, easing: EASE });
     }
+    rise(sheet);
     fill(s, body);
   }
 
-  // park moves the level under the top one aside (dimmed), or back.
+  // rise brings a level up from below the screen to its place.
+  var RISE = 460, SHEET = 'cubic-bezier(.32,.72,0,1)';
+  function rise(sheet) {
+    anim(sheet, [{ transform: 'translateY(100%)' }, { transform: 'translateY(0)' }], { duration: RISE, easing: SHEET });
+  }
+  // sink takes a level back down below the screen.
+  function sink(sheet) {
+    return anim(sheet, [{ transform: 'translateY(0)' }, { transform: 'translateY(100%)' }], { duration: 300, easing: EASE_OUT });
+  }
+
+  // park steps the level under the top one back (smaller, dimmed), or forward.
   function park(s, under) {
-    var a = under ? 'translateX(0)' : 'translateX(-24%)', b = under ? 'translateX(-24%)' : 'translateX(0)';
+    var a = under ? 'scale(1)' : 'scale(.94)', b = under ? 'scale(.94)' : 'scale(1)';
     s.el.style.transform = b;
     s.el.classList.toggle('under', under);
     s.el.setAttribute('aria-hidden', under ? 'true' : 'false');
-    anim(s.el, [{ transform: a }, { transform: b }], { duration: 360, easing: EASE });
+    s.el.style.transformOrigin = '50% 0';
+    anim(s.el, [{ transform: a }, { transform: b }], { duration: under ? RISE : 300, easing: under ? SHEET : EASE_OUT });
   }
 
   // fill loads a panel: the post it answers, the post, "Replies", the
@@ -1006,17 +1009,14 @@ font:15px/20px TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,H
     if (sheets.length) {
       park(sheets[sheets.length - 1], false);
       crumb();
-      anim(s.el, [{ transform: 'translateX(0)' }, { transform: 'translateX(100%)' }], { duration: 300, easing: EASE_OUT })
-        .finished.then(function () { s.el.remove(); });
+      sink(s.el).finished.then(function () { s.el.remove(); });
       return;
     }
     var l = layer;
     layer = null;
     document.documentElement.style.overflow = l.overflow;
-    var r = onScreen(s.from);
-    var a = r
-      ? anim(s.el, [{ clipPath: 'inset(0px 0px 0px 0px round 0px)', opacity: 1 }, { clipPath: insetOf(r), opacity: 0.4 }], { duration: 340, easing: EASE_OUT })
-      : anim(s.el, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(28px)' }], { duration: 220, easing: EASE_OUT });
+    var a = sink(s.el);
+    anim(l.root, [{ backgroundColor: 'rgba(0,0,0,.4)' }, { backgroundColor: 'rgba(0,0,0,0)' }], { duration: 300, easing: EASE_OUT });
     l.root.style.pointerEvents = 'none';
     a.finished.then(function () { l.root.remove(); });
   }
