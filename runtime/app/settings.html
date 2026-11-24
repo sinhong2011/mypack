@@ -22,7 +22,7 @@
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); }
-#app { display: grid; grid-template-columns: 184px 1fr; height: 100%; }
+#app { display: grid; grid-template-columns: 184px minmax(0, 1fr); height: 100%; }
 nav {
   padding: 14px 10px; border-right: 1px solid var(--line);
   display: flex; flex-direction: column; gap: 2px; background: var(--fill);
@@ -88,6 +88,20 @@ button.btn.danger { color: var(--danger); }
 .about dd { margin: 2px 0 0; word-break: break-all; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
 .hidden { display: none !important; }
 .add { display: flex; gap: 8px; margin-top: 8px; }
+.ext { display: grid; grid-template-columns: 34px 1fr auto; gap: 12px; align-items: center; padding: 12px 14px; border-top: 1px solid var(--line); }
+.ext:first-child { border-top: 0; }
+.ext .ic { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; font-weight: 650; color: #fff; background: linear-gradient(160deg, #6aa8ff, #3b6fd8); }
+.ext.off .ic { filter: grayscale(1); opacity: .55; }
+.ext .nm { font-weight: 600; }
+.ext .nm small { font-weight: 400; color: var(--muted); margin-left: 6px; }
+.ext .ds { color: var(--muted); font-size: 12px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.tag { font-size: 11px; padding: 1px 7px; border-radius: 999px; background: var(--fill2); color: var(--muted); }
+.tag.good { background: color-mix(in srgb, #2fa44f 18%, var(--bg)); color: #2fa44f; }
+.tag.accent { background: color-mix(in srgb, var(--accent) 16%, var(--bg)); color: var(--accent); }
+.why { font-size: 12px; color: var(--muted); text-align: right; max-width: 150px; }
+.pending { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+.pending .btn { white-space: nowrap; flex: none; }
 </style>
 </head>
 <body>
@@ -115,6 +129,7 @@ const panes = [
   ["shortcuts", "Shortcuts"],
   ["native", "Native"],
   ["customize", "Customize"],
+  ["extensions", "Extensions"],
   ["about", "About"],
 ];
 const S = {
@@ -139,6 +154,7 @@ S.native = Object.assign({
   tray: false, startToTray: false, globalShortcut: "", camera: false, microphone: false,
   dragDrop: false, notifications: "allow", badge: "auto", linkRouting: true, shortcuts: {}
 }, boot.native || {});
+S.ext = { list: Array.isArray(boot.extensions) ? boot.extensions : [], pending: !!boot.extPending };
 S.shortcutList = Array.isArray(boot.shortcuts) ? boot.shortcuts.map(s => Object.assign({}, s)) : [];
 let recID = "";
 
@@ -287,6 +303,44 @@ const views = {
       <div class="row wide">${lab("Custom JavaScript", "Runs in every page. Only add scripts you trust.")}<textarea id="js" placeholder="// document.title = 'Hello'"></textarea></div>
     </div>`;
   },
+  extensions() {
+    const list = S.ext.list;
+    const pending = S.ext.pending
+      ? `<div class="hint pending"><span>Extensions load when the app opens. Restart to apply your changes.</span><button class="btn primary" id="restartApp" type="button">Restart App</button></div>`
+      : "";
+    if (!list.length) {
+      return `<h1>Extensions</h1>
+        <p class="note">Extensions are userscripts that change how websites look and work. None are installed yet: add them in MyPack, under Extensions, then choose here which ones this app runs.</p>`;
+    }
+    const rows = list.map(x => {
+      const can = x.enabled && x.inScope;
+      const on = can && x.here;
+      let right;
+      if (!x.enabled) right = `<div class="why">Turned off in MyPack</div>`;
+      else if (!x.inScope) right = `<div class="why">Not chosen for this app in MyPack</div>`;
+      else right = `<label class="switch" title="Run in this app"><input type="checkbox" data-ext="${esc(x.id)}" ${x.here ? "checked" : ""}><span></span></label>`;
+      const tags = [];
+      tags.push(x.forSite ? `<span class="tag good">For this site</span>` : `<span class="tag">Other sites</span>`);
+      if (x.running) tags.push(`<span class="tag accent">Running</span>`);
+      if (x.edited) tags.push(`<span class="tag">Edited</span>`);
+      const sites = (x.sites || []).map(s => s === "*" ? "All sites" : s).join(", ");
+      return `<div class="ext ${on ? "" : "off"}">
+        <div class="ic">${esc((x.name || "?").slice(0, 1).toUpperCase())}</div>
+        <div style="min-width:0">
+          <div class="nm">${esc(x.name)}${x.version ? `<small>${esc(x.version)}</small>` : ""}</div>
+          ${x.description ? `<div class="ds" title="${esc(x.description)}">${esc(x.description)}</div>` : ""}
+          <div class="tags">${tags.join("")}<span class="tag">${esc(sites)}</span></div>
+        </div>
+        ${right}
+      </div>`;
+    }).join("");
+    const mine = list.filter(x => x.forSite).length;
+    return `<h1>Extensions</h1>
+      ${pending}
+      <p class="note">Extensions are installed and updated in MyPack. Here you choose which ones this app runs. ${mine ? `${mine} of ${list.length} ${list.length === 1 ? "is" : "are"} for this app's site.` : "None of them are for this app's site."}</p>
+      <div class="card">${rows}</div>
+      <p class="note" style="margin-top:12px">Turning one off here affects only this app. To remove an extension or change it for every app, use MyPack.</p>`;
+  },
   about() {
     return `<h1>About</h1>
       <div class="card" style="padding:14px 16px">
@@ -333,6 +387,9 @@ function bind() {
   document.querySelectorAll("[data-reset]").forEach(b => b.onclick = () => setShortcut(b.dataset.reset, null));
   document.querySelectorAll("[data-off]").forEach(b => b.onclick = () => setShortcut(b.dataset.off, ""));
   click("openProfile", () => say("mypack:settings:profile"));
+  click("restartApp", () => say("mypack:settings:restart"));
+  document.querySelectorAll("[data-ext]").forEach(el => el.onchange = () =>
+    say("mypack:settings:ext:" + (el.checked ? "on" : "off") + ":" + el.dataset.ext));
   click("reset", () => { if (confirm("Restore the settings this app was built with?")) say("mypack:settings:reset"); });
   click("domainBtn", () => addChip("domainAdd", S.webview.navigation.safeDomains, render));
   click("allowBtn", () => addChip("allowAdd", S.webview.blocking.allow, render));
@@ -525,6 +582,7 @@ function setDownloadDir(v) {
 window.MP = {
   collect,
   setDownloadDir,
+  setExtensions(v) { S.ext = { list: v.list || [], pending: !!v.pending }; if (pane === "extensions") render(); },
   error(msg) { const e = $("error"); e.textContent = msg; e.classList.remove("hidden"); }
 };
 

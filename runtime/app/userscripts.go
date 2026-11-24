@@ -62,9 +62,21 @@ type gmService struct {
 // them for the preload; scripts that fail to load are logged and skipped.
 func (a *App) loadUserScripts(profile string) []inject.UserScript {
 	st := userscript.Store{Dir: userscript.Dir()}
-	scripts, errs := st.Load(a.cfg.App.Identifier)
+	loaded, errs := st.Load(a.cfg.App.Identifier)
 	for _, err := range errs {
 		log.Printf("mypack-runtime: userscripts: %v", err)
+	}
+	// Settings → Extensions: the ones this app turned off for itself.
+	prefs := loadExtPrefs(profile)
+	a.extRunning = map[string]bool{}
+	var scripts []userscript.Script
+	for _, s := range loaded {
+		if prefs.off(s.ID) {
+			log.Printf("mypack-runtime: userscripts: %s is off in this app", s.ID)
+			continue
+		}
+		scripts = append(scripts, s)
+		a.extRunning[s.ID] = true
 	}
 	if len(scripts) == 0 {
 		return nil
@@ -96,7 +108,9 @@ func (a *App) loadUserScripts(profile string) []inject.UserScript {
 		out = append(out, us)
 		log.Printf("mypack-runtime: userscripts: loaded %s (%s)", s.ID, s.Meta.Version)
 	}
-	a.bridge.gm = gm
+	if a.bridge != nil {
+		a.bridge.gm = gm
+	}
 	return out
 }
 

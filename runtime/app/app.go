@@ -38,6 +38,7 @@ type App struct {
 	preload  string
 
 	userScripts []inject.UserScript // installed userscripts that run in this app
+	extRunning  map[string]bool     // ids of the extensions loaded at launch
 
 	disabled map[string]bool // normalized disabled accelerators
 

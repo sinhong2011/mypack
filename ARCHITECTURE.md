@@ -156,6 +156,11 @@ app's cookies, only to the page's own host or the script's `@connect` hosts (`*`
 `GM_notification` (the Notification shim), `GM_openInTab`, `GM_getResource*`, `GM_info` and the `GM.*` promise forms
 work page-side. `GM_registerMenuCommand` is a no-op for now. Example: `examples/userscripts/`.
 
+In a built app, Settings → Extensions lists the store's extensions as that app sees them: for its site or not, turned
+off in MyPack, not chosen for this app, running now. A "Run in this app" switch keeps the app's own off list in
+`<profile>/extensions.json` (`runtime/app/ext_settings.go`). The runtime never writes the shared store. Pages load
+extensions at launch, so a change offers Restart App.
+
 ## Runtimes from source (development)
 
 `MYPACK_DEV_RUNTIME=1` (or a path to a MyPack checkout) makes the runtime manager build every runtime for this
