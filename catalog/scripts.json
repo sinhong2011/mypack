@@ -3,14 +3,14 @@
   "scripts": [
     {
       "name": "X Thread View",
-      "description": "Open a reply's nested replies in place, in stacked X-style panels, without leaving the post you are reading.",
+      "description": "Open posts and their nested replies full screen over the page, in X's look and icons, without leaving where you are.",
       "author": "MyPack",
       "sites": [
         "x.com",
         "twitter.com"
       ],
-      "url": "https://raw.githubusercontent.com/sinhong2011/mypack/1d1f2a26ed84efe793163506bae36ad2a7d9d7d6/examples/userscripts/x-thread-view.user.js",
-      "sha256": "7341fb5237b8e21092ed9521e09d7759ba907d65c17118e188e3e98a83a4d238",
+      "url": "https://raw.githubusercontent.com/sinhong2011/mypack/6480c717e534608190e99588766c06186914f84e/examples/userscripts/x-thread-view.user.js",
+      "sha256": "19ec8e1e0eed86469de15ddf6811babf6031ed8a2f33182b4902987c57f90953",
       "homepage": "https://github.com/sinhong2011/mypack/tree/main/examples/userscripts"
     }
   ]
