@@ -516,8 +516,10 @@ font:15px/20px TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,H
   function anim(node, frames, opts) {
     if (RM || !node.animate) return { finished: Promise.resolve() };
     var a = node.animate(frames, opts);
-    if (!a.finished) a.finished = new Promise(function (r) { a.onfinish = r; });
-    return a;
+    var done = a.finished || new Promise(function (r) { a.onfinish = r; });
+    // A hidden window pauses animations: never wait on one longer than it lasts.
+    var cap = new Promise(function (r) { setTimeout(r, (opts.duration || 0) + (opts.delay || 0) + 150); });
+    return { finished: Promise.race([done.catch(function () {}), cap]).then(function () { if (a.playState !== 'finished') a.finish && a.finish(); }) };
   }
   function insetOf(r) {
     var vw = window.innerWidth, vh = window.innerHeight;
