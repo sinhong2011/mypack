@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         X Thread View
 // @namespace    https://mypack.dev/userscripts
-// @version      0.2.0
-// @description  Read an X conversation as a forum thread: floors in time order, quotes of the post each one answers, and each post's replies in a panel.
+// @version      0.3.0
+// @description  Open a reply's nested replies in place, in an X-style dialog, without leaving the post you are reading.
 // @match        https://x.com/*
 // @match        https://twitter.com/*
 // @run-at       document-start
@@ -10,27 +10,20 @@
 // ==/UserScript==
 
 /*
- * A forum reading of an X conversation, in the way Hong Kong forums
- * present a thread:
+ * On a post's page, X opens a reply by leaving the page: the route
+ * changes and you lose your place in the conversation. With this script a
+ * reply opens in a dialog over the page instead, in X's own look:
  *
- *  - Every post of the conversation is a numbered floor, in time order,
- *    from the conversation's first post (also when you open a reply).
- *  - A floor that answers another floor quotes it at its top, and a quote
- *    of a quote nests inside it (three levels), images shrunk.
- *  - 💬 N under a floor opens a panel: the floor, "Quoted by", the replies
- *    to it (without repeating the quote), each with "Go to reply", and an
- *    end mark. Panels stack; Esc closes the top one.
- *  - 👁 shows only one author's floors; ↩ opens X's reply box.
- *  - Images open in a viewer of every image of the thread.
+ *  - Click a reply (or "Show N replies" under it): the reply and its
+ *    replies open in the dialog. The page, its route and scroll stay.
+ *  - Click a reply in the dialog to go a level deeper; ← goes back up
+ *    (with its scroll), Esc or ✕ closes. ⌘/Ctrl-click opens normally.
+ *  - "Open post" leaves the page for the post, when you want to.
  *
- * It opens by itself on a post's page (Auto-open in its bar turns that
- * off; the ☰ Thread button opens it by hand).
- *
- * Data: X's web app loads a post with the GraphQL call "TweetDetail". The
- * script reads those answers as the page gets them, and asks again, with
- * the page's own request and sign-in, for another post or the next page.
- * If X refuses a repeated request, X's own router opens the post behind the
- * view and the script reads that answer. Nothing leaves x.com.
+ * Data: X loads a post with the GraphQL call "TweetDetail". The script
+ * keeps the page's own request (its headers, signature included) and asks
+ * again with another post's id, with the page's sign-in. It never changes
+ * the page's route. Nothing leaves x.com.
  *
  * Works in MyPack apps and in Violentmonkey / Tampermonkey / ScriptCat.
  */
@@ -64,24 +57,26 @@
     var note = r.note_tweet && r.note_tweet.note_tweet_results && r.note_tweet.note_tweet_results.result;
     var ents = (note && note.entity_set) || L.entities || {};
     var media = ((L.extended_entities && L.extended_entities.media) || (L.entities && L.entities.media) || []).map(function (m) {
-      return { type: m.type, url: m.media_url_https, video: m.type === 'photo' ? '' : bestVideo(m), tco: m.url };
+      return { type: m.type, url: m.media_url_https, video: m.type === 'photo' ? '' : bestVideo(m), tco: m.url,
+        w: (m.original_info && m.original_info.width) || 0, h: (m.original_info && m.original_info.height) || 0 };
     });
     var t = {
       id: r.rest_id,
       name: uc.name || ul.name || '',
       handle: uc.screen_name || ul.screen_name || '',
       avatar: (u.avatar && u.avatar.image_url) || ul.profile_image_url_https || '',
+      verified: !!u.is_blue_verified,
       text: note ? note.text : L.full_text || '',
       range: note ? null : L.display_text_range || null,
       urls: (ents.urls || []).map(function (x) { return { tco: x.url, url: x.expanded_url, shown: x.display_url }; }),
       created: L.created_at ? new Date(L.created_at) : null,
       replies: L.reply_count || 0,
       likes: L.favorite_count || 0,
-      reposts: L.retweet_count || 0,
+      reposts: (L.retweet_count || 0) + (L.quote_count || 0),
       views: r.views && r.views.count ? +r.views.count : 0,
       media: media,
       replyTo: L.in_reply_to_status_id_str || '',
-      conv: L.conversation_id_str || '',
+      replyToHandle: L.in_reply_to_screen_name || '',
       quoted: null
     };
     if ((depth || 0) < 1 && r.quoted_status_result) t.quoted = normTweet(r.quoted_status_result.result, 1);
@@ -93,19 +88,22 @@
     return normTweet(itemContent.tweet_results && itemContent.tweet_results.result);
   }
 
-  // parseDetail reads a TweetDetail answer: { focal, ancestors[], items[],
-  // cursor }. items are the other posts, each on its own (a reply chain's
-  // posts are separate floors, linked by replyTo).
+  // parseDetail reads a TweetDetail answer: { focal, ancestors[],
+  // threads[][], cursor }. Each thread is a reply and the posts that
+  // continue it, as X groups them (drawn joined by a line).
   function parseDetail(json, focalId) {
-    var out = { focal: null, ancestors: [], items: [], cursor: '' };
+    var out = { focal: null, ancestors: [], threads: [], cursor: '' };
     var conv = json && json.data && (json.data.threaded_conversation_with_injections_v2 || json.data.threaded_conversation_with_injections);
     var ins = (conv && conv.instructions) || [];
     var seenFocal = false;
     function cursorOf(c) { return (c && (c.value || (c.itemContent && c.itemContent.value))) || ''; }
-    function push(tw) { if (tw) out.items.push(tw); }
     ins.forEach(function (i) {
       if (i.type === 'TimelineAddToModule') {
-        (i.moduleItems || []).forEach(function (it) { push(itemTweet(it.item && it.item.itemContent)); });
+        var last = out.threads[out.threads.length - 1];
+        (i.moduleItems || []).forEach(function (it) {
+          var tw = itemTweet(it.item && it.item.itemContent);
+          if (tw && last) last.push(tw);
+        });
         return;
       }
       if (i.type !== 'TimelineAddEntries') return;
@@ -116,9 +114,14 @@
           if (!tw) return;
           if (tw.id === focalId) { out.focal = tw; seenFocal = true; }
           else if (!seenFocal) out.ancestors.push(tw);
-          else push(tw);
+          else out.threads.push([tw]);
         } else if (id.indexOf('conversationthread-') === 0) {
-          (c.items || []).forEach(function (it) { push(itemTweet(it.item && it.item.itemContent)); });
+          var th = [];
+          (c.items || []).forEach(function (it) {
+            var tw = itemTweet(it.item && it.item.itemContent);
+            if (tw) th.push(tw);
+          });
+          if (th.length) out.threads.push(th);
         } else if (id.indexOf('cursor-bottom-') === 0) {
           out.cursor = cursorOf(c);
         }
@@ -127,43 +130,6 @@
     if (!out.focal && out.ancestors.length) out.focal = out.ancestors.pop();
     return out;
   }
-
-  // Thread is the posts of one conversation, by id.
-  function Thread(rootId) {
-    this.rootId = rootId;
-    this.by = {};
-  }
-  Thread.prototype.add = function (list) {
-    var self = this, n = 0;
-    (list || []).forEach(function (t) {
-      if (t && !self.by[t.id]) { self.by[t.id] = t; n++; }
-    });
-    return n;
-  };
-  Thread.prototype.root = function () { return this.by[this.rootId] || null; };
-  // floors: the root first, then every other post in time order.
-  Thread.prototype.floors = function () {
-    var root = this.root(), self = this;
-    var rest = Object.keys(this.by).map(function (k) { return self.by[k]; }).filter(function (t) { return !root || t.id !== root.id; });
-    rest.sort(function (a, b) { return ((a.created && a.created.getTime()) || 0) - ((b.created && b.created.getTime()) || 0) || (a.id < b.id ? -1 : 1); });
-    return root ? [root].concat(rest) : rest;
-  };
-  // quotes: the posts t answers, nearest first, up to depth levels; a
-  // direct answer to the root quotes nothing.
-  Thread.prototype.quotes = function (t, depth) {
-    var out = [], cur = t;
-    while (out.length < (depth || 3) && cur && cur.replyTo && cur.replyTo !== this.rootId) {
-      var p = this.by[cur.replyTo];
-      if (!p) break;
-      out.push(p);
-      cur = p;
-    }
-    return out;
-  };
-  Thread.prototype.children = function (id) {
-    var self = this;
-    return this.floors().filter(function (t) { return t.replyTo === id && t.id !== id && self.by[t.id]; });
-  };
 
   function esc(s) {
     return String(s).replace(/[&<>"']/g, function (c) {
@@ -200,40 +166,39 @@
     return html.trim().replace(/\n/g, '<br>');
   }
 
+  // statusIdOf reads the post id of an X status address ("" if none).
+  function statusIdOf(href) {
+    var m = /\/status\/(\d+)/.exec(String(href || ''));
+    return m ? m[1] : '';
+  }
+
   if (typeof document === 'undefined') {
     if (typeof module === 'object' && module.exports) {
-      module.exports = { parseDetail: parseDetail, renderText: renderText, normTweet: normTweet, Thread: Thread };
+      module.exports = { parseDetail: parseDetail, renderText: renderText, normTweet: normTweet, statusIdOf: statusIdOf };
     }
     return;
   }
 
-  // ---- words -----------------------------------------------------------------
+  // ---- words (X's own wording, in the page's language) -----------------------
 
-  var zh = /^zh|^yue/i.test(navigator.language || '');
+  var zh = /^zh/i.test(document.documentElement.lang || navigator.language || '');
   var W_ = zh ? {
-    thread: '☰ 討論串', title: '討論串', open: '在 X 開啟', auto: '自動開啟', images: '只看圖片',
-    quotedBy: '被引用回覆', goTo: '前往回覆', end: '完', loading: '載入中…', more: '載入更多回覆',
-    onlyOf: function (n) { return '只看 ' + n + ' 的回覆'; }, showAll: '顯示全部', reply: '回覆',
-    only: '只看此人', none: '未有回覆', noTemplate: '請先等 X 載入這篇貼文，或重新整理頁面。',
-    failed: '未能載入：', unavailable: '這篇貼文已無法查看。', goToPost: '前往留言', floors: function (n) { return '共 ' + n + ' 樓'; },
-    close: '關閉 (Esc)', earlier: '由第一篇開始'
+    post: '貼文', back: '返回', close: '關閉', open: '開啟貼文', showReplies: function (n) { return '顯示 ' + n + ' 則回覆'; },
+    more: '顯示更多回覆', none: '還沒有回覆', replyingTo: '回覆給', failed: '無法載入這篇貼文。', openInstead: '改為開啟貼文',
+    views: '次查看'
   } : {
-    thread: '☰ Thread', title: 'Thread', open: 'Open on X', auto: 'Auto-open', images: 'Images only',
-    quotedBy: 'Quoted by', goTo: 'Go to reply', end: 'End', loading: 'Loading…', more: 'Load more replies',
-    onlyOf: function (n) { return 'Only ' + n + '’s posts'; }, showAll: 'Show all', reply: 'Reply',
-    only: 'Only this author', none: 'No replies yet', noTemplate: 'Wait for X to load this post, or reload the page.',
-    failed: 'Could not load: ', unavailable: 'This post is not available.', goToPost: 'Go to post', floors: function (n) { return n + ' floors'; },
-    close: 'Close (Esc)', earlier: 'From the first post'
+    post: 'Post', back: 'Back', close: 'Close', open: 'Open post', showReplies: function (n) { return 'Show ' + n + (n === 1 ? ' reply' : ' replies'); },
+    more: 'Show more replies', none: 'No replies yet', replyingTo: 'Replying to', failed: 'This post could not be loaded.', openInstead: 'Open the post instead',
+    views: 'Views'
   };
 
   // ---- capture X's own TweetDetail calls ------------------------------------
 
   var Win = window;
   var origFetch = Win.fetch;
-  var tpl = null;      // { url, headers } of the last TweetDetail request
-  var cache = {};      // focalId -> parsed first page
-  var waiters = {};    // focalId -> [fn]
-  var routing = false; // X's router is loading a post for us
+  var tpl = null;   // { url, headers } of the page's last TweetDetail request
+  var cache = {};   // focalId -> parsed first page
+  var waiters = {}; // key -> [fn]
   var DETAIL = /\/i\/api\/graphql\/[^/]+\/TweetDetail\?/;
 
   function focalOf(url) {
@@ -246,7 +211,9 @@
     var h = {};
     Object.keys(headers || {}).forEach(function (k) {
       var lk = k.toLowerCase();
-      if (lk === 'authorization' || lk.indexOf('x-twitter-') === 0 || lk === 'content-type') h[lk] = headers[k];
+      // The transaction id signs the method and path, which are the same
+      // for every TweetDetail call: the page's own works for ours.
+      if (lk === 'authorization' || lk.indexOf('x-twitter-') === 0 || lk === 'content-type' || lk === 'x-client-transaction-id') h[lk] = headers[k];
     });
     tpl = { url: new URL(url, location.href).href, headers: h };
     flush('*tpl*', true);
@@ -317,8 +284,9 @@
     });
   }
 
-  // replay asks TweetDetail again for focalId (and a page cursor).
-  function replay(focalId, cursor) {
+  // fetchDetail asks TweetDetail for focalId (and a page cursor), with the
+  // page's own request: without its transaction id first if X refuses it.
+  function fetchDetail(focalId, cursor) {
     var ready = tpl ? Promise.resolve() : wait('*tpl*', 8000);
     return ready.then(function () {
       var u = new URL(tpl.url);
@@ -331,103 +299,103 @@
       var h = Object.assign({}, tpl.headers);
       var csrf = cookie('ct0');
       if (csrf) h['x-csrf-token'] = csrf;
-      return origFetch.call(Win, u.href, { headers: h, credentials: 'include' });
-    }).then(function (r) {
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      return r.json();
+      var ask = function (headers) {
+        return origFetch.call(Win, u.href, { headers: headers, credentials: 'include' }).then(function (r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        });
+      };
+      return ask(h).catch(function (e) {
+        if (!h['x-client-transaction-id']) throw e;
+        var h2 = Object.assign({}, h);
+        delete h2['x-client-transaction-id'];
+        return ask(h2);
+      });
     }).then(function (j) {
       if (j && j.errors && !j.data) throw new Error((j.errors[0] && j.errors[0].message) || 'error');
       return parseDetail(j, focalId);
     });
   }
 
-  // viaRouter lets X itself load the post (behind the view), then goes back.
-  function viaRouter(focalId) {
-    var back = location.href;
-    routing = true;
-    var p = wait(focalId, 15000);
-    history.pushState({}, '', '/i/status/' + focalId);
-    Win.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
-    var done = function () { routing = false; if (location.href !== back) history.back(); };
-    p.then(done, done);
-    return p;
-  }
-
-  // load is the first page of focalId: what the page already loaded, else
-  // what X loads in a moment, else a request of our own.
   function load(focalId) {
     if (cache[focalId]) return Promise.resolve(cache[focalId]);
-    // X loads the page's own post itself: give it a moment first.
-    var soon = focalId === statusId() ? wait(focalId, 2500) : Promise.reject(new Error('not the page'));
-    return soon.catch(function () {
-      return replay(focalId).then(function (d) { cache[focalId] = d; return d; }, function (e) {
-        console.info('[x-thread-view] replay failed (' + e.message + '); loading through X');
-        return viaRouter(focalId);
-      });
-    });
+    return fetchDetail(focalId).then(function (d) { cache[focalId] = d; return d; });
   }
 
-  // ---- UI --------------------------------------------------------------------
+  // ---- X's look ------------------------------------------------------------------
+
+  // theme reads the page's background: X's light, dim or dark ("lights out").
+  function theme() {
+    var bg = getComputedStyle(document.body).backgroundColor || '';
+    var m = bg.match(/\d+/g) || [255, 255, 255];
+    var r = +m[0], g = +m[1], b = +m[2];
+    if (r < 10 && g < 10 && b < 10) return 'dark';
+    if (r + g + b < 200) return 'dim';
+    return 'light';
+  }
 
   var CSS = '\
-.xtv,.xtv-panel{--bg:#151515;--card:#1e1e1e;--band:#101010;--line:#2a2a2a;--fg:#e6e6e6;--mute:#8d8d8d;--dim:#6b6b6b;--name:#4aa8ff;--op:#f5c542;--accent:#f5c542;--chip:#2a2a2a;\
-color:var(--fg);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang HK","Microsoft JhengHei",sans-serif}\
-.xtv{position:fixed;inset:0;z-index:2147483000;background:var(--bg);display:flex;flex-direction:column;animation:xtv-in .16s ease-out}\
-@keyframes xtv-in{from{opacity:0}to{opacity:1}}\
-.xtv a,.xtv-panel a{color:var(--name);text-decoration:none}.xtv a:hover,.xtv-panel a:hover{text-decoration:underline}\
-.xtv-bar{display:flex;align-items:center;gap:6px;padding:0 10px 0 14px;height:52px;background:#1a1a1a;border-bottom:1px solid var(--line);flex:none}\
-.xtv-ttl{flex:1;min-width:0;font-weight:650;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:16px}\
-.xtv-ib{appearance:none;border:0;background:none;color:var(--mute);font:inherit;font-size:13px;height:34px;min-width:34px;padding:0 9px;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}\
-.xtv-ib:hover{background:#262626;color:var(--fg)}.xtv-ib.on{color:var(--accent)}\
-.xtv-ib .sw{width:26px;height:15px;border-radius:8px;background:#3a3a3a;position:relative;transition:background .15s}\
-.xtv-ib .sw:after{content:"";position:absolute;top:2px;left:2px;width:11px;height:11px;border-radius:50%;background:#bbb;transition:transform .15s}\
-.xtv-ib.on .sw{background:var(--accent)}.xtv-ib.on .sw:after{transform:translateX(11px);background:#151515}\
-.xtv-sub{display:flex;justify-content:center;gap:12px;align-items:center;height:40px;color:var(--accent);font-size:14px;background:var(--bg);border-bottom:6px solid var(--band);flex:none}\
-.xtv-sub .mute{color:var(--mute)}\
-.xtv-filter{display:flex;justify-content:center;gap:10px;align-items:center;padding:8px;background:#1f1a0b;color:var(--accent);font-size:13px}\
+.xtv-veil{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;background:rgba(91,112,131,.4);animation:xtv-fade .12s ease-out}\
+.xtv-veil.dark{background:rgba(91,112,131,.4)}\
+@keyframes xtv-fade{from{opacity:0}to{opacity:1}}\
+.xtv-dlg{--bg:#fff;--fg:#0f1419;--sub:#536471;--line:#eff3f4;--thread:#cfd9de;--hover:rgba(0,0,0,.03);--accent:#1d9bf0;--btnhover:rgba(15,20,25,.1);\
+width:600px;max-width:100vw;height:min(90vh,800px);background:var(--bg);color:var(--fg);border-radius:16px;display:flex;flex-direction:column;overflow:hidden;\
+font:15px/20px TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;box-shadow:rgba(101,119,134,.2) 0 0 15px,rgba(101,119,134,.15) 0 0 3px 1px}\
+.xtv-dlg.dim{--bg:#15202b;--fg:#f7f9f9;--sub:#8b98a5;--line:#38444d;--thread:#38444d;--hover:rgba(255,255,255,.03);--btnhover:rgba(239,243,244,.1)}\
+.xtv-dlg.dark{--bg:#000;--fg:#e7e9ea;--sub:#71767b;--line:#2f3336;--thread:#333639;--hover:rgba(255,255,255,.03);--btnhover:rgba(239,243,244,.1);box-shadow:rgba(255,255,255,.2) 0 0 15px,rgba(255,255,255,.15) 0 0 3px 1px}\
+@media (max-width:700px){.xtv-dlg{height:100vh;border-radius:0}}\
+.xtv-dlg a{color:var(--accent);text-decoration:none}.xtv-dlg a:hover{text-decoration:underline}\
+.xtv-top{display:flex;align-items:center;gap:12px;height:53px;padding:0 16px;flex:none;backdrop-filter:blur(12px)}\
+.xtv-top h2{flex:1;margin:0;font-size:20px;line-height:24px;font-weight:700;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
+.xtv-ib{appearance:none;border:0;background:transparent;color:var(--fg);width:34px;height:34px;border-radius:50%;display:grid;place-items:center;cursor:pointer;flex:none;transition:background .2s}\
+.xtv-ib:hover{background:var(--btnhover)}\
+.xtv-ib svg{width:20px;height:20px}\
+.xtv-crumb{display:flex;gap:4px;align-items:center;color:var(--sub);font-size:13px;overflow:hidden;white-space:nowrap}\
 .xtv-scroll{flex:1;overflow-y:auto;overscroll-behavior:contain}\
-.xtv-list{max-width:780px;margin:0 auto}\
-.xtv-floor{background:var(--card);padding:14px 20px 12px;border-bottom:8px solid var(--band);transition:background .6s}\
-.xtv-floor.flash{background:#2b2715}\
-.xtv-head{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--mute);margin-bottom:8px}\
-.xtv-no{color:var(--dim);font-variant-numeric:tabular-nums}.xtv-op .xtv-no{color:var(--op)}\
-.xtv-name{color:var(--name)!important;font-weight:500;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}\
-.xtv-op .xtv-name{color:var(--op)!important}\
-.xtv-dot{color:var(--dim)}.xtv-time{color:var(--mute)!important}\
-.xtv-head .xtv-ib{height:26px;min-width:26px;padding:0 5px;font-size:14px}\
-.xtv-head .sp{flex:1}\
-.xtv-q{border-left:3px solid #4a4a4a;padding:2px 0 2px 12px;margin:0 0 10px;color:var(--mute);font-size:14px}\
-.xtv-q .xtv-q{margin-top:0}\
-.xtv-q .xtv-qby{font-size:12px;color:var(--dim);margin-bottom:2px}\
-.xtv-q .xtv-media img,.xtv-q .xtv-media video{max-height:96px;width:auto;max-width:140px}\
-.xtv-body{word-wrap:break-word;overflow-wrap:anywhere}\
-.xtv-media{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}\
-.xtv-media img,.xtv-media video{max-width:min(100%,520px);max-height:420px;border-radius:6px;background:#000;cursor:zoom-in;display:block}\
-.xtv-quote{margin-top:10px;border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:14px;background:#191919;cursor:pointer}\
-.xtv-foot{display:flex;gap:8px;align-items:center;margin-top:10px}\
-.xtv-pill{display:inline-flex;gap:12px;align-items:center;height:30px;padding:0 12px;border-radius:6px;background:var(--chip);color:var(--mute);font-size:13px}\
-.xtv-cbtn{appearance:none;border:0;display:inline-flex;gap:7px;align-items:center;height:30px;padding:0 12px;border-radius:6px;background:var(--chip);color:var(--fg);font:inherit;font-size:13px;cursor:pointer}\
-.xtv-cbtn:hover{background:#353535}\
-.xtv-goto{margin-left:auto;color:var(--mute)!important;font-size:13px;cursor:pointer;background:none;border:0;font:inherit}\
-.xtv-goto:hover{color:var(--fg)!important}\
-.xtv-end,.xtv-div{text-align:center;color:var(--accent);padding:18px 0;font-size:15px}\
-.xtv-div{background:var(--band);padding:12px 0}\
-.xtv-msg{text-align:center;color:var(--mute);padding:48px 16px}\
-.xtv-more{display:block;margin:16px auto;appearance:none;border:1px solid var(--line);background:none;color:var(--fg);border-radius:8px;padding:8px 16px;font:inherit;font-size:14px;cursor:pointer}\
-.xtv-ctr{position:fixed;right:24px;bottom:24px;z-index:2147483001;min-width:56px;height:56px;padding:0 12px;border-radius:28px;background:#2a2a2a;color:var(--fg);display:flex;align-items:center;justify-content:center;font:600 15px -apple-system,sans-serif;box-shadow:0 4px 18px rgba(0,0,0,.5);cursor:pointer;font-variant-numeric:tabular-nums}\
-.xtv-veil{position:fixed;inset:0;z-index:2147483002;background:rgba(0,0,0,.62);display:flex;justify-content:center;animation:xtv-in .14s ease-out}\
-.xtv-panel{width:min(760px,100%);height:100%;background:var(--bg);display:flex;flex-direction:column;box-shadow:0 0 60px rgba(0,0,0,.6);animation:xtv-up .2s cubic-bezier(.2,.8,.2,1)}\
-@keyframes xtv-up{from{transform:translateY(18px);opacity:.3}to{transform:none;opacity:1}}\
-.xtv-panel .xtv-bar{justify-content:flex-end}\
-.xtv-light{position:fixed;inset:0;z-index:2147483005;background:rgba(0,0,0,.94);display:flex;flex-direction:column;color:#ddd;font:14px -apple-system,sans-serif}\
-.xtv-light .top{display:flex;justify-content:space-between;padding:12px 16px}\
-.xtv-light .mid{flex:1;display:flex;align-items:center;justify-content:center;min-height:0;gap:8px}\
-.xtv-light img{max-width:calc(100vw - 140px);max-height:calc(100vh - 120px)}\
-.xtv-light .nav{appearance:none;border:0;background:none;color:#ddd;font-size:30px;width:56px;height:56px;cursor:pointer}\
-.xtv-light .bot{display:flex;justify-content:flex-end;padding:12px 16px;gap:16px}\
-.xtv-light button.lk{appearance:none;border:0;background:none;color:var(--accent,#f5c542);font:inherit;cursor:pointer}\
-.xtv-fab{position:fixed;right:96px;bottom:24px;z-index:2147482999;background:#f5c542;color:#151515;border:0;border-radius:22px;padding:10px 16px;font:600 14px -apple-system,BlinkMacSystemFont,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.35);cursor:pointer}\
-@media (max-width:640px){.xtv-floor{padding:12px 14px}.xtv-ctr{right:14px;bottom:14px}.xtv-fab{right:14px}}';
+.xtv-level{animation:xtv-in .18s cubic-bezier(.2,.8,.2,1)}\
+.xtv-level.back{animation:xtv-out .18s cubic-bezier(.2,.8,.2,1)}\
+@keyframes xtv-in{from{transform:translateX(24px);opacity:.4}to{transform:none;opacity:1}}\
+@keyframes xtv-out{from{transform:translateX(-24px);opacity:.4}to{transform:none;opacity:1}}\
+.xtv-row{display:flex;gap:12px;padding:12px 16px 0;cursor:pointer;transition:background .2s}\
+.xtv-row:hover{background:var(--hover)}\
+.xtv-rail{display:flex;flex-direction:column;align-items:center;flex:none;width:40px}\
+.xtv-rail .up{width:2px;height:8px;margin:-12px 0 4px;background:var(--thread)}\
+.xtv-rail .up.none{background:transparent}\
+.xtv-rail .down{width:2px;flex:1;min-height:12px;margin-top:4px;background:var(--thread)}\
+.xtv-av{width:40px;height:40px;border-radius:50%;object-fit:cover;background:var(--line);flex:none}\
+.xtv-main{flex:1;min-width:0;padding-bottom:12px}\
+.xtv-row.last .xtv-main{border-bottom:1px solid var(--line)}\
+.xtv-who{display:flex;gap:4px;align-items:baseline;min-width:0;white-space:nowrap}\
+.xtv-who b{font-weight:700;overflow:hidden;text-overflow:ellipsis;color:var(--fg)}\
+.xtv-who .sub{color:var(--sub);overflow:hidden;text-overflow:ellipsis}\
+.xtv-badge{width:18px;height:18px;align-self:center;color:var(--accent);flex:none}\
+.xtv-text{margin-top:2px;white-space:normal;overflow-wrap:anywhere}\
+.xtv-media{display:grid;gap:2px;margin-top:12px;border-radius:16px;overflow:hidden;border:1px solid var(--line)}\
+.xtv-media.n2,.xtv-media.n3,.xtv-media.n4{grid-template-columns:1fr 1fr}\
+.xtv-media img,.xtv-media video{width:100%;max-height:510px;object-fit:cover;display:block;background:var(--line)}\
+.xtv-media.n2 img,.xtv-media.n3 img,.xtv-media.n4 img{aspect-ratio:1;height:100%}\
+.xtv-quote{margin-top:12px;border:1px solid var(--line);border-radius:16px;padding:12px;transition:background .2s}\
+.xtv-quote:hover{background:var(--hover)}\
+.xtv-quote .xtv-av{width:20px;height:20px}\
+.xtv-acts{display:flex;justify-content:space-between;max-width:425px;margin-top:12px;color:var(--sub);font-size:13px}\
+.xtv-act{display:flex;align-items:center;gap:4px;min-width:0}\
+.xtv-act svg{width:18.75px;height:18.75px}\
+.xtv-focal{padding:12px 16px 0;border-bottom:1px solid var(--line)}\
+.xtv-focal .xtv-head{display:flex;gap:12px;align-items:center;margin-bottom:12px}\
+.xtv-focal .xtv-text{font-size:17px;line-height:24px}\
+.xtv-focal .xtv-when{color:var(--sub);margin:16px 0;font-size:15px}\
+.xtv-focal .xtv-when b{color:var(--fg);font-weight:700}\
+.xtv-focal .xtv-acts{border-top:1px solid var(--line);margin:0;max-width:none;padding:4px 4px;height:48px;align-items:center}\
+.xtv-reply-to{color:var(--sub);margin:4px 0 0}\
+.xtv-parent{opacity:.95}\
+.xtv-more{display:block;width:100%;appearance:none;border:0;border-bottom:1px solid var(--line);background:none;color:var(--accent);font:inherit;padding:16px;text-align:left;cursor:pointer;transition:background .2s}\
+.xtv-more:hover{background:var(--hover)}\
+.xtv-msg{color:var(--sub);text-align:center;padding:40px 16px}\
+.xtv-msg a{display:inline-block;margin-top:12px}\
+.xtv-spin{width:26px;height:26px;margin:40px auto;border-radius:50%;border:3px solid rgba(29,155,240,.2);border-top-color:var(--accent);animation:xtv-rot .75s linear infinite}\
+@keyframes xtv-rot{to{transform:rotate(360deg)}}\
+.xtv-show{display:inline-block;margin:0 0 12px 68px;color:#1d9bf0;font-size:15px;cursor:pointer}\
+.xtv-show:hover{text-decoration:underline}';
 
   var styled = false;
   function ensureStyle() {
@@ -443,416 +411,354 @@ color:var(--fg);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingF
     if (html != null) e.innerHTML = html;
     return e;
   }
-  function btn(cls, html, title, fn) {
-    var b = el('button', cls, html);
-    b.type = 'button';
-    if (title) b.title = title;
-    if (fn) b.addEventListener('click', function (e) { e.stopPropagation(); fn(e); });
-    return b;
+
+  // Simple line icons in X's weight (not X's own drawings).
+  var ICON = {
+    back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M11 18l-6-6 6-6"/></svg>',
+    close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+    open: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>',
+    reply: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"><path d="M4 11.5C4 7.4 7.4 4.5 11.5 4.5h1C16.6 4.5 20 7.4 20 11.3c0 4-3.4 6.7-7.6 6.7H11l-4.5 3v-3.5C4.9 16.4 4 14.1 4 11.5z"/></svg>',
+    repost: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7 20V8a2 2 0 0 1 2-2h7"/><path d="M4 17l3 3 3-3"/><path d="M17 4v12a2 2 0 0 1-2 2H8"/><path d="M20 7l-3-3-3 3"/></svg>',
+    like: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"><path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.2a4.3 4.3 0 0 1 7.5 2.6C19.5 15.4 12 20 12 20z"/></svg>',
+    views: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M5 20V12M10 20V4M15 20v-9M20 20v-5"/></svg>',
+    badge: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l2.4 1.8 3-.2.9 2.9 2.5 1.7-1 2.8 1 2.8-2.5 1.7-.9 2.9-3-.2L12 21.5l-2.4-1.8-3 .2-.9-2.9-2.5-1.7 1-2.8-1-2.8 2.5-1.7.9-2.9 3 .2z"/><path d="M8.5 12.2l2.3 2.3 4.7-4.9" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+  };
+
+  function num(n) {
+    if (!n) return '';
+    if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
+    if (n >= 1e4) return Math.round(n / 1e3) + 'K';
+    if (n >= 1e3) return (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'K';
+    return String(n);
   }
   function ago(d) {
     if (!d) return '';
     var s = (Date.now() - d.getTime()) / 1000;
-    if (zh) {
-      if (s < 60) return '剛剛';
-      if (s < 3600) return Math.floor(s / 60) + ' 分鐘前';
-      if (s < 86400) return Math.floor(s / 3600) + ' 小時前';
-      if (s < 86400 * 30) return Math.floor(s / 86400) + ' 日前';
-      return d.toLocaleDateString();
-    }
-    if (s < 60) return 'just now';
+    if (s < 60) return Math.max(1, Math.floor(s)) + 's';
     if (s < 3600) return Math.floor(s / 60) + 'm';
     if (s < 86400) return Math.floor(s / 3600) + 'h';
-    if (s < 86400 * 30) return Math.floor(s / 86400) + 'd';
-    return d.toLocaleDateString();
+    var opts = { month: 'short', day: 'numeric' };
+    if (d.getFullYear() !== new Date().getFullYear()) opts.year = 'numeric';
+    return d.toLocaleDateString(undefined, opts);
   }
-  function num(n) {
-    if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
-    if (n >= 1e3) return (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'K';
-    return String(n);
-  }
-  // sized asks X's image host for a size; other addresses stay as they are.
   function sized(u, name) { return /^https:\/\/pbs\.twimg\.com\//.test(u) ? u + (u.indexOf('?') < 0 ? '?' : '&') + 'name=' + name : u; }
-  function pref(k, def) { try { var v = localStorage.getItem('xtv:' + k); return v == null ? def : v === '1'; } catch (e) { return def; } }
-  function setPref(k, v) { try { localStorage.setItem('xtv:' + k, v ? '1' : '0'); } catch (e) {} }
 
-  // ---- layers (view, panels, image viewer): Esc closes the top one ----------
-
-  var layers = [];
-  var savedOverflow = '';
-  function pushLayer(l) {
-    if (!layers.length) { savedOverflow = document.documentElement.style.overflow; document.documentElement.style.overflow = 'hidden'; }
-    layers.push(l);
-  }
-  function closeTop() {
-    var l = layers.pop();
-    if (l) l.close();
-    if (!layers.length) document.documentElement.style.overflow = savedOverflow;
-  }
-  function closeAll() { while (layers.length) closeTop(); }
-  document.addEventListener('keydown', function (e) {
-    if (!layers.length) return;
-    var top = layers[layers.length - 1];
-    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeTop(); return; }
-    if (top.key && top.key(e)) { e.preventDefault(); e.stopPropagation(); }
-  }, true);
-
-  // ---- the view --------------------------------------------------------------
-
-  var view = null; // { thread, focalId, list, floorsEls, filter, imagesOnly, cursor, ... }
-
-  function mediaEl(t, small) {
+  function mediaEl(t) {
     if (!t.media.length) return null;
-    var box = el('div', 'xtv-media');
-    t.media.forEach(function (m) {
+    var n = Math.min(t.media.length, 4);
+    var box = el('div', 'xtv-media n' + n);
+    t.media.slice(0, 4).forEach(function (m) {
       if (m.video) {
         var v = document.createElement('video');
-        v.src = m.video; v.poster = m.url; v.controls = !small; v.preload = 'none'; v.muted = m.type === 'animated_gif'; v.loop = v.muted;
+        v.src = m.video; v.poster = m.url; v.controls = true; v.preload = 'none';
+        if (m.type === 'animated_gif') { v.loop = true; v.muted = true; v.autoplay = true; }
+        v.addEventListener('click', function (e) { e.stopPropagation(); });
         box.appendChild(v);
       } else {
+        var a = el('a');
+        a.href = m.url + '?name=orig'; a.target = '_blank'; a.rel = 'noopener';
+        a.addEventListener('click', function (e) { e.stopPropagation(); });
         var img = document.createElement('img');
-        img.src = sized(m.url, small ? 'thumb' : 'small'); img.loading = 'lazy'; img.alt = '';
-        img.addEventListener('click', function (e) { e.stopPropagation(); openViewer(m.url, t.id); });
-        box.appendChild(img);
+        img.src = sized(m.url, n > 1 ? 'small' : 'medium'); img.loading = 'lazy'; img.alt = '';
+        a.appendChild(img);
+        box.appendChild(a);
       }
     });
     return box;
   }
 
-  // quoteEl nests the posts t answers, the farthest innermost.
-  function quoteEl(chain) {
-    if (!chain.length) return null;
-    var outer = null, inner = null;
-    for (var i = 0; i < chain.length; i++) {
-      var q = el('div', 'xtv-q');
-      var p = chain[i];
-      var body = el('div', 'xtv-body', renderText(p));
-      var m = mediaEl(p, true);
-      if (!outer) outer = q; else inner.insertBefore(q, inner.firstChild);
-      q.appendChild(body);
-      if (m) q.appendChild(m);
-      inner = q;
-    }
-    return outer;
+  function avatarEl(t) {
+    var a = el('a');
+    a.href = '/' + t.handle;
+    a.addEventListener('click', function (e) { e.stopPropagation(); });
+    var img = document.createElement('img');
+    img.className = 'xtv-av'; img.alt = ''; img.src = t.avatar || '';
+    a.appendChild(img);
+    return a;
   }
 
-  // floorEl is one floor. opts: { no, quote(bool), panel(bool) }
-  function floorEl(t, opts) {
-    var th = view.thread;
-    var root = th.root();
-    var op = root && t.handle === root.handle;
-    var box = el('div', 'xtv-floor' + (op ? ' xtv-op' : ''));
-    box.dataset.id = t.id;
-    var head = el('div', 'xtv-head');
-    head.appendChild(el('span', 'xtv-no', '#' + (opts.no || '?')));
-    var nm = el('a', 'xtv-name', esc(t.name || t.handle)); nm.href = '/' + t.handle; nm.title = '@' + t.handle;
-    head.appendChild(nm);
-    head.appendChild(el('span', 'xtv-dot', '•'));
-    var tm = el('a', 'xtv-time', esc(ago(t.created))); tm.href = '/' + t.handle + '/status/' + t.id; tm.title = t.created ? t.created.toLocaleString() : '';
-    head.appendChild(tm);
-    if (!opts.panel) head.appendChild(btn('xtv-ib', '👁', W_.only, function () { setFilter(t.handle, t.name || t.handle); }));
-    head.appendChild(btn('xtv-ib', '↩', W_.reply, function () { closeAll(); location.href = '/intent/post?in_reply_to=' + t.id; }));
-    head.appendChild(el('span', 'sp'));
-    var ext = el('a', 'xtv-ib', '↗'); ext.href = '/' + t.handle + '/status/' + t.id; ext.title = W_.open;
-    ext.addEventListener('click', function () { closeAll(); });
-    head.appendChild(ext);
+  function whoEl(t, long) {
+    var w = el('div', 'xtv-who');
+    var name = el('a', '', '<b>' + esc(t.name || t.handle) + '</b>');
+    name.href = '/' + t.handle;
+    name.style.color = 'inherit';
+    name.addEventListener('click', function (e) { e.stopPropagation(); });
+    w.appendChild(name);
+    if (t.verified) w.appendChild(el('span', 'xtv-badge', ICON.badge));
+    w.appendChild(el('span', 'sub', '@' + esc(t.handle)));
+    if (!long && t.created) {
+      w.appendChild(el('span', 'sub', '·'));
+      var tm = el('span', 'sub', esc(ago(t.created)));
+      tm.title = t.created.toLocaleString();
+      w.appendChild(tm);
+    }
+    return w;
+  }
+
+  function actsEl(t, big) {
+    var a = el('div', 'xtv-acts');
+    [['reply', t.replies], ['repost', t.reposts], ['like', t.likes], ['views', t.views]].forEach(function (p) {
+      if (big && p[0] === 'views') return;
+      a.appendChild(el('div', 'xtv-act', ICON[p[0]] + '<span>' + num(p[1]) + '</span>'));
+    });
+    return a;
+  }
+
+  function quoteEl(q, go) {
+    var box = el('div', 'xtv-quote');
+    var head = el('div', 'xtv-who');
+    var img = document.createElement('img');
+    img.className = 'xtv-av'; img.alt = ''; img.src = q.avatar || '';
+    head.appendChild(img);
+    head.appendChild(el('b', '', esc(q.name || q.handle)));
+    head.appendChild(el('span', 'sub', '@' + esc(q.handle) + ' · ' + esc(ago(q.created))));
     box.appendChild(head);
-    if (opts.quote) {
-      var q = quoteEl(th.quotes(t, 3));
-      if (q) box.appendChild(q);
-    }
-    box.appendChild(el('div', 'xtv-body', renderText(t)));
-    var m = mediaEl(t, false);
+    box.appendChild(el('div', 'xtv-text', renderText(q)));
+    var m = mediaEl(q);
     if (m) box.appendChild(m);
-    if (t.quoted) {
-      var qc = el('div', 'xtv-quote');
-      qc.appendChild(el('div', 'xtv-head', '<span class="xtv-name">' + esc(t.quoted.name) + '</span><span class="xtv-dot">@' + esc(t.quoted.handle) + '</span>'));
-      qc.appendChild(el('div', 'xtv-body', renderText(t.quoted)));
-      var qm = mediaEl(t.quoted, true);
-      if (qm) qc.appendChild(qm);
-      qc.addEventListener('click', function (e) { if (!e.target.closest('a,img,video')) openPanel(t.quoted.id); });
-      box.appendChild(qc);
-    }
-    var foot = el('div', 'xtv-foot');
-    foot.appendChild(el('span', 'xtv-pill', '♥ ' + num(t.likes) + '<span>⟲ ' + num(t.reposts) + '</span>'));
-    var kids = Math.max(th.children(t.id).length, t.replies);
-    if (kids > 0 && !opts.source) foot.appendChild(btn('xtv-cbtn', '💬 ' + num(kids), W_.quotedBy, function () { openPanel(t.id); }));
-    if (opts.panel && opts.inThread) foot.appendChild(btn('xtv-goto', '↘ ' + W_.goTo, '', function () { goToFloor(t.id); }));
-    box.appendChild(foot);
+    box.addEventListener('click', function (e) { e.stopPropagation(); if (!e.target.closest('a,video')) go(q.id); });
     return box;
   }
 
-  function setFilter(handle, name) {
-    view.filter = view.filter && view.filter.handle === handle ? null : { handle: handle, name: name };
-    renderFloors();
-  }
-
-  function renderFloors() {
-    var v = view, list = v.list;
-    list.innerHTML = '';
-    v.filterBar.innerHTML = '';
-    v.filterBar.style.display = v.filter ? '' : 'none';
-    if (v.filter) {
-      v.filterBar.appendChild(el('span', '', esc(W_.onlyOf(v.filter.name))));
-      v.filterBar.appendChild(btn('xtv-ib on', W_.showAll, '', function () { v.filter = null; renderFloors(); }));
-    }
-    var floors = v.thread.floors();
-    v.numbers = {};
-    floors.forEach(function (t, i) { v.numbers[t.id] = i + 1; });
-    v.sub.innerHTML = '<span>' + esc(W_.floors(floors.length)) + '</span>';
-    var shown = floors.filter(function (t) {
-      if (v.filter && t.handle !== v.filter.handle) return false;
-      if (v.imagesOnly && !t.media.length) return false;
-      return true;
+  // rowEl is a post in a list, X's way: avatar rail on the left, joined
+  // to the posts above and below in the same thread.
+  function rowEl(t, go, up, down, last) {
+    var row = el('div', 'xtv-row' + (last ? ' last' : ''));
+    row.setAttribute('role', 'link');
+    row.tabIndex = 0;
+    var rail = el('div', 'xtv-rail');
+    rail.appendChild(el('div', 'up' + (up ? '' : ' none')));
+    rail.appendChild(avatarEl(t));
+    if (down) rail.appendChild(el('div', 'down'));
+    row.appendChild(rail);
+    var main = el('div', 'xtv-main');
+    main.appendChild(whoEl(t, false));
+    main.appendChild(el('div', 'xtv-text', renderText(t)));
+    var m = mediaEl(t);
+    if (m) main.appendChild(m);
+    if (t.quoted) main.appendChild(quoteEl(t.quoted, go));
+    main.appendChild(actsEl(t, false));
+    row.appendChild(main);
+    row.addEventListener('click', function (e) {
+      if (e.target.closest('a,video,button')) return;
+      if (e.metaKey || e.ctrlKey) { window.open('/' + t.handle + '/status/' + t.id, '_blank'); return; }
+      go(t.id);
     });
-    shown.forEach(function (t) { list.appendChild(floorEl(t, { no: v.numbers[t.id], quote: true })); });
-    if (v.cursor) {
-      var more = btn('xtv-more', W_.more, '', function () { loadMore(more); });
-      list.appendChild(more);
-      v.sentinel = more;
-      watchSentinel();
-    } else {
-      list.appendChild(el('div', 'xtv-end', esc(W_.end)));
+    row.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(t.id); });
+    return row;
+  }
+
+  // focalEl is the post a level is about, large, as X shows a post's page.
+  function focalEl(t, go) {
+    var box = el('div', 'xtv-focal');
+    var head = el('div', 'xtv-head');
+    head.appendChild(avatarEl(t));
+    var who = el('div', '');
+    who.style.minWidth = '0';
+    var w = whoEl(t, true);
+    w.style.flexDirection = 'column'; w.style.gap = '0'; w.style.alignItems = 'flex-start';
+    who.appendChild(w);
+    head.appendChild(who);
+    box.appendChild(head);
+    if (t.replyToHandle) box.appendChild(el('div', 'xtv-reply-to', esc(W_.replyingTo) + ' <a href="/' + esc(t.replyToHandle) + '">@' + esc(t.replyToHandle) + '</a>'));
+    box.appendChild(el('div', 'xtv-text', renderText(t)));
+    var m = mediaEl(t);
+    if (m) box.appendChild(m);
+    if (t.quoted) box.appendChild(quoteEl(t.quoted, go));
+    if (t.created) {
+      var when = t.created.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) + ' · ' +
+        t.created.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+      box.appendChild(el('div', 'xtv-when', esc(when) + (t.views ? ' · <b>' + esc(num(t.views)) + '</b> ' + esc(W_.views) : '')));
     }
-    updateCounter();
+    box.appendChild(actsEl(t, true));
+    return box;
   }
 
-  function loadMore(b) {
-    var v = view;
-    if (!v || v.loadingMore || !v.cursor) return;
-    v.loadingMore = true;
-    if (b) { b.disabled = true; b.textContent = W_.loading; }
-    replay(v.focalId, v.cursor).then(function (p) {
-      v.loadingMore = false;
-      var added = v.thread.add(p.items);
-      v.cursor = p.cursor && p.cursor !== v.cursor && (added || p.items.length) ? p.cursor : '';
-      var y = v.scroll.scrollTop;
-      renderFloors();
-      v.scroll.scrollTop = y;
-    }, function () {
-      v.loadingMore = false;
-      v.cursor = '';
-      renderFloors();
-    });
-  }
-  function watchSentinel() {
-    var v = view;
-    if (!('IntersectionObserver' in window) || !v.sentinel) return;
-    if (v.io) v.io.disconnect();
-    v.io = new IntersectionObserver(function (es) {
-      es.forEach(function (e) { if (e.isIntersecting) loadMore(v.sentinel); });
-    }, { root: v.scroll, rootMargin: '600px' });
-    v.io.observe(v.sentinel);
+  // ---- the dialog: a stack of levels, never a route change ----------------------
+
+  var dlg = null; // { veil, box, scroll, title, backBtn, stack: [{id, y}] }
+
+  function closeDialog() {
+    if (!dlg) return;
+    dlg.veil.remove();
+    document.documentElement.style.overflow = dlg.overflow;
+    dlg = null;
   }
 
-  // The floating counter shows the floor at the top of the view.
-  function updateCounter() {
-    var v = view;
-    if (!v) return;
-    var total = v.thread.floors().length;
-    var top = v.scroll.getBoundingClientRect().top + 60;
-    var cur = 1;
-    var els = v.list.querySelectorAll('.xtv-floor');
-    for (var i = 0; i < els.length; i++) {
-      if (els[i].getBoundingClientRect().bottom > top) { cur = v.numbers[els[i].dataset.id] || 1; break; }
-    }
-    v.ctr.textContent = '#' + cur + ' / ' + total;
-  }
-
-  function goToFloor(id) {
-    while (layers.length > 1) closeTop();
-    var v = view;
-    if (!v) return;
-    if (v.filter || v.imagesOnly) { v.filter = null; v.imagesOnly = false; v.imgBtn.classList.remove('on'); renderFloors(); }
-    var f = v.list.querySelector('.xtv-floor[data-id="' + id + '"]');
-    if (!f) return;
-    v.scroll.scrollTo({ top: f.offsetTop - 8, behavior: 'smooth' });
-    f.classList.add('flash');
-    setTimeout(function () { f.classList.remove('flash'); }, 1400);
-  }
-
-  function openView(focalId) {
-    if (view) return;
+  function openDialog(id) {
     ensureStyle();
-    var root = el('div', 'xtv');
-    var bar = el('div', 'xtv-bar');
-    var ttl = el('div', 'xtv-ttl', esc(W_.title));
-    bar.appendChild(btn('xtv-ib', '✕', W_.close, closeTop));
-    bar.appendChild(ttl);
-    var imgBtn = btn('xtv-ib', '🖼 ' + esc(W_.images), '', function () { view.imagesOnly = !view.imagesOnly; imgBtn.classList.toggle('on', view.imagesOnly); renderFloors(); });
-    bar.appendChild(imgBtn);
-    var autoBtn = btn('xtv-ib' + (pref('auto', true) ? ' on' : ''), '<span class="sw"></span>' + esc(W_.auto), '', function () {
-      var on = !pref('auto', true); setPref('auto', on); autoBtn.classList.toggle('on', on);
-    });
-    bar.appendChild(autoBtn);
-    var openX = el('a', 'xtv-ib', '↗ ' + esc(W_.open)); openX.href = '/i/status/' + focalId;
-    openX.addEventListener('click', function () { closeAll(); });
-    bar.appendChild(openX);
-    var sub = el('div', 'xtv-sub');
-    var filterBar = el('div', 'xtv-filter'); filterBar.style.display = 'none';
+    if (dlg) { push(id); return; }
+    var th = theme();
+    var veil = el('div', 'xtv-veil ' + th);
+    var box = el('div', 'xtv-dlg ' + th);
+    box.setAttribute('role', 'dialog');
+    box.setAttribute('aria-modal', 'true');
+    var top = el('div', 'xtv-top');
+    var back = el('button', 'xtv-ib', ICON.close);
+    back.type = 'button';
+    back.title = W_.close;
+    back.addEventListener('click', function () { if (dlg && dlg.stack.length > 1) pop(); else closeDialog(); });
+    var title = el('h2', '', esc(W_.post));
+    var open = el('a', 'xtv-ib', ICON.open);
+    open.title = W_.open;
+    open.addEventListener('click', function () { closeDialog(); });
+    top.appendChild(back); top.appendChild(title); top.appendChild(open);
     var scroll = el('div', 'xtv-scroll');
-    var list = el('div', 'xtv-list');
-    list.appendChild(el('div', 'xtv-msg', esc(W_.loading)));
-    scroll.appendChild(list);
-    var ctr = el('div', 'xtv-ctr', '#1');
-    ctr.title = 'Top';
-    ctr.addEventListener('click', function () { scroll.scrollTo({ top: 0, behavior: 'smooth' }); });
-    root.appendChild(bar); root.appendChild(sub); root.appendChild(filterBar); root.appendChild(scroll); root.appendChild(ctr);
-    document.body.appendChild(root);
-    view = { focalId: focalId, root: root, list: list, scroll: scroll, sub: sub, filterBar: filterBar, ctr: ctr, imgBtn: imgBtn, ttl: ttl, numbers: {} };
-    var tick = 0;
-    scroll.addEventListener('scroll', function () { if (!tick) { tick = requestAnimationFrame(function () { tick = 0; updateCounter(); }); } });
-    pushLayer({ close: function () { if (view && view.io) view.io.disconnect(); root.remove(); view = null; closedFor = statusId(); } });
-
-    load(focalId).then(function (d) {
-      if (!view) return;
-      // A reply: read the conversation from its first post.
-      if (d.ancestors.length) {
-        var first = d.ancestors[0].id;
-        view.thread = new Thread(first);
-        view.thread.add(d.ancestors); view.thread.add([d.focal]); view.thread.add(d.items);
-        view.focalId = first;
-        view.cursor = '';
-        return load(first).then(function (r) {
-          if (!view) return;
-          view.thread.add([r.focal]); view.thread.add(r.items);
-          view.cursor = r.cursor;
-          show(focalId);
-        }, function () { show(focalId); });
-      }
-      if (!d.focal) { list.innerHTML = ''; list.appendChild(el('div', 'xtv-msg', esc(W_.unavailable))); return; }
-      view.thread = new Thread(d.focal.id);
-      view.thread.add([d.focal]); view.thread.add(d.items);
-      view.cursor = d.cursor;
-      show('');
-    }, function (e) {
-      if (!view) return;
-      list.innerHTML = '';
-      list.appendChild(el('div', 'xtv-msg', esc(e && e.message === 'timeout' ? W_.noTemplate : W_.failed + ((e && e.message) || e))));
-    });
-
-    function show(highlight) {
-      var r = view.thread.root();
-      if (r) ttl.textContent = Array.from((r.text || '').replace(/https:\/\/t\.co\/\w+/g, '').replace(/\s+/g, ' ').trim()).slice(0, 90).join('') || W_.title;
-      renderFloors();
-      if (highlight && highlight !== view.thread.rootId) setTimeout(function () { goToFloor(highlight); }, 60);
-    }
-  }
-
-  // openPanel shows id, then the replies to it.
-  function openPanel(id) {
-    ensureStyle();
-    var veil = el('div', 'xtv-veil');
-    var panel = el('div', 'xtv-panel');
-    var bar = el('div', 'xtv-bar');
-    bar.appendChild(btn('xtv-ib', '✕', W_.close, closeTop));
-    var scroll = el('div', 'xtv-scroll');
-    scroll.appendChild(el('div', 'xtv-msg', esc(W_.loading)));
-    panel.appendChild(bar); panel.appendChild(scroll); veil.appendChild(panel);
-    veil.addEventListener('click', function (e) { if (e.target === veil) closeTop(); });
+    box.appendChild(top); box.appendChild(scroll);
+    veil.appendChild(box);
+    veil.addEventListener('mousedown', function (e) { if (e.target === veil) closeDialog(); });
     document.body.appendChild(veil);
-    var layer = { close: function () { veil.remove(); } };
-    pushLayer(layer);
-
-    var th = view && view.thread;
-    var local = th && th.by[id];
-    function render(src, replies) {
-      scroll.innerHTML = '';
-      if (!src) { scroll.appendChild(el('div', 'xtv-msg', esc(W_.unavailable))); return; }
-      var nos = view ? view.numbers : {};
-      scroll.appendChild(floorEl(src, { no: nos[src.id], quote: !!th && !!th.by[src.id], panel: true, source: true, inThread: !!nos[src.id] }));
-      scroll.appendChild(el('div', 'xtv-div', esc(W_.quotedBy)));
-      if (!replies.length) scroll.appendChild(el('div', 'xtv-msg', esc(W_.none)));
-      replies.forEach(function (t) { scroll.appendChild(floorEl(t, { no: nos[t.id], quote: false, panel: true, inThread: !!nos[t.id] })); });
-      scroll.appendChild(el('div', 'xtv-end', esc(W_.end)));
-    }
-    var mine = th ? th.children(id) : [];
-    if (local && mine.length >= local.replies) { render(local, mine); return; }
-    if (local) render(local, mine);
-    load(id).then(function (d) {
-      if (layers.indexOf(layer) < 0) return;
-      var src = d.focal || local;
-      var seen = {}, all = [];
-      mine.concat(d.items.filter(function (t) { return t.replyTo === id; })).forEach(function (t) { if (!seen[t.id]) { seen[t.id] = 1; all.push(t); } });
-      all.sort(function (a, b) { return ((a.created && a.created.getTime()) || 0) - ((b.created && b.created.getTime()) || 0); });
-      render(src, all);
-    }, function () { if (!local) render(null, []); });
+    dlg = { veil: veil, box: box, scroll: scroll, title: title, back: back, open: open, stack: [], overflow: document.documentElement.style.overflow };
+    document.documentElement.style.overflow = 'hidden';
+    push(id);
   }
 
-  // ---- image viewer: every image of the thread -------------------------------
+  function push(id) {
+    if (!dlg) return;
+    var cur = dlg.stack[dlg.stack.length - 1];
+    if (cur && cur.id === id) return;
+    if (cur) cur.y = dlg.scroll.scrollTop;
+    dlg.stack.push({ id: id, y: 0 });
+    show(false);
+  }
+  function pop() {
+    if (!dlg || dlg.stack.length < 2) return;
+    dlg.stack.pop();
+    show(true);
+  }
 
-  function openViewer(url, fromId) {
-    var shots = [];
-    if (view && view.thread) {
-      view.thread.floors().forEach(function (t) {
-        t.media.forEach(function (m) { if (!m.video) shots.push({ url: m.url, id: t.id }); });
-      });
-    }
-    var at = 0;
-    shots.forEach(function (s, i) { if (s.url === url && s.id === fromId) at = i; });
-    if (!shots.length) { shots = [{ url: url, id: fromId }]; }
-    var box = el('div', 'xtv-light');
-    var top = el('div', 'top'), mid = el('div', 'mid'), bot = el('div', 'bot');
-    var count = el('span', ''), img = document.createElement('img');
-    top.appendChild(count);
-    top.appendChild(btn('xtv-ib', '✕', W_.close, closeTop));
-    var prev = btn('nav', '‹', '', function () { go(-1); }), next = btn('nav', '›', '', function () { go(1); });
-    mid.appendChild(prev); mid.appendChild(img); mid.appendChild(next);
-    var goPost = btn('lk', '↘ ' + esc(W_.goToPost), '', function () { var id = shots[at].id; closeTop(); goToFloor(id); });
-    bot.appendChild(goPost);
-    box.appendChild(top); box.appendChild(mid); box.appendChild(bot);
-    box.addEventListener('click', function (e) { if (e.target === box || e.target === mid) closeTop(); });
-    function go(d) {
-      at = (at + d + shots.length) % shots.length;
-      img.src = sized(shots[at].url, 'orig');
-      count.textContent = (at + 1) + ' / ' + shots.length;
-      prev.style.visibility = next.style.visibility = shots.length > 1 ? '' : 'hidden';
-      goPost.style.display = view && view.numbers[shots[at].id] ? '' : 'none';
-    }
-    go(0);
-    document.body.appendChild(box);
-    pushLayer({
-      close: function () { box.remove(); },
-      key: function (e) {
-        if (e.key === 'ArrowLeft') { go(-1); return true; }
-        if (e.key === 'ArrowRight') { go(1); return true; }
-        return false;
+  function show(goingBack) {
+    var level = dlg.stack[dlg.stack.length - 1];
+    var depth = dlg.stack.length;
+    dlg.back.innerHTML = depth > 1 ? ICON.back : ICON.close;
+    dlg.back.title = depth > 1 ? W_.back : W_.close;
+    dlg.open.href = '/i/status/' + level.id;
+    var view = el('div', 'xtv-level' + (goingBack ? ' back' : ''));
+    view.appendChild(el('div', 'xtv-spin'));
+    dlg.scroll.innerHTML = '';
+    dlg.scroll.appendChild(view);
+    var mine = dlg;
+    load(level.id).then(function (d) {
+      if (dlg !== mine || dlg.stack[dlg.stack.length - 1] !== level) return;
+      view.innerHTML = '';
+      if (!d.focal) { failed(view, level.id); return; }
+      // The post it answers, small and joined, as X shows it above.
+      var parent = d.ancestors[d.ancestors.length - 1];
+      if (parent) {
+        var p = rowEl(parent, push, false, true, false);
+        p.classList.add('xtv-parent');
+        view.appendChild(p);
       }
+      view.appendChild(focalEl(d.focal, push));
+      renderThreads(view, d.threads);
+      moreButton(view, level.id, d.cursor);
+      if (!d.threads.length && !d.cursor) view.appendChild(el('div', 'xtv-msg', esc(W_.none)));
+      dlg.scroll.scrollTop = goingBack ? level.y : 0;
+    }, function () {
+      if (dlg !== mine) return;
+      view.innerHTML = '';
+      failed(view, level.id);
     });
   }
 
-  // ---- entry: auto-open on a post's page, and a button --------------------------
+  function renderThreads(view, threads) {
+    threads.forEach(function (th) {
+      th.forEach(function (t, i) {
+        view.appendChild(rowEl(t, push, i > 0, i < th.length - 1, i === th.length - 1));
+      });
+    });
+  }
+
+  function moreButton(view, id, cursor) {
+    if (!cursor) return;
+    var b = el('button', 'xtv-more', esc(W_.more));
+    b.type = 'button';
+    b.addEventListener('click', function () {
+      b.disabled = true;
+      b.innerHTML = '<div class="xtv-spin" style="margin:0 auto;width:20px;height:20px"></div>';
+      fetchDetail(id, cursor).then(function (p) {
+        var frag = el('div');
+        renderThreads(frag, p.threads);
+        while (frag.firstChild) view.insertBefore(frag.firstChild, b);
+        b.remove();
+        if (p.cursor && p.cursor !== cursor) moreButton(view, id, p.cursor);
+      }, function () { b.remove(); });
+    });
+    view.appendChild(b);
+  }
+
+  function failed(view, id) {
+    var m = el('div', 'xtv-msg', esc(W_.failed) + '<br>');
+    var a = el('a', '', esc(W_.openInstead));
+    a.href = '/i/status/' + id;
+    a.addEventListener('click', function () { closeDialog(); });
+    m.appendChild(a);
+    view.appendChild(m);
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (!dlg) return;
+    if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); closeDialog(); }
+    else if ((e.key === 'Backspace' || (e.key === 'ArrowLeft' && e.altKey)) && dlg.stack.length > 1 &&
+      !/^(INPUT|TEXTAREA)$/.test((e.target && e.target.tagName) || '')) { e.preventDefault(); e.stopImmediatePropagation(); pop(); }
+  }, true);
+
+  // ---- on X's page: replies open in the dialog --------------------------------
 
   var STATUS = /^\/(?:[^/]+|i\/web|i)\/status\/(\d+)/;
-  var fab = null, lastId = '', closedFor = '';
-  function statusId() {
+  function pageStatus() {
     var m = location.pathname.match(STATUS);
     return m ? m[1] : '';
   }
-  function tick() {
-    if (!document.body) return;
-    var id = statusId();
-    if (id && !fab) {
+  function articleStatus(art) {
+    var t = art.querySelector('a[href*="/status/"] time');
+    var a = t && t.closest('a');
+    return a ? statusIdOf(a.getAttribute('href')) : '';
+  }
+
+  // A click on a reply in the conversation opens it in place. Links, the
+  // action bar, media and menus inside it keep doing what X does.
+  document.addEventListener('click', function (e) {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    var page = pageStatus();
+    if (!page) return;
+    var art = e.target.closest && e.target.closest('article[data-testid="tweet"]');
+    if (!art || (dlg && dlg.veil.contains(art))) return;
+    if (e.target.closest('a,button,[role="button"],[role="menu"],video,[data-testid="tweetPhoto"],[data-testid="card.wrapper"],input,textarea')) return;
+    var id = articleStatus(art);
+    if (!id || id === page) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    openDialog(id);
+  }, true);
+
+  // "Show N replies" under a reply that has replies, in X's blue.
+  function decorate() {
+    var page = pageStatus();
+    if (!page) return;
+    var arts = document.querySelectorAll('article[data-testid="tweet"]:not([data-xtv])');
+    for (var i = 0; i < arts.length; i++) {
+      var art = arts[i];
+      art.setAttribute('data-xtv', '1');
+      var id = articleStatus(art);
+      if (!id || id === page) continue;
+      var rb = art.querySelector('[data-testid="reply"]');
+      var n = parseInt(((rb && rb.getAttribute('aria-label')) || '').replace(/[^\d]/g, ''), 10) || 0;
+      if (!n) continue;
       ensureStyle();
-      fab = btn('xtv-fab', esc(W_.thread), '', function () { var i = statusId(); if (i) openView(i); });
-      document.body.appendChild(fab);
-    } else if (!id && fab) {
-      fab.remove(); fab = null;
-    }
-    if (fab) fab.style.display = layers.length ? 'none' : '';
-    if (id !== lastId) {
-      lastId = id;
-      if (!id) closedFor = '';
-      if (id && !routing && !view && closedFor !== id && pref('auto', true)) openView(id);
+      var link = el('div', 'xtv-show', esc(W_.showReplies(n)));
+      link.setAttribute('role', 'link');
+      link.tabIndex = 0;
+      (function (id) {
+        link.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); openDialog(id); });
+      })(id);
+      art.appendChild(link);
     }
   }
-  setInterval(tick, 400);
-  document.addEventListener('keydown', function (e) {
-    // Alt+T: plain T is X's own repost shortcut.
-    if (e.code !== 'KeyT' || !e.altKey || e.metaKey || e.ctrlKey || layers.length) return;
-    var t = e.target;
-    if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
-    var id = statusId();
-    if (id) { e.preventDefault(); openView(id); }
-  });
+  var pending = 0;
+  new MutationObserver(function () {
+    if (pending) return;
+    pending = requestAnimationFrame(function () { pending = 0; decorate(); });
+  }).observe(document.documentElement, { childList: true, subtree: true });
+  window.addEventListener('popstate', closeDialog);
 })();
