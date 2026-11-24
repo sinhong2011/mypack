@@ -81,3 +81,56 @@ test('renderText links mentions and keeps emails and newlines', () => {
   assert.ok(html.includes('me@x.com'), html);
   assert.ok(html.includes('<br>bye'), html);
 });
+
+// X's 2026 shape: details/counts/*_entities beside a near-empty legacy,
+// entry_id and content (not entryId and itemContent), __typename (not type).
+test('parseDetail reads X 2026 answers', () => {
+  const t = (id, handle, text, extra) => Object.assign({
+    __typename: 'Tweet', rest_id: id,
+    core: { user_results: { result: { core: { name: handle.toUpperCase(), screen_name: handle }, avatar: { image_url: 'https://pbs.twimg.com/a.jpg' }, verification: { is_blue_verified: handle === 'op' } } } },
+    counts: { reply_count: 2, favorite_count: 5, retweet_count: 1, quote_count: 2 },
+    details: { full_text: text, created_at_ms: 1795514501000, display_text_range: [0, text.length] },
+    legacy: { conversation_id_str: '1', lang: 'en' },
+    media_entities2: [], url_entities: [], views: { count: '42' }
+  }, extra || {});
+  const it = (tw) => ({ __typename: 'TimelineTweet', tweet_results: { rest_id: tw.rest_id, result: tw } });
+  const j = { data: { threaded_conversation_with_injections_v2: { instructions: [
+    { __typename: 'TimelineClearCache' },
+    { __typename: 'TimelineAddEntries', entries: [
+      { entry_id: 'tweet-1', content: { __typename: 'TimelineTimelineItem', content: it(t('1', 'op', 'root https://t.co/m', {
+        details: { full_text: 'root https://t.co/m', created_at_ms: 1795514501000, display_text_range: [0, 4] },
+        media_entities2: [{ type: 'photo', media_url_https: 'https://pbs.twimg.com/media/p.jpg', original_info: { width: 10, height: 20 } }]
+      })) } },
+      { entry_id: 'conversationthread-2', content: { __typename: 'TimelineTimelineModule', items: [
+        { entry_id: 'conversationthread-2-tweet-2', item: { content: it(t('2', 'alice', '@op hi', { details: { full_text: '@op hi', created_at_ms: 1795514502000, display_text_range: [4, 6] },
+          reply_to_results: { rest_id: '1' }, reply_to_user_results: { result: { core: { screen_name: 'op' } } },
+          url_entities: [{ url: 'https://t.co/x', expanded_url: 'https://e.com', display_url: 'e.com' }] })) } },
+        { entry_id: 'conversationthread-2-tweet-3', item: { content: it(t('3', 'op', 'yes')) } }
+      ] } },
+      { entry_id: 'cursor-bottom-9', content: { __typename: 'TimelineTimelineCursor', cursor_type: 'Bottom', value: 'NEXT' } }
+    ] },
+    { __typename: 'TimelineTerminateTimeline', direction: 'Top' }
+  ] } } };
+  const d = parseDetail(j, '1');
+  assert.strictEqual(d.focal.id, '1');
+  assert.strictEqual(d.focal.verified, true);
+  assert.strictEqual(d.focal.reposts, 3);
+  assert.strictEqual(d.focal.replies, 2);
+  assert.strictEqual(d.focal.views, 42);
+  assert.strictEqual(d.focal.created.getTime(), 1795514501000);
+  assert.strictEqual(d.focal.media.length, 1);
+  assert.strictEqual(renderText(d.focal), 'root');
+  assert.deepStrictEqual(d.threads.map((th) => th.map((x) => x.id)), [['2', '3']]);
+  const r = d.threads[0][0];
+  assert.strictEqual(r.replyTo, '1');
+  assert.strictEqual(r.replyToHandle, 'op');
+  assert.strictEqual(r.urls[0].url, 'https://e.com');
+  assert.strictEqual(renderText(r), 'hi');
+  assert.strictEqual(d.cursor, 'NEXT');
+});
+
+test('renderText shows X\'s entities as characters, escaped once', () => {
+  const d = parseDetail({ data: { threaded_conversation_with_injections_v2: { instructions: [{ type: 'TimelineAddEntries',
+    entries: [{ entryId: 'tweet-8', content: { itemContent: item(tweet('8', 'a', 'chips &amp; cars &lt;3')) } }] }] } } }, '8');
+  assert.strictEqual(renderText(d.focal), 'chips &amp; cars &lt;3');
+});

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         X Thread View
 // @namespace    https://mypack.dev/userscripts
-// @version      0.6.0
+// @version      0.7.0
 // @description  Open posts and their nested replies full screen over the page, in X's look and icons, without leaving where you are.
 // @match        https://x.com/*
 // @match        https://twitter.com/*
@@ -31,7 +31,7 @@
  * Data: X loads a post with the GraphQL call "TweetDetail". The script
  * keeps the page's own request (its headers, signature included) and asks
  * again with another post's id, with the page's sign-in. It never changes
- * the page's route. Nothing leaves x.com.
+ * the page's route. Nothing leaves X (x.com, api.x.com).
  *
  * Works in MyPack apps and in Violentmonkey / Tampermonkey / ScriptCat.
  */
@@ -43,7 +43,7 @@
   function unwrap(r) {
     if (!r) return null;
     if (r.__typename === 'TweetWithVisibilityResults' && r.tweet) r = r.tweet;
-    if (!r.legacy || !r.rest_id) return null; // tombstone, unavailable
+    if (!r.rest_id || !(r.legacy || r.details)) return null; // tombstone, unavailable
     return r;
   }
 
@@ -53,46 +53,63 @@
     vs.forEach(function (v) {
       if (v.content_type === 'video/mp4' && (!best || (v.bitrate || 0) > (best.bitrate || 0))) best = v;
     });
-    return best ? best.url : '';
+    if (best) return best.url;
+    // X's 2026 shape lists playlists (HLS, which WebKit plays, or mp4).
+    var pl = m.ext_playlists || [], hls = '';
+    for (var i = 0; i < pl.length; i++) {
+      var u = (pl[i] && (pl[i].url || pl[i].playlist_url)) || '';
+      if (/\.mp4(\?|$)/.test(u)) return u;
+      if (!hls && u) hls = u;
+    }
+    return hls;
   }
 
   function normTweet(raw, depth) {
     var r = unwrap(raw);
     if (!r) return null;
-    var L = r.legacy;
+    // X has two shapes: "legacy" holds everything (until 2026), or
+    // "details" (text, time), "counts" and *_entities beside it (2026).
+    var L = r.legacy || {}, D = r.details || {}, C = r.counts || {};
     var u = (r.core && r.core.user_results && r.core.user_results.result) || {};
     var ul = u.legacy || {}, uc = u.core || {};
     var note = r.note_tweet && r.note_tweet.note_tweet_results && r.note_tweet.note_tweet_results.result;
     var ents = (note && note.entity_set) || L.entities || {};
-    var media = ((L.extended_entities && L.extended_entities.media) || (L.entities && L.entities.media) || []).map(function (m) {
-      return { type: m.type, url: m.media_url_https, video: m.type === 'photo' ? '' : bestVideo(m), tco: m.url,
+    var urls = (note && note.entity_set && note.entity_set.urls) || r.url_entities || ents.urls || [];
+    var rawMedia = (r.media_entities2 && r.media_entities2.length && r.media_entities2) ||
+      (L.extended_entities && L.extended_entities.media) || (L.entities && L.entities.media) || [];
+    var media = rawMedia.filter(function (m) { return m && m.media_url_https; }).map(function (m) {
+      return { type: m.type, url: m.media_url_https, video: m.type === 'photo' ? '' : bestVideo(m), tco: m.url || '',
         w: (m.original_info && m.original_info.width) || 0, h: (m.original_info && m.original_info.height) || 0 };
     });
+    function count(k) { return (C[k] != null ? C[k] : L[k]) || 0; }
+    var created = D.created_at_ms ? new Date(+D.created_at_ms) : L.created_at ? new Date(L.created_at) : null;
+    var rtu = r.reply_to_user_results && r.reply_to_user_results.result;
+    var quoted = r.quoted_status_result || r.quoted_tweet_results || r.quoted_post_results;
     var t = {
       id: r.rest_id,
       name: uc.name || ul.name || '',
       handle: uc.screen_name || ul.screen_name || '',
       avatar: (u.avatar && u.avatar.image_url) || ul.profile_image_url_https || '',
-      verified: !!u.is_blue_verified,
-      text: note ? note.text : L.full_text || '',
-      range: note ? null : L.display_text_range || null,
-      urls: (ents.urls || []).map(function (x) { return { tco: x.url, url: x.expanded_url, shown: x.display_url }; }),
-      created: L.created_at ? new Date(L.created_at) : null,
-      replies: L.reply_count || 0,
-      likes: L.favorite_count || 0,
-      reposts: (L.retweet_count || 0) + (L.quote_count || 0),
+      verified: !!(u.is_blue_verified || (u.verification && u.verification.is_blue_verified)),
+      text: note ? note.text : D.full_text || L.full_text || '',
+      range: note ? null : D.display_text_range || L.display_text_range || null,
+      urls: urls.map(function (x) { return { tco: x.url, url: x.expanded_url, shown: x.display_url }; }),
+      created: created,
+      replies: count('reply_count'),
+      likes: count('favorite_count'),
+      reposts: count('retweet_count') + count('quote_count'),
       views: r.views && r.views.count ? +r.views.count : 0,
       media: media,
-      replyTo: L.in_reply_to_status_id_str || '',
-      replyToHandle: L.in_reply_to_screen_name || '',
+      replyTo: L.in_reply_to_status_id_str || (r.reply_to_results && r.reply_to_results.rest_id) || '',
+      replyToHandle: L.in_reply_to_screen_name || (rtu && rtu.core && rtu.core.screen_name) || (rtu && rtu.legacy && rtu.legacy.screen_name) || '',
       quoted: null
     };
-    if ((depth || 0) < 1 && r.quoted_status_result) t.quoted = normTweet(r.quoted_status_result.result, 1);
+    if ((depth || 0) < 1 && quoted && quoted.result) t.quoted = normTweet(quoted.result, 1);
     return t;
   }
 
   function itemTweet(itemContent) {
-    if (!itemContent || itemContent.itemType !== 'TimelineTweet') return null;
+    if (!itemContent || (itemContent.itemType || itemContent.__typename) !== 'TimelineTweet') return null;
     return normTweet(itemContent.tweet_results && itemContent.tweet_results.result);
   }
 
@@ -104,21 +121,24 @@
     var conv = json && json.data && (json.data.threaded_conversation_with_injections_v2 || json.data.threaded_conversation_with_injections);
     var ins = (conv && conv.instructions) || [];
     var seenFocal = false;
-    function cursorOf(c) { return (c && (c.value || (c.itemContent && c.itemContent.value))) || ''; }
+    // An item's content is "itemContent" (until 2026) or "content".
+    function inner(x) { return x && (x.itemContent || x.content); }
+    function cursorOf(c) { return (c && (c.value || (inner(c) && inner(c).value))) || ''; }
     ins.forEach(function (i) {
-      if (i.type === 'TimelineAddToModule') {
+      var type = i.type || i.__typename;
+      if (type === 'TimelineAddToModule') {
         var last = out.threads[out.threads.length - 1];
-        (i.moduleItems || []).forEach(function (it) {
-          var tw = itemTweet(it.item && it.item.itemContent);
+        (i.moduleItems || i.module_items || []).forEach(function (it) {
+          var tw = itemTweet(inner(it.item));
           if (tw && last) last.push(tw);
         });
         return;
       }
-      if (i.type !== 'TimelineAddEntries') return;
+      if (type !== 'TimelineAddEntries') return;
       (i.entries || []).forEach(function (e) {
-        var id = e.entryId || '', c = e.content || {};
+        var id = e.entryId || e.entry_id || '', c = e.content || {};
         if (id.indexOf('tweet-') === 0) {
-          var tw = itemTweet(c.itemContent);
+          var tw = itemTweet(inner(c));
           if (!tw) return;
           if (tw.id === focalId) { out.focal = tw; seenFocal = true; }
           else if (!seenFocal) out.ancestors.push(tw);
@@ -126,7 +146,7 @@
         } else if (id.indexOf('conversationthread-') === 0) {
           var th = [];
           (c.items || []).forEach(function (it) {
-            var tw = itemTweet(it.item && it.item.itemContent);
+            var tw = itemTweet(inner(it.item));
             if (tw) th.push(tw);
           });
           if (th.length) out.threads.push(th);
@@ -137,6 +157,12 @@
     });
     if (!out.focal && out.ancestors.length) out.focal = out.ancestors.pop();
     return out;
+  }
+
+  function unent(s) {
+    return String(s).replace(/&(amp|lt|gt|quot|#39);/g, function (m, n) {
+      return { amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" }[n];
+    });
   }
 
   function esc(s) {
@@ -151,7 +177,8 @@
   function renderText(t) {
     var cps = Array.from(t.text || '');
     if (t.range && t.range.length === 2) cps = cps.slice(t.range[0], t.range[1]);
-    var text = cps.join('');
+    // X sends &, < and > as entities: shown as themselves, escaped once below.
+    var text = unent(cps.join(''));
     t.media.forEach(function (m) { if (m.tco) text = text.split(m.tco).join(''); });
     var links = {};
     t.urls.forEach(function (u) { if (u.tco) links[u.tco] = u; });
@@ -209,7 +236,9 @@
   var tpl = null;   // { url, headers } of the page's last TweetDetail request
   var cache = {};   // focalId -> parsed first page
   var waiters = {}; // key -> [fn]
-  var DETAIL = /\/i\/api\/graphql\/[^/]+\/TweetDetail\?/;
+  var DETAIL = /\/graphql\/[^/?]+\/TweetDetail(?:\?|$)/;
+  var TPL_KEY = 'xtv-tpl';
+  try { tpl = JSON.parse(localStorage.getItem(TPL_KEY) || 'null'); } catch (e) {}
 
   function focalOf(url) {
     try {
@@ -223,9 +252,13 @@
       var lk = k.toLowerCase();
       // The transaction id signs the method and path, which are the same
       // for every TweetDetail call: the page's own works for ours.
-      if (lk === 'authorization' || lk.indexOf('x-twitter-') === 0 || lk === 'content-type' || lk === 'x-client-transaction-id') h[lk] = headers[k];
+      // The CSRF token is read from its cookie for each call instead.
+      if (lk === 'x-csrf-token') return;
+      if (lk === 'authorization' || lk.indexOf('x-') === 0 || lk === 'content-type') h[lk] = headers[k];
     });
     tpl = { url: new URL(url, location.href).href, headers: h };
+    // Kept for the next launch, so posts open over the page from the start.
+    try { localStorage.setItem(TPL_KEY, JSON.stringify(tpl)); } catch (e) {}
     flush('*tpl*', true);
   }
   function flush(key, val) {
@@ -336,7 +369,11 @@
 
   // theme reads the page's background: X's light, dim or dark ("lights out").
   function theme() {
-    var bg = getComputedStyle(document.body).backgroundColor || '';
+    var bg = '', nodes = [document.body, document.documentElement, document.querySelector('main')];
+    for (var i = 0; i < nodes.length && !bg; i++) {
+      var c = nodes[i] && getComputedStyle(nodes[i]).backgroundColor;
+      if (c && !/^transparent$|rgba\([^)]*,\s*0\)$/.test(c)) bg = c;
+    }
     var m = bg.match(/\d+/g) || [255, 255, 255];
     var r = +m[0], g = +m[1], b = +m[2];
     if (r < 10 && g < 10 && b < 10) return 'dark';
@@ -385,6 +422,8 @@ font:15px/20px TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,H
 .xtv-who b{font-weight:700;overflow:hidden;text-overflow:ellipsis;color:var(--fg)}\
 .xtv-who .sub{color:var(--sub);overflow:hidden;text-overflow:ellipsis}\
 .xtv-badge{width:18px;height:18px;align-self:center;color:var(--accent);flex:none}\
+.xtv-badge svg{display:block;width:18px;height:18px}\
+.xtv-nr{display:inline-flex;gap:2px;align-items:center;min-width:0;max-width:100%}\
 .xtv-text{margin-top:2px;white-space:normal;overflow-wrap:anywhere}\
 .xtv-media{display:grid;gap:2px;margin-top:12px;border-radius:16px;overflow:hidden;border:1px solid var(--line)}\
 .xtv-media.n2,.xtv-media.n3,.xtv-media.n4{grid-template-columns:1fr 1fr}\
@@ -483,6 +522,14 @@ font:15px/20px TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,H
   // I is an icon: X's own, taken from the page where X already drew it
   // (its buttons and bars), so it is always X's current icon; the line
   // icons above stand in when the page has none to lend.
+  // X (2026) draws its icons from a sprite of <symbol id="icon-…">, added
+  // as the page first needs each: a <use> of it is X's icon itself.
+  var XSPRITE = {
+    reply: ['icon-reply'], repost: ['icon-repost'], like: ['icon-heart'], views: ['icon-bar-chart'],
+    back: ['icon-arrow-left', 'icon-back'], close: ['icon-close', 'icon-x'],
+    badge: ['icon-verified-premium-color', 'icon-verified'], answer: ['icon-compose', 'icon-reply']
+  };
+  // Until 2026, X's icons were inline in its buttons: they are copied.
   var XICON = {
     reply: '[data-testid="reply"] svg',
     repost: '[data-testid="retweet"] svg, [data-testid="unretweet"] svg',
@@ -496,6 +543,13 @@ font:15px/20px TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,H
   var xicons = {};
   function I(name) {
     if (xicons[name]) return xicons[name];
+    var ids = XSPRITE[name] || [];
+    for (var i = 0; i < ids.length; i++) {
+      if (document.getElementById(ids[i])) {
+        xicons[name] = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><use href="#' + ids[i] + '"></use></svg>';
+        return xicons[name];
+      }
+    }
     var q = XICON[name];
     var src = q && document.querySelector(q);
     if (src && !(layer && layer.root.contains(src))) {
@@ -557,13 +611,43 @@ font:15px/20px TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,H
     var m = location.pathname.match(STATUS);
     return m ? m[1] : '';
   }
-  function articleStatus(art) {
+  // X's markup: until 2026 a post is article[data-testid=tweet] with a
+  // <time> in its link; since, a plain <article> whose time is a link to
+  // /<user>/status/<id> (its photos and stats link deeper than that).
+  var POST = 'article';
+  var REPLY = '[data-testid="reply"], [data-engagement-action="reply"] a, [data-engagement-action="reply"] button';
+  var POST_LINK = /^\/(?:[^/]+|i\/web|i)\/status\/\d+\/?$/;
+  function timeLink(art) {
     var t = art.querySelector('a[href*="/status/"] time');
-    var a = t && t.closest('a');
+    if (t) return t.closest('a');
+    // Its own post links, not a quoted post's: on the post's page the one
+    // to the page's post, else one by the post's author (its avatar's).
+    var links = [].filter.call(art.querySelectorAll('a[href*="/status/"]'), function (a) {
+      return POST_LINK.test(a.getAttribute('href') || '');
+    });
+    var here = pageStatus();
+    for (var i = 0; i < links.length; i++) {
+      if (here && statusIdOf(links[i].getAttribute('href')) === here) return links[i];
+    }
+    var av = art.querySelector('[data-post-avatar] a[href], a[href] img[alt^="@"]');
+    var who = av ? ((av.closest('a') || av).getAttribute('href') || '').split('/')[1] : '';
+    for (var j = 0; who && j < links.length; j++) {
+      if ((links[j].getAttribute('href').split('/')[1] || '').toLowerCase() === who.toLowerCase()) return links[j];
+    }
+    return links[0] || null;
+  }
+  function postOf(node) {
+    var art = node && node.closest && node.closest(POST);
+    // A quoted post is not a post of the page's own.
+    while (art && art.parentElement && art.parentElement.closest(POST)) art = art.parentElement.closest(POST);
+    return art;
+  }
+  function articleStatus(art) {
+    var a = timeLink(art);
     return a ? statusIdOf(a.getAttribute('href')) : '';
   }
   function pageArticle(id) {
-    var arts = document.querySelectorAll('article[data-testid="tweet"]');
+    var arts = document.querySelectorAll(POST);
     for (var i = 0; i < arts.length; i++) {
       if (!(layer && layer.root.contains(arts[i])) && articleStatus(arts[i]) === id) return arts[i];
     }
@@ -574,7 +658,7 @@ font:15px/20px TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,H
     var art = pageArticle(id);
     closeAll(function () {
       if (!art) return;
-      var cell = art.closest('[data-testid="cellInnerDiv"]') || art;
+      var cell = art.closest('[data-testid="cellInnerDiv"], li') || art;
       cell.scrollIntoView({ block: 'center', behavior: RM ? 'auto' : 'smooth' });
       cell.classList.remove('xtv-flash');
       void cell.offsetWidth;
@@ -588,7 +672,7 @@ font:15px/20px TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,H
   var composing = false;
   function compose(id) {
     var art = pageArticle(id);
-    var rb = art && art.querySelector('[data-testid="reply"]');
+    var rb = art && art.querySelector(REPLY);
     closeAll();
     if (rb) {
       composing = true;
@@ -639,8 +723,11 @@ font:15px/20px TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,H
     name.href = '/' + t.handle;
     name.style.color = 'inherit';
     name.addEventListener('click', function (e) { e.stopPropagation(); });
-    w.appendChild(name);
-    if (t.verified) w.appendChild(el('span', 'xtv-badge', I('badge')));
+    // The badge stays on the name's line, as X has it.
+    var nr = el('span', 'xtv-nr');
+    nr.appendChild(name);
+    if (t.verified) nr.appendChild(el('span', 'xtv-badge', I('badge')));
+    w.appendChild(nr);
     w.appendChild(el('span', 'sub', '@' + esc(t.handle)));
     if (!long && t.created) {
       w.appendChild(el('span', 'sub', '·'));
@@ -1018,12 +1105,20 @@ font:15px/20px TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,H
 
   document.addEventListener('click', function (e) {
     if (composing || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-    var art = e.target.closest && e.target.closest('article[data-testid="tweet"]');
+    var art = postOf(e.target);
+    // X (2026) wraps each post in a clickable box around its <article>.
+    if (!art && e.target.closest) {
+      var box = e.target.closest('li');
+      art = box && !(layer && layer.root.contains(box)) && box.querySelector(POST);
+    }
     if (!art || (layer && layer.root.contains(art))) return;
     var id = articleStatus(art);
     if (!id) return;
+    // Until X's request for a post has been seen once, there is nothing to
+    // ask X with: X opens this one, and the next ones open here.
+    if (!tpl && !cache[id]) return;
     // The count opens the replies (on any page), when there are some.
-    var rb = e.target.closest('[data-testid="reply"]');
+    var rb = e.target.closest(REPLY);
     if (rb) {
       if (!replyCount(rb)) return; // none: X's own reply box
       e.preventDefault();
@@ -1034,7 +1129,7 @@ font:15px/20px TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,H
     // A click on a post opens it full screen, over the page (not the post
     // a post's page is about: that one is already open).
     if (id === pageStatus()) return;
-    if (e.target.closest('a,button,[role="button"],[role="menu"],video,[data-testid="tweetPhoto"],[data-testid="card.wrapper"],input,textarea,.xtv-hrp')) return;
+    if (e.target.closest('a,button,[role="button"],[role="menu"],[role="group"],video,[data-testid="tweetPhoto"],[data-testid="card.wrapper"],[data-engagement-action],[data-post-avatar],[data-slot],input,textarea,.xtv-hrp')) return;
     e.preventDefault();
     e.stopImmediatePropagation();
     openSheet(id, art);
@@ -1043,12 +1138,12 @@ font:15px/20px TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,H
   // decorate puts a ↩ reply button in each post's header, after its time,
   // and says on the count that it shows the replies.
   function decorate() {
-    var arts = document.querySelectorAll('article[data-testid="tweet"]:not([data-xtv])');
+    var arts = document.querySelectorAll(POST + ':not([data-xtv])');
     for (var i = 0; i < arts.length; i++) {
       var art = arts[i];
       if (layer && layer.root.contains(art)) continue;
-      var t = art.querySelector('a[href*="/status/"] time');
-      var ta = t && t.closest('a');
+      if (postOf(art) !== art) continue; // a quoted post
+      var ta = timeLink(art);
       if (!ta) continue;
       art.setAttribute('data-xtv', '1');
       var id = statusIdOf(ta.getAttribute('href'));
@@ -1061,7 +1156,7 @@ font:15px/20px TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,H
         b.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); compose(id); });
       })(id);
       ta.insertAdjacentElement('afterend', b);
-      var rb = art.querySelector('[data-testid="reply"]');
+      var rb = art.querySelector(REPLY);
       var n = replyCount(rb);
       if (rb && n) rb.setAttribute('title', W_.showRepliesOf(n));
     }
