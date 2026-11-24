@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         X Thread View
 // @namespace    https://mypack.dev/userscripts
-// @version      0.8.0
+// @version      0.9.0
 // @description  Open posts and their nested replies full screen over the page, in X's look and icons, without leaving where you are.
 // @match        https://x.com/*
 // @match        https://twitter.com/*
@@ -257,6 +257,7 @@
       if (lk === 'authorization' || lk.indexOf('x-') === 0 || lk === 'content-type') h[lk] = headers[k];
     });
     tpl = { url: new URL(url, location.href).href, headers: h };
+    noTid = false; // a fresh transaction id: worth trying again
     // Kept for the next launch, so posts open over the page from the start.
     try { localStorage.setItem(TPL_KEY, JSON.stringify(tpl)); } catch (e) {}
     flush('*tpl*', true);
@@ -329,6 +330,7 @@
 
   // fetchDetail asks TweetDetail for focalId (and a page cursor), with the
   // page's own request: without its transaction id first if X refuses it.
+  var noTid = false;
   function fetchDetail(focalId, cursor) {
     var ready = tpl ? Promise.resolve() : wait('*tpl*', 8000);
     return ready.then(function () {
@@ -348,11 +350,14 @@
           return r.json();
         });
       };
+      var h2 = Object.assign({}, h);
+      delete h2['x-client-transaction-id'];
+      // Once X has refused the page's transaction id, don't spend a
+      // round trip on it again.
+      if (noTid) return ask(h2);
       return ask(h).catch(function (e) {
         if (!h['x-client-transaction-id']) throw e;
-        var h2 = Object.assign({}, h);
-        delete h2['x-client-transaction-id'];
-        return ask(h2);
+        return ask(h2).then(function (j) { noTid = true; return j; });
       });
     }).then(function (j) {
       if (j && j.errors && !j.data) throw new Error((j.errors[0] && j.errors[0].message) || 'error');
@@ -360,10 +365,52 @@
     });
   }
 
+  // load gives a post's first page: from the cache, from the request
+  // already on its way (a hover started it), or from a new request.
+  var inflight = {};
   function load(focalId) {
     if (cache[focalId]) return Promise.resolve(cache[focalId]);
-    return fetchDetail(focalId).then(function (d) { cache[focalId] = d; return d; });
+    if (inflight[focalId]) return inflight[focalId];
+    var p = fetchDetail(focalId).then(function (d) {
+      cache[focalId] = d;
+      delete inflight[focalId];
+      return d;
+    }, function (e) {
+      delete inflight[focalId];
+      throw e;
+    });
+    inflight[focalId] = p;
+    return p;
   }
+
+  // prefetch starts loading a post the pointer rests on, so its panel
+  // usually has its replies by the time it opens. A few at a time.
+  var hoverTimer = 0, hoverId = '';
+  function prefetch(id) {
+    if (!id || !tpl || cache[id] || inflight[id] || Object.keys(inflight).length >= 3) return;
+    load(id).catch(function () {});
+  }
+  document.addEventListener('pointerover', function (e) {
+    if (e.pointerType && e.pointerType !== 'mouse') return;
+    var t = e.target, id = '';
+    var mine = t.closest && t.closest('[data-xtv-id]');
+    if (mine) id = mine.getAttribute('data-xtv-id');
+    else {
+      var art = postOf(t);
+      if (art && !(layer && layer.root.contains(art))) id = articleStatus(art);
+      if (id && id === pageStatus()) id = '';
+    }
+    if (id === hoverId) return;
+    hoverId = id;
+    clearTimeout(hoverTimer);
+    if (id) hoverTimer = setTimeout(function () { prefetch(id); }, 120);
+  }, true);
+  // A press is a surer sign than a hover: start at once.
+  document.addEventListener('pointerdown', function (e) {
+    var t = e.target, mine = t.closest && t.closest('[data-xtv-id]');
+    var art = !mine && postOf(t);
+    prefetch(mine ? mine.getAttribute('data-xtv-id') : art && !(layer && layer.root.contains(art)) ? articleStatus(art) : '');
+  }, true);
 
   // ---- X's look ------------------------------------------------------------------
 
@@ -769,6 +816,7 @@ font:15px/20px TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,H
     box.appendChild(el('div', 'xtv-text', renderText(q)));
     var m = mediaEl(q, ctx);
     if (m) box.appendChild(m);
+    box.setAttribute('data-xtv-id', q.id);
     box.addEventListener('click', function (e) { e.stopPropagation(); if (!e.target.closest('a,video,img')) ctx.open(q.id); });
     return box;
   }
@@ -777,6 +825,7 @@ font:15px/20px TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,H
   // below in its thread; a click opens it on top.
   function rowEl(t, ctx, up, down, last) {
     var row = el('div', 'xtv-row' + (last ? ' last' : ''));
+    row.setAttribute('data-xtv-id', t.id);
     row.setAttribute('role', 'link');
     row.tabIndex = 0;
     var rail = el('div', 'xtv-rail');
