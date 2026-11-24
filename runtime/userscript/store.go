@@ -102,6 +102,27 @@ func (s Store) now() time.Time {
 
 func (s Store) indexPath() string { return filepath.Join(s.Dir, "index.json") }
 
+// Modified is when the index last changed (zero for a missing store): a
+// window showing the store reloads when it moves, whoever changed it.
+func (s Store) Modified() time.Time {
+	fi, err := os.Stat(s.indexPath())
+	if err != nil {
+		return time.Time{}
+	}
+	return fi.ModTime()
+}
+
+// Sum is the SHA-256 (hex) of an installed script's file: the same file
+// as a hub entry pinned with that hash.
+func (s Store) Sum(id string) (string, error) {
+	b, err := os.ReadFile(filepath.Join(s.Dir, filepath.Base(id), "script.user.js"))
+	if err != nil {
+		return "", err
+	}
+	h := sha256.Sum256(b)
+	return hex.EncodeToString(h[:]), nil
+}
+
 // Read loads index.json; a missing store is empty.
 func (s Store) Read() (Index, error) {
 	b, err := os.ReadFile(s.indexPath())

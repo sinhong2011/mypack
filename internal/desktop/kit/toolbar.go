@@ -266,17 +266,14 @@ func ToolbarIcon(c *ui.Context, ic *ui.SVG, title string) ui.Element {
 	return b
 }
 
-// pillCount is a segment's count badge: quiet, tinted with the accent on
-// the chosen segment.
+// pillCount is a segment's count: a plain number after its label, a
+// step quieter than it (no badge, no tint).
 func pillCount(c *ui.Context, n string, chosen bool) {
 	p := design.Of(c)
-	bg, fg := p.Fill, p.TextTertiary
+	fg := p.TextTertiary
 	if chosen {
-		bg, fg = p.AccentSoft, p.AccentText
+		fg = p.TextSecondary
 	}
-	ui.Row(c).Height(18).MinWidth(18).PaddingX(6).Radius(9).Center().Background(bg).
-		Transition(ui.ElementTransition{Animation: &pillFade, Colors: true}).Children(func() {
-		ui.Text(c, n).FontSize(design.FontCaption).FontWeight(design.WeightSemibold).TextColor(fg).SingleLine().
-			Transition(ui.ElementTransition{Animation: &pillFade, Colors: true})
-	})
+	ui.Text(c, n).FontSize(design.FontSmall).TextColor(fg).SingleLine().
+		Transition(ui.ElementTransition{Animation: &pillFade, Colors: true})
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -26,7 +27,9 @@ type extState struct {
 	hub       []catalog.Script
 	installed []userscript.Entry
 	metas     map[string]userscript.Meta // by entry id
+	sums      map[string]string          // SHA-256 of each installed file, by entry id
 	loaded    bool
+	indexMod  time.Time       // the store's index when it was read: a change reloads
 	busy      map[string]bool // hub URL or entry id with work in flight
 	addr      string          // "Install from address" field
 	addrBusy  bool
@@ -70,6 +73,7 @@ func (a *App) loadExtensions() {
 
 func (a *App) reloadInstalledExtensions() {
 	st := a.extStore()
+	a.ext.indexMod = st.Modified()
 	ix, err := st.Read()
 	a.ext.loaded = true
 	if err != nil {
@@ -78,11 +82,22 @@ func (a *App) reloadInstalledExtensions() {
 	}
 	a.ext.installed = ix.Scripts
 	a.ext.metas = map[string]userscript.Meta{}
+	a.ext.sums = map[string]string{}
 	for _, e := range ix.Scripts {
 		if m, err := st.ReadMeta(e.ID); err == nil {
 			a.ext.metas[e.ID] = m
 		}
+		if sum, err := st.Sum(e.ID); err == nil {
+			a.ext.sums[e.ID] = sum
+		}
 	}
+}
+
+// extVerified reports whether e is byte for byte the file its hub entry
+// pins (by SHA-256): only then does MyPack call it the Hub's.
+func (a *App) extVerified(e userscript.Entry) bool {
+	h := a.hubFor(e)
+	return h != nil && !e.Edited && a.ext.sums[e.ID] != "" && strings.EqualFold(a.ext.sums[e.ID], h.SHA256)
 }
 
 // hubInstalled finds the installed copy of a hub entry.

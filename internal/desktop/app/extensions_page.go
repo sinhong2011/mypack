@@ -31,7 +31,9 @@ func (a *App) extToolbar(c *ui.Context) {
 }
 
 func (a *App) extensionsView(c *ui.Context) {
-	if !a.ext.loaded {
+	// Installs, updates and removals elsewhere (the CLI, another window)
+	// show here as soon as the store's index changes.
+	if !a.ext.loaded || !a.extStore().Modified().Equal(a.ext.indexMod) {
 		a.reloadInstalledExtensions()
 	}
 	if a.ext.edit.open {
@@ -139,12 +141,6 @@ func (a *App) extInstalledRow(c *ui.Context, e userscript.Entry) {
 				if e.Version != "" {
 					ui.Text(c, e.Version).FontSize(design.FontCaption).TextColor(p.TextTertiary)
 				}
-				switch {
-				case e.Edited:
-					kit.StatusPill(c, T("ext.editor.editedPill"), kit.ToneAccent)
-				case a.hubFor(e) != nil:
-					kit.StatusPill(c, T("ext.badge.reviewed"), kit.ToneSuccess)
-				}
 			})
 			if e.Description != "" {
 				ui.Text(c, e.Description).FontSize(design.FontSmall).TextColor(p.TextSecondary).SingleLine()
@@ -155,7 +151,25 @@ func (a *App) extInstalledRow(c *ui.Context, e userscript.Entry) {
 			}
 			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 				kit.Glyph(c, icons.Globe, 12, p.TextTertiary)
-				ui.Text(c, sitesLabel(m.Sites())+"  ·  "+scope).FontSize(design.FontCaption).TextColor(p.TextTertiary).SingleLine()
+				ui.Text(c, sitesLabel(m.Sites())+"  ·  "+scope).FontSize(design.FontCaption).TextColor(p.TextTertiary).SingleLine().MinWidth(0)
+				// Where the file stands, in words: the Hub's exact file, a
+				// changed copy, or behind the Hub. Nothing for the rest.
+				where, tone := "", p.TextTertiary
+				switch {
+				case e.Edited:
+					where, tone = T("ext.editor.editedPill"), p.AccentText
+				case a.extVerified(e):
+					where = T("ext.badge.hub")
+				case a.hubFor(e) != nil:
+					where, tone = T("ext.badge.update"), p.AccentText
+				}
+				if where != "" {
+					ui.Text(c, "·").FontSize(design.FontCaption).TextColor(p.TextTertiary)
+					if a.extVerified(e) {
+						kit.Glyph(c, icons.Shield, 12, p.TextTertiary)
+					}
+					ui.Text(c, where).FontSize(design.FontCaption).TextColor(tone).SingleLine()
+				}
 			})
 		})
 		if a.extBusy(e.ID) {
@@ -216,14 +230,11 @@ func (a *App) extHubCard(c *ui.Context, s catalog.Script) {
 			kit.Placeholder(c, s.Name, 46)
 			ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
 				ui.Text(c, s.Name).FontSize(design.FontBodyLG).FontWeight(design.WeightSemibold).TextColor(p.Text).SingleLine()
-				ui.Row(c).Gap(5).AlignItems(ui.Center).Children(func() {
-					kit.Glyph(c, icons.Shield, 12, p.Success)
-					by := s.Author
-					if by == "" {
-						by = "MyPack"
-					}
-					ui.Text(c, T("ext.badge.reviewedBy", "author", by)).FontSize(design.FontCaption).TextColor(p.TextSecondary).SingleLine()
-				})
+				by := s.Author
+				if by == "" {
+					by = "MyPack"
+				}
+				ui.Text(c, T("ext.badge.by", "author", by)).FontSize(design.FontCaption).TextColor(p.TextSecondary).SingleLine()
 			})
 		})
 		ui.Text(c, s.Description).FontSize(design.FontSmall).TextColor(p.TextSecondary).LineHeight(1.45).MaxLines(3).Grow(1)

@@ -2,6 +2,8 @@ package userscript
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"os"
 	"path/filepath"
@@ -247,5 +249,25 @@ func TestCheck(t *testing.T) {
 	w := Check("// ==UserScript==\n// @name a\n// @grant GM_xmlhttpRequest\n// @run-at soon\n// ==/UserScript==")
 	if len(w) != 2 || HasErrors(w) {
 		t.Errorf("warnings = %+v", w)
+	}
+}
+
+func TestStoreSumAndModified(t *testing.T) {
+	st := Store{Dir: t.TempDir()}
+	if !st.Modified().IsZero() {
+		t.Fatal("an empty store has no index time")
+	}
+	src := "// ==UserScript==\n// @name Sum\n// @match https://example.com/*\n// ==/UserScript==\n"
+	e, _, err := st.Install(context.Background(), []byte(src), InstallOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Modified().IsZero() {
+		t.Fatal("installing writes the index")
+	}
+	sum, err := st.Sum(e.ID)
+	h := sha256.Sum256([]byte(src))
+	if err != nil || sum != hex.EncodeToString(h[:]) {
+		t.Fatalf("Sum = %q, %v", sum, err)
 	}
 }

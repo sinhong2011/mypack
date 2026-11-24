@@ -189,27 +189,24 @@ func (a *App) extDetailSheet(c *ui.Context) {
 					ui.Text(c, strings.Join(sub, " · ")).FontSize(design.FontSmall).TextColor(p.TextSecondary).SingleLine()
 				}
 			})
-			switch {
-			case e == nil:
-				kit.StatusPill(c, T("ext.detail.notInstalled"), kit.ToneNeutral).AlignSelf(ui.Center)
-			case e.Enabled:
-				kit.StatusPill(c, T("ext.detail.on"), kit.ToneSuccess).AlignSelf(ui.Center)
-			default:
-				kit.StatusPill(c, T("ext.detail.off"), kit.ToneNeutral).AlignSelf(ui.Center)
-			}
+			// Whether it is on is the switch below; no pill repeats it.
 		})
-		ui.Scroll(c).MaxHeight(520).Children(func() {
+		// What it is and where it comes from stay in view, above the
+		// scrolling part (the sheet's focus scrolls to its first switch).
+		if desc != "" {
+			kit.SheetBody(c, desc)
+		}
+		if e != nil && e.Edited {
+			kit.Note(c, icons.Edit, T("ext.detail.edited"), kit.ToneAccent)
+		} else if hub != nil && (e == nil || a.extVerified(*e)) {
+			kit.Note(c, icons.Shield, T("ext.review.reviewed"), kit.ToneNeutral)
+		} else if hub != nil {
+			kit.Note(c, icons.Refresh, T("ext.detail.behindHub"), kit.ToneAccent)
+		} else if e != nil {
+			kit.Note(c, icons.Warning, T("ext.detail.unreviewed"), kit.ToneWarning)
+		}
+		ui.Scroll(c).MaxHeight(440).Children(func() {
 			ui.Column(c).Gap(14).Padding(0, 2, 2, 2).Children(func() {
-				if desc != "" {
-					kit.SheetBody(c, desc)
-				}
-				if e != nil && e.Edited {
-					kit.Note(c, icons.Edit, T("ext.detail.edited"), kit.ToneAccent)
-				} else if hub != nil {
-					kit.Note(c, icons.Shield, T("ext.review.reviewed"), kit.ToneSuccess)
-				} else if e != nil {
-					kit.Note(c, icons.Warning, T("ext.detail.unreviewed"), kit.ToneWarning)
-				}
 				if e != nil {
 					a.extManageGroup(c, e)
 				}
