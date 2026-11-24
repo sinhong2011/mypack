@@ -19,9 +19,6 @@ import (
 // cards open the Details sheet; the toolbar's Add Extension opens a sheet
 // with the three ways to add one (address, file, write it).
 
-// extTabsGlide pairs the tabs' thumb across its segments (kit.Glide).
-type extTabsGlide struct{}
-
 // extToolbar is the page's primary action, where New App is elsewhere.
 func (a *App) extToolbar(c *ui.Context) {
 	if a.ext.edit.open {
@@ -61,11 +58,11 @@ func (a *App) extensionsView(c *ui.Context) {
 func (a *App) extTabsRow(c *ui.Context) {
 	ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
 		segs := []kit.PillSegment{
-			{Label: T("ext.tab.installed", "n", len(a.ext.installed))},
-			{Label: T("ext.tab.hub", "n", len(a.ext.hub))},
+			{Label: T("ext.tab.installed"), Count: fmt.Sprint(len(a.ext.installed))},
+			{Label: T("ext.tab.hub"), Count: fmt.Sprint(len(a.ext.hub))},
 		}
 		was := a.ext.tab
-		if kit.PillSegmented(c.Key("tabs"), &a.ext.tab, segs, T("nav.extensions"), extTabsGlide{}, true) {
+		if kit.PillSegmented(c.Key("tabs"), &a.ext.tab, segs, T("nav.extensions"), true) {
 			a.ext.tabDir = 1
 			if a.ext.tab < was {
 				a.ext.tabDir = -1

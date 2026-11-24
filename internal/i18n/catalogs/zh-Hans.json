@@ -861,6 +861,6 @@
   "ext.manage": "管理",
   "ext.search.installed": "搜索已安装",
   "ext.search.hub": "搜索扩展中心",
-  "ext.tab.installed": "已安装 · {n}",
-  "ext.tab.hub": "扩展中心 · {n}"
+  "ext.tab.installed": "已安装",
+  "ext.tab.hub": "扩展中心"
 }

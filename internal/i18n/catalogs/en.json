@@ -1003,6 +1003,6 @@
   "ext.manage": "Manage",
   "ext.search.installed": "Search installed",
   "ext.search.hub": "Search the Hub",
-  "ext.tab.installed": "Installed · {n}",
-  "ext.tab.hub": "Hub · {n}"
+  "ext.tab.installed": "Installed",
+  "ext.tab.hub": "Hub"
 }
