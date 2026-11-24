@@ -9,8 +9,8 @@
         "x.com",
         "twitter.com"
       ],
-      "url": "https://raw.githubusercontent.com/sinhong2011/mypack/3d2026743e414987c0e3fa09867a1d88fbd7bb99/examples/userscripts/x-thread-view.user.js",
-      "sha256": "e366692c343a49e3ff2e4e1d43e103774adb5a8934276f7facdf44fbc9ea47cf",
+      "url": "https://raw.githubusercontent.com/sinhong2011/mypack/1d1f2a26ed84efe793163506bae36ad2a7d9d7d6/examples/userscripts/x-thread-view.user.js",
+      "sha256": "7341fb5237b8e21092ed9521e09d7759ba907d65c17118e188e3e98a83a4d238",
       "homepage": "https://github.com/sinhong2011/mypack/tree/main/examples/userscripts"
     }
   ]
