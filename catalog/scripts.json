@@ -3,11 +3,14 @@
   "scripts": [
     {
       "name": "X Thread View",
-      "description": "Read an X post as a forum thread: numbered floors, OP tagged, and each reply's sub-thread in a modal.",
+      "description": "Read an X conversation like a forum thread: numbered floors in time order, quotes of the post each floor answers, and each post's replies in a panel.",
       "author": "MyPack",
-      "sites": ["x.com", "twitter.com"],
-      "url": "https://raw.githubusercontent.com/sinhong2011/mypack/913c95ceb9f100f98f4c5cb36c12621dcf1a0d9c/examples/userscripts/x-thread-view.user.js",
-      "sha256": "caf0ece27ca0e3f98df2196b3630a805cd090bbbd27c9e7a78d2759291aaec63",
+      "sites": [
+        "x.com",
+        "twitter.com"
+      ],
+      "url": "https://raw.githubusercontent.com/sinhong2011/mypack/b41f13ac8913254a671d69203ba4e0206814118b/examples/userscripts/x-thread-view.user.js",
+      "sha256": "b7c29057567343f7526e862c0e4191302858434ca5bf93cbdcd7e0cb8cfbde80",
       "homepage": "https://github.com/sinhong2011/mypack/tree/main/examples/userscripts"
     }
   ]
