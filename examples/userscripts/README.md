@@ -25,4 +25,4 @@ saw (in x.com's local storage) for the next launch; until it has seen one, the f
 
 X changes its web app often: the 2026 redesign moved the API to `api.x.com`, reshaped its answers and dropped the
 `data-testid` markup. The parser (`parseDetail`) reads both answer shapes and the page code both markups; expect to update
-them from time to time. `x-thread-view.test.js` covers the parser: `node --test examples/userscripts/`.
+them from time to time. `x-thread-view.test.js` covers the parser: `node --test examples/userscripts/x-thread-view.test.js`.
