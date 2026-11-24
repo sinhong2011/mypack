@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         X Thread View
 // @namespace    https://mypack.dev/userscripts
-// @version      0.4.0
-// @description  Open a reply's nested replies in place, in stacked X-style panels, without leaving the post you are reading.
+// @version      0.6.0
+// @description  Open posts and their nested replies full screen over the page, in X's look and icons, without leaving where you are.
 // @match        https://x.com/*
 // @match        https://twitter.com/*
 // @run-at       document-start
@@ -15,11 +15,13 @@
  * panel over the page instead, in X's own look, the way Hong Kong forums
  * open a post's replies:
  *
- *  - Click a reply (or "Show N replies" under it): the reply and its
- *    replies open in a panel. The page, its route and scroll stay.
- *  - Every reply shows its own "N replies" chip. Opening one stacks a new
- *    panel on top; the ones below stay, stepped back, so you see how deep
- *    you are, and closing the top one shows the one below as you left it.
+ *  - A post's 💬 N count shows its replies: they open in a panel, and the
+ *    page, its route and scroll stay. (With no replies it does what X
+ *    does.) Writing a reply moves to a ↩ in the post's header.
+ *  - On a post's page a click on a reply opens it the same way.
+ *  - In a panel, each post's 💬 N opens its replies in a new panel on top;
+ *    the ones below stay, stepped back, so you see how deep you are, and
+ *    closing the top one shows the one below as you left it.
  *  - "Go to reply" closes the panels and shows that reply where it is on
  *    the page, highlighted.
  *  - A "Replies" bar and an end mark say where the replies start and end.
@@ -192,12 +194,12 @@
     post: '貼文', close: '關閉', open: '開啟貼文', showReplies: function (n) { return '顯示 ' + n + ' 則回覆'; },
     replies: function (n) { return n + ' 則回覆'; }, more: '顯示更多回覆', none: '還沒有回覆', end: '已顯示所有回覆',
     replyingTo: '回覆給', failed: '無法載入這篇貼文。', openInstead: '改為開啟貼文', views: '次查看',
-    goTo: '前往回覆', repliesHead: '回覆', photo: '相片'
+    goTo: '前往回覆', repliesHead: '回覆', photo: '相片', reply: '回覆', showRepliesOf: function (n) { return n + ' 則回覆，按此查看'; }
   } : {
     post: 'Post', close: 'Close', open: 'Open post', showReplies: function (n) { return 'Show ' + n + (n === 1 ? ' reply' : ' replies'); },
     replies: function (n) { return n + (n === 1 ? ' reply' : ' replies'); }, more: 'Show more replies', none: 'No replies yet', end: 'That’s all the replies',
     replyingTo: 'Replying to', failed: 'This post could not be loaded.', openInstead: 'Open the post instead', views: 'Views',
-    goTo: 'Go to reply', repliesHead: 'Replies', photo: 'Photo'
+    goTo: 'Go to reply', repliesHead: 'Replies', photo: 'Photo', reply: 'Reply', showRepliesOf: function (n) { return n + (n === 1 ? ' reply' : ' replies') + ': show'; }
   };
 
   // ---- capture X's own TweetDetail calls ------------------------------------
@@ -343,27 +345,19 @@
   }
 
   var CSS = '\
-.xtv-veil{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;background:rgba(91,112,131,.4);animation:xtv-fade .14s ease-out}\
-.xtv-veil.leaving{animation:xtv-unfade .16s ease-in forwards}\
-@keyframes xtv-fade{from{opacity:0}to{opacity:1}}@keyframes xtv-unfade{to{opacity:0}}\
-.xtv-stack{position:relative;width:600px;max-width:100vw;height:min(90vh,820px)}\
-.xtv-dlg{--bg:#fff;--fg:#0f1419;--sub:#536471;--line:#eff3f4;--thread:#cfd9de;--hover:rgba(0,0,0,.03);--accent:#1d9bf0;--chip:rgba(29,155,240,.1);--chiphover:rgba(29,155,240,.2);--btnhover:rgba(15,20,25,.1);\
---d:0;--i:0;position:absolute;inset:calc(var(--i) * 10px) 0 0 0;background:var(--bg);color:var(--fg);border-radius:16px;display:flex;flex-direction:column;overflow:hidden;\
-font:15px/20px TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;\
-box-shadow:rgba(101,119,134,.2) 0 0 15px,rgba(101,119,134,.15) 0 0 3px 1px;\
-transform:translateY(calc(var(--d) * -14px)) scale(calc(1 - var(--d) * .045));transform-origin:50% 0;\
-transition:transform .28s cubic-bezier(.2,.8,.2,1),filter .28s,opacity .28s,top .28s;animation:xtv-rise .3s cubic-bezier(.2,.8,.2,1)}\
-.xtv-dlg.dim{--bg:#15202b;--fg:#f7f9f9;--sub:#8b98a5;--line:#38444d;--thread:#38444d;--hover:rgba(255,255,255,.03);--btnhover:rgba(239,243,244,.1)}\
-.xtv-dlg.dark{--bg:#000;--fg:#e7e9ea;--sub:#71767b;--line:#2f3336;--thread:#333639;--hover:rgba(255,255,255,.03);--btnhover:rgba(239,243,244,.1);box-shadow:rgba(255,255,255,.2) 0 0 15px,rgba(255,255,255,.15) 0 0 3px 1px}\
-.xtv-dlg.under{filter:brightness(.78);pointer-events:none}\
-.xtv-dlg.dark.under,.xtv-dlg.dim.under{filter:brightness(.62)}\
-.xtv-dlg.far{opacity:0}\
-.xtv-dlg.leaving{animation:xtv-drop .2s cubic-bezier(.4,0,1,1) forwards}\
-@keyframes xtv-rise{from{transform:translateY(48px);opacity:0}to{transform:translateY(0);opacity:1}}\
-@keyframes xtv-drop{to{transform:translateY(48px);opacity:0}}\
-@media (max-width:700px){.xtv-stack{height:100vh}.xtv-dlg{border-radius:0}}\
+.xtv-layer{position:fixed;inset:0;z-index:2147483000;overflow:hidden}\
+.xtv-dlg{--bg:#fff;--fg:#0f1419;--sub:#536471;--line:#eff3f4;--thread:#cfd9de;--hover:rgba(0,0,0,.03);--accent:#1d9bf0;--chip:rgba(29,155,240,.1);--chiphover:rgba(29,155,240,.2);--btnhover:rgba(15,20,25,.1);--bar:rgba(255,255,255,.85);--skel:rgba(15,20,25,.06);\
+position:absolute;inset:0;background:var(--bg);color:var(--fg);display:flex;flex-direction:column;overflow:hidden;will-change:transform;\
+font:15px/20px TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;box-shadow:-10px 0 30px rgba(0,0,0,.18)}\
+.xtv-dlg.dim{--bg:#15202b;--fg:#f7f9f9;--sub:#8b98a5;--line:#38444d;--thread:#38444d;--hover:rgba(255,255,255,.03);--btnhover:rgba(239,243,244,.1);--bar:rgba(21,32,43,.75);--skel:rgba(255,255,255,.07)}\
+.xtv-dlg.dark{--bg:#000;--fg:#e7e9ea;--sub:#71767b;--line:#2f3336;--thread:#333639;--hover:rgba(255,255,255,.03);--btnhover:rgba(239,243,244,.1);--bar:rgba(0,0,0,.65);--skel:rgba(255,255,255,.07);box-shadow:-10px 0 30px rgba(0,0,0,.6)}\
+.xtv-dlg.under{pointer-events:none}\
+.xtv-shade{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .34s cubic-bezier(.2,.8,.2,1)}\
+.xtv-dlg.under .xtv-shade{opacity:.35}\
+.xtv-col{max-width:600px;margin:0 auto;min-height:100%;border-left:1px solid var(--line);border-right:1px solid var(--line)}\
+@media (max-width:640px){.xtv-col{border:0}}\
 .xtv-dlg a{color:var(--accent);text-decoration:none}.xtv-dlg a:hover{text-decoration:underline}\
-.xtv-top{display:flex;align-items:center;gap:12px;height:53px;padding:0 16px;flex:none}\
+.xtv-top{display:flex;align-items:center;gap:20px;height:53px;padding:0 16px;position:sticky;top:0;z-index:2;background:var(--bar);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}\
 .xtv-ttl{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center}\
 .xtv-ttl h2{margin:0;font-size:20px;line-height:24px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
 .xtv-crumb{color:var(--sub);font-size:13px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
@@ -371,6 +365,13 @@ transition:transform .28s cubic-bezier(.2,.8,.2,1),filter .28s,opacity .28s,top 
 .xtv-ib:hover{background:var(--btnhover)}\
 .xtv-ib svg{width:20px;height:20px}\
 .xtv-scroll{flex:1;overflow-y:auto;overscroll-behavior:contain}\
+.xtv-ib svg,.xtv-act svg,.xtv-rp svg,.xtv-hrp svg,.xtv-badge svg,.xtv-light .lb svg{fill:currentColor}\
+.xtv-ib svg path[fill="none"],.xtv-act svg path[fill="none"]{fill:none}\
+.xtv-skel{display:flex;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line)}\
+.xtv-skel i{display:block;border-radius:999px;background:linear-gradient(90deg,var(--skel) 25%,rgba(128,128,128,.14) 50%,var(--skel) 75%);background-size:300% 100%;animation:xtv-shim 1.2s ease-in-out infinite}\
+.xtv-skel .a{width:40px;height:40px;flex:none}\
+.xtv-skel .l{display:flex;flex-direction:column;gap:8px;flex:1;padding-top:4px}\
+@keyframes xtv-shim{0%{background-position:100% 0}100%{background-position:0 0}}\
 .xtv-row{display:flex;gap:12px;padding:12px 16px 0;cursor:pointer;transition:background .2s}\
 .xtv-row:hover{background:var(--hover)}\
 .xtv-rail{display:flex;flex-direction:column;align-items:center;flex:none;width:40px}\
@@ -396,6 +397,14 @@ transition:transform .28s cubic-bezier(.2,.8,.2,1),filter .28s,opacity .28s,top 
 .xtv-acts{display:flex;justify-content:space-between;max-width:425px;margin-top:12px;color:var(--sub);font-size:13px}\
 .xtv-act{display:flex;align-items:center;gap:4px;min-width:0}\
 .xtv-act svg{width:18.75px;height:18.75px}\
+.xtv-act.open{appearance:none;border:0;background:none;font:inherit;font-size:13px;color:var(--sub);cursor:pointer;padding:0;margin:-8px 0 -8px -8px;height:34px;padding:0 8px;border-radius:999px;transition:color .2s,background .2s}\
+.xtv-act.open:hover{color:var(--accent);background:var(--chip)}\
+.xtv-rp{appearance:none;border:0;background:none;color:var(--sub);width:30px;height:30px;margin:-6px -6px -6px 2px;border-radius:50%;display:inline-grid;place-items:center;cursor:pointer;flex:none;align-self:center;transition:color .2s,background .2s}\
+.xtv-rp:hover{color:var(--accent);background:var(--chip)}\
+.xtv-rp svg{width:17px;height:17px}\
+.xtv-hrp{appearance:none;border:0;background:none;color:rgb(113,118,123);width:30px;height:30px;margin:-5px 0 -5px 6px;border-radius:50%;display:inline-grid;place-items:center;cursor:pointer;vertical-align:middle;transition:color .2s,background .2s}\
+.xtv-hrp:hover{color:#1d9bf0;background:rgba(29,155,240,.1)}\
+.xtv-hrp svg{width:17px;height:17px}\
 .xtv-foot{display:flex;align-items:center;gap:12px;margin-top:10px;min-height:28px}\
 .xtv-chip{appearance:none;border:0;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;border-radius:999px;background:var(--chip);color:var(--accent);font:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:background .2s}\
 .xtv-chip:hover{background:var(--chiphover)}\
@@ -421,12 +430,10 @@ transition:transform .28s cubic-bezier(.2,.8,.2,1),filter .28s,opacity .28s,top 
 .xtv-msg a{display:inline-block;margin-top:12px}\
 .xtv-spin{width:26px;height:26px;margin:40px auto;border-radius:50%;border:3px solid rgba(29,155,240,.2);border-top-color:var(--accent,#1d9bf0);animation:xtv-rot .75s linear infinite}\
 @keyframes xtv-rot{to{transform:rotate(360deg)}}\
-.xtv-show{display:inline-flex;align-items:center;gap:6px;margin:0 0 12px 68px;color:#1d9bf0;font-size:15px;cursor:pointer;font-family:TwitterChirp,-apple-system,BlinkMacSystemFont,sans-serif}\
-.xtv-show:hover{text-decoration:underline}\
-.xtv-show svg{width:16px;height:16px}\
 @keyframes xtv-flash{0%,30%{background:rgba(29,155,240,.18)}100%{background:transparent}}\
 .xtv-flash{animation:xtv-flash 1.6s ease-out}\
-.xtv-light{position:fixed;inset:0;z-index:2147483010;background:rgba(0,0,0,.9);display:flex;align-items:center;justify-content:center;animation:xtv-fade .14s ease-out}\
+.xtv-light{position:fixed;inset:0;z-index:2147483010;background:rgba(0,0,0,.9);display:flex;align-items:center;justify-content:center}\
+@keyframes xtv-fade{from{opacity:0}to{opacity:1}}\
 .xtv-light img{max-width:calc(100vw - 160px);max-height:calc(100vh - 96px);object-fit:contain}\
 .xtv-light .lb{position:absolute;appearance:none;border:0;width:36px;height:36px;border-radius:50%;background:rgba(15,20,25,.75);color:#fff;display:grid;place-items:center;cursor:pointer;transition:background .2s}\
 .xtv-light .lb:hover{background:rgba(39,44,48,.75)}\
@@ -459,17 +466,68 @@ transition:transform .28s cubic-bezier(.2,.8,.2,1),filter .28s,opacity .28s,top 
 
   // Simple line icons in X's weight (not X's own drawings).
   var ICON = {
+    back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M11 18l-6-6 6-6"/></svg>',
     close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
     open: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>',
     reply: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"><path d="M4 11.5C4 7.4 7.4 4.5 11.5 4.5h1C16.6 4.5 20 7.4 20 11.3c0 4-3.4 6.7-7.6 6.7H11l-4.5 3v-3.5C4.9 16.4 4 14.1 4 11.5z"/></svg>',
     repost: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7 20V8a2 2 0 0 1 2-2h7"/><path d="M4 17l3 3 3-3"/><path d="M17 4v12a2 2 0 0 1-2 2H8"/><path d="M20 7l-3-3-3 3"/></svg>',
     like: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"><path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.2a4.3 4.3 0 0 1 7.5 2.6C19.5 15.4 12 20 12 20z"/></svg>',
     views: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M5 20V12M10 20V4M15 20v-9M20 20v-5"/></svg>',
+    answer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 8L5 13l5 5"/><path d="M5 13h9a5 5 0 0 0 5-5V5"/></svg>',
     goto: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7v6a3 3 0 0 0 3 3h8"/><path d="M14 12l4 4-4 4"/></svg>',
     prev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>',
     next: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>',
     badge: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l2.4 1.8 3-.2.9 2.9 2.5 1.7-1 2.8 1 2.8-2.5 1.7-.9 2.9-3-.2L12 21.5l-2.4-1.8-3 .2-.9-2.9-2.5-1.7 1-2.8-1-2.8 2.5-1.7.9-2.9 3 .2z"/><path d="M8.5 12.2l2.3 2.3 4.7-4.9" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
   };
+
+  // I is an icon: X's own, taken from the page where X already drew it
+  // (its buttons and bars), so it is always X's current icon; the line
+  // icons above stand in when the page has none to lend.
+  var XICON = {
+    reply: '[data-testid="reply"] svg',
+    repost: '[data-testid="retweet"] svg, [data-testid="unretweet"] svg',
+    like: '[data-testid="like"] svg',
+    views: 'a[href*="/analytics"] svg',
+    back: '[data-testid="app-bar-back"] svg',
+    close: '[data-testid="app-bar-close"] svg',
+    badge: '[data-testid="icon-verified"]',
+    answer: '[data-testid="SideNav_NewTweet_Button"] svg'
+  };
+  var xicons = {};
+  function I(name) {
+    if (xicons[name]) return xicons[name];
+    var q = XICON[name];
+    var src = q && document.querySelector(q);
+    if (src && !(layer && layer.root.contains(src))) {
+      var c = src.cloneNode(true);
+      c.removeAttribute('class');
+      c.removeAttribute('style');
+      c.setAttribute('aria-hidden', 'true');
+      c.querySelectorAll('[class]').forEach(function (n) { n.removeAttribute('class'); });
+      xicons[name] = c.outerHTML;
+      return xicons[name];
+    }
+    return ICON[name] || '';
+  }
+
+  // Motion: one easing, X's speed; none when the system asks for less.
+  var RM = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  var EASE = 'cubic-bezier(.2,.8,.2,1)', EASE_OUT = 'cubic-bezier(.4,0,.2,1)';
+  function anim(node, frames, opts) {
+    if (RM || !node.animate) return { finished: Promise.resolve() };
+    var a = node.animate(frames, opts);
+    if (!a.finished) a.finished = new Promise(function (r) { a.onfinish = r; });
+    return a;
+  }
+  function insetOf(r) {
+    var vw = window.innerWidth, vh = window.innerHeight;
+    return 'inset(' + Math.max(0, r.top) + 'px ' + Math.max(0, vw - r.right) + 'px ' + Math.max(0, vh - r.bottom) + 'px ' + Math.max(0, r.left) + 'px round 16px)';
+  }
+  function onScreen(node) {
+    if (!node || !node.isConnected) return null;
+    var r = node.getBoundingClientRect();
+    return r.width > 0 && r.bottom > 0 && r.top < window.innerHeight ? r : null;
+  }
 
   function num(n) {
     if (!n) return '';
@@ -505,20 +563,37 @@ transition:transform .28s cubic-bezier(.2,.8,.2,1),filter .28s,opacity .28s,top 
   function pageArticle(id) {
     var arts = document.querySelectorAll('article[data-testid="tweet"]');
     for (var i = 0; i < arts.length; i++) {
-      if (!(layer && layer.veil.contains(arts[i])) && articleStatus(arts[i]) === id) return arts[i];
+      if (!(layer && layer.root.contains(arts[i])) && articleStatus(arts[i]) === id) return arts[i];
     }
     return null;
   }
   // goTo closes the panels and shows id where it is on the page.
   function goTo(id) {
     var art = pageArticle(id);
+    closeAll(function () {
+      if (!art) return;
+      var cell = art.closest('[data-testid="cellInnerDiv"]') || art;
+      cell.scrollIntoView({ block: 'center', behavior: RM ? 'auto' : 'smooth' });
+      cell.classList.remove('xtv-flash');
+      void cell.offsetWidth;
+      cell.classList.add('xtv-flash');
+    });
+  }
+
+
+  // compose opens X's own reply box for id: the post's reply button on the
+  // page when it is there, else X's reply window.
+  var composing = false;
+  function compose(id) {
+    var art = pageArticle(id);
+    var rb = art && art.querySelector('[data-testid="reply"]');
     closeAll();
-    if (!art) return;
-    var cell = art.closest('[data-testid="cellInnerDiv"]') || art;
-    cell.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    cell.classList.remove('xtv-flash');
-    void cell.offsetWidth;
-    cell.classList.add('xtv-flash');
+    if (rb) {
+      composing = true;
+      try { rb.click(); } finally { composing = false; }
+      return;
+    }
+    window.open('/intent/post?in_reply_to=' + id, '_blank', 'width=600,height=640');
   }
 
   // ---- posts, X's way ---------------------------------------------------------------
@@ -539,7 +614,7 @@ transition:transform .28s cubic-bezier(.2,.8,.2,1),filter .28s,opacity .28s,top 
         var img = document.createElement('img');
         img.src = sized(m.url, n > 1 ? 'small' : 'medium'); img.loading = 'lazy'; img.alt = W_.photo;
         var shot = ctx.photo(m.url, t.id);
-        img.addEventListener('click', function (e) { e.stopPropagation(); ctx.viewer(shot); });
+        img.addEventListener('click', function (e) { e.stopPropagation(); ctx.viewer(shot, img); });
         box.appendChild(img);
       }
     });
@@ -563,7 +638,7 @@ transition:transform .28s cubic-bezier(.2,.8,.2,1),filter .28s,opacity .28s,top 
     name.style.color = 'inherit';
     name.addEventListener('click', function (e) { e.stopPropagation(); });
     w.appendChild(name);
-    if (t.verified) w.appendChild(el('span', 'xtv-badge', ICON.badge));
+    if (t.verified) w.appendChild(el('span', 'xtv-badge', I('badge')));
     w.appendChild(el('span', 'sub', '@' + esc(t.handle)));
     if (!long && t.created) {
       w.appendChild(el('span', 'sub', '·'));
@@ -571,25 +646,28 @@ transition:transform .28s cubic-bezier(.2,.8,.2,1),filter .28s,opacity .28s,top 
       tm.title = t.created.toLocaleString();
       w.appendChild(tm);
     }
+    // Writing a reply lives here; the 💬 count shows the replies.
+    w.appendChild(button('xtv-rp', I('answer'), W_.reply, function () { compose(t.id); }));
     return w;
   }
 
-  function actsEl(t, big) {
+  function actsEl(t, big, ctx) {
     var a = el('div', 'xtv-acts');
     [['reply', t.replies], ['repost', t.reposts], ['like', t.likes], ['views', t.views]].forEach(function (p) {
       if (big && p[0] === 'views') return;
-      a.appendChild(el('div', 'xtv-act', ICON[p[0]] + '<span>' + num(p[1]) + '</span>'));
+      if (p[0] === 'reply' && t.replies > 0 && ctx) {
+        a.appendChild(button('xtv-act open', I('reply') + '<span>' + num(p[1]) + '</span>', W_.showRepliesOf(t.replies), function () { ctx.open(t.id); }));
+        return;
+      }
+      a.appendChild(el('div', 'xtv-act', I(p[0]) + '<span>' + num(p[1]) + '</span>'));
     });
     return a;
   }
 
   // footEl: the 💬 N chip that opens the replies on top, and "Go to reply"
   // when the post is on the page underneath.
-  function footEl(t, ctx, withChip) {
+  function footEl(t) {
     var f = el('div', 'xtv-foot');
-    if (withChip && t.replies > 0) {
-      f.appendChild(button('xtv-chip', ICON.reply + '<span>' + esc(W_.replies(t.replies)) + '</span>', '', function () { ctx.open(t.id); }));
-    }
     if (pageArticle(t.id)) f.appendChild(button('xtv-goto', ICON.goto + '<span>' + esc(W_.goTo) + '</span>', '', function () { goTo(t.id); }));
     return f.childNodes.length ? f : null;
   }
@@ -627,8 +705,8 @@ transition:transform .28s cubic-bezier(.2,.8,.2,1),filter .28s,opacity .28s,top 
     var m = mediaEl(t, ctx);
     if (m) main.appendChild(m);
     if (t.quoted) main.appendChild(quoteEl(t.quoted, ctx));
-    main.appendChild(actsEl(t, false));
-    var f = footEl(t, ctx, true);
+    main.appendChild(actsEl(t, false, ctx));
+    var f = footEl(t);
     if (f) main.appendChild(f);
     row.appendChild(main);
     row.addEventListener('click', function (e) {
@@ -647,7 +725,10 @@ transition:transform .28s cubic-bezier(.2,.8,.2,1),filter .28s,opacity .28s,top 
     head.appendChild(avatarEl(t));
     var w = whoEl(t, true);
     w.style.flexDirection = 'column'; w.style.gap = '0'; w.style.alignItems = 'flex-start';
+    w.style.flex = '1';
+    var rp = w.querySelector('.xtv-rp');
     head.appendChild(w);
+    if (rp) { rp.style.margin = '0'; head.appendChild(rp); }
     box.appendChild(head);
     if (t.replyToHandle) box.appendChild(el('div', 'xtv-reply-to', esc(W_.replyingTo) + ' <a href="/' + esc(t.replyToHandle) + '">@' + esc(t.replyToHandle) + '</a>'));
     box.appendChild(el('div', 'xtv-text', renderText(t)));
@@ -659,72 +740,102 @@ transition:transform .28s cubic-bezier(.2,.8,.2,1),filter .28s,opacity .28s,top 
         t.created.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
       box.appendChild(el('div', 'xtv-when', esc(when) + (t.views ? ' · <b>' + esc(num(t.views)) + '</b> ' + esc(W_.views) : '')));
     }
-    box.appendChild(actsEl(t, true));
-    var f = footEl(t, ctx, false);
+    box.appendChild(actsEl(t, true, ctx));
+    var f = footEl(t);
     if (f) box.appendChild(f);
     return box;
   }
 
-  // ---- stacked panels: each reply opens on top, the ones below stay -----------------
+  // ---- full-screen levels: a post opens over the page, its replies push on top ---------
 
-  var layer = null;   // { veil, stack, overflow }
-  var sheets = [];    // open panels, bottom first: { id, el, name }
+  var layer = null;   // { root, theme, overflow }
+  var sheets = [];    // open levels, bottom first: { id, el, body, shade, name, from }
   var viewer = null;  // the photo viewer, when open
 
-  function restack() {
-    sheets.forEach(function (s, i) {
-      var d = sheets.length - 1 - i;
-      s.el.style.setProperty('--d', Math.min(d, 3));
-      s.el.style.setProperty('--i', Math.min(i, 3)); // each panel sits lower: the ones under it peek out above
-      s.el.classList.toggle('under', d > 0);
-      s.el.classList.toggle('far', d > 3);
-      s.el.setAttribute('aria-hidden', d > 0 ? 'true' : 'false');
-    });
+  function crumb() {
     var top = sheets[sheets.length - 1];
-    if (top) {
-      var crumb = top.el.querySelector('.xtv-crumb');
-      var names = sheets.map(function (s) { return s.name; }).filter(Boolean);
-      crumb.textContent = names.length > 1 ? names.join(' › ') : '';
-      crumb.style.display = names.length > 1 ? '' : 'none';
-    }
+    if (!top) return;
+    var c = top.el.querySelector('.xtv-crumb');
+    var names = sheets.map(function (x) { return x.name; }).filter(Boolean);
+    c.textContent = names.length > 1 ? names.join(' › ') : '';
+    c.style.display = names.length > 1 ? '' : 'none';
   }
 
-  function openSheet(id) {
+  function skeleton() {
+    var box = el('div', '');
+    for (var i = 0; i < 4; i++) {
+      var row = el('div', 'xtv-skel');
+      row.appendChild(el('i', 'a'));
+      var l = el('div', 'l');
+      [38, 92, 74].forEach(function (w, j) { var b = el('i'); b.style.width = (j ? w : w) + '%'; b.style.height = j ? '12px' : '14px'; l.appendChild(b); });
+      row.appendChild(l);
+      box.appendChild(row);
+    }
+    return box;
+  }
+
+  // openSheet shows post id full screen: from the post that was clicked
+  // (it grows out of it), or pushed in from the right over the level below.
+  function openSheet(id, from) {
     ensureStyle();
-    var top = sheets[sheets.length - 1];
-    if (top && top.id === id) return;
+    var prev = sheets[sheets.length - 1];
+    if (prev && prev.id === id) return;
     if (!layer) {
       var th = theme();
-      var veil = el('div', 'xtv-veil ' + th);
-      var stack = el('div', 'xtv-stack');
-      veil.appendChild(stack);
-      veil.addEventListener('mousedown', function (e) { if (e.target === veil) closeTop(); });
-      document.body.appendChild(veil);
-      layer = { veil: veil, stack: stack, theme: th, overflow: document.documentElement.style.overflow };
+      var root = el('div', 'xtv-layer');
+      document.body.appendChild(root);
+      layer = { root: root, theme: th, overflow: document.documentElement.style.overflow };
       document.documentElement.style.overflow = 'hidden';
     }
     var sheet = el('div', 'xtv-dlg ' + layer.theme);
     sheet.setAttribute('role', 'dialog');
     sheet.setAttribute('aria-modal', 'true');
+    var scroll = el('div', 'xtv-scroll');
+    var col = el('div', 'xtv-col');
     var bar = el('div', 'xtv-top');
-    bar.appendChild(button('xtv-ib', ICON.close, W_.close, closeTop));
+    bar.appendChild(button('xtv-ib', I('back'), W_.close, closeTop));
     var ttl = el('div', 'xtv-ttl', '<h2>' + esc(W_.post) + '</h2>');
     ttl.appendChild(el('div', 'xtv-crumb'));
     bar.appendChild(ttl);
     var open = el('a', 'xtv-ib', ICON.open);
     open.href = '/i/status/' + id;
     open.title = W_.open;
-    open.addEventListener('click', function () { closeAll(); });
+    open.addEventListener('click', function (e) { e.preventDefault(); closeAll(function () { location.assign(open.href); }); });
     bar.appendChild(open);
-    var scroll = el('div', 'xtv-scroll');
-    scroll.appendChild(el('div', 'xtv-spin'));
-    sheet.appendChild(bar);
+    var body = el('div', '');
+    body.appendChild(skeleton());
+    col.appendChild(bar);
+    col.appendChild(body);
+    scroll.appendChild(col);
     sheet.appendChild(scroll);
-    layer.stack.appendChild(sheet);
-    var s = { id: id, el: sheet, name: '' };
+    var shade = el('div', 'xtv-shade');
+    sheet.appendChild(shade);
+    layer.root.appendChild(sheet);
+    var s = { id: id, el: sheet, body: body, shade: shade, name: '', from: from || null };
     sheets.push(s);
-    restack();
-    fill(s, scroll);
+    crumb();
+    if (!prev) {
+      var r = onScreen(from);
+      if (r) {
+        anim(sheet, [{ clipPath: insetOf(r) }, { clipPath: 'inset(0px 0px 0px 0px round 0px)' }], { duration: 420, easing: EASE });
+        anim(col, [{ opacity: 0.2, transform: 'translateY(' + Math.round(Math.min(120, Math.max(-120, r.top - 60))) + 'px)' }, { opacity: 1, transform: 'none' }], { duration: 420, easing: EASE });
+      } else {
+        anim(sheet, [{ opacity: 0, transform: 'translateY(28px)' }, { opacity: 1, transform: 'none' }], { duration: 300, easing: EASE });
+      }
+    } else {
+      park(prev, true);
+      anim(sheet, [{ transform: 'translateX(100%)' }, { transform: 'translateX(0)' }], { duration: 360, easing: EASE });
+    }
+    fill(s, body);
+  }
+
+  // park moves the level under the top one aside (dimmed), or back.
+  function park(s, under) {
+    var a = under ? 'translateX(0)' : 'translateX(-24%)', b = under ? 'translateX(-24%)' : 'translateX(0)';
+    s.el.style.transform = b;
+    s.el.classList.toggle('under', under);
+    s.el.setAttribute('aria-hidden', under ? 'true' : 'false');
+    anim(s.el, [{ transform: a }, { transform: b }], { duration: 360, easing: EASE });
   }
 
   // fill loads a panel: the post it answers, the post, "Replies", the
@@ -732,16 +843,16 @@ transition:transform .28s cubic-bezier(.2,.8,.2,1),filter .28s,opacity .28s,top 
   function fill(s, scroll) {
     var shots = [];
     var ctx = {
-      open: openSheet,
+      open: function (id) { openSheet(id); },
       photo: function (url, from) { var i = shots.length; shots.push({ url: url, from: from }); return i; },
-      viewer: function (i) { openViewer(shots, i); }
+      viewer: function (i, thumb) { openViewer(shots, i, thumb); }
     };
     load(s.id).then(function (d) {
       if (sheets.indexOf(s) < 0) return;
       scroll.innerHTML = '';
       if (!d.focal) { failed(scroll, s.id); return; }
       s.name = d.focal.name || '@' + d.focal.handle;
-      restack();
+      crumb();
       var parent = d.ancestors[d.ancestors.length - 1];
       if (parent) scroll.appendChild(rowEl(parent, ctx, false, true, false));
       scroll.appendChild(focalEl(d.focal, ctx));
@@ -752,6 +863,7 @@ transition:transform .28s cubic-bezier(.2,.8,.2,1),filter .28s,opacity .28s,top 
       scroll.appendChild(list);
       renderThreads(list, d.threads, ctx);
       tail(list, s.id, d.cursor, ctx, !d.threads.length);
+      anim(scroll, [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 240, easing: EASE });
     }, function () {
       if (sheets.indexOf(s) < 0) return;
       scroll.innerHTML = '';
@@ -778,7 +890,11 @@ transition:transform .28s cubic-bezier(.2,.8,.2,1),filter .28s,opacity .28s,top 
       b.innerHTML = '<div class="xtv-spin" style="margin:0 auto;width:20px;height:20px"></div>';
       fetchDetail(id, cursor).then(function (p) {
         b.remove();
+        var before = list.children.length;
         renderThreads(list, p.threads, ctx);
+        for (var k = before; k < list.children.length; k++) {
+          anim(list.children[k], [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 260, delay: Math.min(k - before, 10) * 30, easing: EASE, fill: 'backwards' });
+        }
         tail(list, id, p.cursor && p.cursor !== cursor ? p.cursor : '', ctx, false);
       }, function () { b.remove(); tail(list, id, '', ctx, false); });
     });
@@ -795,105 +911,157 @@ transition:transform .28s cubic-bezier(.2,.8,.2,1),filter .28s,opacity .28s,top 
   }
 
   function closeTop() {
-    if (viewer) { viewer.remove(); viewer = null; return; }
+    if (viewer) { closeViewer(); return; }
     var s = sheets.pop();
     if (!s) return;
-    s.el.classList.add('leaving');
-    setTimeout(function () { s.el.remove(); }, 200);
-    if (sheets.length) { restack(); return; }
+    if (sheets.length) {
+      park(sheets[sheets.length - 1], false);
+      crumb();
+      anim(s.el, [{ transform: 'translateX(0)' }, { transform: 'translateX(100%)' }], { duration: 300, easing: EASE_OUT })
+        .finished.then(function () { s.el.remove(); });
+      return;
+    }
     var l = layer;
     layer = null;
-    l.veil.classList.add('leaving');
-    setTimeout(function () { l.veil.remove(); }, 170);
     document.documentElement.style.overflow = l.overflow;
+    var r = onScreen(s.from);
+    var a = r
+      ? anim(s.el, [{ clipPath: 'inset(0px 0px 0px 0px round 0px)', opacity: 1 }, { clipPath: insetOf(r), opacity: 0.4 }], { duration: 340, easing: EASE_OUT })
+      : anim(s.el, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(28px)' }], { duration: 220, easing: EASE_OUT });
+    l.root.style.pointerEvents = 'none';
+    a.finished.then(function () { l.root.remove(); });
   }
-  function closeAll() {
+  // closeAll fades every level out at once, then runs then.
+  function closeAll(then) {
     if (viewer) { viewer.remove(); viewer = null; }
-    if (!layer) return;
-    layer.veil.remove();
-    document.documentElement.style.overflow = layer.overflow;
+    if (!layer) { if (then) then(); return; }
+    var l = layer;
     layer = null;
     sheets = [];
+    document.documentElement.style.overflow = l.overflow;
+    l.root.style.pointerEvents = 'none';
+    anim(l.root, [{ opacity: 1 }, { opacity: 0 }], { duration: 180, easing: EASE_OUT }).finished.then(function () {
+      l.root.remove();
+      if (then) then();
+    });
   }
 
-  // ---- photos open over the panels, not on X's photo page ---------------------------
+  // ---- photos zoom out of their thumbnail, over the levels ---------------------------
 
-  function openViewer(shots, at) {
+  function closeViewer() {
+    var v = viewer;
+    viewer = null;
+    if (!v) return;
+    anim(v, [{ opacity: 1 }, { opacity: 0 }], { duration: 180, easing: EASE_OUT }).finished.then(function () { v.remove(); });
+  }
+
+  function openViewer(shots, at, thumb) {
     if (!shots.length) return;
     var box = el('div', 'xtv-light');
     var img = document.createElement('img');
     img.alt = W_.photo;
     var ct = el('div', 'ct');
     box.appendChild(img);
-    box.appendChild(button('lb x', ICON.close, W_.close, function () { box.remove(); viewer = null; }));
+    box.appendChild(button('lb x', I('close'), W_.close, closeViewer));
     var many = shots.length > 1;
     if (many) {
       box.appendChild(ct);
       box.appendChild(button('lb p', ICON.prev, '', function () { go(-1); }));
       box.appendChild(button('lb nx', ICON.next, '', function () { go(1); }));
     }
-    var goBtn = button('go', esc(W_.goTo), '', function () { var id = shots[at].from; box.remove(); viewer = null; goTo(id); });
+    var goBtn = button('go', esc(W_.goTo), '', function () { var id = shots[at].from; if (viewer) { viewer.remove(); viewer = null; } goTo(id); });
     box.appendChild(goBtn);
-    box.addEventListener('mousedown', function (e) { if (e.target === box) { box.remove(); viewer = null; } });
+    box.addEventListener('mousedown', function (e) { if (e.target === box) closeViewer(); });
+    var first = true;
     function go(d) {
       at = (at + d + shots.length) % shots.length;
-      img.src = sized(shots[at].url, 'large');
+      var next = sized(shots[at].url, 'large');
+      if (!first) anim(img, [{ opacity: 0.3, transform: 'translateX(' + (d > 0 ? 24 : -24) + 'px)' }, { opacity: 1, transform: 'none' }], { duration: 220, easing: EASE });
+      img.src = next;
       ct.textContent = (at + 1) + ' / ' + shots.length;
       goBtn.style.display = pageArticle(shots[at].from) ? '' : 'none';
     }
     go(0);
+    first = false;
     box.go = go;
     document.body.appendChild(box);
     viewer = box;
+    anim(box, [{ backgroundColor: 'rgba(0,0,0,0)' }, { backgroundColor: 'rgba(0,0,0,.9)' }], { duration: 260, easing: EASE });
+    // Zoom from the thumbnail once the photo has its size.
+    var from = onScreen(thumb);
+    var zoom = function () {
+      var to = img.getBoundingClientRect();
+      if (!from || !to.width) { anim(img, [{ opacity: 0, transform: 'scale(.96)' }, { opacity: 1, transform: 'none' }], { duration: 240, easing: EASE }); return; }
+      var sx = from.width / to.width, sy = from.height / to.height;
+      var dx = from.left + from.width / 2 - (to.left + to.width / 2), dy = from.top + from.height / 2 - (to.top + to.height / 2);
+      anim(img, [{ transform: 'translate(' + dx + 'px,' + dy + 'px) scale(' + sx + ',' + sy + ')', borderRadius: '16px' }, { transform: 'none', borderRadius: '0' }], { duration: 320, easing: EASE });
+    };
+    if (img.complete && img.naturalWidth) zoom(); else img.addEventListener('load', zoom, { once: true });
   }
 
   document.addEventListener('keydown', function (e) {
     if (!layer && !viewer) return;
     if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); closeTop(); return; }
+    if (!viewer && e.key === 'ArrowLeft' && e.altKey) { e.preventDefault(); e.stopImmediatePropagation(); closeTop(); return; }
     if (viewer && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
       e.preventDefault(); e.stopImmediatePropagation(); viewer.go(e.key === 'ArrowLeft' ? -1 : 1);
     }
   }, true);
 
-  // ---- on X's page: replies open in place --------------------------------------------
+  // ---- on X's page: the 💬 count shows replies; writing one moves up -----------------
 
-  // A click on a reply in the conversation opens it in place. Links, the
-  // action bar, media and menus inside it keep doing what X does.
+  function replyCount(rb) {
+    return parseInt(((rb && rb.getAttribute('aria-label')) || '').replace(/[^\d]/g, ''), 10) || 0;
+  }
+
   document.addEventListener('click', function (e) {
-    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-    var page = pageStatus();
-    if (!page) return;
+    if (composing || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     var art = e.target.closest && e.target.closest('article[data-testid="tweet"]');
-    if (!art || (layer && layer.veil.contains(art))) return;
-    if (e.target.closest('a,button,[role="button"],[role="menu"],video,[data-testid="tweetPhoto"],[data-testid="card.wrapper"],input,textarea,.xtv-show')) return;
+    if (!art || (layer && layer.root.contains(art))) return;
     var id = articleStatus(art);
-    if (!id || id === page) return;
+    if (!id) return;
+    // The count opens the replies (on any page), when there are some.
+    var rb = e.target.closest('[data-testid="reply"]');
+    if (rb) {
+      if (!replyCount(rb)) return; // none: X's own reply box
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      openSheet(id, art);
+      return;
+    }
+    // A click on a post opens it full screen, over the page (not the post
+    // a post's page is about: that one is already open).
+    if (id === pageStatus()) return;
+    if (e.target.closest('a,button,[role="button"],[role="menu"],video,[data-testid="tweetPhoto"],[data-testid="card.wrapper"],input,textarea,.xtv-hrp')) return;
     e.preventDefault();
     e.stopImmediatePropagation();
-    openSheet(id);
+    openSheet(id, art);
   }, true);
 
-  // "Show N replies" under a reply that has replies, in X's blue.
+  // decorate puts a ↩ reply button in each post's header, after its time,
+  // and says on the count that it shows the replies.
   function decorate() {
-    var page = pageStatus();
-    if (!page) return;
     var arts = document.querySelectorAll('article[data-testid="tweet"]:not([data-xtv])');
     for (var i = 0; i < arts.length; i++) {
       var art = arts[i];
+      if (layer && layer.root.contains(art)) continue;
+      var t = art.querySelector('a[href*="/status/"] time');
+      var ta = t && t.closest('a');
+      if (!ta) continue;
       art.setAttribute('data-xtv', '1');
-      var id = articleStatus(art);
-      if (!id || id === page) continue;
-      var rb = art.querySelector('[data-testid="reply"]');
-      var n = parseInt(((rb && rb.getAttribute('aria-label')) || '').replace(/[^\d]/g, ''), 10) || 0;
-      if (!n) continue;
+      var id = statusIdOf(ta.getAttribute('href'));
       ensureStyle();
-      var link = el('div', 'xtv-show', ICON.reply + '<span>' + esc(W_.showReplies(n)) + '</span>');
-      link.setAttribute('role', 'link');
-      link.tabIndex = 0;
+      var b = el('button', 'xtv-hrp', I('answer'));
+      b.type = 'button';
+      b.title = W_.reply;
+      b.setAttribute('aria-label', W_.reply);
       (function (id) {
-        link.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); openSheet(id); });
+        b.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); compose(id); });
       })(id);
-      art.appendChild(link);
+      ta.insertAdjacentElement('afterend', b);
+      var rb = art.querySelector('[data-testid="reply"]');
+      var n = replyCount(rb);
+      if (rb && n) rb.setAttribute('title', W_.showRepliesOf(n));
     }
   }
   var pending = 0;
