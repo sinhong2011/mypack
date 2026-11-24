@@ -3,14 +3,14 @@
   "scripts": [
     {
       "name": "X Thread View",
-      "description": "Read an X conversation like a forum thread: numbered floors in time order, quotes of the post each floor answers, and each post's replies in a panel.",
+      "description": "Open a reply's nested replies in place, in an X-style dialog, without leaving the post you are reading.",
       "author": "MyPack",
       "sites": [
         "x.com",
         "twitter.com"
       ],
-      "url": "https://raw.githubusercontent.com/sinhong2011/mypack/b41f13ac8913254a671d69203ba4e0206814118b/examples/userscripts/x-thread-view.user.js",
-      "sha256": "b7c29057567343f7526e862c0e4191302858434ca5bf93cbdcd7e0cb8cfbde80",
+      "url": "https://raw.githubusercontent.com/sinhong2011/mypack/51ad5dd84f7dd011674873a6f73aaa2dcaa45a54/examples/userscripts/x-thread-view.user.js",
+      "sha256": "6034a8c1f9c494c9f07818030ae1519702b29a1787dce7f315e3c31d45617225",
       "homepage": "https://github.com/sinhong2011/mypack/tree/main/examples/userscripts"
     }
   ]
