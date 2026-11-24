@@ -254,6 +254,11 @@ func TestSettingsNeedReloadAndRestart(t *testing.T) {
 	if !settingsNeedRestart(a, b) {
 		t.Fatal("title bar should restart")
 	}
+	b = a.Clone()
+	b.WebView.DevTools = !a.WebView.DevTools
+	if !settingsNeedRestart(a, b) {
+		t.Fatal("developer tools are allowed when a page is made: a change should restart")
+	}
 }
 
 func TestCopyUserPrefsLeavesIdentity(t *testing.T) {

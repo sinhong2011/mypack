@@ -224,7 +224,7 @@ const views = {
       ${S.webview.userAgentPreset === "custom" ? field("uac", lab("Custom user agent") + `<div class="ctrl grow">${txt("userAgent")}</div>`) : ""}
       ${field("restore", lab("Restore last page") + tog("restoreLastUrl"))}
       ${field("find", lab("Find in page", boot.lite ? "Needs the full runtime." : "") + tog("findInPage"))}
-      ${field("dev", lab("Developer tools") + tog("devTools"))}
+      ${field("dev", lab("Developer tools", "Inspect pages with View › Toggle Developer Tools (" + (navigator.platform.indexOf("Mac") === 0 ? "⌥⌘I" : "Ctrl+Shift+I") + ") or right-click › Inspect Element. Applies after a restart.") + tog("devTools"))}
     </div>
     <h2>Stay in the app</h2>
     <div class="card">

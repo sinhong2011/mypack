@@ -557,7 +557,9 @@ func settingsNeedRestart(a, b *config.Config) bool {
 		a.Window.Tabs != b.Window.Tabs ||
 		a.Window.EffectiveMode() != b.Window.EffectiveMode() ||
 		a.Native.Camera != b.Native.Camera ||
-		a.Native.Microphone != b.Native.Microphone
+		a.Native.Microphone != b.Native.Microphone ||
+		// A page's inspector is allowed when the page is made.
+		a.WebView.DevTools != b.WebView.DevTools
 }
 
 func blockingKey(b *config.BlockingConfig) string {
