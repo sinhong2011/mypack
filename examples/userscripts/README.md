@@ -5,7 +5,7 @@ Tampermonkey and ScriptCat.
 
 | Script | What it does |
 | --- | --- |
-| [x-thread-view.user.js](x-thread-view.user.js) | Reads an X post as a forum thread, in the style of HK forums: numbered floors (#1 is the post), the original poster tagged OP, a reply's own chain kept in one floor, and each reply's sub-thread opened in a modal (stackable, Esc closes). Open it with the **☰ Thread view** button on a post page or Alt+T. |
+| [x-thread-view.user.js](x-thread-view.user.js) | Reads an X conversation as a forum thread, in the way Hong Kong forums do: every post a numbered floor in time order from the first post; a floor that answers another quotes it at its top, quotes of quotes nested; 💬 N opens a panel with the post, "Quoted by" and its replies (each with "Go to reply"), panels stacking; 👁 shows one author's floors; images open in a viewer of the whole thread. It opens by itself on a post's page (turn off Auto-open in its bar); ☰ Thread or Alt+T opens it by hand. |
 
 Install one into all apps, or only into your X app:
 

@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         X Thread View
 // @namespace    https://mypack.dev/userscripts
-// @version      0.1.0
-// @description  Read an X post as a forum thread: numbered floors, and each reply's sub-thread in a modal.
+// @version      0.2.0
+// @description  Read an X conversation as a forum thread: floors in time order, quotes of the post each one answers, and each post's replies in a panel.
 // @match        https://x.com/*
 // @match        https://twitter.com/*
 // @run-at       document-start
@@ -10,14 +10,27 @@
 // ==/UserScript==
 
 /*
- * How it gets the data: X's web app loads a post with the GraphQL call
- * "TweetDetail". This script watches that call (fetch and XMLHttpRequest),
- * keeps the answers, and remembers the request so it can ask again for
- * another post (a reply's sub-thread) or the next page of replies. Nothing
- * leaves the page: requests go to x.com with the page's own sign-in.
+ * A forum reading of an X conversation, in the way Hong Kong forums
+ * present a thread:
  *
- * If X refuses a replayed request (it signs some requests), the script lets
- * X's own router open the post behind the thread view and reads that answer.
+ *  - Every post of the conversation is a numbered floor, in time order,
+ *    from the conversation's first post (also when you open a reply).
+ *  - A floor that answers another floor quotes it at its top, and a quote
+ *    of a quote nests inside it (three levels), images shrunk.
+ *  - 💬 N under a floor opens a panel: the floor, "Quoted by", the replies
+ *    to it (without repeating the quote), each with "Go to reply", and an
+ *    end mark. Panels stack; Esc closes the top one.
+ *  - 👁 shows only one author's floors; ↩ opens X's reply box.
+ *  - Images open in a viewer of every image of the thread.
+ *
+ * It opens by itself on a post's page (Auto-open in its bar turns that
+ * off; the ☰ Thread button opens it by hand).
+ *
+ * Data: X's web app loads a post with the GraphQL call "TweetDetail". The
+ * script reads those answers as the page gets them, and asks again, with
+ * the page's own request and sign-in, for another post or the next page.
+ * If X refuses a repeated request, X's own router opens the post behind the
+ * view and the script reads that answer. Nothing leaves x.com.
  *
  * Works in MyPack apps and in Violentmonkey / Tampermonkey / ScriptCat.
  */
@@ -58,7 +71,6 @@
       name: uc.name || ul.name || '',
       handle: uc.screen_name || ul.screen_name || '',
       avatar: (u.avatar && u.avatar.image_url) || ul.profile_image_url_https || '',
-      verified: !!u.is_blue_verified,
       text: note ? note.text : L.full_text || '',
       range: note ? null : L.display_text_range || null,
       urls: (ents.urls || []).map(function (x) { return { tco: x.url, url: x.expanded_url, shown: x.display_url }; }),
@@ -69,6 +81,7 @@
       views: r.views && r.views.count ? +r.views.count : 0,
       media: media,
       replyTo: L.in_reply_to_status_id_str || '',
+      conv: L.conversation_id_str || '',
       quoted: null
     };
     if ((depth || 0) < 1 && r.quoted_status_result) t.quoted = normTweet(r.quoted_status_result.result, 1);
@@ -80,62 +93,77 @@
     return normTweet(itemContent.tweet_results && itemContent.tweet_results.result);
   }
 
-  // parseDetail turns a TweetDetail answer into
-  // { focal, ancestors[], floors[{ tweet, chain[] }], cursor }.
+  // parseDetail reads a TweetDetail answer: { focal, ancestors[], items[],
+  // cursor }. items are the other posts, each on its own (a reply chain's
+  // posts are separate floors, linked by replyTo).
   function parseDetail(json, focalId) {
-    var out = { focal: null, ancestors: [], floors: [], cursor: '' };
+    var out = { focal: null, ancestors: [], items: [], cursor: '' };
     var conv = json && json.data && (json.data.threaded_conversation_with_injections_v2 || json.data.threaded_conversation_with_injections);
     var ins = (conv && conv.instructions) || [];
     var seenFocal = false;
-    function cursorOf(c) {
-      if (!c) return '';
-      return c.value || (c.itemContent && c.itemContent.value) || '';
-    }
-    function addModule(items) {
-      var tweets = [];
-      (items || []).forEach(function (it) {
-        var ic = it.item && it.item.itemContent;
-        var tw = itemTweet(ic);
-        if (tw) tweets.push(tw);
-      });
-      if (!tweets.length) return;
-      out.floors.push({ tweet: tweets[0], chain: tweets.slice(1) });
-    }
+    function cursorOf(c) { return (c && (c.value || (c.itemContent && c.itemContent.value))) || ''; }
+    function push(tw) { if (tw) out.items.push(tw); }
     ins.forEach(function (i) {
-      var entries = i.type === 'TimelineAddEntries' ? i.entries : null;
       if (i.type === 'TimelineAddToModule') {
-        // "Show more" inside a reply chain: extends the last floor.
-        var last = out.floors[out.floors.length - 1];
-        (i.moduleItems || []).forEach(function (it) {
-          var tw = itemTweet(it.item && it.item.itemContent);
-          if (tw && last) last.chain.push(tw);
-        });
+        (i.moduleItems || []).forEach(function (it) { push(itemTweet(it.item && it.item.itemContent)); });
         return;
       }
-      (entries || []).forEach(function (e) {
+      if (i.type !== 'TimelineAddEntries') return;
+      (i.entries || []).forEach(function (e) {
         var id = e.entryId || '', c = e.content || {};
         if (id.indexOf('tweet-') === 0) {
           var tw = itemTweet(c.itemContent);
           if (!tw) return;
-          if (tw.id === focalId) {
-            out.focal = tw; seenFocal = true;
-          } else if (!seenFocal) {
-            out.ancestors.push(tw);
-          } else {
-            out.floors.push({ tweet: tw, chain: [] });
-          }
+          if (tw.id === focalId) { out.focal = tw; seenFocal = true; }
+          else if (!seenFocal) out.ancestors.push(tw);
+          else push(tw);
         } else if (id.indexOf('conversationthread-') === 0) {
-          addModule(c.items);
+          (c.items || []).forEach(function (it) { push(itemTweet(it.item && it.item.itemContent)); });
         } else if (id.indexOf('cursor-bottom-') === 0) {
           out.cursor = cursorOf(c);
         }
       });
     });
-    // A focal post X answered with only as an ancestor (e.g. a deleted reply
-    // context) falls back to the last ancestor.
     if (!out.focal && out.ancestors.length) out.focal = out.ancestors.pop();
     return out;
   }
+
+  // Thread is the posts of one conversation, by id.
+  function Thread(rootId) {
+    this.rootId = rootId;
+    this.by = {};
+  }
+  Thread.prototype.add = function (list) {
+    var self = this, n = 0;
+    (list || []).forEach(function (t) {
+      if (t && !self.by[t.id]) { self.by[t.id] = t; n++; }
+    });
+    return n;
+  };
+  Thread.prototype.root = function () { return this.by[this.rootId] || null; };
+  // floors: the root first, then every other post in time order.
+  Thread.prototype.floors = function () {
+    var root = this.root(), self = this;
+    var rest = Object.keys(this.by).map(function (k) { return self.by[k]; }).filter(function (t) { return !root || t.id !== root.id; });
+    rest.sort(function (a, b) { return ((a.created && a.created.getTime()) || 0) - ((b.created && b.created.getTime()) || 0) || (a.id < b.id ? -1 : 1); });
+    return root ? [root].concat(rest) : rest;
+  };
+  // quotes: the posts t answers, nearest first, up to depth levels; a
+  // direct answer to the root quotes nothing.
+  Thread.prototype.quotes = function (t, depth) {
+    var out = [], cur = t;
+    while (out.length < (depth || 3) && cur && cur.replyTo && cur.replyTo !== this.rootId) {
+      var p = this.by[cur.replyTo];
+      if (!p) break;
+      out.push(p);
+      cur = p;
+    }
+    return out;
+  };
+  Thread.prototype.children = function (id) {
+    var self = this;
+    return this.floors().filter(function (t) { return t.replyTo === id && t.id !== id && self.by[t.id]; });
+  };
 
   function esc(s) {
     return String(s).replace(/[&<>"']/g, function (c) {
@@ -173,17 +201,39 @@
   }
 
   if (typeof document === 'undefined') {
-    if (typeof module === 'object' && module.exports) module.exports = { parseDetail: parseDetail, renderText: renderText, normTweet: normTweet };
+    if (typeof module === 'object' && module.exports) {
+      module.exports = { parseDetail: parseDetail, renderText: renderText, normTweet: normTweet, Thread: Thread };
+    }
     return;
   }
 
+  // ---- words -----------------------------------------------------------------
+
+  var zh = /^zh|^yue/i.test(navigator.language || '');
+  var W_ = zh ? {
+    thread: '☰ 討論串', title: '討論串', open: '在 X 開啟', auto: '自動開啟', images: '只看圖片',
+    quotedBy: '被引用回覆', goTo: '前往回覆', end: '完', loading: '載入中…', more: '載入更多回覆',
+    onlyOf: function (n) { return '只看 ' + n + ' 的回覆'; }, showAll: '顯示全部', reply: '回覆',
+    only: '只看此人', none: '未有回覆', noTemplate: '請先等 X 載入這篇貼文，或重新整理頁面。',
+    failed: '未能載入：', unavailable: '這篇貼文已無法查看。', goToPost: '前往留言', floors: function (n) { return '共 ' + n + ' 樓'; },
+    close: '關閉 (Esc)', earlier: '由第一篇開始'
+  } : {
+    thread: '☰ Thread', title: 'Thread', open: 'Open on X', auto: 'Auto-open', images: 'Images only',
+    quotedBy: 'Quoted by', goTo: 'Go to reply', end: 'End', loading: 'Loading…', more: 'Load more replies',
+    onlyOf: function (n) { return 'Only ' + n + '’s posts'; }, showAll: 'Show all', reply: 'Reply',
+    only: 'Only this author', none: 'No replies yet', noTemplate: 'Wait for X to load this post, or reload the page.',
+    failed: 'Could not load: ', unavailable: 'This post is not available.', goToPost: 'Go to post', floors: function (n) { return n + ' floors'; },
+    close: 'Close (Esc)', earlier: 'From the first post'
+  };
+
   // ---- capture X's own TweetDetail calls ------------------------------------
 
-  var W = window;
-  var origFetch = W.fetch;
-  var tpl = null;              // { url, headers } of the last TweetDetail request
-  var cache = {};              // focalId -> parsed (first page)
-  var waiters = {};            // focalId -> [resolve]
+  var Win = window;
+  var origFetch = Win.fetch;
+  var tpl = null;      // { url, headers } of the last TweetDetail request
+  var cache = {};      // focalId -> parsed first page
+  var waiters = {};    // focalId -> [fn]
+  var routing = false; // X's router is loading a post for us
   var DETAIL = /\/i\/api\/graphql\/[^/]+\/TweetDetail\?/;
 
   function focalOf(url) {
@@ -196,17 +246,21 @@
     var h = {};
     Object.keys(headers || {}).forEach(function (k) {
       var lk = k.toLowerCase();
-      if (lk === 'authorization' || lk.indexOf('x-twitter-') === 0 || lk === 'content-type' || lk === 'x-client-transaction-id') h[lk] = headers[k];
+      if (lk === 'authorization' || lk.indexOf('x-twitter-') === 0 || lk === 'content-type') h[lk] = headers[k];
     });
     tpl = { url: new URL(url, location.href).href, headers: h };
+    flush('*tpl*', true);
+  }
+  function flush(key, val) {
+    (waiters[key] || []).forEach(function (fn) { fn(val); });
+    delete waiters[key];
   }
   function captured(url, json) {
     var f = focalOf(url);
     if (!f.id || f.cursor) return;
     try {
       cache[f.id] = parseDetail(json, f.id);
-      (waiters[f.id] || []).forEach(function (fn) { fn(cache[f.id]); });
-      delete waiters[f.id];
+      flush(f.id, cache[f.id]);
     } catch (e) { console.warn('[x-thread-view] parse failed', e); }
   }
   function headersToObj(h) {
@@ -217,30 +271,27 @@
     else Object.keys(h).forEach(function (k) { o[k] = h[k]; });
     return o;
   }
-
   if (origFetch) {
-    W.fetch = function (input, init) {
+    Win.fetch = function (input, init) {
       var url = typeof input === 'string' ? input : (input && input.url) || String(input);
       var p = origFetch.apply(this, arguments);
       if (DETAIL.test(url)) {
         remember(url, Object.assign(headersToObj(input && input.headers), headersToObj(init && init.headers)));
-        p.then(function (r) {
-          if (r.ok) r.clone().json().then(function (j) { captured(url, j); }, function () {});
-        }, function () {});
+        p.then(function (r) { if (r.ok) r.clone().json().then(function (j) { captured(url, j); }, function () {}); }, function () {});
       }
       return p;
     };
   }
-  var XO = W.XMLHttpRequest && W.XMLHttpRequest.prototype;
+  var XO = Win.XMLHttpRequest && Win.XMLHttpRequest.prototype;
   if (XO) {
-    var open = XO.open, setH = XO.setRequestHeader, send = XO.send;
+    var xOpen = XO.open, xSetH = XO.setRequestHeader, xSend = XO.send;
     XO.open = function (method, url) {
       this.__xtv = DETAIL.test(String(url)) ? { url: String(url), headers: {} } : null;
-      return open.apply(this, arguments);
+      return xOpen.apply(this, arguments);
     };
     XO.setRequestHeader = function (k, v) {
       if (this.__xtv) this.__xtv.headers[k] = v;
-      return setH.apply(this, arguments);
+      return xSetH.apply(this, arguments);
     };
     XO.send = function () {
       var st = this.__xtv;
@@ -248,13 +299,10 @@
         remember(st.url, st.headers);
         this.addEventListener('load', function () {
           if (this.status !== 200) return;
-          try {
-            var j = this.responseType === 'json' ? this.response : JSON.parse(this.responseText);
-            captured(st.url, j);
-          } catch (e) {}
+          try { captured(st.url, this.responseType === 'json' ? this.response : JSON.parse(this.responseText)); } catch (e) {}
         });
       }
-      return send.apply(this, arguments);
+      return xSend.apply(this, arguments);
     };
   }
 
@@ -262,96 +310,124 @@
     var m = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
     return m ? decodeURIComponent(m[1]) : '';
   }
+  function wait(key, ms) {
+    return new Promise(function (resolve, reject) {
+      var t = setTimeout(function () { reject(new Error('timeout')); }, ms);
+      (waiters[key] = waiters[key] || []).push(function (v) { clearTimeout(t); resolve(v); });
+    });
+  }
 
   // replay asks TweetDetail again for focalId (and a page cursor).
   function replay(focalId, cursor) {
-    if (!tpl) return Promise.reject(new Error('no-template'));
-    var u = new URL(tpl.url);
-    var v = {};
-    try { v = JSON.parse(u.searchParams.get('variables') || '{}'); } catch (e) {}
-    v.focalTweetId = focalId;
-    delete v.cursor;
-    if (cursor) { v.cursor = cursor; v.referrer = 'tweet'; }
-    u.searchParams.set('variables', JSON.stringify(v));
-    var h = Object.assign({}, tpl.headers);
-    delete h['x-client-transaction-id'];
-    var csrf = cookie('ct0');
-    if (csrf) h['x-csrf-token'] = csrf;
-    return origFetch.call(W, u.href, { headers: h, credentials: 'include' }).then(function (r) {
+    var ready = tpl ? Promise.resolve() : wait('*tpl*', 8000);
+    return ready.then(function () {
+      var u = new URL(tpl.url);
+      var v = {};
+      try { v = JSON.parse(u.searchParams.get('variables') || '{}'); } catch (e) {}
+      v.focalTweetId = focalId;
+      delete v.cursor;
+      if (cursor) { v.cursor = cursor; v.referrer = 'tweet'; }
+      u.searchParams.set('variables', JSON.stringify(v));
+      var h = Object.assign({}, tpl.headers);
+      var csrf = cookie('ct0');
+      if (csrf) h['x-csrf-token'] = csrf;
+      return origFetch.call(Win, u.href, { headers: h, credentials: 'include' });
+    }).then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.json();
     }).then(function (j) {
-      if (j && j.errors && !j.data) throw new Error(j.errors[0] && j.errors[0].message || 'error');
+      if (j && j.errors && !j.data) throw new Error((j.errors[0] && j.errors[0].message) || 'error');
       return parseDetail(j, focalId);
     });
   }
 
-  // viaRouter lets X itself load the post (behind the thread view), then
-  // goes back. X signs its own request, so this works when replay does not.
+  // viaRouter lets X itself load the post (behind the view), then goes back.
   function viaRouter(focalId) {
-    return new Promise(function (resolve, reject) {
-      var back = location.href;
-      var timer = setTimeout(function () { done(); reject(new Error('timeout')); }, 15000);
-      function done() {
-        clearTimeout(timer);
-        if (location.href !== back) history.back();
-      }
-      (waiters[focalId] = waiters[focalId] || []).push(function (d) { done(); resolve(d); });
-      history.pushState({}, '', '/i/status/' + focalId);
-      W.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
-    });
+    var back = location.href;
+    routing = true;
+    var p = wait(focalId, 15000);
+    history.pushState({}, '', '/i/status/' + focalId);
+    Win.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
+    var done = function () { routing = false; if (location.href !== back) history.back(); };
+    p.then(done, done);
+    return p;
   }
 
+  // load is the first page of focalId: what the page already loaded, else
+  // what X loads in a moment, else a request of our own.
   function load(focalId) {
     if (cache[focalId]) return Promise.resolve(cache[focalId]);
-    return replay(focalId).then(function (d) {
-      cache[focalId] = d;
-      return d;
-    }, function (e) {
-      console.info('[x-thread-view] replay failed (' + e.message + '); loading through X');
-      return viaRouter(focalId);
+    // X loads the page's own post itself: give it a moment first.
+    var soon = focalId === statusId() ? wait(focalId, 2500) : Promise.reject(new Error('not the page'));
+    return soon.catch(function () {
+      return replay(focalId).then(function (d) { cache[focalId] = d; return d; }, function (e) {
+        console.info('[x-thread-view] replay failed (' + e.message + '); loading through X');
+        return viaRouter(focalId);
+      });
     });
   }
 
-  // ---- UI -------------------------------------------------------------------
+  // ---- UI --------------------------------------------------------------------
 
   var CSS = '\
-.xtv-root,.xtv-modal{color:#e6e6e6;font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang HK","Microsoft JhengHei",sans-serif}\
-.xtv-root{position:fixed;inset:0;z-index:2147483000;background:#141414;display:flex;flex-direction:column}\
-.xtv-root a,.xtv-modal a{color:#6cb6ff;text-decoration:none}.xtv-root a:hover,.xtv-modal a:hover{text-decoration:underline}\
-.xtv-root a.xtv-name,.xtv-modal a.xtv-name{color:#b0b0b0}.xtv-op a.xtv-name{color:#f5c542}.xtv-root a.xtv-time,.xtv-modal a.xtv-time{color:#6f6f6f}\
-.xtv-bar{display:flex;align-items:center;gap:12px;padding:10px 16px;background:#1f1f1f;border-bottom:1px solid #2c2c2c;flex:none}\
-.xtv-title{flex:1;min-width:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
-.xtv-btn{background:#2c2c2c;color:#e6e6e6;border:0;border-radius:6px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer}\
-.xtv-btn:hover{background:#3a3a3a}.xtv-btn:disabled{opacity:.5;cursor:default}\
+.xtv,.xtv-panel{--bg:#151515;--card:#1e1e1e;--band:#101010;--line:#2a2a2a;--fg:#e6e6e6;--mute:#8d8d8d;--dim:#6b6b6b;--name:#4aa8ff;--op:#f5c542;--accent:#f5c542;--chip:#2a2a2a;\
+color:var(--fg);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang HK","Microsoft JhengHei",sans-serif}\
+.xtv{position:fixed;inset:0;z-index:2147483000;background:var(--bg);display:flex;flex-direction:column;animation:xtv-in .16s ease-out}\
+@keyframes xtv-in{from{opacity:0}to{opacity:1}}\
+.xtv a,.xtv-panel a{color:var(--name);text-decoration:none}.xtv a:hover,.xtv-panel a:hover{text-decoration:underline}\
+.xtv-bar{display:flex;align-items:center;gap:6px;padding:0 10px 0 14px;height:52px;background:#1a1a1a;border-bottom:1px solid var(--line);flex:none}\
+.xtv-ttl{flex:1;min-width:0;font-weight:650;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:16px}\
+.xtv-ib{appearance:none;border:0;background:none;color:var(--mute);font:inherit;font-size:13px;height:34px;min-width:34px;padding:0 9px;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}\
+.xtv-ib:hover{background:#262626;color:var(--fg)}.xtv-ib.on{color:var(--accent)}\
+.xtv-ib .sw{width:26px;height:15px;border-radius:8px;background:#3a3a3a;position:relative;transition:background .15s}\
+.xtv-ib .sw:after{content:"";position:absolute;top:2px;left:2px;width:11px;height:11px;border-radius:50%;background:#bbb;transition:transform .15s}\
+.xtv-ib.on .sw{background:var(--accent)}.xtv-ib.on .sw:after{transform:translateX(11px);background:#151515}\
+.xtv-sub{display:flex;justify-content:center;gap:12px;align-items:center;height:40px;color:var(--accent);font-size:14px;background:var(--bg);border-bottom:6px solid var(--band);flex:none}\
+.xtv-sub .mute{color:var(--mute)}\
+.xtv-filter{display:flex;justify-content:center;gap:10px;align-items:center;padding:8px;background:#1f1a0b;color:var(--accent);font-size:13px}\
 .xtv-scroll{flex:1;overflow-y:auto;overscroll-behavior:contain}\
-.xtv-list{max-width:760px;margin:0 auto;padding:8px 0 40px}\
-.xtv-floor{padding:14px 18px;border-bottom:1px solid #262626}\
-.xtv-head{display:flex;align-items:center;gap:8px;font-size:13px;color:#8a8a8a;margin-bottom:6px;flex-wrap:wrap}\
-.xtv-no{color:#8a8a8a;min-width:28px}\
-.xtv-av{width:22px;height:22px;border-radius:50%;flex:none}\
-.xtv-name{color:#b0b0b0;font-weight:600}.xtv-op .xtv-name{color:#f5c542}\
-.xtv-optag{background:#f5c542;color:#141414;border-radius:3px;padding:0 4px;font-size:11px;font-weight:700}\
-.xtv-time{color:#6f6f6f}\
+.xtv-list{max-width:780px;margin:0 auto}\
+.xtv-floor{background:var(--card);padding:14px 20px 12px;border-bottom:8px solid var(--band);transition:background .6s}\
+.xtv-floor.flash{background:#2b2715}\
+.xtv-head{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--mute);margin-bottom:8px}\
+.xtv-no{color:var(--dim);font-variant-numeric:tabular-nums}.xtv-op .xtv-no{color:var(--op)}\
+.xtv-name{color:var(--name)!important;font-weight:500;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}\
+.xtv-op .xtv-name{color:var(--op)!important}\
+.xtv-dot{color:var(--dim)}.xtv-time{color:var(--mute)!important}\
+.xtv-head .xtv-ib{height:26px;min-width:26px;padding:0 5px;font-size:14px}\
+.xtv-head .sp{flex:1}\
+.xtv-q{border-left:3px solid #4a4a4a;padding:2px 0 2px 12px;margin:0 0 10px;color:var(--mute);font-size:14px}\
+.xtv-q .xtv-q{margin-top:0}\
+.xtv-q .xtv-qby{font-size:12px;color:var(--dim);margin-bottom:2px}\
+.xtv-q .xtv-media img,.xtv-q .xtv-media video{max-height:96px;width:auto;max-width:140px}\
 .xtv-body{word-wrap:break-word;overflow-wrap:anywhere}\
-.xtv-chain{margin-top:10px;padding-top:10px;border-top:1px dashed #2c2c2c}\
-.xtv-media{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px;margin-top:8px}\
-.xtv-media img,.xtv-media video{width:100%;max-height:360px;object-fit:cover;border-radius:6px;background:#000;cursor:zoom-in}\
-.xtv-quote{margin-top:8px;border:1px solid #2c2c2c;border-radius:8px;padding:8px 10px;font-size:14px;background:#1a1a1a}\
-.xtv-foot{display:flex;gap:16px;margin-top:8px;font-size:13px;color:#7a7a7a;align-items:center}\
-.xtv-rep{background:none;border:1px solid #333;color:#6cb6ff;border-radius:12px;padding:1px 10px;font:inherit;font-size:13px;cursor:pointer}\
-.xtv-rep:hover{background:#1d2a38}\
-.xtv-ctx{max-width:760px;margin:8px auto 0;padding:8px 18px;font-size:13px;color:#8a8a8a}\
-.xtv-more{display:block;margin:16px auto}\
-.xtv-msg{text-align:center;color:#8a8a8a;padding:40px 16px}\
-.xtv-modal{position:fixed;inset:0;z-index:2147483001;background:rgba(0,0,0,.6);display:flex;justify-content:center;align-items:flex-end}\
-.xtv-sheet{background:#141414;width:100%;max-width:760px;height:88vh;border-radius:12px 12px 0 0;display:flex;flex-direction:column;box-shadow:0 -8px 40px rgba(0,0,0,.5);animation:xtv-up .18s ease-out}\
-.xtv-sheet .xtv-bar{border-radius:12px 12px 0 0}\
-@keyframes xtv-up{from{transform:translateY(24px);opacity:.4}to{transform:none;opacity:1}}\
-.xtv-light{position:fixed;inset:0;z-index:2147483002;background:rgba(0,0,0,.9);display:flex;align-items:center;justify-content:center;cursor:zoom-out}\
-.xtv-light img{max-width:96vw;max-height:96vh}\
-.xtv-fab{position:fixed;right:20px;bottom:24px;z-index:2147482999;background:#f5c542;color:#141414;border:0;border-radius:22px;padding:10px 16px;font:600 14px -apple-system,BlinkMacSystemFont,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.35);cursor:pointer}\
-@media (max-width:600px){.xtv-sheet{height:94vh}.xtv-floor{padding:12px}}';
+.xtv-media{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}\
+.xtv-media img,.xtv-media video{max-width:min(100%,520px);max-height:420px;border-radius:6px;background:#000;cursor:zoom-in;display:block}\
+.xtv-quote{margin-top:10px;border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:14px;background:#191919;cursor:pointer}\
+.xtv-foot{display:flex;gap:8px;align-items:center;margin-top:10px}\
+.xtv-pill{display:inline-flex;gap:12px;align-items:center;height:30px;padding:0 12px;border-radius:6px;background:var(--chip);color:var(--mute);font-size:13px}\
+.xtv-cbtn{appearance:none;border:0;display:inline-flex;gap:7px;align-items:center;height:30px;padding:0 12px;border-radius:6px;background:var(--chip);color:var(--fg);font:inherit;font-size:13px;cursor:pointer}\
+.xtv-cbtn:hover{background:#353535}\
+.xtv-goto{margin-left:auto;color:var(--mute)!important;font-size:13px;cursor:pointer;background:none;border:0;font:inherit}\
+.xtv-goto:hover{color:var(--fg)!important}\
+.xtv-end,.xtv-div{text-align:center;color:var(--accent);padding:18px 0;font-size:15px}\
+.xtv-div{background:var(--band);padding:12px 0}\
+.xtv-msg{text-align:center;color:var(--mute);padding:48px 16px}\
+.xtv-more{display:block;margin:16px auto;appearance:none;border:1px solid var(--line);background:none;color:var(--fg);border-radius:8px;padding:8px 16px;font:inherit;font-size:14px;cursor:pointer}\
+.xtv-ctr{position:fixed;right:24px;bottom:24px;z-index:2147483001;min-width:56px;height:56px;padding:0 12px;border-radius:28px;background:#2a2a2a;color:var(--fg);display:flex;align-items:center;justify-content:center;font:600 15px -apple-system,sans-serif;box-shadow:0 4px 18px rgba(0,0,0,.5);cursor:pointer;font-variant-numeric:tabular-nums}\
+.xtv-veil{position:fixed;inset:0;z-index:2147483002;background:rgba(0,0,0,.62);display:flex;justify-content:center;animation:xtv-in .14s ease-out}\
+.xtv-panel{width:min(760px,100%);height:100%;background:var(--bg);display:flex;flex-direction:column;box-shadow:0 0 60px rgba(0,0,0,.6);animation:xtv-up .2s cubic-bezier(.2,.8,.2,1)}\
+@keyframes xtv-up{from{transform:translateY(18px);opacity:.3}to{transform:none;opacity:1}}\
+.xtv-panel .xtv-bar{justify-content:flex-end}\
+.xtv-light{position:fixed;inset:0;z-index:2147483005;background:rgba(0,0,0,.94);display:flex;flex-direction:column;color:#ddd;font:14px -apple-system,sans-serif}\
+.xtv-light .top{display:flex;justify-content:space-between;padding:12px 16px}\
+.xtv-light .mid{flex:1;display:flex;align-items:center;justify-content:center;min-height:0;gap:8px}\
+.xtv-light img{max-width:calc(100vw - 140px);max-height:calc(100vh - 120px)}\
+.xtv-light .nav{appearance:none;border:0;background:none;color:#ddd;font-size:30px;width:56px;height:56px;cursor:pointer}\
+.xtv-light .bot{display:flex;justify-content:flex-end;padding:12px 16px;gap:16px}\
+.xtv-light button.lk{appearance:none;border:0;background:none;color:var(--accent,#f5c542);font:inherit;cursor:pointer}\
+.xtv-fab{position:fixed;right:96px;bottom:24px;z-index:2147482999;background:#f5c542;color:#151515;border:0;border-radius:22px;padding:10px 16px;font:600 14px -apple-system,BlinkMacSystemFont,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.35);cursor:pointer}\
+@media (max-width:640px){.xtv-floor{padding:12px 14px}.xtv-ctr{right:14px;bottom:14px}.xtv-fab{right:14px}}';
 
   var styled = false;
   function ensureStyle() {
@@ -361,18 +437,30 @@
     el.textContent = CSS;
     (document.head || document.documentElement).appendChild(el);
   }
-
   function el(tag, cls, html) {
     var e = document.createElement(tag);
     if (cls) e.className = cls;
     if (html != null) e.innerHTML = html;
     return e;
   }
-
+  function btn(cls, html, title, fn) {
+    var b = el('button', cls, html);
+    b.type = 'button';
+    if (title) b.title = title;
+    if (fn) b.addEventListener('click', function (e) { e.stopPropagation(); fn(e); });
+    return b;
+  }
   function ago(d) {
     if (!d) return '';
     var s = (Date.now() - d.getTime()) / 1000;
-    if (s < 60) return Math.max(1, Math.floor(s)) + 's';
+    if (zh) {
+      if (s < 60) return '剛剛';
+      if (s < 3600) return Math.floor(s / 60) + ' 分鐘前';
+      if (s < 86400) return Math.floor(s / 3600) + ' 小時前';
+      if (s < 86400 * 30) return Math.floor(s / 86400) + ' 日前';
+      return d.toLocaleDateString();
+    }
+    if (s < 60) return 'just now';
     if (s < 3600) return Math.floor(s / 60) + 'm';
     if (s < 86400) return Math.floor(s / 3600) + 'h';
     if (s < 86400 * 30) return Math.floor(s / 86400) + 'd';
@@ -383,215 +471,360 @@
     if (n >= 1e3) return (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'K';
     return String(n);
   }
+  // sized asks X's image host for a size; other addresses stay as they are.
+  function sized(u, name) { return /^https:\/\/pbs\.twimg\.com\//.test(u) ? u + (u.indexOf('?') < 0 ? '?' : '&') + 'name=' + name : u; }
+  function pref(k, def) { try { var v = localStorage.getItem('xtv:' + k); return v == null ? def : v === '1'; } catch (e) { return def; } }
+  function setPref(k, v) { try { localStorage.setItem('xtv:' + k, v ? '1' : '0'); } catch (e) {} }
 
-  function mediaHTML(t) {
+  // ---- layers (view, panels, image viewer): Esc closes the top one ----------
+
+  var layers = [];
+  var savedOverflow = '';
+  function pushLayer(l) {
+    if (!layers.length) { savedOverflow = document.documentElement.style.overflow; document.documentElement.style.overflow = 'hidden'; }
+    layers.push(l);
+  }
+  function closeTop() {
+    var l = layers.pop();
+    if (l) l.close();
+    if (!layers.length) document.documentElement.style.overflow = savedOverflow;
+  }
+  function closeAll() { while (layers.length) closeTop(); }
+  document.addEventListener('keydown', function (e) {
+    if (!layers.length) return;
+    var top = layers[layers.length - 1];
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeTop(); return; }
+    if (top.key && top.key(e)) { e.preventDefault(); e.stopPropagation(); }
+  }, true);
+
+  // ---- the view --------------------------------------------------------------
+
+  var view = null; // { thread, focalId, list, floorsEls, filter, imagesOnly, cursor, ... }
+
+  function mediaEl(t, small) {
     if (!t.media.length) return null;
     var box = el('div', 'xtv-media');
     t.media.forEach(function (m) {
       if (m.video) {
         var v = document.createElement('video');
-        v.src = m.video; v.poster = m.url; v.controls = true; v.preload = 'none';
-        if (m.type === 'animated_gif') { v.loop = true; v.muted = true; }
+        v.src = m.video; v.poster = m.url; v.controls = !small; v.preload = 'none'; v.muted = m.type === 'animated_gif'; v.loop = v.muted;
         box.appendChild(v);
       } else {
         var img = document.createElement('img');
-        img.src = m.url + '?name=small'; img.loading = 'lazy'; img.alt = '';
-        img.addEventListener('click', function () { lightbox(m.url + '?name=orig'); });
+        img.src = sized(m.url, small ? 'thumb' : 'small'); img.loading = 'lazy'; img.alt = '';
+        img.addEventListener('click', function (e) { e.stopPropagation(); openViewer(m.url, t.id); });
         box.appendChild(img);
       }
     });
     return box;
   }
 
-  function lightbox(src) {
-    var lb = el('div', 'xtv-light');
-    var img = document.createElement('img');
-    img.src = src;
-    lb.appendChild(img);
-    document.body.appendChild(lb);
-    var layer = { close: function () { lb.remove(); } };
-    lb.addEventListener('click', function () { if (stack[stack.length - 1] === layer) closeTop(); });
-    stack.push(layer);
-  }
-
-  function postBody(t) {
-    var wrap = el('div');
-    wrap.appendChild(el('div', 'xtv-body', renderText(t)));
-    var m = mediaHTML(t);
-    if (m) wrap.appendChild(m);
-    if (t.quoted) {
-      var q = el('div', 'xtv-quote');
-      q.appendChild(el('div', 'xtv-head', '<span class="xtv-name">' + esc(t.quoted.name) + '</span> @' + esc(t.quoted.handle)));
-      q.appendChild(el('div', 'xtv-body', renderText(t.quoted)));
-      var qm = mediaHTML(t.quoted);
-      if (qm) q.appendChild(qm);
-      q.style.cursor = 'pointer';
-      q.addEventListener('click', function (e) {
-        if (e.target.closest('a,img,video')) return;
-        openModal(t.quoted.id, '@' + t.quoted.handle);
-      });
-      wrap.appendChild(q);
+  // quoteEl nests the posts t answers, the farthest innermost.
+  function quoteEl(chain) {
+    if (!chain.length) return null;
+    var outer = null, inner = null;
+    for (var i = 0; i < chain.length; i++) {
+      var q = el('div', 'xtv-q');
+      var p = chain[i];
+      var body = el('div', 'xtv-body', renderText(p));
+      var m = mediaEl(p, true);
+      if (!outer) outer = q; else inner.insertBefore(q, inner.firstChild);
+      q.appendChild(body);
+      if (m) q.appendChild(m);
+      inner = q;
     }
-    return wrap;
+    return outer;
   }
 
-  // floor renders one numbered post (plus its same-author chain).
-  function floor(no, f, opHandle) {
-    var t = f.tweet;
-    var isOP = t.handle && t.handle === opHandle;
-    var box = el('div', 'xtv-floor' + (isOP ? ' xtv-op' : ''));
+  // floorEl is one floor. opts: { no, quote(bool), panel(bool) }
+  function floorEl(t, opts) {
+    var th = view.thread;
+    var root = th.root();
+    var op = root && t.handle === root.handle;
+    var box = el('div', 'xtv-floor' + (op ? ' xtv-op' : ''));
+    box.dataset.id = t.id;
     var head = el('div', 'xtv-head');
-    head.appendChild(el('span', 'xtv-no', '#' + no));
-    if (t.avatar) { var av = el('img', 'xtv-av'); av.src = t.avatar; av.alt = ''; head.appendChild(av); }
-    head.appendChild(el('a', 'xtv-name', esc(t.name || t.handle))).href = '/' + t.handle;
-    if (isOP) head.appendChild(el('span', 'xtv-optag', 'OP'));
-    var time = el('a', 'xtv-time', esc(ago(t.created)));
-    time.href = '/' + t.handle + '/status/' + t.id;
-    time.title = t.created ? t.created.toLocaleString() : '';
-    head.appendChild(time);
+    head.appendChild(el('span', 'xtv-no', '#' + (opts.no || '?')));
+    var nm = el('a', 'xtv-name', esc(t.name || t.handle)); nm.href = '/' + t.handle; nm.title = '@' + t.handle;
+    head.appendChild(nm);
+    head.appendChild(el('span', 'xtv-dot', '•'));
+    var tm = el('a', 'xtv-time', esc(ago(t.created))); tm.href = '/' + t.handle + '/status/' + t.id; tm.title = t.created ? t.created.toLocaleString() : '';
+    head.appendChild(tm);
+    if (!opts.panel) head.appendChild(btn('xtv-ib', '👁', W_.only, function () { setFilter(t.handle, t.name || t.handle); }));
+    head.appendChild(btn('xtv-ib', '↩', W_.reply, function () { closeAll(); location.href = '/intent/post?in_reply_to=' + t.id; }));
+    head.appendChild(el('span', 'sp'));
+    var ext = el('a', 'xtv-ib', '↗'); ext.href = '/' + t.handle + '/status/' + t.id; ext.title = W_.open;
+    ext.addEventListener('click', function () { closeAll(); });
+    head.appendChild(ext);
     box.appendChild(head);
-    box.appendChild(postBody(t));
-    f.chain.forEach(function (c) {
-      var part = el('div', 'xtv-chain');
-      part.appendChild(postBody(c));
-      box.appendChild(part);
-    });
-    var foot = el('div', 'xtv-foot');
-    foot.appendChild(el('span', '', '♥ ' + num(t.likes)));
-    if (t.reposts) foot.appendChild(el('span', '', '⟲ ' + num(t.reposts)));
-    if (t.views) foot.appendChild(el('span', '', '👁 ' + num(t.views)));
-    if (t.replies > 0) {
-      var b = el('button', 'xtv-rep', '💬 ' + num(t.replies) + ' ' + (t.replies === 1 ? 'reply' : 'replies'));
-      b.addEventListener('click', function () { openModal(t.id, '#' + no + ' ' + (t.name || t.handle)); });
-      foot.appendChild(b);
+    if (opts.quote) {
+      var q = quoteEl(th.quotes(t, 3));
+      if (q) box.appendChild(q);
     }
+    box.appendChild(el('div', 'xtv-body', renderText(t)));
+    var m = mediaEl(t, false);
+    if (m) box.appendChild(m);
+    if (t.quoted) {
+      var qc = el('div', 'xtv-quote');
+      qc.appendChild(el('div', 'xtv-head', '<span class="xtv-name">' + esc(t.quoted.name) + '</span><span class="xtv-dot">@' + esc(t.quoted.handle) + '</span>'));
+      qc.appendChild(el('div', 'xtv-body', renderText(t.quoted)));
+      var qm = mediaEl(t.quoted, true);
+      if (qm) qc.appendChild(qm);
+      qc.addEventListener('click', function (e) { if (!e.target.closest('a,img,video')) openPanel(t.quoted.id); });
+      box.appendChild(qc);
+    }
+    var foot = el('div', 'xtv-foot');
+    foot.appendChild(el('span', 'xtv-pill', '♥ ' + num(t.likes) + '<span>⟲ ' + num(t.reposts) + '</span>'));
+    var kids = Math.max(th.children(t.id).length, t.replies);
+    if (kids > 0 && !opts.source) foot.appendChild(btn('xtv-cbtn', '💬 ' + num(kids), W_.quotedBy, function () { openPanel(t.id); }));
+    if (opts.panel && opts.inThread) foot.appendChild(btn('xtv-goto', '↘ ' + W_.goTo, '', function () { goToFloor(t.id); }));
     box.appendChild(foot);
     return box;
   }
 
-  // thread fills container with the conversation around focalId.
-  var rootOP = ''; // the author of the thread the view opened on
-  function thread(container, focalId, setTitle, isRoot) {
-    var list = el('div', 'xtv-list');
-    container.innerHTML = '';
-    container.appendChild(el('div', 'xtv-msg', 'Loading…'));
-    load(focalId).then(function (d) {
-      container.innerHTML = '';
-      if (!d.focal) { container.appendChild(el('div', 'xtv-msg', 'This post is not available.')); return; }
-      if (isRoot) rootOP = d.focal.handle;
-      var op = rootOP || d.focal.handle;
-      setTitle(d.focal);
-      if (d.ancestors.length) {
-        var ctx = el('div', 'xtv-ctx');
-        var a = el('a', '', '↑ Replying in a conversation of ' + (d.ancestors.length + 1) + ' posts. Read it from the start');
-        a.href = '#';
-        a.addEventListener('click', function (e) { e.preventDefault(); openModal(d.ancestors[0].id, 'Conversation'); });
-        ctx.appendChild(a);
-        container.appendChild(ctx);
-      }
-      container.appendChild(list);
-      var no = 1;
-      list.appendChild(floor(no++, { tweet: d.focal, chain: [] }, op));
-      function addFloors(fs) { fs.forEach(function (f) { list.appendChild(floor(no++, f, op)); }); }
-      addFloors(d.floors);
-      if (!d.floors.length && !d.cursor) list.appendChild(el('div', 'xtv-msg', 'No replies yet.'));
-      var cursor = d.cursor;
-      var more = el('button', 'xtv-btn xtv-more', 'Load more replies');
-      function sync() { if (cursor) container.appendChild(more); else more.remove(); }
-      more.addEventListener('click', function () {
-        more.disabled = true; more.textContent = 'Loading…';
-        replay(focalId, cursor).then(function (p) {
-          addFloors(p.floors);
-          cursor = p.cursor && p.cursor !== cursor ? p.cursor : '';
-          more.disabled = false; more.textContent = 'Load more replies';
-          sync();
-        }, function () {
-          more.disabled = false; more.textContent = 'Could not load more. Open on X';
-          more.onclick = function () { location.href = '/i/status/' + focalId; };
-        });
-      });
-      sync();
-    }, function (e) {
-      container.innerHTML = '';
-      var msg = e && e.message === 'no-template'
-        ? 'Thread view needs X to load one post first. Reload this page, then try again.'
-        : 'Could not load this thread (' + esc((e && e.message) || e) + ').';
-      container.appendChild(el('div', 'xtv-msg', msg));
+  function setFilter(handle, name) {
+    view.filter = view.filter && view.filter.handle === handle ? null : { handle: handle, name: name };
+    renderFloors();
+  }
+
+  function renderFloors() {
+    var v = view, list = v.list;
+    list.innerHTML = '';
+    v.filterBar.innerHTML = '';
+    v.filterBar.style.display = v.filter ? '' : 'none';
+    if (v.filter) {
+      v.filterBar.appendChild(el('span', '', esc(W_.onlyOf(v.filter.name))));
+      v.filterBar.appendChild(btn('xtv-ib on', W_.showAll, '', function () { v.filter = null; renderFloors(); }));
+    }
+    var floors = v.thread.floors();
+    v.numbers = {};
+    floors.forEach(function (t, i) { v.numbers[t.id] = i + 1; });
+    v.sub.innerHTML = '<span>' + esc(W_.floors(floors.length)) + '</span>';
+    var shown = floors.filter(function (t) {
+      if (v.filter && t.handle !== v.filter.handle) return false;
+      if (v.imagesOnly && !t.media.length) return false;
+      return true;
+    });
+    shown.forEach(function (t) { list.appendChild(floorEl(t, { no: v.numbers[t.id], quote: true })); });
+    if (v.cursor) {
+      var more = btn('xtv-more', W_.more, '', function () { loadMore(more); });
+      list.appendChild(more);
+      v.sentinel = more;
+      watchSentinel();
+    } else {
+      list.appendChild(el('div', 'xtv-end', esc(W_.end)));
+    }
+    updateCounter();
+  }
+
+  function loadMore(b) {
+    var v = view;
+    if (!v || v.loadingMore || !v.cursor) return;
+    v.loadingMore = true;
+    if (b) { b.disabled = true; b.textContent = W_.loading; }
+    replay(v.focalId, v.cursor).then(function (p) {
+      v.loadingMore = false;
+      var added = v.thread.add(p.items);
+      v.cursor = p.cursor && p.cursor !== v.cursor && (added || p.items.length) ? p.cursor : '';
+      var y = v.scroll.scrollTop;
+      renderFloors();
+      v.scroll.scrollTop = y;
+    }, function () {
+      v.loadingMore = false;
+      v.cursor = '';
+      renderFloors();
     });
   }
+  function watchSentinel() {
+    var v = view;
+    if (!('IntersectionObserver' in window) || !v.sentinel) return;
+    if (v.io) v.io.disconnect();
+    v.io = new IntersectionObserver(function (es) {
+      es.forEach(function (e) { if (e.isIntersecting) loadMore(v.sentinel); });
+    }, { root: v.scroll, rootMargin: '600px' });
+    v.io.observe(v.sentinel);
+  }
 
-  var stack = [];       // open layers, top last
-  var lockedScroll = '';
-  function lock() {
-    if (stack.length === 0) {
-      lockedScroll = document.documentElement.style.overflow;
-      document.documentElement.style.overflow = 'hidden';
+  // The floating counter shows the floor at the top of the view.
+  function updateCounter() {
+    var v = view;
+    if (!v) return;
+    var total = v.thread.floors().length;
+    var top = v.scroll.getBoundingClientRect().top + 60;
+    var cur = 1;
+    var els = v.list.querySelectorAll('.xtv-floor');
+    for (var i = 0; i < els.length; i++) {
+      if (els[i].getBoundingClientRect().bottom > top) { cur = v.numbers[els[i].dataset.id] || 1; break; }
     }
+    v.ctr.textContent = '#' + cur + ' / ' + total;
   }
-  function unlockIfEmpty() {
-    if (stack.length === 0) document.documentElement.style.overflow = lockedScroll;
-  }
-  function closeTop() {
-    var l = stack.pop();
-    if (l) l.close();
-    unlockIfEmpty();
-  }
-  function closeAll() { while (stack.length) closeTop(); }
 
-  function bar(titleText, onClose, extra) {
-    var b = el('div', 'xtv-bar');
-    var title = el('div', 'xtv-title', esc(titleText));
-    b.appendChild(title);
-    if (extra) b.appendChild(extra);
-    var x = el('button', 'xtv-btn', '✕');
-    x.title = 'Close (Esc)';
-    x.addEventListener('click', onClose);
-    b.appendChild(x);
-    return { el: b, title: title };
+  function goToFloor(id) {
+    while (layers.length > 1) closeTop();
+    var v = view;
+    if (!v) return;
+    if (v.filter || v.imagesOnly) { v.filter = null; v.imagesOnly = false; v.imgBtn.classList.remove('on'); renderFloors(); }
+    var f = v.list.querySelector('.xtv-floor[data-id="' + id + '"]');
+    if (!f) return;
+    v.scroll.scrollTo({ top: f.offsetTop - 8, behavior: 'smooth' });
+    f.classList.add('flash');
+    setTimeout(function () { f.classList.remove('flash'); }, 1400);
   }
 
   function openView(focalId) {
+    if (view) return;
     ensureStyle();
-    lock();
-    var root = el('div', 'xtv-root');
-    var orig = el('a', 'xtv-btn', 'Open on X');
-    orig.href = '/i/status/' + focalId;
-    orig.addEventListener('click', function () { closeAll(); });
-    var b = bar('Thread', closeTop, orig);
+    var root = el('div', 'xtv');
+    var bar = el('div', 'xtv-bar');
+    var ttl = el('div', 'xtv-ttl', esc(W_.title));
+    bar.appendChild(btn('xtv-ib', '✕', W_.close, closeTop));
+    bar.appendChild(ttl);
+    var imgBtn = btn('xtv-ib', '🖼 ' + esc(W_.images), '', function () { view.imagesOnly = !view.imagesOnly; imgBtn.classList.toggle('on', view.imagesOnly); renderFloors(); });
+    bar.appendChild(imgBtn);
+    var autoBtn = btn('xtv-ib' + (pref('auto', true) ? ' on' : ''), '<span class="sw"></span>' + esc(W_.auto), '', function () {
+      var on = !pref('auto', true); setPref('auto', on); autoBtn.classList.toggle('on', on);
+    });
+    bar.appendChild(autoBtn);
+    var openX = el('a', 'xtv-ib', '↗ ' + esc(W_.open)); openX.href = '/i/status/' + focalId;
+    openX.addEventListener('click', function () { closeAll(); });
+    bar.appendChild(openX);
+    var sub = el('div', 'xtv-sub');
+    var filterBar = el('div', 'xtv-filter'); filterBar.style.display = 'none';
     var scroll = el('div', 'xtv-scroll');
-    root.appendChild(b.el);
-    root.appendChild(scroll);
+    var list = el('div', 'xtv-list');
+    list.appendChild(el('div', 'xtv-msg', esc(W_.loading)));
+    scroll.appendChild(list);
+    var ctr = el('div', 'xtv-ctr', '#1');
+    ctr.title = 'Top';
+    ctr.addEventListener('click', function () { scroll.scrollTo({ top: 0, behavior: 'smooth' }); });
+    root.appendChild(bar); root.appendChild(sub); root.appendChild(filterBar); root.appendChild(scroll); root.appendChild(ctr);
     document.body.appendChild(root);
-    stack.push({ close: function () { root.remove(); }, focal: focalId });
-    thread(scroll, focalId, function (t) {
-      b.title.textContent = (t.text ? Array.from(t.text).slice(0, 80).join('').replace(/\s+/g, ' ') : 'Thread') + '  ·  ' + t.name;
-    }, true);
+    view = { focalId: focalId, root: root, list: list, scroll: scroll, sub: sub, filterBar: filterBar, ctr: ctr, imgBtn: imgBtn, ttl: ttl, numbers: {} };
+    var tick = 0;
+    scroll.addEventListener('scroll', function () { if (!tick) { tick = requestAnimationFrame(function () { tick = 0; updateCounter(); }); } });
+    pushLayer({ close: function () { if (view && view.io) view.io.disconnect(); root.remove(); view = null; closedFor = statusId(); } });
+
+    load(focalId).then(function (d) {
+      if (!view) return;
+      // A reply: read the conversation from its first post.
+      if (d.ancestors.length) {
+        var first = d.ancestors[0].id;
+        view.thread = new Thread(first);
+        view.thread.add(d.ancestors); view.thread.add([d.focal]); view.thread.add(d.items);
+        view.focalId = first;
+        view.cursor = '';
+        return load(first).then(function (r) {
+          if (!view) return;
+          view.thread.add([r.focal]); view.thread.add(r.items);
+          view.cursor = r.cursor;
+          show(focalId);
+        }, function () { show(focalId); });
+      }
+      if (!d.focal) { list.innerHTML = ''; list.appendChild(el('div', 'xtv-msg', esc(W_.unavailable))); return; }
+      view.thread = new Thread(d.focal.id);
+      view.thread.add([d.focal]); view.thread.add(d.items);
+      view.cursor = d.cursor;
+      show('');
+    }, function (e) {
+      if (!view) return;
+      list.innerHTML = '';
+      list.appendChild(el('div', 'xtv-msg', esc(e && e.message === 'timeout' ? W_.noTemplate : W_.failed + ((e && e.message) || e))));
+    });
+
+    function show(highlight) {
+      var r = view.thread.root();
+      if (r) ttl.textContent = Array.from((r.text || '').replace(/https:\/\/t\.co\/\w+/g, '').replace(/\s+/g, ' ').trim()).slice(0, 90).join('') || W_.title;
+      renderFloors();
+      if (highlight && highlight !== view.thread.rootId) setTimeout(function () { goToFloor(highlight); }, 60);
+    }
   }
 
-  function openModal(focalId, label) {
+  // openPanel shows id, then the replies to it.
+  function openPanel(id) {
     ensureStyle();
-    lock();
-    var m = el('div', 'xtv-modal');
-    var sheet = el('div', 'xtv-sheet');
-    var b = bar('Replies · ' + label, closeTop);
+    var veil = el('div', 'xtv-veil');
+    var panel = el('div', 'xtv-panel');
+    var bar = el('div', 'xtv-bar');
+    bar.appendChild(btn('xtv-ib', '✕', W_.close, closeTop));
     var scroll = el('div', 'xtv-scroll');
-    sheet.appendChild(b.el);
-    sheet.appendChild(scroll);
-    m.appendChild(sheet);
-    m.addEventListener('click', function (e) { if (e.target === m) closeTop(); });
-    document.body.appendChild(m);
-    stack.push({ close: function () { m.remove(); } });
-    thread(scroll, focalId, function () {});
+    scroll.appendChild(el('div', 'xtv-msg', esc(W_.loading)));
+    panel.appendChild(bar); panel.appendChild(scroll); veil.appendChild(panel);
+    veil.addEventListener('click', function (e) { if (e.target === veil) closeTop(); });
+    document.body.appendChild(veil);
+    var layer = { close: function () { veil.remove(); } };
+    pushLayer(layer);
+
+    var th = view && view.thread;
+    var local = th && th.by[id];
+    function render(src, replies) {
+      scroll.innerHTML = '';
+      if (!src) { scroll.appendChild(el('div', 'xtv-msg', esc(W_.unavailable))); return; }
+      var nos = view ? view.numbers : {};
+      scroll.appendChild(floorEl(src, { no: nos[src.id], quote: !!th && !!th.by[src.id], panel: true, source: true, inThread: !!nos[src.id] }));
+      scroll.appendChild(el('div', 'xtv-div', esc(W_.quotedBy)));
+      if (!replies.length) scroll.appendChild(el('div', 'xtv-msg', esc(W_.none)));
+      replies.forEach(function (t) { scroll.appendChild(floorEl(t, { no: nos[t.id], quote: false, panel: true, inThread: !!nos[t.id] })); });
+      scroll.appendChild(el('div', 'xtv-end', esc(W_.end)));
+    }
+    var mine = th ? th.children(id) : [];
+    if (local && mine.length >= local.replies) { render(local, mine); return; }
+    if (local) render(local, mine);
+    load(id).then(function (d) {
+      if (layers.indexOf(layer) < 0) return;
+      var src = d.focal || local;
+      var seen = {}, all = [];
+      mine.concat(d.items.filter(function (t) { return t.replyTo === id; })).forEach(function (t) { if (!seen[t.id]) { seen[t.id] = 1; all.push(t); } });
+      all.sort(function (a, b) { return ((a.created && a.created.getTime()) || 0) - ((b.created && b.created.getTime()) || 0); });
+      render(src, all);
+    }, function () { if (!local) render(null, []); });
   }
 
-  document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && stack.length) { e.stopPropagation(); e.preventDefault(); closeTop(); }
-  }, true);
+  // ---- image viewer: every image of the thread -------------------------------
 
-  // ---- entry point: a button on post pages ----------------------------------
+  function openViewer(url, fromId) {
+    var shots = [];
+    if (view && view.thread) {
+      view.thread.floors().forEach(function (t) {
+        t.media.forEach(function (m) { if (!m.video) shots.push({ url: m.url, id: t.id }); });
+      });
+    }
+    var at = 0;
+    shots.forEach(function (s, i) { if (s.url === url && s.id === fromId) at = i; });
+    if (!shots.length) { shots = [{ url: url, id: fromId }]; }
+    var box = el('div', 'xtv-light');
+    var top = el('div', 'top'), mid = el('div', 'mid'), bot = el('div', 'bot');
+    var count = el('span', ''), img = document.createElement('img');
+    top.appendChild(count);
+    top.appendChild(btn('xtv-ib', '✕', W_.close, closeTop));
+    var prev = btn('nav', '‹', '', function () { go(-1); }), next = btn('nav', '›', '', function () { go(1); });
+    mid.appendChild(prev); mid.appendChild(img); mid.appendChild(next);
+    var goPost = btn('lk', '↘ ' + esc(W_.goToPost), '', function () { var id = shots[at].id; closeTop(); goToFloor(id); });
+    bot.appendChild(goPost);
+    box.appendChild(top); box.appendChild(mid); box.appendChild(bot);
+    box.addEventListener('click', function (e) { if (e.target === box || e.target === mid) closeTop(); });
+    function go(d) {
+      at = (at + d + shots.length) % shots.length;
+      img.src = sized(shots[at].url, 'orig');
+      count.textContent = (at + 1) + ' / ' + shots.length;
+      prev.style.visibility = next.style.visibility = shots.length > 1 ? '' : 'hidden';
+      goPost.style.display = view && view.numbers[shots[at].id] ? '' : 'none';
+    }
+    go(0);
+    document.body.appendChild(box);
+    pushLayer({
+      close: function () { box.remove(); },
+      key: function (e) {
+        if (e.key === 'ArrowLeft') { go(-1); return true; }
+        if (e.key === 'ArrowRight') { go(1); return true; }
+        return false;
+      }
+    });
+  }
+
+  // ---- entry: auto-open on a post's page, and a button --------------------------
 
   var STATUS = /^\/(?:[^/]+|i\/web|i)\/status\/(\d+)/;
-  var fab = null;
+  var fab = null, lastId = '', closedFor = '';
   function statusId() {
     var m = location.pathname.match(STATUS);
     return m ? m[1] : '';
@@ -601,19 +834,22 @@
     var id = statusId();
     if (id && !fab) {
       ensureStyle();
-      fab = el('button', 'xtv-fab', '☰ Thread view');
-      fab.title = 'Read this post as a thread (Alt+T)';
-      fab.addEventListener('click', function () { var i = statusId(); if (i) openView(i); });
+      fab = btn('xtv-fab', esc(W_.thread), '', function () { var i = statusId(); if (i) openView(i); });
       document.body.appendChild(fab);
     } else if (!id && fab) {
       fab.remove(); fab = null;
     }
-    if (fab) fab.style.display = stack.length ? 'none' : '';
+    if (fab) fab.style.display = layers.length ? 'none' : '';
+    if (id !== lastId) {
+      lastId = id;
+      if (!id) closedFor = '';
+      if (id && !routing && !view && closedFor !== id && pref('auto', true)) openView(id);
+    }
   }
-  setInterval(tick, 600);
+  setInterval(tick, 400);
   document.addEventListener('keydown', function (e) {
     // Alt+T: plain T is X's own repost shortcut.
-    if (e.code !== 'KeyT' || !e.altKey || e.metaKey || e.ctrlKey || stack.length) return;
+    if (e.code !== 'KeyT' || !e.altKey || e.metaKey || e.ctrlKey || layers.length) return;
     var t = e.target;
     if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
     var id = statusId();
