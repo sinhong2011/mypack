@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         X Thread View
 // @namespace    https://mypack.dev/userscripts
-// @version      0.9.0
+// @version      0.9.1
 // @description  Open posts and their nested replies full screen over the page, in X's look and icons, without leaving where you are.
 // @match        https://x.com/*
 // @match        https://twitter.com/*
@@ -450,6 +450,7 @@ font:15px/20px TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,H
 .xtv-ib svg{width:20px;height:20px}\
 .xtv-scroll{flex:1;overflow-y:auto;overscroll-behavior:contain}\
 .xtv-ib svg,.xtv-act svg,.xtv-rp svg,.xtv-hrp svg,.xtv-badge svg,.xtv-light .lb svg{fill:currentColor}\
+.xtv-ib svg[fill=none],.xtv-act svg[fill=none],.xtv-rp svg[fill=none],.xtv-hrp svg[fill=none],.xtv-light .lb svg[fill=none]{fill:none}\
 .xtv-ib svg path[fill="none"],.xtv-act svg path[fill="none"]{fill:none}\
 .xtv-skel{display:flex;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line)}\
 .xtv-skel i{display:block;border-radius:999px;background:linear-gradient(90deg,var(--skel) 25%,rgba(128,128,128,.14) 50%,var(--skel) 75%);background-size:300% 100%;animation:xtv-shim 1.2s ease-in-out infinite}\
@@ -574,7 +575,7 @@ font:15px/20px TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,H
   var XSPRITE = {
     reply: ['icon-reply'], repost: ['icon-repost'], like: ['icon-heart'], views: ['icon-bar-chart'],
     back: ['icon-arrow-left', 'icon-back'], close: ['icon-close', 'icon-x'],
-    badge: ['icon-verified-premium-color', 'icon-verified'], answer: ['icon-compose', 'icon-reply']
+    badge: ['icon-verified-premium-color', 'icon-verified'], answer: ['icon-compose'] // never the 💬: that one shows the replies
   };
   // Until 2026, X's icons were inline in its buttons: they are copied.
   var XICON = {
