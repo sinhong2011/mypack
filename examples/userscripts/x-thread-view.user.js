@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         X Thread View
 // @namespace    https://mypack.dev/userscripts
-// @version      0.3.0
-// @description  Open a reply's nested replies in place, in an X-style dialog, without leaving the post you are reading.
+// @version      0.4.0
+// @description  Open a reply's nested replies in place, in stacked X-style panels, without leaving the post you are reading.
 // @match        https://x.com/*
 // @match        https://twitter.com/*
 // @run-at       document-start
@@ -10,15 +10,21 @@
 // ==/UserScript==
 
 /*
- * On a post's page, X opens a reply by leaving the page: the route
- * changes and you lose your place in the conversation. With this script a
- * reply opens in a dialog over the page instead, in X's own look:
+ * On a post's page, X opens a reply by leaving the page: the route changes
+ * and you lose your place in the conversation. Here a reply opens in a
+ * panel over the page instead, in X's own look, the way Hong Kong forums
+ * open a post's replies:
  *
  *  - Click a reply (or "Show N replies" under it): the reply and its
- *    replies open in the dialog. The page, its route and scroll stay.
- *  - Click a reply in the dialog to go a level deeper; ← goes back up
- *    (with its scroll), Esc or ✕ closes. ⌘/Ctrl-click opens normally.
- *  - "Open post" leaves the page for the post, when you want to.
+ *    replies open in a panel. The page, its route and scroll stay.
+ *  - Every reply shows its own "N replies" chip. Opening one stacks a new
+ *    panel on top; the ones below stay, stepped back, so you see how deep
+ *    you are, and closing the top one shows the one below as you left it.
+ *  - "Go to reply" closes the panels and shows that reply where it is on
+ *    the page, highlighted.
+ *  - A "Replies" bar and an end mark say where the replies start and end.
+ *  - Photos open in a viewer over the panels (arrows, count), not on X's
+ *    photo page. Esc closes the top layer; ⌘/Ctrl-click opens normally.
  *
  * Data: X loads a post with the GraphQL call "TweetDetail". The script
  * keeps the page's own request (its headers, signature included) and asks
@@ -183,13 +189,15 @@
 
   var zh = /^zh/i.test(document.documentElement.lang || navigator.language || '');
   var W_ = zh ? {
-    post: '貼文', back: '返回', close: '關閉', open: '開啟貼文', showReplies: function (n) { return '顯示 ' + n + ' 則回覆'; },
-    more: '顯示更多回覆', none: '還沒有回覆', replyingTo: '回覆給', failed: '無法載入這篇貼文。', openInstead: '改為開啟貼文',
-    views: '次查看'
+    post: '貼文', close: '關閉', open: '開啟貼文', showReplies: function (n) { return '顯示 ' + n + ' 則回覆'; },
+    replies: function (n) { return n + ' 則回覆'; }, more: '顯示更多回覆', none: '還沒有回覆', end: '已顯示所有回覆',
+    replyingTo: '回覆給', failed: '無法載入這篇貼文。', openInstead: '改為開啟貼文', views: '次查看',
+    goTo: '前往回覆', repliesHead: '回覆', photo: '相片'
   } : {
-    post: 'Post', back: 'Back', close: 'Close', open: 'Open post', showReplies: function (n) { return 'Show ' + n + (n === 1 ? ' reply' : ' replies'); },
-    more: 'Show more replies', none: 'No replies yet', replyingTo: 'Replying to', failed: 'This post could not be loaded.', openInstead: 'Open the post instead',
-    views: 'Views'
+    post: 'Post', close: 'Close', open: 'Open post', showReplies: function (n) { return 'Show ' + n + (n === 1 ? ' reply' : ' replies'); },
+    replies: function (n) { return n + (n === 1 ? ' reply' : ' replies'); }, more: 'Show more replies', none: 'No replies yet', end: 'That’s all the replies',
+    replyingTo: 'Replying to', failed: 'This post could not be loaded.', openInstead: 'Open the post instead', views: 'Views',
+    goTo: 'Go to reply', repliesHead: 'Replies', photo: 'Photo'
   };
 
   // ---- capture X's own TweetDetail calls ------------------------------------
@@ -335,34 +343,41 @@
   }
 
   var CSS = '\
-.xtv-veil{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;background:rgba(91,112,131,.4);animation:xtv-fade .12s ease-out}\
-.xtv-veil.dark{background:rgba(91,112,131,.4)}\
-@keyframes xtv-fade{from{opacity:0}to{opacity:1}}\
-.xtv-dlg{--bg:#fff;--fg:#0f1419;--sub:#536471;--line:#eff3f4;--thread:#cfd9de;--hover:rgba(0,0,0,.03);--accent:#1d9bf0;--btnhover:rgba(15,20,25,.1);\
-width:600px;max-width:100vw;height:min(90vh,800px);background:var(--bg);color:var(--fg);border-radius:16px;display:flex;flex-direction:column;overflow:hidden;\
-font:15px/20px TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;box-shadow:rgba(101,119,134,.2) 0 0 15px,rgba(101,119,134,.15) 0 0 3px 1px}\
+.xtv-veil{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;background:rgba(91,112,131,.4);animation:xtv-fade .14s ease-out}\
+.xtv-veil.leaving{animation:xtv-unfade .16s ease-in forwards}\
+@keyframes xtv-fade{from{opacity:0}to{opacity:1}}@keyframes xtv-unfade{to{opacity:0}}\
+.xtv-stack{position:relative;width:600px;max-width:100vw;height:min(90vh,820px)}\
+.xtv-dlg{--bg:#fff;--fg:#0f1419;--sub:#536471;--line:#eff3f4;--thread:#cfd9de;--hover:rgba(0,0,0,.03);--accent:#1d9bf0;--chip:rgba(29,155,240,.1);--chiphover:rgba(29,155,240,.2);--btnhover:rgba(15,20,25,.1);\
+--d:0;--i:0;position:absolute;inset:calc(var(--i) * 10px) 0 0 0;background:var(--bg);color:var(--fg);border-radius:16px;display:flex;flex-direction:column;overflow:hidden;\
+font:15px/20px TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;\
+box-shadow:rgba(101,119,134,.2) 0 0 15px,rgba(101,119,134,.15) 0 0 3px 1px;\
+transform:translateY(calc(var(--d) * -14px)) scale(calc(1 - var(--d) * .045));transform-origin:50% 0;\
+transition:transform .28s cubic-bezier(.2,.8,.2,1),filter .28s,opacity .28s,top .28s;animation:xtv-rise .3s cubic-bezier(.2,.8,.2,1)}\
 .xtv-dlg.dim{--bg:#15202b;--fg:#f7f9f9;--sub:#8b98a5;--line:#38444d;--thread:#38444d;--hover:rgba(255,255,255,.03);--btnhover:rgba(239,243,244,.1)}\
 .xtv-dlg.dark{--bg:#000;--fg:#e7e9ea;--sub:#71767b;--line:#2f3336;--thread:#333639;--hover:rgba(255,255,255,.03);--btnhover:rgba(239,243,244,.1);box-shadow:rgba(255,255,255,.2) 0 0 15px,rgba(255,255,255,.15) 0 0 3px 1px}\
-@media (max-width:700px){.xtv-dlg{height:100vh;border-radius:0}}\
+.xtv-dlg.under{filter:brightness(.78);pointer-events:none}\
+.xtv-dlg.dark.under,.xtv-dlg.dim.under{filter:brightness(.62)}\
+.xtv-dlg.far{opacity:0}\
+.xtv-dlg.leaving{animation:xtv-drop .2s cubic-bezier(.4,0,1,1) forwards}\
+@keyframes xtv-rise{from{transform:translateY(48px);opacity:0}to{transform:translateY(0);opacity:1}}\
+@keyframes xtv-drop{to{transform:translateY(48px);opacity:0}}\
+@media (max-width:700px){.xtv-stack{height:100vh}.xtv-dlg{border-radius:0}}\
 .xtv-dlg a{color:var(--accent);text-decoration:none}.xtv-dlg a:hover{text-decoration:underline}\
-.xtv-top{display:flex;align-items:center;gap:12px;height:53px;padding:0 16px;flex:none;backdrop-filter:blur(12px)}\
-.xtv-top h2{flex:1;margin:0;font-size:20px;line-height:24px;font-weight:700;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
+.xtv-top{display:flex;align-items:center;gap:12px;height:53px;padding:0 16px;flex:none}\
+.xtv-ttl{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center}\
+.xtv-ttl h2{margin:0;font-size:20px;line-height:24px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
+.xtv-crumb{color:var(--sub);font-size:13px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
 .xtv-ib{appearance:none;border:0;background:transparent;color:var(--fg);width:34px;height:34px;border-radius:50%;display:grid;place-items:center;cursor:pointer;flex:none;transition:background .2s}\
 .xtv-ib:hover{background:var(--btnhover)}\
 .xtv-ib svg{width:20px;height:20px}\
-.xtv-crumb{display:flex;gap:4px;align-items:center;color:var(--sub);font-size:13px;overflow:hidden;white-space:nowrap}\
 .xtv-scroll{flex:1;overflow-y:auto;overscroll-behavior:contain}\
-.xtv-level{animation:xtv-in .18s cubic-bezier(.2,.8,.2,1)}\
-.xtv-level.back{animation:xtv-out .18s cubic-bezier(.2,.8,.2,1)}\
-@keyframes xtv-in{from{transform:translateX(24px);opacity:.4}to{transform:none;opacity:1}}\
-@keyframes xtv-out{from{transform:translateX(-24px);opacity:.4}to{transform:none;opacity:1}}\
 .xtv-row{display:flex;gap:12px;padding:12px 16px 0;cursor:pointer;transition:background .2s}\
 .xtv-row:hover{background:var(--hover)}\
 .xtv-rail{display:flex;flex-direction:column;align-items:center;flex:none;width:40px}\
 .xtv-rail .up{width:2px;height:8px;margin:-12px 0 4px;background:var(--thread)}\
 .xtv-rail .up.none{background:transparent}\
 .xtv-rail .down{width:2px;flex:1;min-height:12px;margin-top:4px;background:var(--thread)}\
-.xtv-av{width:40px;height:40px;border-radius:50%;object-fit:cover;background:var(--line);flex:none}\
+.xtv-av{width:40px;height:40px;border-radius:50%;object-fit:cover;background:var(--line);flex:none;display:block}\
 .xtv-main{flex:1;min-width:0;padding-bottom:12px}\
 .xtv-row.last .xtv-main{border-bottom:1px solid var(--line)}\
 .xtv-who{display:flex;gap:4px;align-items:baseline;min-width:0;white-space:nowrap}\
@@ -373,6 +388,7 @@ font:15px/20px TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,H
 .xtv-media{display:grid;gap:2px;margin-top:12px;border-radius:16px;overflow:hidden;border:1px solid var(--line)}\
 .xtv-media.n2,.xtv-media.n3,.xtv-media.n4{grid-template-columns:1fr 1fr}\
 .xtv-media img,.xtv-media video{width:100%;max-height:510px;object-fit:cover;display:block;background:var(--line)}\
+.xtv-media img{cursor:zoom-in}\
 .xtv-media.n2 img,.xtv-media.n3 img,.xtv-media.n4 img{aspect-ratio:1;height:100%}\
 .xtv-quote{margin-top:12px;border:1px solid var(--line);border-radius:16px;padding:12px;transition:background .2s}\
 .xtv-quote:hover{background:var(--hover)}\
@@ -380,22 +396,44 @@ font:15px/20px TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,H
 .xtv-acts{display:flex;justify-content:space-between;max-width:425px;margin-top:12px;color:var(--sub);font-size:13px}\
 .xtv-act{display:flex;align-items:center;gap:4px;min-width:0}\
 .xtv-act svg{width:18.75px;height:18.75px}\
-.xtv-focal{padding:12px 16px 0;border-bottom:1px solid var(--line)}\
+.xtv-foot{display:flex;align-items:center;gap:12px;margin-top:10px;min-height:28px}\
+.xtv-chip{appearance:none;border:0;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;border-radius:999px;background:var(--chip);color:var(--accent);font:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:background .2s}\
+.xtv-chip:hover{background:var(--chiphover)}\
+.xtv-chip svg{width:16px;height:16px}\
+.xtv-goto{appearance:none;border:0;background:none;color:var(--sub);font:inherit;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;padding:0}\
+.xtv-goto:hover{color:var(--accent)}\
+.xtv-goto svg{width:15px;height:15px}\
+.xtv-focal{padding:12px 16px 0}\
 .xtv-focal .xtv-head{display:flex;gap:12px;align-items:center;margin-bottom:12px}\
 .xtv-focal .xtv-text{font-size:17px;line-height:24px}\
-.xtv-focal .xtv-when{color:var(--sub);margin:16px 0;font-size:15px}\
+.xtv-focal .xtv-when{color:var(--sub);margin:16px 0 0;font-size:15px}\
 .xtv-focal .xtv-when b{color:var(--fg);font-weight:700}\
-.xtv-focal .xtv-acts{border-top:1px solid var(--line);margin:0;max-width:none;padding:4px 4px;height:48px;align-items:center}\
+.xtv-focal .xtv-acts{border-top:1px solid var(--line);margin:12px 0 0;max-width:none;padding:0 4px;height:48px;align-items:center}\
+.xtv-focal .xtv-foot{margin:0 0 12px}\
 .xtv-reply-to{color:var(--sub);margin:4px 0 0}\
-.xtv-parent{opacity:.95}\
+.xtv-div{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);font-weight:700;font-size:17px;position:sticky;top:0;background:var(--bg);z-index:1}\
+.xtv-div .n{color:var(--sub);font-weight:400;font-size:15px}\
 .xtv-more{display:block;width:100%;appearance:none;border:0;border-bottom:1px solid var(--line);background:none;color:var(--accent);font:inherit;padding:16px;text-align:left;cursor:pointer;transition:background .2s}\
 .xtv-more:hover{background:var(--hover)}\
+.xtv-end{display:flex;align-items:center;gap:12px;color:var(--sub);font-size:13px;padding:20px 16px 28px}\
+.xtv-end:before,.xtv-end:after{content:"";flex:1;height:1px;background:var(--line)}\
 .xtv-msg{color:var(--sub);text-align:center;padding:40px 16px}\
 .xtv-msg a{display:inline-block;margin-top:12px}\
-.xtv-spin{width:26px;height:26px;margin:40px auto;border-radius:50%;border:3px solid rgba(29,155,240,.2);border-top-color:var(--accent);animation:xtv-rot .75s linear infinite}\
+.xtv-spin{width:26px;height:26px;margin:40px auto;border-radius:50%;border:3px solid rgba(29,155,240,.2);border-top-color:var(--accent,#1d9bf0);animation:xtv-rot .75s linear infinite}\
 @keyframes xtv-rot{to{transform:rotate(360deg)}}\
-.xtv-show{display:inline-block;margin:0 0 12px 68px;color:#1d9bf0;font-size:15px;cursor:pointer}\
-.xtv-show:hover{text-decoration:underline}';
+.xtv-show{display:inline-flex;align-items:center;gap:6px;margin:0 0 12px 68px;color:#1d9bf0;font-size:15px;cursor:pointer;font-family:TwitterChirp,-apple-system,BlinkMacSystemFont,sans-serif}\
+.xtv-show:hover{text-decoration:underline}\
+.xtv-show svg{width:16px;height:16px}\
+@keyframes xtv-flash{0%,30%{background:rgba(29,155,240,.18)}100%{background:transparent}}\
+.xtv-flash{animation:xtv-flash 1.6s ease-out}\
+.xtv-light{position:fixed;inset:0;z-index:2147483010;background:rgba(0,0,0,.9);display:flex;align-items:center;justify-content:center;animation:xtv-fade .14s ease-out}\
+.xtv-light img{max-width:calc(100vw - 160px);max-height:calc(100vh - 96px);object-fit:contain}\
+.xtv-light .lb{position:absolute;appearance:none;border:0;width:36px;height:36px;border-radius:50%;background:rgba(15,20,25,.75);color:#fff;display:grid;place-items:center;cursor:pointer;transition:background .2s}\
+.xtv-light .lb:hover{background:rgba(39,44,48,.75)}\
+.xtv-light .lb svg{width:20px;height:20px}\
+.xtv-light .x{top:12px;left:12px}.xtv-light .p{left:16px;top:50%;margin-top:-18px}.xtv-light .nx{right:16px;top:50%;margin-top:-18px}\
+.xtv-light .ct{position:absolute;top:18px;left:60px;color:#fff;font:600 15px -apple-system,sans-serif}\
+.xtv-light .go{position:absolute;bottom:16px;right:16px;appearance:none;border:0;border-radius:999px;background:rgba(15,20,25,.75);color:#fff;font:600 14px -apple-system,sans-serif;padding:8px 14px;cursor:pointer}';
 
   var styled = false;
   function ensureStyle() {
@@ -411,16 +449,25 @@ font:15px/20px TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,H
     if (html != null) e.innerHTML = html;
     return e;
   }
+  function button(cls, html, title, fn) {
+    var b = el('button', cls, html);
+    b.type = 'button';
+    if (title) b.title = title;
+    b.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); fn(e); });
+    return b;
+  }
 
   // Simple line icons in X's weight (not X's own drawings).
   var ICON = {
-    back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M11 18l-6-6 6-6"/></svg>',
     close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
     open: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>',
     reply: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"><path d="M4 11.5C4 7.4 7.4 4.5 11.5 4.5h1C16.6 4.5 20 7.4 20 11.3c0 4-3.4 6.7-7.6 6.7H11l-4.5 3v-3.5C4.9 16.4 4 14.1 4 11.5z"/></svg>',
     repost: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7 20V8a2 2 0 0 1 2-2h7"/><path d="M4 17l3 3 3-3"/><path d="M17 4v12a2 2 0 0 1-2 2H8"/><path d="M20 7l-3-3-3 3"/></svg>',
     like: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"><path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.2a4.3 4.3 0 0 1 7.5 2.6C19.5 15.4 12 20 12 20z"/></svg>',
     views: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M5 20V12M10 20V4M15 20v-9M20 20v-5"/></svg>',
+    goto: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7v6a3 3 0 0 0 3 3h8"/><path d="M14 12l4 4-4 4"/></svg>',
+    prev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>',
+    next: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>',
     badge: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l2.4 1.8 3-.2.9 2.9 2.5 1.7-1 2.8 1 2.8-2.5 1.7-.9 2.9-3-.2L12 21.5l-2.4-1.8-3 .2-.9-2.9-2.5-1.7 1-2.8-1-2.8 2.5-1.7.9-2.9 3 .2z"/><path d="M8.5 12.2l2.3 2.3 4.7-4.9" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
   };
 
@@ -443,7 +490,41 @@ font:15px/20px TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,H
   }
   function sized(u, name) { return /^https:\/\/pbs\.twimg\.com\//.test(u) ? u + (u.indexOf('?') < 0 ? '?' : '&') + 'name=' + name : u; }
 
-  function mediaEl(t) {
+  // ---- the page's own posts: "Go to reply" finds them there -----------------------
+
+  var STATUS = /^\/(?:[^/]+|i\/web|i)\/status\/(\d+)/;
+  function pageStatus() {
+    var m = location.pathname.match(STATUS);
+    return m ? m[1] : '';
+  }
+  function articleStatus(art) {
+    var t = art.querySelector('a[href*="/status/"] time');
+    var a = t && t.closest('a');
+    return a ? statusIdOf(a.getAttribute('href')) : '';
+  }
+  function pageArticle(id) {
+    var arts = document.querySelectorAll('article[data-testid="tweet"]');
+    for (var i = 0; i < arts.length; i++) {
+      if (!(layer && layer.veil.contains(arts[i])) && articleStatus(arts[i]) === id) return arts[i];
+    }
+    return null;
+  }
+  // goTo closes the panels and shows id where it is on the page.
+  function goTo(id) {
+    var art = pageArticle(id);
+    closeAll();
+    if (!art) return;
+    var cell = art.closest('[data-testid="cellInnerDiv"]') || art;
+    cell.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    cell.classList.remove('xtv-flash');
+    void cell.offsetWidth;
+    cell.classList.add('xtv-flash');
+  }
+
+  // ---- posts, X's way ---------------------------------------------------------------
+
+  // sheetCtx is what a panel's posts can do: open a reply, show a photo.
+  function mediaEl(t, ctx) {
     if (!t.media.length) return null;
     var n = Math.min(t.media.length, 4);
     var box = el('div', 'xtv-media n' + n);
@@ -455,13 +536,11 @@ font:15px/20px TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,H
         v.addEventListener('click', function (e) { e.stopPropagation(); });
         box.appendChild(v);
       } else {
-        var a = el('a');
-        a.href = m.url + '?name=orig'; a.target = '_blank'; a.rel = 'noopener';
-        a.addEventListener('click', function (e) { e.stopPropagation(); });
         var img = document.createElement('img');
-        img.src = sized(m.url, n > 1 ? 'small' : 'medium'); img.loading = 'lazy'; img.alt = '';
-        a.appendChild(img);
-        box.appendChild(a);
+        img.src = sized(m.url, n > 1 ? 'small' : 'medium'); img.loading = 'lazy'; img.alt = W_.photo;
+        var shot = ctx.photo(m.url, t.id);
+        img.addEventListener('click', function (e) { e.stopPropagation(); ctx.viewer(shot); });
+        box.appendChild(img);
       }
     });
     return box;
@@ -504,7 +583,18 @@ font:15px/20px TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,H
     return a;
   }
 
-  function quoteEl(q, go) {
+  // footEl: the 💬 N chip that opens the replies on top, and "Go to reply"
+  // when the post is on the page underneath.
+  function footEl(t, ctx, withChip) {
+    var f = el('div', 'xtv-foot');
+    if (withChip && t.replies > 0) {
+      f.appendChild(button('xtv-chip', ICON.reply + '<span>' + esc(W_.replies(t.replies)) + '</span>', '', function () { ctx.open(t.id); }));
+    }
+    if (pageArticle(t.id)) f.appendChild(button('xtv-goto', ICON.goto + '<span>' + esc(W_.goTo) + '</span>', '', function () { goTo(t.id); }));
+    return f.childNodes.length ? f : null;
+  }
+
+  function quoteEl(q, ctx) {
     var box = el('div', 'xtv-quote');
     var head = el('div', 'xtv-who');
     var img = document.createElement('img');
@@ -514,15 +604,15 @@ font:15px/20px TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,H
     head.appendChild(el('span', 'sub', '@' + esc(q.handle) + ' · ' + esc(ago(q.created))));
     box.appendChild(head);
     box.appendChild(el('div', 'xtv-text', renderText(q)));
-    var m = mediaEl(q);
+    var m = mediaEl(q, ctx);
     if (m) box.appendChild(m);
-    box.addEventListener('click', function (e) { e.stopPropagation(); if (!e.target.closest('a,video')) go(q.id); });
+    box.addEventListener('click', function (e) { e.stopPropagation(); if (!e.target.closest('a,video,img')) ctx.open(q.id); });
     return box;
   }
 
-  // rowEl is a post in a list, X's way: avatar rail on the left, joined
-  // to the posts above and below in the same thread.
-  function rowEl(t, go, up, down, last) {
+  // rowEl is a post in a list: avatar rail joined to the posts above and
+  // below in its thread; a click opens it on top.
+  function rowEl(t, ctx, up, down, last) {
     var row = el('div', 'xtv-row' + (last ? ' last' : ''));
     row.setAttribute('role', 'link');
     row.tabIndex = 0;
@@ -534,187 +624,238 @@ font:15px/20px TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,H
     var main = el('div', 'xtv-main');
     main.appendChild(whoEl(t, false));
     main.appendChild(el('div', 'xtv-text', renderText(t)));
-    var m = mediaEl(t);
+    var m = mediaEl(t, ctx);
     if (m) main.appendChild(m);
-    if (t.quoted) main.appendChild(quoteEl(t.quoted, go));
+    if (t.quoted) main.appendChild(quoteEl(t.quoted, ctx));
     main.appendChild(actsEl(t, false));
+    var f = footEl(t, ctx, true);
+    if (f) main.appendChild(f);
     row.appendChild(main);
     row.addEventListener('click', function (e) {
-      if (e.target.closest('a,video,button')) return;
+      if (e.target.closest('a,video,button,img')) return;
       if (e.metaKey || e.ctrlKey) { window.open('/' + t.handle + '/status/' + t.id, '_blank'); return; }
-      go(t.id);
+      ctx.open(t.id);
     });
-    row.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(t.id); });
+    row.addEventListener('keydown', function (e) { if (e.key === 'Enter') ctx.open(t.id); });
     return row;
   }
 
-  // focalEl is the post a level is about, large, as X shows a post's page.
-  function focalEl(t, go) {
+  // focalEl is the post a panel is about, large, as X shows a post's page.
+  function focalEl(t, ctx) {
     var box = el('div', 'xtv-focal');
     var head = el('div', 'xtv-head');
     head.appendChild(avatarEl(t));
-    var who = el('div', '');
-    who.style.minWidth = '0';
     var w = whoEl(t, true);
     w.style.flexDirection = 'column'; w.style.gap = '0'; w.style.alignItems = 'flex-start';
-    who.appendChild(w);
-    head.appendChild(who);
+    head.appendChild(w);
     box.appendChild(head);
     if (t.replyToHandle) box.appendChild(el('div', 'xtv-reply-to', esc(W_.replyingTo) + ' <a href="/' + esc(t.replyToHandle) + '">@' + esc(t.replyToHandle) + '</a>'));
     box.appendChild(el('div', 'xtv-text', renderText(t)));
-    var m = mediaEl(t);
+    var m = mediaEl(t, ctx);
     if (m) box.appendChild(m);
-    if (t.quoted) box.appendChild(quoteEl(t.quoted, go));
+    if (t.quoted) box.appendChild(quoteEl(t.quoted, ctx));
     if (t.created) {
       var when = t.created.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) + ' · ' +
         t.created.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
       box.appendChild(el('div', 'xtv-when', esc(when) + (t.views ? ' · <b>' + esc(num(t.views)) + '</b> ' + esc(W_.views) : '')));
     }
     box.appendChild(actsEl(t, true));
+    var f = footEl(t, ctx, false);
+    if (f) box.appendChild(f);
     return box;
   }
 
-  // ---- the dialog: a stack of levels, never a route change ----------------------
+  // ---- stacked panels: each reply opens on top, the ones below stay -----------------
 
-  var dlg = null; // { veil, box, scroll, title, backBtn, stack: [{id, y}] }
+  var layer = null;   // { veil, stack, overflow }
+  var sheets = [];    // open panels, bottom first: { id, el, name }
+  var viewer = null;  // the photo viewer, when open
 
-  function closeDialog() {
-    if (!dlg) return;
-    dlg.veil.remove();
-    document.documentElement.style.overflow = dlg.overflow;
-    dlg = null;
+  function restack() {
+    sheets.forEach(function (s, i) {
+      var d = sheets.length - 1 - i;
+      s.el.style.setProperty('--d', Math.min(d, 3));
+      s.el.style.setProperty('--i', Math.min(i, 3)); // each panel sits lower: the ones under it peek out above
+      s.el.classList.toggle('under', d > 0);
+      s.el.classList.toggle('far', d > 3);
+      s.el.setAttribute('aria-hidden', d > 0 ? 'true' : 'false');
+    });
+    var top = sheets[sheets.length - 1];
+    if (top) {
+      var crumb = top.el.querySelector('.xtv-crumb');
+      var names = sheets.map(function (s) { return s.name; }).filter(Boolean);
+      crumb.textContent = names.length > 1 ? names.join(' › ') : '';
+      crumb.style.display = names.length > 1 ? '' : 'none';
+    }
   }
 
-  function openDialog(id) {
+  function openSheet(id) {
     ensureStyle();
-    if (dlg) { push(id); return; }
-    var th = theme();
-    var veil = el('div', 'xtv-veil ' + th);
-    var box = el('div', 'xtv-dlg ' + th);
-    box.setAttribute('role', 'dialog');
-    box.setAttribute('aria-modal', 'true');
-    var top = el('div', 'xtv-top');
-    var back = el('button', 'xtv-ib', ICON.close);
-    back.type = 'button';
-    back.title = W_.close;
-    back.addEventListener('click', function () { if (dlg && dlg.stack.length > 1) pop(); else closeDialog(); });
-    var title = el('h2', '', esc(W_.post));
+    var top = sheets[sheets.length - 1];
+    if (top && top.id === id) return;
+    if (!layer) {
+      var th = theme();
+      var veil = el('div', 'xtv-veil ' + th);
+      var stack = el('div', 'xtv-stack');
+      veil.appendChild(stack);
+      veil.addEventListener('mousedown', function (e) { if (e.target === veil) closeTop(); });
+      document.body.appendChild(veil);
+      layer = { veil: veil, stack: stack, theme: th, overflow: document.documentElement.style.overflow };
+      document.documentElement.style.overflow = 'hidden';
+    }
+    var sheet = el('div', 'xtv-dlg ' + layer.theme);
+    sheet.setAttribute('role', 'dialog');
+    sheet.setAttribute('aria-modal', 'true');
+    var bar = el('div', 'xtv-top');
+    bar.appendChild(button('xtv-ib', ICON.close, W_.close, closeTop));
+    var ttl = el('div', 'xtv-ttl', '<h2>' + esc(W_.post) + '</h2>');
+    ttl.appendChild(el('div', 'xtv-crumb'));
+    bar.appendChild(ttl);
     var open = el('a', 'xtv-ib', ICON.open);
+    open.href = '/i/status/' + id;
     open.title = W_.open;
-    open.addEventListener('click', function () { closeDialog(); });
-    top.appendChild(back); top.appendChild(title); top.appendChild(open);
+    open.addEventListener('click', function () { closeAll(); });
+    bar.appendChild(open);
     var scroll = el('div', 'xtv-scroll');
-    box.appendChild(top); box.appendChild(scroll);
-    veil.appendChild(box);
-    veil.addEventListener('mousedown', function (e) { if (e.target === veil) closeDialog(); });
-    document.body.appendChild(veil);
-    dlg = { veil: veil, box: box, scroll: scroll, title: title, back: back, open: open, stack: [], overflow: document.documentElement.style.overflow };
-    document.documentElement.style.overflow = 'hidden';
-    push(id);
+    scroll.appendChild(el('div', 'xtv-spin'));
+    sheet.appendChild(bar);
+    sheet.appendChild(scroll);
+    layer.stack.appendChild(sheet);
+    var s = { id: id, el: sheet, name: '' };
+    sheets.push(s);
+    restack();
+    fill(s, scroll);
   }
 
-  function push(id) {
-    if (!dlg) return;
-    var cur = dlg.stack[dlg.stack.length - 1];
-    if (cur && cur.id === id) return;
-    if (cur) cur.y = dlg.scroll.scrollTop;
-    dlg.stack.push({ id: id, y: 0 });
-    show(false);
-  }
-  function pop() {
-    if (!dlg || dlg.stack.length < 2) return;
-    dlg.stack.pop();
-    show(true);
-  }
-
-  function show(goingBack) {
-    var level = dlg.stack[dlg.stack.length - 1];
-    var depth = dlg.stack.length;
-    dlg.back.innerHTML = depth > 1 ? ICON.back : ICON.close;
-    dlg.back.title = depth > 1 ? W_.back : W_.close;
-    dlg.open.href = '/i/status/' + level.id;
-    var view = el('div', 'xtv-level' + (goingBack ? ' back' : ''));
-    view.appendChild(el('div', 'xtv-spin'));
-    dlg.scroll.innerHTML = '';
-    dlg.scroll.appendChild(view);
-    var mine = dlg;
-    load(level.id).then(function (d) {
-      if (dlg !== mine || dlg.stack[dlg.stack.length - 1] !== level) return;
-      view.innerHTML = '';
-      if (!d.focal) { failed(view, level.id); return; }
-      // The post it answers, small and joined, as X shows it above.
+  // fill loads a panel: the post it answers, the post, "Replies", the
+  // replies (each with its own 💬 N), and the end mark.
+  function fill(s, scroll) {
+    var shots = [];
+    var ctx = {
+      open: openSheet,
+      photo: function (url, from) { var i = shots.length; shots.push({ url: url, from: from }); return i; },
+      viewer: function (i) { openViewer(shots, i); }
+    };
+    load(s.id).then(function (d) {
+      if (sheets.indexOf(s) < 0) return;
+      scroll.innerHTML = '';
+      if (!d.focal) { failed(scroll, s.id); return; }
+      s.name = d.focal.name || '@' + d.focal.handle;
+      restack();
       var parent = d.ancestors[d.ancestors.length - 1];
-      if (parent) {
-        var p = rowEl(parent, push, false, true, false);
-        p.classList.add('xtv-parent');
-        view.appendChild(p);
-      }
-      view.appendChild(focalEl(d.focal, push));
-      renderThreads(view, d.threads);
-      moreButton(view, level.id, d.cursor);
-      if (!d.threads.length && !d.cursor) view.appendChild(el('div', 'xtv-msg', esc(W_.none)));
-      dlg.scroll.scrollTop = goingBack ? level.y : 0;
+      if (parent) scroll.appendChild(rowEl(parent, ctx, false, true, false));
+      scroll.appendChild(focalEl(d.focal, ctx));
+      var head = el('div', 'xtv-div', esc(W_.repliesHead));
+      if (d.focal.replies) head.appendChild(el('span', 'n', esc(num(d.focal.replies))));
+      scroll.appendChild(head);
+      var list = el('div', '');
+      scroll.appendChild(list);
+      renderThreads(list, d.threads, ctx);
+      tail(list, s.id, d.cursor, ctx, !d.threads.length);
     }, function () {
-      if (dlg !== mine) return;
-      view.innerHTML = '';
-      failed(view, level.id);
+      if (sheets.indexOf(s) < 0) return;
+      scroll.innerHTML = '';
+      failed(scroll, s.id);
     });
   }
 
-  function renderThreads(view, threads) {
+  function renderThreads(list, threads, ctx) {
     threads.forEach(function (th) {
       th.forEach(function (t, i) {
-        view.appendChild(rowEl(t, push, i > 0, i < th.length - 1, i === th.length - 1));
+        list.appendChild(rowEl(t, ctx, i > 0, i < th.length - 1, i === th.length - 1));
       });
     });
   }
 
-  function moreButton(view, id, cursor) {
-    if (!cursor) return;
-    var b = el('button', 'xtv-more', esc(W_.more));
-    b.type = 'button';
-    b.addEventListener('click', function () {
+  // tail is "Show more replies" while there are more, then the end mark.
+  function tail(list, id, cursor, ctx, empty) {
+    if (!cursor) {
+      list.appendChild(el('div', empty ? 'xtv-msg' : 'xtv-end', esc(empty ? W_.none : W_.end)));
+      return;
+    }
+    var b = button('xtv-more', esc(W_.more), '', function () {
       b.disabled = true;
       b.innerHTML = '<div class="xtv-spin" style="margin:0 auto;width:20px;height:20px"></div>';
       fetchDetail(id, cursor).then(function (p) {
-        var frag = el('div');
-        renderThreads(frag, p.threads);
-        while (frag.firstChild) view.insertBefore(frag.firstChild, b);
         b.remove();
-        if (p.cursor && p.cursor !== cursor) moreButton(view, id, p.cursor);
-      }, function () { b.remove(); });
+        renderThreads(list, p.threads, ctx);
+        tail(list, id, p.cursor && p.cursor !== cursor ? p.cursor : '', ctx, false);
+      }, function () { b.remove(); tail(list, id, '', ctx, false); });
     });
-    view.appendChild(b);
+    list.appendChild(b);
   }
 
-  function failed(view, id) {
+  function failed(scroll, id) {
     var m = el('div', 'xtv-msg', esc(W_.failed) + '<br>');
     var a = el('a', '', esc(W_.openInstead));
     a.href = '/i/status/' + id;
-    a.addEventListener('click', function () { closeDialog(); });
+    a.addEventListener('click', function () { closeAll(); });
     m.appendChild(a);
-    view.appendChild(m);
+    scroll.appendChild(m);
+  }
+
+  function closeTop() {
+    if (viewer) { viewer.remove(); viewer = null; return; }
+    var s = sheets.pop();
+    if (!s) return;
+    s.el.classList.add('leaving');
+    setTimeout(function () { s.el.remove(); }, 200);
+    if (sheets.length) { restack(); return; }
+    var l = layer;
+    layer = null;
+    l.veil.classList.add('leaving');
+    setTimeout(function () { l.veil.remove(); }, 170);
+    document.documentElement.style.overflow = l.overflow;
+  }
+  function closeAll() {
+    if (viewer) { viewer.remove(); viewer = null; }
+    if (!layer) return;
+    layer.veil.remove();
+    document.documentElement.style.overflow = layer.overflow;
+    layer = null;
+    sheets = [];
+  }
+
+  // ---- photos open over the panels, not on X's photo page ---------------------------
+
+  function openViewer(shots, at) {
+    if (!shots.length) return;
+    var box = el('div', 'xtv-light');
+    var img = document.createElement('img');
+    img.alt = W_.photo;
+    var ct = el('div', 'ct');
+    box.appendChild(img);
+    box.appendChild(button('lb x', ICON.close, W_.close, function () { box.remove(); viewer = null; }));
+    var many = shots.length > 1;
+    if (many) {
+      box.appendChild(ct);
+      box.appendChild(button('lb p', ICON.prev, '', function () { go(-1); }));
+      box.appendChild(button('lb nx', ICON.next, '', function () { go(1); }));
+    }
+    var goBtn = button('go', esc(W_.goTo), '', function () { var id = shots[at].from; box.remove(); viewer = null; goTo(id); });
+    box.appendChild(goBtn);
+    box.addEventListener('mousedown', function (e) { if (e.target === box) { box.remove(); viewer = null; } });
+    function go(d) {
+      at = (at + d + shots.length) % shots.length;
+      img.src = sized(shots[at].url, 'large');
+      ct.textContent = (at + 1) + ' / ' + shots.length;
+      goBtn.style.display = pageArticle(shots[at].from) ? '' : 'none';
+    }
+    go(0);
+    box.go = go;
+    document.body.appendChild(box);
+    viewer = box;
   }
 
   document.addEventListener('keydown', function (e) {
-    if (!dlg) return;
-    if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); closeDialog(); }
-    else if ((e.key === 'Backspace' || (e.key === 'ArrowLeft' && e.altKey)) && dlg.stack.length > 1 &&
-      !/^(INPUT|TEXTAREA)$/.test((e.target && e.target.tagName) || '')) { e.preventDefault(); e.stopImmediatePropagation(); pop(); }
+    if (!layer && !viewer) return;
+    if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); closeTop(); return; }
+    if (viewer && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+      e.preventDefault(); e.stopImmediatePropagation(); viewer.go(e.key === 'ArrowLeft' ? -1 : 1);
+    }
   }, true);
 
-  // ---- on X's page: replies open in the dialog --------------------------------
-
-  var STATUS = /^\/(?:[^/]+|i\/web|i)\/status\/(\d+)/;
-  function pageStatus() {
-    var m = location.pathname.match(STATUS);
-    return m ? m[1] : '';
-  }
-  function articleStatus(art) {
-    var t = art.querySelector('a[href*="/status/"] time');
-    var a = t && t.closest('a');
-    return a ? statusIdOf(a.getAttribute('href')) : '';
-  }
+  // ---- on X's page: replies open in place --------------------------------------------
 
   // A click on a reply in the conversation opens it in place. Links, the
   // action bar, media and menus inside it keep doing what X does.
@@ -723,13 +864,13 @@ font:15px/20px TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,H
     var page = pageStatus();
     if (!page) return;
     var art = e.target.closest && e.target.closest('article[data-testid="tweet"]');
-    if (!art || (dlg && dlg.veil.contains(art))) return;
-    if (e.target.closest('a,button,[role="button"],[role="menu"],video,[data-testid="tweetPhoto"],[data-testid="card.wrapper"],input,textarea')) return;
+    if (!art || (layer && layer.veil.contains(art))) return;
+    if (e.target.closest('a,button,[role="button"],[role="menu"],video,[data-testid="tweetPhoto"],[data-testid="card.wrapper"],input,textarea,.xtv-show')) return;
     var id = articleStatus(art);
     if (!id || id === page) return;
     e.preventDefault();
     e.stopImmediatePropagation();
-    openDialog(id);
+    openSheet(id);
   }, true);
 
   // "Show N replies" under a reply that has replies, in X's blue.
@@ -746,11 +887,11 @@ font:15px/20px TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,H
       var n = parseInt(((rb && rb.getAttribute('aria-label')) || '').replace(/[^\d]/g, ''), 10) || 0;
       if (!n) continue;
       ensureStyle();
-      var link = el('div', 'xtv-show', esc(W_.showReplies(n)));
+      var link = el('div', 'xtv-show', ICON.reply + '<span>' + esc(W_.showReplies(n)) + '</span>');
       link.setAttribute('role', 'link');
       link.tabIndex = 0;
       (function (id) {
-        link.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); openDialog(id); });
+        link.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); openSheet(id); });
       })(id);
       art.appendChild(link);
     }
@@ -760,5 +901,5 @@ font:15px/20px TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,H
     if (pending) return;
     pending = requestAnimationFrame(function () { pending = 0; decorate(); });
   }).observe(document.documentElement, { childList: true, subtree: true });
-  window.addEventListener('popstate', closeDialog);
+  window.addEventListener('popstate', closeAll);
 })();

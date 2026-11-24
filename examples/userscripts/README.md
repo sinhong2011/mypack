@@ -5,7 +5,7 @@ Tampermonkey and ScriptCat.
 
 | Script | What it does |
 | --- | --- |
-| [x-thread-view.user.js](x-thread-view.user.js) | Opens a reply's nested replies in place. On a post's page, clicking a reply (or "Show N replies" under it) opens it in an X-style dialog instead of leaving the page: the route, the page and your scroll stay where they are. Click a reply in the dialog to go a level deeper, ← to go back up, Esc to close; ⌘/Ctrl-click opens a reply the normal way. Follows X's light, dim and dark themes. |
+| [x-thread-view.user.js](x-thread-view.user.js) | Opens a reply's nested replies in place, in stacked X-style panels. On a post's page, clicking a reply (or "Show N replies" under it) opens it in a panel instead of leaving the page: the route, the page and your scroll stay. Every reply shows its own "N replies" chip; opening one stacks a panel on top, with the ones below stepped back (Hong Kong forum style), and a breadcrumb of the path. "Go to reply" closes the panels and highlights the reply on the page. Photos open in a viewer over the panels. Esc closes the top layer; ⌘/Ctrl-click opens normally. Follows X's light, dim and dark themes. |
 
 Install one into all apps, or only into your X app:
 
