@@ -63,6 +63,15 @@ func PageSwap(e ui.Element) ui.Element {
 	return e.Transition(ui.ElementTransition{Animation: &fade, Enter: &ui.Motion{}})
 }
 
+// TabSwap is the change between tabs of a page (key the element by the
+// tab): the new tab's content fades in from the side of the tab chosen,
+// dir -1 from the left and 1 from the right, with a touch of blur, and the
+// old content is gone at once, so the two never overlap.
+func TabSwap(e ui.Element, dir int) ui.Element {
+	return e.Transition(ui.ElementTransition{Animation: &design.SpringSoft,
+		Enter: &ui.Motion{X: 18 * float32(dir), Blur: 2}})
+}
+
 // modalAt is when a sheet, palette or popover was last open.
 var modalAt time.Time
 

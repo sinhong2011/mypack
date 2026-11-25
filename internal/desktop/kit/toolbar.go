@@ -2,6 +2,8 @@ package kit
 
 import (
 	"github.com/egoist/mygo/ui"
+	"strings"
+	"time"
 
 	"mypack.dev/mypack/internal/desktop/design"
 	"mypack.dev/mypack/internal/desktop/kit/icons"
@@ -109,68 +111,129 @@ func ToolbarSearch(c *ui.Context, o ToolbarSearchOpts) ui.Element {
 type PillSegment struct {
 	Icon  *ui.SVG
 	Label string // the visible text; with Icon, the tooltip
+	Count string // a small count badge after the label ("" for none)
 }
 
-// PillSegmented is a small segmented pill (30 pt): a soft track with no
-// border and a raised thumb that glides to the chosen segment. glide
-// pairs the thumb across segments; role is RoleRadio or RoleTab.
-func PillSegmented(c *ui.Context, sel *int, segs []PillSegment, label string, glide any, tabs bool) bool {
+// PillSegmented is a small segmented pill (30 pt): a soft track and one
+// raised thumb under the chosen segment. The thumb belongs to the track,
+// not to a segment: it is placed from the segments' measured bounds and
+// its two edges are sprung apart, the leading edge quick and the trailing
+// one a little slower, so it stretches toward the new segment and settles
+// there instead of jumping or cross-fading. Pressing the chosen segment
+// sinks the thumb a touch. Labels keep their widths (pillLabel), so the
+// target never moves while the thumb travels. role is RoleTab when tabs,
+// else RoleRadio. Reduce Motion puts the thumb in place at once.
+func PillSegmented(c *ui.Context, sel *int, segs []PillSegment, label string, tabs bool) bool {
 	p := design.Of(c)
+	const h = tb - 6 // segment and thumb height
 	changed := false
-	grp := ui.Row(c).Height(tb).Padding(3).Gap(0).Radius(tb / 2).AlignItems(ui.Center).Background(p.Fill).Label(label)
+	// The track: a soft inset trough with a hairline edge.
+	grp := ui.Row(c).Height(tb).Padding(3).Gap(2).Radius(tb/2).AlignItems(ui.Center).Background(p.Fill).
+		Border(0.5, p.Divider).Label(label)
 	if tabs {
 		grp.Role(ui.RoleTabList)
 	} else {
 		grp.Role(ui.RoleRadioGroup)
 	}
+	track := grp.Bounds()
 	grp.Children(func() {
+		var on ui.Rect
+		pressed := false
 		for i, s := range segs {
-			on := *sel == i
-			b := ui.ButtonBase(c.Key(i)).Height(tb - 6).Radius(PillRadius(tb - 6)).Center().Cursor(ui.CursorPointer).FocusRing(false)
+			chosen := *sel == i
+			b := ui.ButtonBase(c.Key(i)).Height(h).Radius(PillRadius(h)).Center().Cursor(ui.CursorPointer).FocusRing(false).
+				Transition(design.Transition(c))
 			if s.Icon != nil {
 				b.Width(32).Label(s.Label).Tooltip(s.Label)
 			} else {
-				b.PaddingX(12).Label(s.Label)
+				b.Gap(6).Label(strings.TrimSpace(s.Label + " " + s.Count))
+				if s.Count != "" {
+					b.Padding(0, 6, 0, 12) // the badge's own round end is the right inset
+				} else {
+					b.PaddingX(12)
+				}
 			}
 			if tabs {
-				b.Role(ui.RoleTab).Selected(on)
+				// Selected also paints a table row's accent fill: the
+				// track's thumb shows the choice instead.
+				b.Role(ui.RoleTab).Selected(chosen).Background(ui.RGBA(0, 0, 0, 0))
 			} else {
-				b.Role(ui.RoleRadio).Checked(on)
+				b.Role(ui.RoleRadio).Checked(chosen)
 			}
 			fg := p.TextSecondary
-			switch {
-			case on:
+			hot := b.Hovered() || b.FocusVisible()
+			if chosen || hot {
 				fg = p.Text
-			case b.Hovered() || b.FocusVisible():
-				fg = p.Text
-				b.Background(p.Hover)
+			}
+			if hot && !chosen {
+				fg = design.Fade(p.Text, 0.85)
+			}
+			if chosen {
+				on = b.Bounds()
+				pressed = b.Pressed()
 			}
 			b.Children(func() {
-				if on {
-					thumb := ui.Box(c).Absolute().Fill().Radius((tb-6)/2).ZIndex(-1).Background(p.Raised).Border(1, p.Border)
-					if p.Dark {
-						thumb.Background(p.ButtonHover)
-					}
-					Glide(thumb, glide)
-				}
 				FocusMark(c, b.FocusVisible(), 8)
 				if s.Icon != nil {
-					Glyph(c, s.Icon, 14, fg)
+					Glyph(c, s.Icon, 14, fg).Transition(ui.ElementTransition{Animation: &pillFade, Colors: true})
 				} else {
-					w := design.WeightMedium
-					if on {
-						w = design.WeightSemibold
+					ui.Text(c, s.Label).FontSize(design.FontBody).FontWeight(design.WeightMedium).TextColor(fg).SingleLine().
+						Transition(ui.ElementTransition{Animation: &pillFade, Colors: true})
+					if s.Count != "" {
+						pillCount(c, s.Count, chosen)
 					}
-					ui.Text(c, s.Label).FontSize(design.FontBody).FontWeight(w).TextColor(fg).SingleLine()
 				}
 			})
-			if b.Clicked() && !on {
+			if b.Clicked() && !chosen {
 				*sel = i
 				changed = true
 			}
 		}
+		pillThumb(c, grp, sel, track, on, pressed)
 	})
 	return changed
+}
+
+var (
+	pillFade  = design.Tween(design.MotionFast, design.EaseStd)
+	pillLead  = ui.Animation{Spring: ui.SpringOptions{Duration: design.Scaled(230 * time.Millisecond), Bounce: 0.14}}
+	pillTrail = ui.Animation{Spring: ui.SpringOptions{Duration: design.Scaled(380 * time.Millisecond), Bounce: 0.04}}
+	pillSink  = ui.Animation{Spring: ui.SpringOptions{Duration: design.Scaled(160 * time.Millisecond)}}
+	// pillLast is each control's last thumb target (by its selection), to
+	// tell which edge leads a move.
+	pillLast = map[*int][2]float32{}
+)
+
+// pillThumb draws the thumb behind the segments, at on (the chosen
+// segment's bounds from the last frame) relative to the track. Before the
+// first layout there is nothing to measure: it waits a frame rather than
+// sliding in from the track's start.
+func pillThumb(c *ui.Context, grp ui.Element, sel *int, track, on ui.Rect, pressed bool) {
+	if track.W <= 0 || on.W <= 0 {
+		return
+	}
+	p := design.Of(c)
+	l, r := on.X-track.X, on.X-track.X+on.W
+	la, ra := pillLead, pillLead
+	if last, ok := pillLast[sel]; ok {
+		switch {
+		case l > last[0]: // moving right: the right edge leads
+			la = pillTrail
+		case l < last[0]: // moving left: the left edge leads
+			ra = pillTrail
+		}
+	}
+	pillLast[sel] = [2]float32{l, r}
+	cl := grp.AnimateTo("thumb-l", l, la)
+	cr := grp.AnimateTo("thumb-r", r, ra)
+	sink := grp.AnimateTo("thumb-sink", map[bool]float32{true: 1.5, false: 0}[pressed], pillSink)
+	w := max(cr-cl, on.H*0.6)
+	thumb := ui.Box(c.Key("thumb")).Absolute().Left(cl+sink).Top(on.Y-track.Y+sink).Width(w-2*sink).Height(on.H-2*sink).
+		Radius((on.H-2*sink)/2).ZIndex(-1).PassThrough().AccessHidden(true).Background(p.Raised).Border(0.5, p.BorderStrong)
+	if p.Dark {
+		thumb.Background(p.ButtonHover)
+	}
+	design.Elevate(c, thumb, design.Lifted)
 }
 
 // NewPill is the toolbar's primary action: a labelled accent pill with a
@@ -201,4 +264,16 @@ func ToolbarIcon(c *ui.Context, ic *ui.SVG, title string) ui.Element {
 	b.Children(func() { Glyph(c, ic, 16, fg); FocusMark(c, b.FocusVisible(), 9) })
 	b.Tooltip(title)
 	return b
+}
+
+// pillCount is a segment's count: a plain number after its label, a
+// step quieter than it (no badge, no tint).
+func pillCount(c *ui.Context, n string, chosen bool) {
+	p := design.Of(c)
+	fg := p.TextTertiary
+	if chosen {
+		fg = p.TextSecondary
+	}
+	ui.Text(c, n).FontSize(design.FontSmall).TextColor(fg).SingleLine().
+		Transition(ui.ElementTransition{Animation: &pillFade, Colors: true})
 }

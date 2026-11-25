@@ -21,6 +21,8 @@ const (
 	settingsTitleProfile = "mypack:settings:profile"
 	settingsTitleReveal  = "mypack:settings:downloads"
 	settingsTitlePick    = "mypack:settings:pick"
+	settingsTitleRestart = "mypack:settings:restart"
+	settingsTitleExt     = "mypack:settings:ext:" // + "on:" or "off:" + extension id
 )
 
 // settingsForm is the JSON the Settings page posts. Names match mypack.json.
@@ -72,6 +74,8 @@ type settingsBoot struct {
 	RestartHint string              `json:"restartHint"`
 	Shortcuts   []shortcutBoot      `json:"shortcuts"`
 	Group       []settingsGroupSite `json:"group,omitempty"`
+	Extensions  []settingsExt       `json:"extensions"`
+	ExtPending  bool                `json:"extPending"`
 }
 
 // settingsGroupSite is one member listed in Settings → Sites (read-only).
@@ -115,8 +119,14 @@ func (a *App) openSettings() {
 	}
 	p.OnPageTitleUpdated(func(e *mygo.TitleEvent) {
 		switch e.Title {
-		case settingsTitleSave, settingsTitleReset, settingsTitleProfile, settingsTitleReveal, settingsTitlePick:
+		case settingsTitleSave, settingsTitleReset, settingsTitleProfile, settingsTitleReveal, settingsTitlePick, settingsTitleRestart:
 			e.PreventDefault()
+		}
+		if rest, ok := strings.CutPrefix(e.Title, settingsTitleExt); ok {
+			e.PreventDefault()
+			on, id, _ := strings.Cut(rest, ":")
+			go a.settingsSetExt(p, id, on == "on")
+			return
 		}
 		switch e.Title {
 		case settingsTitleSave:
@@ -129,6 +139,8 @@ func (a *App) openSettings() {
 			go a.revealDownloads()
 		case settingsTitlePick:
 			go a.pickDownloadDir(p)
+		case settingsTitleRestart:
+			mygo.RunOnMain(func() { mygo.App.Relaunch() })
 		}
 	})
 	win.OnClosed(func() {
@@ -190,6 +202,7 @@ func (a *App) settingsBoot(restartHint string) settingsBoot {
 	if b.WebView.Blocking == nil {
 		b.WebView.Blocking = &config.BlockingConfig{}
 	}
+	b.Extensions, b.ExtPending = a.extensionsBoot()
 	if cfg.IsGroup() {
 		b.Window.Tabs = false
 		for _, m := range cfg.App.Group.Members {
@@ -544,7 +557,9 @@ func settingsNeedRestart(a, b *config.Config) bool {
 		a.Window.Tabs != b.Window.Tabs ||
 		a.Window.EffectiveMode() != b.Window.EffectiveMode() ||
 		a.Native.Camera != b.Native.Camera ||
-		a.Native.Microphone != b.Native.Microphone
+		a.Native.Microphone != b.Native.Microphone ||
+		// A page's inspector is allowed when the page is made.
+		a.WebView.DevTools != b.WebView.DevTools
 }
 
 func blockingKey(b *config.BlockingConfig) string {
@@ -677,4 +692,17 @@ func (a *App) syncTray() {
 	} else if t != nil {
 		t.SetMenu(a.trayMenu())
 	}
+}
+
+// settingsSetExt turns an extension on or off in this app, and shows the
+// page the new list (it applies the next time the app opens).
+func (a *App) settingsSetExt(p *mygo.Page, id string, on bool) {
+	if err := a.setExtHere(id, on); err != nil {
+		log.Printf("mypack-runtime: settings: extensions: %v", err)
+		a.settingsError(p, "That change could not be saved.")
+		return
+	}
+	list, pending := a.extensionsBoot()
+	b, _ := json.Marshal(map[string]any{"list": list, "pending": pending})
+	_, _ = p.Eval(`window.MP && window.MP.setExtensions(` + string(b) + `)`)
 }

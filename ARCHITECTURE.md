@@ -130,6 +130,49 @@ first shown. Favicons are fetched by the runtime from the page's `<link rel=icon
 Tab ⌘⇧T, Close Tab ⌘W, Close Window ⌘⇧W; View: ⌃Tab / ⌃⇧Tab, ⌘1…⌘9. Not in group apps (validation) or the menu-bar
 panel.
 
+## Userscripts (1.0.11)
+
+Userscripts in the Greasemonkey format (`// ==UserScript==`) run in every app the user picks, without a rebuild. The
+store is one folder shared by all apps, `<UserConfigDir>/mypack-apps/userscripts/` (`runtime/userscript`):
+`index.json` (state, scope by app identifier, empty = all apps) and `<id>/script.user.js` with its `@require` and
+`@resource` files, downloaded at install time. Running apps never fetch them. `mypack scripts` installs, updates,
+scopes, turns on/off and removes scripts. In the GUI, the Extensions page (`internal/desktop/app/extensions.go`, ⌘5)
+lists the installed scripts (on/off, update, remove), the hub and install from an address or file. Every install
+first shows a review sheet: where the script runs, what it may use and where it may connect. The hub's extensions live
+in their own repository, [sinhong2011/mypack-extensions](https://github.com/sinhong2011/mypack-extensions): every change
+is a reviewed pull request (CI checks headers, permissions, version bumps and tests), and after a merge its CI publishes
+`index.json` on its `hub` branch, each entry pinned to its file at the merged commit with its SHA-256. MyPack fetches that
+list like Discover (`catalog.ScriptsRemoteURL`; `catalog/scripts.json` is the copy built in) and refuses a download whose
+hash differs. The Installed list says **Hub** only when the installed file's SHA-256 matches the list's.
+
+At launch the runtime reads the scripts for its identifier (`runtime/app/userscripts.go`) and adds a dispatcher to the
+preload (`runtime/inject/userscripts.go`). On every main-frame document it tests `location.href` against each
+script's `@match`/`@include`/`@exclude` (compiled to regular expressions both Go and JS accept), then runs the script
+at its `@run-at` in its own function, with the GM API as parameters. Scripts share the page's JavaScript world
+(`unsafeWindow === window`); MyGo has no isolated worlds. `GM_getValue/setValue/deleteValue/listValues`,
+`GM_xmlhttpRequest` and `GM_setClipboard` go to the bound `mypack` service with a per-launch token per script. The
+token lives only in the preload's closure. Go refuses unknown tokens, pages outside the app (navigation policy) and
+APIs the script did not `@grant`. Values are per app and per script in `<profile>/userscripts/<id>.json` and are read
+before the script starts, so `GM_getValue` stays synchronous. `GM_xmlhttpRequest` is made by the runtime without the
+app's cookies, only to the page's own host or the script's `@connect` hosts (`*` = any). `GM_addStyle`,
+`GM_notification` (the Notification shim), `GM_openInTab`, `GM_getResource*`, `GM_info` and the `GM.*` promise forms
+work page-side. `GM_registerMenuCommand` is a no-op for now. Examples: the extensions repository above.
+
+In a built app, Settings → Extensions lists the store's extensions as that app sees them: for its site or not, turned
+off in MyPack, not chosen for this app, running now. A "Run in this app" switch keeps the app's own off list in
+`<profile>/extensions.json` (`runtime/app/ext_settings.go`). The runtime never writes the shared store. Pages load
+extensions at launch, so a change offers Restart App.
+
+## Runtimes from source (development)
+
+`MYPACK_DEV_RUNTIME=1` (or a path to a MyPack checkout) makes the runtime manager build every runtime for this
+computer's platform, any version and both tiers, from that checkout with `go build`, using the flags
+`scripts/release-runtimes.sh` uses (`internal/runtimemanager/devsource.go`). That way apps built while developing
+carry the checkout's runtime code, say `main` before it is published. Source builds go to `<cache>/_dev/<key>/`, never
+into the verified cache, so a source build can never pose as a published version later; cross builds still use the
+registry. The build log says "Building runtime … from source". `make run` turns it on (`MYPACK_DEV_RUNTIME=0` to
+use published runtimes).
+
 ## Moving apps between computers
 
 A `.mypack` file (`internal/appservice/library.go`) holds one or more apps: each config plus the pictures a config only

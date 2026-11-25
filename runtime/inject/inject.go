@@ -24,6 +24,8 @@ type Options struct {
 	WebAPIs WebAPIs
 	// Media reports what the page plays, for the media keys (MediaScript).
 	Media bool
+	// UserScripts are the installed userscripts that run in this app.
+	UserScripts []UserScript
 }
 
 func jsString(s string) string {
@@ -56,6 +58,9 @@ func Build(o Options) string {
 		b.WriteString("try {\n")
 		b.WriteString(js)
 		b.WriteString("\n} catch (e) { console.error('[mypack] injected script failed:', e); }\n")
+	}
+	if us := UserScriptsScript(o.UserScripts); us != "" {
+		b.WriteString(us)
 	}
 	css := strings.TrimSpace(strings.Join(o.CSS, "\n"))
 	if css != "" {

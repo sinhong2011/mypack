@@ -338,6 +338,12 @@ func Switch(c *ui.Context, on *bool, label string) ui.Element {
 // Checkbox is mypack's checkbox: the box fills with the accent and the
 // check draws itself on.
 func Checkbox(c *ui.Context, checked *bool, label string) ui.Element {
+	return CheckboxLead(c, checked, label, nil)
+}
+
+// CheckboxLead is a Checkbox with something (an app icon) drawn between
+// the box and the label; the whole row toggles.
+func CheckboxLead(c *ui.Context, checked *bool, label string, lead func()) ui.Element {
 	p := design.Of(c)
 	row := ui.CheckboxBase(c, checked).Row().Gap(8).AlignItems(ui.Center).Cursor(ui.CursorPointer).Label(label).FocusRing(false)
 	row.Children(func() {
@@ -361,7 +367,10 @@ func Checkbox(c *ui.Context, checked *bool, label string) ui.Element {
 			path := (&ui.Path{}).MoveTo(r.X+4, r.Y+8.3).LineTo(r.X+7, r.Y+11.2).LineTo(r.X+12.2, r.Y+5)
 			pt.StrokePath(path.Trim(0, drawn), 1.9, onAccent)
 		})
-		ui.Text(c, label).FontSize(design.FontBody).TextColor(p.Text)
+		if lead != nil {
+			lead()
+		}
+		ui.Text(c, label).FontSize(design.FontBody).TextColor(p.Text).SingleLine().MinWidth(0)
 	})
 	return row
 }

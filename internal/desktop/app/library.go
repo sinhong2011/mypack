@@ -13,9 +13,6 @@ import (
 	"mypack.dev/mypack/pkg/config"
 )
 
-// viewGlide pairs the grid/list switch indicator across frames.
-type viewGlide struct{}
-
 type libState struct {
 	iconSize    float32
 	query       string
@@ -63,7 +60,7 @@ func (a *App) libraryToolbar(c *ui.Context) {
 	a.sortMenu(c)
 	ov := l.view
 	kit.PillSegmented(c.Key("view"), &l.view, []kit.PillSegment{{Icon: icons.Grid, Label: T("library.view.grid")}, {Icon: icons.List, Label: T("library.view.list")}},
-		T("library.view.label"), viewGlide{}, false)
+		T("library.view.label"), false)
 	if ov != l.view {
 		a.settings.LibraryView = []string{"grid", "list"}[l.view]
 		st := a.settings

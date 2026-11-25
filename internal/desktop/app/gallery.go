@@ -83,7 +83,7 @@ func (a *App) galleryView(c *ui.Context) {
 					kit.IconButton(c.Key("ib"), icons.Settings, "Settings")
 					kit.GlassIcon(c.Key("gi"), icons.Plus, "Add", "", true)
 					sel := 0
-					kit.PillSegmented(c.Key("seg"), &sel, []kit.PillSegment{{Icon: icons.Grid, Label: "Grid"}, {Icon: icons.List, Label: "List"}}, "View", struct{}{}, false)
+					kit.PillSegmented(c.Key("seg"), &sel, []kit.PillSegment{{Icon: icons.Grid, Label: "Grid"}, {Icon: icons.List, Label: "List"}}, "View", false)
 					if kit.Button(c.Key("b6"), "Save", kit.ButtonOpts{Variant: kit.Primary, Loading: g.loading}).Clicked() {
 						g.loading = true
 						go func() { time.Sleep(1500 * time.Millisecond); a.win.Update(func() { g.loading = false }) }()

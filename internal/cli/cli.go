@@ -108,6 +108,8 @@ func RunWith(d Deps, args []string, stdout, stderr io.Writer) int {
 		return a.cmdSettings(rest)
 	case "mcp":
 		return a.cmdMCP(rest)
+	case "scripts":
+		return a.cmdScripts(rest)
 	}
 	fmt.Fprintf(stderr, "mypack: unknown command %q\n\n", cmd)
 	a.usage(stderr)
@@ -144,6 +146,8 @@ Usage:
   mypack install <artifact-id> [--open] [--replace]
   mypack apps list | apps locate <id> <path>
   mypack settings get [key] | settings set <key> <value>
+  mypack scripts list | install <url|file.user.js> [--app ID]... | update <id>
+                 | remove <id> | enable <id> | disable <id> | scope <id> (--app ID... | --all)
   mypack mcp serve [--transport stdio]
   mypack version
 

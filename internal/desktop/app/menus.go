@@ -10,6 +10,7 @@ import (
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
+	"github.com/egoist/mygo/ui/editor"
 
 	"mypack.dev/mypack/internal/appservice"
 	"mypack.dev/mypack/internal/desktop/design"
@@ -63,9 +64,19 @@ func (a *App) installMenu() {
 			{Label: T("nav.discover"), Accelerator: a.menuAccel(scDiscover), Click: on(func() { a.nav(secDiscover) })},
 			{Label: T("nav.builds"), Accelerator: a.menuAccel(scBuilds), Click: on(func() { a.nav(secBuilds) })},
 			{Label: T("nav.runtimes"), Accelerator: a.menuAccel(scRuntimes), Click: on(func() { a.nav(secRuntimes) })},
+			{Label: T("nav.extensions"), Accelerator: a.menuAccel(scExtensions), Click: on(func() { a.nav(secExtensions) })},
 			mygo.Separator(),
 			{Label: T("menu.palette"), Accelerator: a.menuAccel(scPalette), Click: on(a.togglePalette)},
-			{Label: T("menu.find"), Accelerator: a.menuAccel(scFind), Click: on(func() { a.nav(secLibrary); a.lib.focusSearch = true })},
+			{Label: T("menu.find"), Accelerator: a.menuAccel(scFind), Click: on(func() {
+				// In the script editor, Find searches the script.
+				if a.section == secExtensions && a.ext.edit.open && a.ext.edit.st != nil {
+					a.ext.edit.tab = 0
+					a.ext.edit.st.Run(editor.Find)
+					return
+				}
+				a.nav(secLibrary)
+				a.lib.focusSearch = true
+			})},
 			mygo.Separator(),
 			{Role: mygo.RoleToggleFullScreen},
 		}},

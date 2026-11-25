@@ -19,19 +19,20 @@ import (
 
 // Shortcut IDs, which ui-state.json keeps the user's choices under.
 const (
-	scLauncher  = "launcher"
-	scPalette   = "palette"
-	scSettings  = "settings"
-	scShortcuts = "shortcuts"
-	scNewApp    = "newApp"
-	scNewGroup  = "newGroup"
-	scBuild     = "build"
-	scOpen      = "open"
-	scLibrary   = "library"
-	scDiscover  = "discover"
-	scBuilds    = "builds"
-	scRuntimes  = "runtimes"
-	scFind      = "find"
+	scLauncher   = "launcher"
+	scPalette    = "palette"
+	scSettings   = "settings"
+	scShortcuts  = "shortcuts"
+	scNewApp     = "newApp"
+	scNewGroup   = "newGroup"
+	scBuild      = "build"
+	scOpen       = "open"
+	scLibrary    = "library"
+	scDiscover   = "discover"
+	scBuilds     = "builds"
+	scRuntimes   = "runtimes"
+	scExtensions = "extensions"
+	scFind       = "find"
 )
 
 type shortcutDef struct {
@@ -60,6 +61,7 @@ func shortcutDefs() []shortcutDef {
 		{scDiscover, "nav.discover", view, "CmdOrCtrl+2", false},
 		{scBuilds, "nav.builds", view, "CmdOrCtrl+3", false},
 		{scRuntimes, "nav.runtimes", view, "CmdOrCtrl+4", false},
+		{scExtensions, "nav.extensions", view, "CmdOrCtrl+5", false},
 		{scFind, "menu.find", view, "CmdOrCtrl+F", false},
 	}
 }

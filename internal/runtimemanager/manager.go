@@ -65,6 +65,7 @@ type Manager struct {
 	memoAt      time.Time
 	memoURL     string
 	flights     map[string]*flight
+	dev         *devSource // MYPACK_DEV_RUNTIME: build this platform's runtimes from source
 
 	stateMu sync.Mutex
 }
@@ -104,7 +105,7 @@ func New(cacheDir, registryURL string) *Manager {
 	if registryURL == "" {
 		registryURL = DefaultRegistryURL
 	}
-	return &Manager{
+	m := &Manager{
 		cacheDir:    cacheDir,
 		registryURL: registryURL,
 		now:         time.Now,
@@ -131,6 +132,10 @@ func New(cacheDir, registryURL string) *Manager {
 			},
 		},
 	}
+	if dir := devSourceFromEnv(); dir != "" {
+		m.dev = &devSource{dir: dir}
+	}
+	return m
 }
 
 // DefaultCacheDir returns the platform runtime cache directory.
@@ -485,6 +490,9 @@ func (m *Manager) bestManifest(ctx context.Context) (man *Manifest, stale bool, 
 
 // CachedEntry returns an entry from the on-disk manifest without any network access.
 func (m *Manager) CachedEntry(version, key string) (Entry, bool) {
+	if m.devFor(key) != nil {
+		return devEntry(version, key), true
+	}
 	man, _, err := m.cachedManifest()
 	if err != nil {
 		return Entry{}, false
@@ -495,6 +503,9 @@ func (m *Manager) CachedEntry(version, key string) (Entry, bool) {
 // Entry looks up a runtime in the registry (network, falling back to the
 // cached manifest when offline).
 func (m *Manager) Entry(ctx context.Context, version, key string) (Entry, error) {
+	if m.devFor(key) != nil {
+		return devEntry(version, key), nil
+	}
 	if err := checkVK(version, key); err != nil {
 		return Entry{}, err
 	}
@@ -724,6 +735,9 @@ func (m *Manager) Status(ctx context.Context, version, key string) (domain.Runti
 	if err := checkVK(version, key); err != nil {
 		return domain.RuntimeInfo{}, err
 	}
+	if d := m.devFor(key); d != nil {
+		return m.devInfo(d, version, key), nil
+	}
 	var entry *Entry
 	if e, ok := m.CachedEntry(version, key); ok {
 		entry = &e
@@ -755,6 +769,9 @@ func (m *Manager) Ensure(ctx context.Context, version, key string, progress func
 	}
 	if err := ctx.Err(); err != nil {
 		return "", err
+	}
+	if d := m.devFor(key); d != nil {
+		return m.devBuild(ctx, d, key)
 	}
 	if ce, ok := m.CachedEntry(version, key); ok {
 		if exe, err := m.checkLocal(version, key, &ce); err == nil {

@@ -142,9 +142,6 @@ func (a *App) projectIcon(c *ui.Context, pr *domain.Project, size float32) {
 	b.Tooltip(T("create.icon.change"))
 }
 
-// tabGlide pairs the Overview/Settings indicator across frames.
-type tabGlide struct{}
-
 // projectToolbar holds the project's toolbar items: the Overview/Settings
 // switch, Build and More.
 func (a *App) projectToolbar(c *ui.Context) {
@@ -153,7 +150,7 @@ func (a *App) projectToolbar(c *ui.Context) {
 		return
 	}
 	kit.PillSegmented(c.Key("tabs"), &a.projTab, []kit.PillSegment{{Label: T("project.tab.overview")}, {Label: T("project.tab.settings")}},
-		T("project.tabs"), tabGlide{}, true)
+		T("project.tabs"), true)
 	busy := false
 	if j := a.latestJob(pr.ID); j != nil && (j.Status == domain.JobRunning || j.Status == domain.JobQueued || j.Status == domain.JobAwaitingApproval) {
 		busy = true

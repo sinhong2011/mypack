@@ -391,7 +391,10 @@ func (j *job) download() error {
 		return &domain.Error{Code: "RUNTIME_DOWNLOAD_REQUIRED", Message: fmt.Sprintf("Runtime %s for %s must be downloaded first", version, key),
 			Remediation: "Allow the download (approve it in the app, or pass --allow-download)."}
 	}
-	if !cached {
+	switch {
+	case err == nil && st.Source == runtimemanager.SourceDev:
+		j.log("info", "Building runtime %s (%s) from source in %s (%s)", version, key, j.e.Runtimes.DevSource(), runtimemanager.EnvDevRuntime)
+	case !cached:
 		j.log("info", "Downloading runtime %s (%s)", version, key)
 	}
 	exe, err := j.e.Runtimes.Ensure(j.ctx, version, key, func(done, total int64) {

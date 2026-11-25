@@ -30,7 +30,7 @@ func TestRuntimeVersionOptionsListsEveryPublishedVersion(t *testing.T) {
 	all := []domain.RuntimeInfo{
 		{Version: "1.0.8", Key: "darwin-arm64"},
 		{Version: "1.0.8", Key: "linux-amd64"},
-		{Version: "1.0.10", Key: "darwin-arm64"},
+		{Version: config.DefaultRuntimeVersion, Key: "darwin-arm64"},
 		{Version: "1.0.9", Key: "linux-amd64", Cached: true},
 		{Version: "not-a-version", Key: "darwin-arm64"},
 	}
