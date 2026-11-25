@@ -96,7 +96,7 @@ before the first page loads (the engine caches the compiled list across launches
 it through `pageOptionsIn`. The list is not EasyList, whose licence would carry over to generated apps.
 
 Feature pins: `Config.MinRuntime()` is the earliest runtime a config's features need (window modes and groups 1.0.6,
-blocking 1.0.7, tabs 1.0.8, Glass title bar 1.0.9), and `ApplyDefaults` raises a lower `runtime.version` to it, so turning a feature on in an existing
+blocking 1.0.7, tabs 1.0.8, Glass title bar 1.0.9, Glance 1.0.13), and `ApplyDefaults` raises a lower `runtime.version` to it, so turning a feature on in an existing
 project never builds an app that quietly lacks it. Pins are never lowered.
 
 ## Runtime tiers (1.0.10)
@@ -174,6 +174,23 @@ carry the checkout's runtime code, say `main` before it is published. Source bui
 into the verified cache, so a source build can never pose as a published version later; cross builds still use the
 registry. The build log says "Building runtime … from source". `make run` turns it on (`MYPACK_DEV_RUNTIME=0` to
 use published runtimes).
+
+## Glance (1.0.13)
+
+`window.glance` (`config.GlanceConfig`), after Zen Browser's Glance: a click on a link with `trigger` held (alt/Option by
+default, as in Zen; shift, ctrl, meta) opens it in a card floating over the page (`runtime/app/glance.go`). The preload's click hook
+(`runtime/inject/glance.go`) sends the link and its box to the bound service (`mypack.Glance`). The card is a web view laid
+out at its resting size (80% of the page area's width) and drawn scaled and moved, so its page never reflows in flight;
+it follows Zen's motion: a parabola from the link (40% of the distance, at most 30 points, toward the side with more
+room), a spring with bounce 0.2 opening and `1-(1-t)^6` closing over 350 ms, while the page behind goes to 97% and 30%
+opacity. Escape, a click beside the card or its close button sends it back into the link; Open grows it to fill the page
+area and makes it the page (a tab of its own in a tabbed window, else the window's page loads the URL under it); Copy
+Link copies it. `externalLinks` opens links that leave the app in a glance instead of the browser (link routing to another
+MyPack app still wins); in a tabbed window, links leaving the app from a pinned tab always do, as Zen's Essentials. `width` (50–95%, default 80) sizes the card and `animation` (smooth = Zen's, quick, relaxed, off)
+sets its motion. A built app's Settings has a Glance pane for all of these (key and on/off apply at the next launch, the
+rest at once); the Builder shows them under Look. `make try-glance` (`scripts/try-glance.sh`) opens a throwaway app with
+Glance on, built from the checkout, without publishing a runtime. A window with glance on always uses the native layout (`shell.go`), even with the default title
+bar, so it needs the full runtime tier. Not in group apps, the menu-bar panel or frameless windows.
 
 ## Moving apps between computers
 

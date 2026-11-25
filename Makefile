@@ -14,7 +14,7 @@ LDFLAGS    = -s -w -X github.com/egoist/mygo.production=1 \
              -X mypack.dev/mypack/internal/appservice.DefaultRegistryURL=$(REGISTRY) \
              -X mypack.dev/mypack/internal/runtimemanager.trustedKeysB64=$(PUBKEY)
 
-.PHONY: all test vet runtimes cli gui app dmg release installers run run-fake clean
+.PHONY: all test vet runtimes cli gui app dmg release installers run run-fake try-glance clean
 
 all: runtimes app
 
@@ -82,6 +82,11 @@ run:
 
 run-fake:
 	MYPACK_FAKE=1 go run ./cmd/mypack
+
+# Open a throwaway app with Glance on, built from this checkout:
+#   make try-glance URL=https://news.ycombinator.com TRIGGER=alt
+try-glance:
+	scripts/try-glance.sh $(URL)
 
 clean:
 	rm -rf bin build dist/MyPack.app dist/MyPack-*.dmg dist/mypack.app dist/mypack-*.dmg

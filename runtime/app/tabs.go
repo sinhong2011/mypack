@@ -62,6 +62,8 @@ type tabSet struct {
 	active int
 	nextID int
 	closed []SavedTab
+
+	gl *glance // window.glance, or nil (set once, before the first frame)
 }
 
 func (a *App) tabsOn() bool { return a.cfg.Window.Tabs && a.group == nil && !a.menuBarMode() }
@@ -88,6 +90,9 @@ func (a *App) openTabsWindow(startURL, stateKey string, hidden bool) (*mygo.Wind
 	t.mu.Lock()
 	t.win = w
 	t.mu.Unlock()
+	if a.glanceOn() {
+		t.gl = a.newGlance(w, t)
+	}
 
 	saved := a.state.Get().Tabs
 	active := a.state.Get().TabActive
@@ -185,6 +190,12 @@ func (t *tabSet) load(tb *tab) {
 		return
 	}
 	tb.view, tb.page = v, v.Page()
+	t.wire(w, tb)
+}
+
+// wire wires the page of tb, in window w.
+func (t *tabSet) wire(w *mygo.Window, tb *tab) {
+	a := t.a
 	a.wirePage(w, tb.page, a.onWillNavigate, func(req mygo.WindowOpenRequest) *mygo.WindowOptions { return t.onOpen(tb, req) })
 	title := a.title()
 	tb.page.OnPageTitleUpdated(func(e *mygo.TitleEvent) {
@@ -319,6 +330,9 @@ func (t *tabSet) show(i int, focus bool) {
 	tb := t.list[i]
 	w := t.win
 	t.mu.Unlock()
+	if t.gl != nil {
+		t.gl.close() // a glance belongs to the tab it was opened over
+	}
 	t.load(tb)
 	a := t.a
 	if w != nil && tb.page != nil {
@@ -358,6 +372,81 @@ func (t *tabSet) open(raw string, focus bool) {
 	t.list = append(t.list[:at], append([]*tab{tb}, t.list[at:]...)...)
 	t.mu.Unlock()
 	t.show(at, focus)
+}
+
+// expand makes an expanded glance a tab after the shown one, keeping its
+// web view, so the page stays as it is. Main thread (glanceHost).
+func (t *tabSet) expand(g *glance, v *mygo.WebView, url string) bool {
+	t.mu.Lock()
+	w := t.win
+	if w == nil || len(t.list) >= maxTabs {
+		t.mu.Unlock()
+		if p := t.activePage(); p != nil {
+			_ = p.LoadURL(url)
+		}
+		return false
+	}
+	tb := &tab{id: t.newID(), url: url, view: v, page: v.Page()}
+	at := t.active + 1
+	for at < len(t.list) && t.list[at].pinned {
+		at++
+	}
+	t.list = append(t.list[:at], append([]*tab{tb}, t.list[at:]...)...)
+	t.mu.Unlock()
+	t.wire(w, tb)
+	go t.fetchIcon(tb, url)
+	go func() {
+		if v, err := tb.page.Eval("document.title"); err == nil {
+			if title, _ := v.(string); title != "" {
+				t.mu.Lock()
+				tb.title = title
+				t.mu.Unlock()
+				w.Invalidate()
+				t.save()
+			}
+		}
+	}()
+	t.show(at, true)
+	return true
+}
+
+// shownPage is the shown tab's page (glanceHost).
+func (t *tabSet) shownPage() *mygo.Page { return t.activePage() }
+
+// pageTint: tabs do not sample their pages' colour (glanceHost).
+func (t *tabSet) pageTint() (ui.Color, bool) { return ui.Color{}, false }
+
+// pinnedPage reports whether p is the page of a pinned tab.
+func (t *tabSet) pinnedPage(p *mygo.Page) bool {
+	if p == nil {
+		return false
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for _, tb := range t.list {
+		if tb.page == p {
+			return tb.pinned
+		}
+	}
+	return false
+}
+
+// topInset: nothing lies over a tab's page (glanceHost).
+func (t *tabSet) topInset() float32 { return 0 }
+
+// hasPage reports whether p is the page of a tab.
+func (t *tabSet) hasPage(p *mygo.Page) bool {
+	if p == nil {
+		return false
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for _, tb := range t.list {
+		if tb.page == p {
+			return true
+		}
+	}
+	return false
 }
 
 // newTab opens the app's home page in a new tab.
@@ -596,12 +685,16 @@ func (t *tabSet) viewFn(c *ui.Context) {
 				t.newTab()
 			}
 			ui.Spacer(c)
-			set := ui.Box(c.Key("settings")).Padding(0, 8).FillHeight().AlignItems(ui.Center).Shrink(0).
+			// Settings: a gear the size of New Tab, centred in the bar,
+			// as the group rail's.
+			set := ui.Box(c.Key("settings")).Size(26, 26).Radius(7).Center().Shrink(0).
 				Role(ui.RoleButton).Label("Settings").Tooltip("Settings…").Focusable()
+			fg := th.TextMuted
 			if set.Hovered() {
 				set.Background(th.SurfaceHover)
+				fg = th.Text
 			}
-			set.Children(func() { ui.Text(c, "Settings").FontSize(12).TextColor(th.TextMuted) })
+			set.Children(func() { ui.Icon(c, settingsGlyph).FontSize(15).TextColor(fg) })
 			if set.Clicked() {
 				t.a.openSettings()
 			}
@@ -612,9 +705,20 @@ func (t *tabSet) viewFn(c *ui.Context) {
 			t.newTab()
 		}
 		ui.Box(c).Height(1).FillWidth().Background(th.Border)
-		if active >= 0 && active < len(list) && list[active].view != nil {
-			ui.WebView(c, list[active].view).Grow(1)
-		} else {
+		var view *mygo.WebView
+		if active >= 0 && active < len(list) {
+			view = list[active].view
+		}
+		switch {
+		case t.gl != nil:
+			t.gl.draw(c, ui.Box(c.Key("page")).Grow(1).FillWidth(), func() {
+				if view != nil {
+					ui.WebView(c, view).Fill()
+				}
+			})
+		case view != nil:
+			ui.WebView(c, view).Grow(1)
+		default:
 			ui.Spacer(c)
 		}
 		t.a.drawDownloadNotice(c)

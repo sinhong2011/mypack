@@ -11,6 +11,7 @@ package app
 //   - window.tabs (tabs.go)
 //   - app.group (group.go)
 //   - webview.findInPage (the find bar, dialogs.go)
+//   - window.glance (glance.go)
 //
 // The Builder picks the full runtime for a config that turns any of them on
 // (config.Config.RuntimeTier), so this file only keeps the package
@@ -166,3 +167,9 @@ document.getElementById("c").addEventListener("click", () => say("{{CANCEL}}"));
 document.addEventListener("keydown", e => { if (e.key === "Escape") say("{{CANCEL}}"); });
 </script>
 </body></html>`
+
+type glance struct{}
+
+func (a *App) glanceOn() bool                            { return false }
+func (a *App) glanceExternal(*mygo.Page, string) bool    { return false }
+func (a *App) openGlance(*mygo.Page, GlanceRequest) bool { return false }

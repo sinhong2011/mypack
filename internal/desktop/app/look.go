@@ -2,6 +2,8 @@ package app
 
 import (
 	"fmt"
+	goruntime "runtime"
+	"strconv"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -92,6 +94,9 @@ func (a *App) lookAndBehaviourOpts(c *ui.Context, cfg *config.Config, changed fu
 						changed()
 					}
 				})
+			}
+			if !cfg.IsGroup() && w.EffectiveMode() != config.ModeMenuBar {
+				a.glanceRows(c, cfg, changed)
 			}
 			a.blockingRow(c, cfg, changed)
 			badge := cfg.Native.BadgeMode() != "off"
@@ -408,6 +413,87 @@ func (a *App) lookRow(c *ui.Context, ic *ui.SVG, tint ui.Color, label, desc stri
 	if a.settingHit(label, desc) {
 		kit.SettingIconRow(c, ic, tint, label, desc, control)
 	}
+}
+
+// glanceRows are window.glance: the switch, the key held while clicking,
+// and whether links leaving the app open in a glance.
+func (a *App) glanceRows(c *ui.Context, cfg *config.Config, changed func()) {
+	g := &cfg.Window.Glance
+	a.lookRow(c.Key("gl"), icons.Eye, ui.Color{}, T("look.glance"), T("look.glance.desc"), func() {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			if g.Enabled {
+				v := g.EffectiveTrigger()
+				old := v
+				kit.PopUp(c.Key("pp-gl"), &v, glanceKeys(), T("look.glance.key")).Width(104)
+				if v != old {
+					g.Trigger = v
+					if v == config.GlanceAlt {
+						g.Trigger = ""
+					}
+					changed()
+				}
+			}
+			on := g.Enabled
+			kit.Switch(c.Key("sw-gl"), &on, T("look.glance"))
+			if on != g.Enabled {
+				g.Enabled = on
+				changed()
+			}
+		})
+	})
+	if !g.Enabled {
+		return
+	}
+	a.lookRow(c.Key("gl-ext"), icons.Globe, ui.Color{}, T("look.glance.external"), T("look.glance.external.desc"), func() {
+		on := g.ExternalLinks
+		kit.Switch(c.Key("sw-gl-ext"), &on, T("look.glance.external"))
+		if on != g.ExternalLinks {
+			g.ExternalLinks = on
+			changed()
+		}
+	})
+	a.lookRow(c.Key("gl-w"), icons.Grid, ui.Color{}, T("look.glance.width"), T("look.glance.width.desc"), func() {
+		v := strconv.Itoa(g.EffectiveWidth())
+		old := v
+		kit.PopUp(c.Key("pp-gl-w"), &v, []kit.Option{
+			{Value: "60", Label: T("look.glance.width.narrow")}, {Value: "70", Label: T("look.glance.width.medium")},
+			{Value: "80", Label: T("look.glance.width.standard")}, {Value: "90", Label: T("look.glance.width.wide")},
+		}, T("look.glance.width")).Width(132)
+		if v != old {
+			n, _ := strconv.Atoi(v)
+			if n == 80 {
+				n = 0
+			}
+			g.Width = n
+			changed()
+		}
+	})
+	a.lookRow(c.Key("gl-a"), icons.Sparkles, ui.Color{}, T("look.glance.animation"), T("look.glance.animation.desc"), func() {
+		v := g.EffectiveAnimation()
+		old := v
+		kit.PopUp(c.Key("pp-gl-a"), &v, []kit.Option{
+			{Value: config.GlanceSmooth, Label: T("look.glance.animation.smooth")}, {Value: config.GlanceQuick, Label: T("look.glance.animation.quick")},
+			{Value: config.GlanceRelaxed, Label: T("look.glance.animation.relaxed")}, {Value: config.GlanceOff, Label: T("look.glance.animation.off")},
+		}, T("look.glance.animation")).Width(112)
+		if v != old {
+			g.Animation = v
+			if v == config.GlanceSmooth {
+				g.Animation = ""
+			}
+			changed()
+		}
+	})
+}
+
+// glanceKeys are the modifiers a glance can open with, named as this
+// computer's keyboard names them.
+func glanceKeys() []kit.Option {
+	if goruntime.GOOS == "darwin" {
+		return []kit.Option{{Value: config.GlanceAlt, Label: "⌥ Option"}, {Value: config.GlanceShift, Label: "⇧ Shift"},
+			{Value: config.GlanceCtrl, Label: "⌃ Control"}, {Value: config.GlanceMeta, Label: "⌘ Command"}}
+	}
+	return []kit.Option{{Value: config.GlanceAlt, Label: "Alt"}, {Value: config.GlanceShift, Label: "Shift"},
+		{Value: config.GlanceCtrl, Label: "Ctrl"}, {Value: config.GlanceMeta, Label: "Super"}}
 }
 
 // pickerRowIf is a pickerRow shown while its title matches the search.

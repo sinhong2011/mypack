@@ -124,6 +124,7 @@ const panes = [
   ...(isGroup ? [["sites", "Sites"]] : []),
   ["window", "Window"],
   ["pages", "Pages"],
+  ...(isGroup || boot.menuBar ? [] : [["glance", "Glance"]]),
   ["downloads", "Downloads"],
   ["privacy", "Privacy"],
   ["shortcuts", "Shortcuts"],
@@ -147,6 +148,12 @@ const S = {
     blocking: { trackers: false, cookieBanners: false, allow: [], hide: [] }
   }, boot.webview || {})
 };
+S.window.glance = Object.assign({ enabled: false, trigger: "", externalLinks: false, width: 0, animation: "" }, (boot.window || {}).glance || {});
+const isMac = /Mac/.test(navigator.platform || navigator.userAgent);
+const glanceKeys = isMac
+  ? [["alt","⌥ Option"],["shift","⇧ Shift"],["ctrl","⌃ Control"],["meta","⌘ Command"]]
+  : [["alt","Alt"],["shift","Shift"],["ctrl","Ctrl"],["meta","Super"]];
+const glanceKeyName = k => (glanceKeys.find(([v]) => v === (k || "alt")) || glanceKeys[0])[1];
 S.webview.navigation = Object.assign({ safeDomains: [], internalUrlRegex: "", popups: "internal" }, (boot.webview || {}).navigation || {});
 S.webview.blocking = Object.assign({ trackers: false, cookieBanners: false, allow: [], hide: [] }, (boot.webview || {}).blocking || {});
 S.network = Object.assign({ downloadDirectory: "", proxy: "", basicAuthUser: "" }, boot.network || {});
@@ -215,6 +222,22 @@ const views = {
       ${field("fs", lab("Start full screen") + tog("fullscreen"))}
       ${field("mw", lab("Allow extra windows") + tog("multiWindow"))}
     </div>`;
+  },
+  glance() {
+    const g = S.window.glance;
+    const on = !!g.enabled;
+    const key = esc(glanceKeyName(g.trigger));
+    return `<h1>Glance</h1>
+    <p class="note">Preview a link in a card floating over the page, without leaving it. Hold ${key} and click a link. Press Esc or click beside the card to close it.</p>
+    <div class="card">
+      ${field("gEnabledRow", lab("Glance", boot.lite ? "Glance needs the full runtime. Turn it on in MyPack and rebuild." : "Restart to apply.") + tog("gEnabled"))}
+      ${on ? field("gKey", lab("Key", "Hold it while clicking a link. Restart to apply.") + `<div class="ctrl">${sel("gTrigger", glanceKeys)}</div>`) : ""}
+      ${on ? field("gExt", lab("Outside links", "Links to other sites open in a glance instead of your browser.") + tog("gExternal")) : ""}
+    </div>
+    ${on ? `<h2>Card</h2><div class="card">
+      ${field("gW", lab("Width", "How much of the page's width the card takes.") + `<div class="ctrl">${sel("gWidth", [["60","Narrow (60%)"],["70","Medium (70%)"],["80","Standard (80%)"],["90","Wide (90%)"]])}</div>`)}
+      ${field("gA", lab("Animation", "Smooth is Zen Browser's motion. Off shows and hides the card at once.") + `<div class="ctrl">${sel("gAnimation", [["smooth","Smooth"],["quick","Quick"],["relaxed","Relaxed"],["off","Off"]])}</div>`)}
+    </div>` : ""}`;
   },
   pages() {
     return `<h1>Pages</h1><div class="card">
@@ -376,9 +399,10 @@ function bind() {
    "externalByDefault","popups","userAgentPreset","userAgent","restoreLastUrl","findInPage","devTools",
    "internalUrlRegex","downloadDirectory","proxy","basicAuthUser",
    "incognito","trackers","cookieBanners","tray","startToTray","linkRouting",
-   "dragDrop","camera","microphone","css","js"].forEach(id => on(id, () => {
+   "dragDrop","camera","microphone","css","js",
+   "gEnabled","gTrigger","gExternal","gWidth","gAnimation"].forEach(id => on(id, () => {
      read();
-     if (id==="mode"||id==="userAgentPreset") render();
+     if (id==="mode"||id==="userAgentPreset"||id==="gEnabled"||id==="gTrigger") render();
      touch();
    }));
   click("showDl", () => say("mypack:settings:downloads"));
@@ -444,6 +468,9 @@ function fill() {
   set("dragDrop", S.native.dragDrop);
   set("camera", S.native.camera); set("microphone", S.native.microphone);
   set("css", S.webview.css || ""); set("js", S.webview.js || "");
+  const g = S.window.glance;
+  set("gEnabled", g.enabled); set("gTrigger", g.trigger || "alt"); set("gExternal", g.externalLinks);
+  set("gWidth", String(g.width || 80)); set("gAnimation", g.animation || "smooth");
   const d = $("domains"); if (d) chips(d, S.webview.navigation.safeDomains || [], i => { S.webview.navigation.safeDomains.splice(i,1); render(); scheduleSave(); });
   const a = $("allow"); if (a) chips(a, S.webview.blocking.allow || [], i => { S.webview.blocking.allow.splice(i,1); render(); scheduleSave(); });
   const h = $("hide"); if (h) chips(h, S.webview.blocking.hide || [], i => { S.webview.blocking.hide.splice(i,1); render(); scheduleSave(); });
@@ -496,6 +523,12 @@ function read() {
   if ($("microphone")) S.native.microphone = chk("microphone", false);
   if ($("css")) S.webview.css = val("css", "");
   if ($("js")) S.webview.js = val("js", "");
+  const g = S.window.glance;
+  if ($("gEnabled")) g.enabled = chk("gEnabled", false);
+  if ($("gTrigger")) { const k = val("gTrigger", "alt"); g.trigger = k === "alt" ? "" : k; }
+  if ($("gExternal")) g.externalLinks = chk("gExternal", false);
+  if ($("gWidth")) { const n = numVal("gWidth", 80); g.width = n === 80 ? 0 : n; }
+  if ($("gAnimation")) { const a = val("gAnimation", "smooth"); g.animation = a === "smooth" ? "" : a; }
 }
 
 function collect() {

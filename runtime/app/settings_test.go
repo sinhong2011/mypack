@@ -272,3 +272,49 @@ func TestCopyUserPrefsLeavesIdentity(t *testing.T) {
 		t.Fatalf("%+v", dst.App)
 	}
 }
+
+func TestSettingsGlance(t *testing.T) {
+	form := func(g config.GlanceConfig) settingsForm {
+		return settingsForm{
+			Window:  config.WindowConfig{Width: 800, Height: 600, Zoom: 100, Glance: g},
+			WebView: settingsWebViewForm{UserAgentPreset: config.UAPresetSafari, ExternalByDefault: true},
+			Native:  settingsNativeForm{Notifications: "allow", Badge: "auto", LinkRouting: true},
+		}
+	}
+	cfg := samplePrefsConfig()
+	ok := config.GlanceConfig{Enabled: true, Trigger: config.GlanceAlt, ExternalLinks: true, Width: 90, Animation: config.GlanceQuick}
+	if err := applySettingsForm(cfg, form(ok)); err != nil {
+		t.Fatalf("a full glance form: %v", err)
+	}
+	if cfg.Window.Glance != ok {
+		t.Fatalf("glance not kept: %+v", cfg.Window.Glance)
+	}
+	for _, bad := range []config.GlanceConfig{{Trigger: "fn"}, {Width: 30}, {Animation: "springy"}} {
+		if err := applySettingsForm(samplePrefsConfig(), form(bad)); err == nil || !strings.Contains(err.Error(), "Glance") {
+			t.Errorf("%+v: got %v", bad, err)
+		}
+	}
+
+	a := samplePrefsConfig()
+	b := a.Clone()
+	b.Window.Glance.Width, b.Window.Glance.Animation, b.Window.Glance.ExternalLinks = 60, config.GlanceOff, true
+	if settingsNeedRestart(a, b) {
+		t.Fatal("card width, animation and outside links apply live")
+	}
+	b.Window.Glance.Enabled = true
+	if !settingsNeedRestart(a, b) {
+		t.Fatal("turning glance on needs a restart")
+	}
+	c := b.Clone()
+	c.Window.Glance.Trigger = config.GlanceMeta
+	if !settingsNeedRestart(b, c) {
+		t.Fatal("a new glance key needs a restart")
+	}
+
+	html := settingsHTML(settingsBoot{Name: "Mail", settingsForm: form(ok)})
+	for _, s := range []string{`["glance", "Glance"]`, "gEnabled", "gTrigger", "gExternal", "gWidth", "gAnimation"} {
+		if !strings.Contains(html, s) {
+			t.Errorf("settings page lacks %q", s)
+		}
+	}
+}

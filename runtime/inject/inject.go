@@ -26,6 +26,9 @@ type Options struct {
 	Media bool
 	// UserScripts are the installed userscripts that run in this app.
 	UserScripts []UserScript
+	// GlanceTrigger is the modifier of a click that glances at a link
+	// (GlanceScript); "" leaves links alone.
+	GlanceTrigger string
 }
 
 func jsString(s string) string {
@@ -48,6 +51,11 @@ func Build(o Options) string {
 		b.WriteString("try {\n")
 		b.WriteString(MediaScript())
 		b.WriteString("\n} catch (e) { console.error('[mypack] media shim failed:', e); }\n")
+	}
+	if g := GlanceScript(o.GlanceTrigger); g != "" {
+		b.WriteString("try {\n")
+		b.WriteString(g)
+		b.WriteString("\n} catch (e) { console.error('[mypack] glance failed:', e); }\n")
 	}
 	for _, js := range o.JS {
 		if strings.TrimSpace(js) == "" {
