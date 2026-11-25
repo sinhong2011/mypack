@@ -72,7 +72,7 @@ func TestProjectBuildValidation(t *testing.T) {
 
 func TestNativeAndUAPresetDefaults(t *testing.T) {
 	c := New("Mail", Source{Type: SourceURL, Value: "https://mail.example.com"}, Target{OS: "darwin", Arch: "arm64"})
-	if c.Runtime.Version != DefaultRuntimeVersion || DefaultRuntimeVersion != "1.0.11" {
+	if c.Runtime.Version != DefaultRuntimeVersion || DefaultRuntimeVersion != "1.0.12" {
 		t.Fatalf("runtime version = %q", c.Runtime.Version)
 	}
 	if c.Native.NotificationsMode() != "allow" || c.Native.BadgeMode() != "auto" || !c.Native.LinkRoutingEnabled() {

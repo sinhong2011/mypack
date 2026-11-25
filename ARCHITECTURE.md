@@ -130,7 +130,9 @@ first shown. Favicons are fetched by the runtime from the page's `<link rel=icon
 Tab ⌘⇧T, Close Tab ⌘W, Close Window ⌘⇧W; View: ⌃Tab / ⌃⇧Tab, ⌘1…⌘9. Not in group apps (validation) or the menu-bar
 panel.
 
-## Userscripts (1.0.11)
+## Userscripts (1.0.12)
+
+(Runtime 1.0.11 was published from `main` before the userscript loader landed, so it runs none: extensions need 1.0.12.)
 
 Userscripts in the Greasemonkey format (`// ==UserScript==`) run in every app the user picks, without a rebuild. The
 store is one folder shared by all apps, `<UserConfigDir>/mypack-apps/userscripts/` (`runtime/userscript`):
