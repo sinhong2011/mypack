@@ -4,14 +4,13 @@
     {
       "name": "X Thread View",
       "description": "Open posts and their nested replies full screen over the page, in X's look and icons, without leaving where you are.",
-      "author": "MyPack",
       "sites": [
         "x.com",
         "twitter.com"
       ],
-      "url": "https://raw.githubusercontent.com/sinhong2011/mypack/295671276d6b41c516d55841d6812a5da0ea9c9c/examples/userscripts/x-thread-view.user.js",
+      "url": "https://raw.githubusercontent.com/sinhong2011/mypack-extensions/11cbcccfb2fc9bd8f36f08209c6adbb5e45c32f3/extensions/x-thread-view/x-thread-view.user.js",
       "sha256": "dd5cfb4124720fb8a32f81660cf60fa2debf4d88b67fc073b932c6d92badcd37",
-      "homepage": "https://github.com/sinhong2011/mypack/tree/main/examples/userscripts"
+      "homepage": "https://github.com/sinhong2011/mypack-extensions/tree/main/extensions/x-thread-view"
     }
   ]
 }

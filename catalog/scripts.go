@@ -17,11 +17,13 @@ import (
 	"unicode/utf8"
 )
 
-// The Extensions hub: userscripts reviewed in this repository. Each entry
-// points at one exact file (a commit-pinned address) and its SHA-256, so a
-// script cannot change after review: the app refuses a download whose hash
-// differs. Like Discover, the list ships in every build and is refreshed
-// from the repository.
+// The Extensions hub: the userscripts in HubRepo, where every change is a
+// reviewed pull request. After a merge, that repository's CI publishes the
+// list (index.json on its hub branch): each entry points at one exact file
+// (its address at the merged commit) and its SHA-256, so a script cannot
+// change after review: the app refuses a download whose hash differs.
+// Like Discover, the list ships in every build (scripts.json, a copy of
+// the published one) and is refreshed from there.
 
 //go:embed scripts.json
 var bundledScripts []byte
@@ -43,9 +45,13 @@ type Scripts struct {
 	Scripts []Script `json:"scripts"`
 }
 
+// HubRepo is the repository the hub's extensions come from; its README
+// says how they are reviewed and published.
+const HubRepo = "https://github.com/sinhong2011/mypack-extensions"
+
 // ScriptsRemoteURL is where the latest hub list is fetched from ("" turns
-// remote updates off).
-var ScriptsRemoteURL = "https://raw.githubusercontent.com/sinhong2011/mypack/main/catalog/scripts.json"
+// remote updates off): the list HubRepo's CI publishes after each merge.
+var ScriptsRemoteURL = "https://raw.githubusercontent.com/sinhong2011/mypack-extensions/hub/index.json"
 
 const (
 	maxScripts     = 300

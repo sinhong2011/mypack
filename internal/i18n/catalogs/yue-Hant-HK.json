@@ -854,6 +854,7 @@
   "ext.empty.body": "擴充功能可以改變網站喺 App 入面嘅樣同功能。去擴充中心睇吓審查過嘅，或者加你自己嘅。",
   "ext.empty.browse": "瀏覽擴充中心",
   "ext.hub.body": "MyPack 列出嘅擴充功能，每一個都固定咗一個確切嘅檔案。",
+  "ext.hub.how": "擴充功能點樣審查",
   "ext.hub.free": "免費",
   "ext.hub.more": "搵唔到想要嘅？可以由 Greasy Fork、GitHub 或者檔案加任何使用者腳本。",
   "ext.installed.off": "已安裝，已關",

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"strings"
@@ -191,7 +192,15 @@ func (a *App) extInstalledRow(c *ui.Context, e userscript.Entry) {
 
 func (a *App) extHubTab(c *ui.Context) {
 	p := design.Of(c)
-	kit.Secondary(c, T("ext.hub.body")).LineHeight(1.45)
+	ui.Row(c).Gap(4).AlignItems(ui.Center).Wrap().Children(func() {
+		kit.Secondary(c, T("ext.hub.body")).LineHeight(1.45)
+		// How review works, in the repository the extensions come from.
+		if kit.Button(c.Key("how"), T("ext.hub.how"), kit.ButtonOpts{Variant: kit.Ghost, Size: design.ControlSM, Icon: icons.External}).Clicked() {
+			a.do(func(ctx context.Context) error {
+				return a.svc.OpenURL(ctx, catalog.HubRepo+"#how-the-hub-stays-what-was-reviewed")
+			}, a.toastErr)
+		}
+	})
 	var shown []catalog.Script
 	for _, s := range a.ext.hub {
 		if extMatches(a.ext.query, s.Name, s.Description, s.Author, strings.Join(s.Sites, " ")) {

@@ -854,6 +854,7 @@
   "ext.empty.body": "扩展可以改变网站在 App 中的外观和功能。到扩展中心浏览经审核的扩展，或添加你自己的。",
   "ext.empty.browse": "浏览扩展中心",
   "ext.hub.body": "MyPack 列出的扩展，每一个都固定到一个确切的文件。",
+  "ext.hub.how": "扩展如何审核",
   "ext.hub.free": "免费",
   "ext.hub.more": "找不到想要的？可以从 Greasy Fork、GitHub 或文件添加任何用户脚本。",
   "ext.installed.off": "已安装，已关闭",

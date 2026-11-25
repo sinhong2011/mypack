@@ -138,10 +138,12 @@ store is one folder shared by all apps, `<UserConfigDir>/mypack-apps/userscripts
 `@resource` files, downloaded at install time. Running apps never fetch them. `mypack scripts` installs, updates,
 scopes, turns on/off and removes scripts. In the GUI, the Extensions page (`internal/desktop/app/extensions.go`, ⌘5)
 lists the installed scripts (on/off, update, remove), the hub and install from an address or file. Every install
-first shows a review sheet: where the script runs, what it may use and where it may connect. The hub is
-`catalog/scripts.json`, fetched from `main` like Discover. Each entry pins a commit URL and a SHA-256, so a reviewed
-script cannot change after review, and `TestBundledScriptHashes` fails when an entry no longer matches the file in the
-repository.
+first shows a review sheet: where the script runs, what it may use and where it may connect. The hub's extensions live
+in their own repository, [sinhong2011/mypack-extensions](https://github.com/sinhong2011/mypack-extensions): every change
+is a reviewed pull request (CI checks headers, permissions, version bumps and tests), and after a merge its CI publishes
+`index.json` on its `hub` branch, each entry pinned to its file at the merged commit with its SHA-256. MyPack fetches that
+list like Discover (`catalog.ScriptsRemoteURL`; `catalog/scripts.json` is the copy built in) and refuses a download whose
+hash differs. The Installed list says **Hub** only when the installed file's SHA-256 matches the list's.
 
 At launch the runtime reads the scripts for its identifier (`runtime/app/userscripts.go`) and adds a dispatcher to the
 preload (`runtime/inject/userscripts.go`). On every main-frame document it tests `location.href` against each
@@ -154,7 +156,7 @@ APIs the script did not `@grant`. Values are per app and per script in `<profile
 before the script starts, so `GM_getValue` stays synchronous. `GM_xmlhttpRequest` is made by the runtime without the
 app's cookies, only to the page's own host or the script's `@connect` hosts (`*` = any). `GM_addStyle`,
 `GM_notification` (the Notification shim), `GM_openInTab`, `GM_getResource*`, `GM_info` and the `GM.*` promise forms
-work page-side. `GM_registerMenuCommand` is a no-op for now. Example: `examples/userscripts/`.
+work page-side. `GM_registerMenuCommand` is a no-op for now. Examples: the extensions repository above.
 
 In a built app, Settings → Extensions lists the store's extensions as that app sees them: for its site or not, turned
 off in MyPack, not chosen for this app, running now. A "Run in this app" switch keeps the app's own off list in

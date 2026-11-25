@@ -1,11 +1,7 @@
 package catalog
 
 import (
-	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
-	"os"
-	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -21,32 +17,17 @@ func TestBundledScripts(t *testing.T) {
 	}
 }
 
-// A hub entry that points into this repository must match the file here,
-// so a script edit without a new pin fails CI instead of every install.
-func TestBundledScriptHashes(t *testing.T) {
-	const repo = "https://raw.githubusercontent.com/sinhong2011/mypack/"
+// The bundled list is a copy of the one the extensions repository
+// publishes: every entry is a file of that repository at one commit.
+func TestBundledScriptsPinned(t *testing.T) {
+	prefix := "https://raw.githubusercontent.com/sinhong2011/mypack-extensions/"
+	if !strings.HasPrefix(ScriptsRemoteURL, prefix) || !strings.HasPrefix(HubRepo, "https://github.com/sinhong2011/mypack-extensions") {
+		t.Fatal("the hub list and its repository disagree")
+	}
+	commit := regexp.MustCompile(`^[0-9a-f]{40}/extensions/[a-z0-9-]+/[a-z0-9-]+\.user\.js$`)
 	for _, sc := range BundledScripts().Scripts {
-		if !strings.HasPrefix(sc.URL, repo) {
-			continue
-		}
-		rest := strings.TrimPrefix(sc.URL, repo)
-		i := strings.Index(rest, "/")
-		if i < 0 {
-			t.Fatalf("%s: no path", sc.URL)
-		}
-		if ref := rest[:i]; len(ref) != 40 {
-			t.Errorf("%s: pin a commit, not %q", sc.Name, ref)
-		}
-		b, err := os.ReadFile(filepath.Join("..", filepath.FromSlash(rest[i+1:])))
-		if err != nil {
-			t.Fatalf("%s: %v", sc.Name, err)
-		}
-		// GitHub serves the file with LF endings; a Windows checkout may
-		// have CRLF.
-		b = bytes.ReplaceAll(b, []byte("\r\n"), []byte("\n"))
-		sum := sha256.Sum256(b)
-		if got := hex.EncodeToString(sum[:]); got != sc.SHA256 {
-			t.Errorf("%s: the file in the repo has sha256 %s, the hub says %s (update the pin and hash)", sc.Name, got, sc.SHA256)
+		if !strings.HasPrefix(sc.URL, prefix) || !commit.MatchString(strings.TrimPrefix(sc.URL, prefix)) {
+			t.Errorf("%s: %s is not a file of the extensions repository at a commit", sc.Name, sc.URL)
 		}
 	}
 }
