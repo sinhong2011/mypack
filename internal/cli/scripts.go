@@ -27,7 +27,7 @@ type multiFlag []string
 func (m *multiFlag) String() string     { return strings.Join(*m, ",") }
 func (m *multiFlag) Set(v string) error { *m = append(*m, v); return nil }
 
-// mypack scripts …: userscripts every app with runtime 1.0.11+ runs.
+// mypack scripts …: userscripts every app with runtime 1.0.12+ runs.
 func (a *app) cmdScripts(args []string) int {
 	var asJSON bool
 	fs := a.flagSet("scripts", &asJSON)
@@ -186,7 +186,7 @@ func (a *app) installScript(ctx context.Context, st userscript.Store, src string
 		}
 		fmt.Fprintf(a.out, "  can make requests to: %s\n", c)
 	}
-	fmt.Fprintln(a.errw, "mypack: apps with runtime 1.0.11 or later run it the next time they start")
+	fmt.Fprintln(a.errw, "mypack: apps with runtime 1.0.12 or later run it the next time they start")
 	return ExitOK
 }
 

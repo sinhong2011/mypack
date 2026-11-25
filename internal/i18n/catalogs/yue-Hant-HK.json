@@ -742,7 +742,7 @@
   "builds.startedFrom": "由{actor}開始",
   "nav.extensions": "擴充功能",
   "ext.subtitle": "{count, plural, one {已安裝 # 個} other {已安裝 # 個}}",
-  "ext.runtimeNote": "App 開嘅時候先會載入擴充功能，而且要 1.0.11 或者之後嘅執行環境。更新 App 之後就用得。",
+  "ext.runtimeNote": "App 開嘅時候先會載入擴充功能，而且要 1.0.12 或者之後嘅執行環境。更新 App 之後就用得。",
   "ext.installed.pill": "已安裝",
   "ext.installed.toast": "已安裝 {name}",
   "ext.removed.toast": "已移除 {name}",

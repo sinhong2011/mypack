@@ -850,7 +850,7 @@
   "builds.startedFrom": "Started from {actor}",
   "nav.extensions": "Extensions",
   "ext.subtitle": "{count, plural, one {# installed} other {# installed}}",
-  "ext.runtimeNote": "Apps load extensions when they start, and need runtime 1.0.11 or later. Update an app to use them.",
+  "ext.runtimeNote": "Apps load extensions when they start, and need runtime 1.0.12 or later. Update an app to use them.",
   "ext.installed.pill": "Installed",
   "ext.installed.toast": "Installed {name}",
   "ext.removed.toast": "Removed {name}",

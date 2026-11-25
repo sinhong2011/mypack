@@ -742,7 +742,7 @@
   "builds.startedFrom": "从{actor}开始",
   "nav.extensions": "扩展",
   "ext.subtitle": "{count, plural, one {已安装 # 个} other {已安装 # 个}}",
-  "ext.runtimeNote": "App 启动时才会加载扩展，且需要 1.0.11 或更高版本的运行环境。更新 App 后即可使用。",
+  "ext.runtimeNote": "App 启动时才会加载扩展，且需要 1.0.12 或更高版本的运行环境。更新 App 后即可使用。",
   "ext.installed.pill": "已安装",
   "ext.installed.toast": "已安装 {name}",
   "ext.removed.toast": "已移除 {name}",
