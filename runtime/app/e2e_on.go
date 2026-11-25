@@ -56,6 +56,44 @@ func (s *shell) e2eHook() {
 			case "nav":
 				_ = p.LoadURL(arg)
 				out = "nav " + arg
+			case "glance":
+				// The window's glance: "<phase> <url>", after arg ms; arg
+				// "close" or "expand" presses that button first.
+				switch arg {
+				case "close", "expand":
+					act := arg
+					s.win.Update(func() {
+						if s.gl != nil && act == "close" {
+							s.gl.close()
+						} else if s.gl != nil {
+							s.gl.expandOrOpen()
+						}
+					})
+				default:
+					if ms, err := time.ParseDuration(arg + "ms"); err == nil {
+						time.Sleep(ms)
+					}
+				}
+				done := make(chan string, 1)
+				s.win.Update(func() {
+					if s.gl == nil {
+						done <- "off"
+						return
+					}
+					gp := s.gl.page
+					ww, wh := s.win.Size()
+					cw, ch := s.win.ContentSize()
+					info := fmt.Sprintf("phase=%d url=%s cover=%v area=%+v card=%+v win=%dx%d content=%dx%d", s.gl.phase, s.gl.url, s.cover != nil, s.gl.area, s.gl.card, ww, wh, cw, ch)
+					if gp != nil {
+						go func() {
+							v, _ := gp.Eval("innerWidth+'x'+innerHeight+' scrollY='+scrollY+' vv='+(visualViewport&&visualViewport.offsetTop)+'/'+(visualViewport&&visualViewport.height)+' doc='+document.documentElement.clientHeight")
+							done <- fmt.Sprintf("%s glanceViewport=%v", info, v)
+						}()
+						return
+					}
+					done <- info
+				})
+				out = <-done
 			case "tint":
 				v, err := p.Eval(sampleJS)
 				out = fmt.Sprintf("sample=%v %v", v, err)

@@ -22,7 +22,7 @@ import (
 const SchemaVersion = 1
 
 // DefaultRuntimeVersion is the runtime version new projects pin (ADR-005).
-const DefaultRuntimeVersion = "1.0.12"
+const DefaultRuntimeVersion = "1.0.13"
 
 // Config is the full mypack.json document.
 type Config struct {
@@ -324,6 +324,10 @@ type WindowConfig struct {
 	// come back on the next launch. Not for group apps, whose rail already
 	// switches sites.
 	Tabs bool `json:"tabs,omitempty"`
+	// Glance previews a link in a card floating over the page (runtime
+	// 1.0.13+, full tier), as Zen Browser's Glance does: a modifier-click on a link
+	// opens it there instead of navigating away.
+	Glance GlanceConfig `json:"glance,omitzero"`
 	// SidebarEdge is the screen edge of a sidebar: "right" (default, empty)
 	// or "left".
 	SidebarEdge string `json:"sidebarEdge,omitempty"`
@@ -334,6 +338,65 @@ type WindowConfig struct {
 	// window (0 = 400 x 640); a sidebar takes PanelWidth as its width.
 	PanelWidth  int `json:"panelWidth,omitempty"`
 	PanelHeight int `json:"panelHeight,omitempty"`
+}
+
+// GlanceConfig is window.glance.
+type GlanceConfig struct {
+	// Enabled turns Glance on.
+	Enabled bool `json:"enabled,omitempty"`
+	// Trigger is the modifier held while clicking a link to glance at it:
+	// "alt" (default, empty: Option on macOS, as in Zen Browser), "shift",
+	// "ctrl" or "meta" (Command on macOS).
+	Trigger string `json:"trigger,omitempty"`
+	// ExternalLinks opens links that leave the app in a glance instead of
+	// the default browser.
+	ExternalLinks bool `json:"externalLinks,omitempty"`
+	// Width is the card's share of the page's width, in percent: 50 to 95
+	// (0 = 80, Zen's).
+	Width int `json:"width,omitempty"`
+	// Animation is the card's motion: "smooth" (default, empty: Zen's, a
+	// 350 ms spring with a little bounce), "quick", "relaxed" or "off".
+	Animation string `json:"animation,omitempty"`
+}
+
+// Glance animations (window.glance.animation).
+const (
+	GlanceSmooth  = "smooth"
+	GlanceQuick   = "quick"
+	GlanceRelaxed = "relaxed"
+	GlanceOff     = "off"
+)
+
+// EffectiveWidth is the card's width in percent of the page's.
+func (g GlanceConfig) EffectiveWidth() int {
+	if g.Width == 0 {
+		return 80
+	}
+	return g.Width
+}
+
+// EffectiveAnimation is the card's motion.
+func (g GlanceConfig) EffectiveAnimation() string {
+	if g.Animation == "" {
+		return GlanceSmooth
+	}
+	return g.Animation
+}
+
+// Glance triggers (window.glance.trigger).
+const (
+	GlanceShift = "shift"
+	GlanceAlt   = "alt"
+	GlanceCtrl  = "ctrl"
+	GlanceMeta  = "meta"
+)
+
+// EffectiveTrigger is the modifier that opens a glance.
+func (g GlanceConfig) EffectiveTrigger() string {
+	if g.Trigger == "" {
+		return GlanceAlt
+	}
+	return g.Trigger
 }
 
 // Window modes (window.mode).
@@ -508,6 +571,9 @@ func (c *Config) FullRuntimeFeatures() []string {
 	if c.WebView.FindInPage {
 		r = append(r, "webview.findInPage")
 	}
+	if w.Glance.Enabled && !frameless {
+		r = append(r, "window.glance")
+	}
 	if c.Network.BasicAuthUser != "" {
 		r = append(r, "network.basicAuthUser")
 	}
@@ -531,6 +597,8 @@ func (c *Config) RuntimeTier() string {
 // MinRuntime is the earliest runtime that has every feature c turns on.
 func (c *Config) MinRuntime() string {
 	switch {
+	case c.Window.Glance.Enabled:
+		return "1.0.13"
 	case c.Window.TitleBarStyle == "glass":
 		return "1.0.9"
 	case c.Window.Tabs:
@@ -913,6 +981,19 @@ func (c *Config) Validate() error {
 	c.validateGroup(add)
 	if c.Window.Tabs && c.IsGroup() {
 		add("window.tabs", "INVALID_TABS", "group apps switch sites with their rail and cannot have tabs")
+	}
+	switch w.Glance.Trigger {
+	case "", GlanceShift, GlanceAlt, GlanceCtrl, GlanceMeta:
+	default:
+		add("window.glance.trigger", "INVALID_ENUM", "must be shift, alt, ctrl or meta")
+	}
+	if g := w.Glance.Width; g != 0 && (g < 50 || g > 95) {
+		add("window.glance.width", "OUT_OF_RANGE", "width must be between 50 and 95 percent")
+	}
+	switch w.Glance.Animation {
+	case "", GlanceSmooth, GlanceQuick, GlanceRelaxed, GlanceOff:
+	default:
+		add("window.glance.animation", "INVALID_ENUM", "must be smooth, quick, relaxed or off")
 	}
 	switch w.Mode {
 	case "", ModeWindow, ModeCompact, ModeMenuBar, ModeSidebar:

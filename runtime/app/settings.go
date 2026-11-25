@@ -328,6 +328,19 @@ func applySettingsForm(cfg *config.Config, f settingsForm) error {
 	default:
 		return fmt.Errorf("Sidebar edge is not valid.")
 	}
+	switch w.Glance.Trigger {
+	case "", config.GlanceShift, config.GlanceAlt, config.GlanceCtrl, config.GlanceMeta:
+	default:
+		return fmt.Errorf("Glance key is not valid.")
+	}
+	if g := w.Glance.Width; g != 0 && (g < 50 || g > 95) {
+		return fmt.Errorf("Glance card width must be between 50%% and 95%%.")
+	}
+	switch w.Glance.Animation {
+	case "", config.GlanceSmooth, config.GlanceQuick, config.GlanceRelaxed, config.GlanceOff:
+	default:
+		return fmt.Errorf("Glance animation is not valid.")
+	}
 	nav := f.WebView.Navigation
 	if r := strings.TrimSpace(nav.InternalURLRegex); r != "" {
 		if _, err := regexp.Compile(r); err != nil {
@@ -379,6 +392,9 @@ func applySettingsForm(cfg *config.Config, f settingsForm) error {
 	cfg.Window.SidebarEdge = w.SidebarEdge
 	cfg.Window.SidebarAutoHide = w.SidebarAutoHide
 	cfg.Window.PanelWidth, cfg.Window.PanelHeight = w.PanelWidth, w.PanelHeight
+	if !cfg.IsGroup() {
+		cfg.Window.Glance = w.Glance // group apps have no glance
+	}
 
 	wv := &cfg.WebView
 	wv.UserAgentPreset = preset
@@ -555,6 +571,9 @@ func settingsNeedRestart(a, b *config.Config) bool {
 	return a.WebView.Incognito != b.WebView.Incognito ||
 		a.Window.TitleBarStyle != b.Window.TitleBarStyle ||
 		a.Window.Tabs != b.Window.Tabs ||
+		// The window's layout and every page's click hook are set up at launch.
+		a.Window.Glance.Enabled != b.Window.Glance.Enabled ||
+		a.Window.Glance.EffectiveTrigger() != b.Window.Glance.EffectiveTrigger() ||
 		a.Window.EffectiveMode() != b.Window.EffectiveMode() ||
 		a.Native.Camera != b.Native.Camera ||
 		a.Native.Microphone != b.Native.Microphone ||

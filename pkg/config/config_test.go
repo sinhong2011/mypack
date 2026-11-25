@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"errors"
 	"path/filepath"
 	"runtime"
@@ -72,7 +73,7 @@ func TestProjectBuildValidation(t *testing.T) {
 
 func TestNativeAndUAPresetDefaults(t *testing.T) {
 	c := New("Mail", Source{Type: SourceURL, Value: "https://mail.example.com"}, Target{OS: "darwin", Arch: "arm64"})
-	if c.Runtime.Version != DefaultRuntimeVersion || DefaultRuntimeVersion != "1.0.12" {
+	if c.Runtime.Version != DefaultRuntimeVersion || DefaultRuntimeVersion != "1.0.13" {
 		t.Fatalf("runtime version = %q", c.Runtime.Version)
 	}
 	if c.Native.NotificationsMode() != "allow" || c.Native.BadgeMode() != "auto" || !c.Native.LinkRoutingEnabled() {
@@ -436,6 +437,7 @@ func TestRuntimeTier(t *testing.T) {
 		"glass":            func(c *Config) { c.Window.TitleBarStyle = "glass" },
 		"tabs":             func(c *Config) { c.Window.Tabs = true },
 		"find":             func(c *Config) { c.WebView.FindInPage = true },
+		"glance":           func(c *Config) { c.Window.Glance.Enabled = true },
 		"basic auth":       func(c *Config) { c.Network.BasicAuthUser = "me" },
 		"group": func(c *Config) {
 			c.App.Group = &GroupConfig{Members: []GroupMember{{Name: "A"}}}
@@ -452,5 +454,47 @@ func TestRuntimeTier(t *testing.T) {
 	c.Window.TitleBarStyle, c.Window.Decorations = "overlay", &no
 	if c.RuntimeTier() != TierLite {
 		t.Fatalf("frameless overlay should be lite: %v", c.FullRuntimeFeatures())
+	}
+}
+
+func TestGlance(t *testing.T) {
+	host := Target{OS: "darwin", Arch: "arm64"}
+	c := New("Docs", Source{Type: SourceURL, Value: "https://docs.example.com"}, host)
+	c.Runtime.Version = "1.0.9"
+	if c.Window.Glance.EffectiveTrigger() != GlanceAlt {
+		t.Fatalf("the default trigger is alt, as in Zen, got %q", c.Window.Glance.EffectiveTrigger())
+	}
+	c.Window.Glance = GlanceConfig{Enabled: true, Trigger: GlanceAlt}
+	c.ApplyDefaults(host)
+	if err := c.Validate(); err != nil {
+		t.Fatalf("glance must validate: %v", err)
+	}
+	if c.Runtime.Version != "1.0.13" {
+		t.Fatalf("glance needs 1.0.13, got %s", c.Runtime.Version)
+	}
+	if c.RuntimeTier() != TierFull {
+		t.Fatalf("glance draws native UI: the full runtime, got %s", c.RuntimeTier())
+	}
+	if c.Window.Glance.EffectiveWidth() != 80 || c.Window.Glance.EffectiveAnimation() != GlanceSmooth {
+		t.Fatalf("defaults: width %d, animation %s", c.Window.Glance.EffectiveWidth(), c.Window.Glance.EffectiveAnimation())
+	}
+	for _, bad := range []GlanceConfig{{Enabled: true, Width: 40}, {Enabled: true, Width: 99}, {Enabled: true, Animation: "wobbly"}} {
+		c.Window.Glance = bad
+		if err := c.Validate(); err == nil {
+			t.Fatalf("%+v must be refused", bad)
+		}
+	}
+	c.Window.Glance = GlanceConfig{Enabled: true, Width: 90, Animation: GlanceOff}
+	if err := c.Validate(); err != nil {
+		t.Fatalf("width 90, animation off: %v", err)
+	}
+	c.Window.Glance.Trigger = "hyper"
+	if err := c.Validate(); err == nil || !strings.Contains(err.Error(), "window.glance.trigger") {
+		t.Fatalf("an unknown trigger must be refused: %v", err)
+	}
+	off := New("Docs", Source{Type: SourceURL, Value: "https://docs.example.com"}, host)
+	b, _ := json.Marshal(off.Window)
+	if strings.Contains(string(b), "glance") {
+		t.Fatalf("glance off must not be written: %s", b)
 	}
 }

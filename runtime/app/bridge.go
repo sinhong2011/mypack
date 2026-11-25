@@ -36,6 +36,7 @@ type bridgeService struct {
 	media  *mediaController // nil: no media keys
 	gm     *gmService       // userscripts' GM_* API; nil: no userscripts
 	now    func() time.Time
+	glance func(page *mygo.Page, r GlanceRequest) bool // nil: glance is off
 
 	mu    sync.Mutex
 	times []time.Time // delivery times in the rate-limit window
@@ -369,6 +370,9 @@ func (a *App) newBridge() *bridgeService {
 		return err == nil && res.Button == 0
 	}
 	b.focus = func(page *mygo.Page) { a.focusPage(page) }
+	if a.glanceOn() {
+		b.glance = a.openGlance
+	}
 	b.click = func(page *mygo.Page, jsID string) {
 		if page == nil {
 			return
@@ -379,6 +383,33 @@ func (a *App) newBridge() *bridgeService {
 		}
 	}
 	return b
+}
+
+// GlanceRequest is what the page posts on a modifier-click: the link and
+// its box, in CSS pixels of the page's viewport.
+type GlanceRequest struct {
+	URL string  `json:"url"`
+	X   float64 `json:"x"`
+	Y   float64 `json:"y"`
+	W   float64 `json:"w"`
+	H   float64 `json:"h"`
+}
+
+// Glance previews a link over the page (window.glance): "ok", or "off"
+// when glance is off or the page has no window to glance in, "invalid" for
+// a URL that is not a web page.
+func (b *bridgeService) Glance(ctx context.Context, r GlanceRequest) (string, error) {
+	if b.glance == nil {
+		return "off", nil
+	}
+	if !isWebURL(r.URL) {
+		return "invalid", nil
+	}
+	page, _ := b.caller(ctx)
+	if !b.glance(page, r) {
+		return "off", nil
+	}
+	return "ok", nil
 }
 
 // windowOfPage finds the app window showing page p.

@@ -82,6 +82,12 @@ type shell struct {
 	fullscreen atomic.Bool
 	focused    atomic.Bool
 
+	// gl is the window's glance (window.glance), or nil; cover is an
+	// expanded glance shown over the page until the page has loaded its
+	// URL (main thread).
+	gl    *glance
+	cover *mygo.WebView
+
 	mu       sync.Mutex
 	lastRGB  string
 	stopOnce sync.Once
@@ -122,7 +128,7 @@ func parseRGB(v string) (ui.Color, bool) {
 }
 
 func (s *shell) height() float32 {
-	if s.fullscreen.Load() {
+	if s.fullscreen.Load() || !s.a.useStrip() {
 		return 0 // traffic lights hide in full screen
 	}
 	return float32(s.a.stripHeight())
@@ -155,7 +161,7 @@ func (s *shell) viewFn(c *ui.Context) {
 		target = s.tint
 	}
 	h := s.height()
-	if runtime.GOOS != "darwin" {
+	if runtime.GOOS != "darwin" && s.a.useStrip() {
 		h = max(float32(c.TitleBar().Height), 32)
 		if s.fullscreen.Load() {
 			h = 0
@@ -166,9 +172,7 @@ func (s *shell) viewFn(c *ui.Context) {
 		// system's glass fills; the web view's inset starts the page below it.
 		s.setInset(h)
 		ui.Box(c).Fill().Children(func() {
-			if v := s.view.Load(); v != nil {
-				ui.WebView(c, v).Fill()
-			}
+			s.drawPage(c, ui.Box(c.Key("page")).Fill())
 			if h > 0 {
 				ui.Row(c).Absolute().Top(0).Left(0).Right(0).Height(h).AlignItems(ui.Center).Material(glass.Glass{Native: true}).DragWindow().Children(func() {
 					s.drawStripSettings(c, target, h)
@@ -180,18 +184,43 @@ func (s *shell) viewFn(c *ui.Context) {
 	}
 	s.setInset(0)
 	ui.Column(c).Fill().Gap(0).Children(func() {
-		strip := ui.Row(c).FillWidth().Height(h).Shrink(0).AlignItems(ui.Center)
-		col := target
-		if !c.Preferences().ReduceMotion {
-			col = strip.AnimateColor("tint", target, ui.Animation{Duration: tintAnimation, Ease: ui.EaseInOut})
+		if h > 0 {
+			strip := ui.Row(c).FillWidth().Height(h).Shrink(0).AlignItems(ui.Center)
+			col := target
+			if !c.Preferences().ReduceMotion {
+				col = strip.AnimateColor("tint", target, ui.Animation{Duration: tintAnimation, Ease: ui.EaseInOut})
+			}
+			strip.Background(col).DragWindow().Children(func() {
+				s.drawStripSettings(c, col, h)
+			})
 		}
-		strip.Background(col).DragWindow().Children(func() {
-			s.drawStripSettings(c, col, h)
-		})
-		if v := s.view.Load(); v != nil {
-			ui.WebView(c, v).Grow(1)
-		}
+		s.drawPage(c, ui.Box(c.Key("page")).Grow(1).FillWidth())
 		s.a.drawDownloadNotice(c)
+	})
+}
+
+// drawPage draws the web view in el, under the window's glance if it has
+// one. Main thread.
+func (s *shell) drawPage(c *ui.Context, el ui.Element) {
+	v := s.view.Load()
+	page := func() {
+		if v != nil {
+			ui.WebView(c, v).Fill()
+		}
+	}
+	if s.gl == nil {
+		el.Children(page)
+		return
+	}
+	s.gl.draw(c, el, func() {
+		page()
+		if s.cover != nil {
+			// An expanded glance stays over the page while the page
+			// loads its URL, so the swap does not show.
+			ui.Box(c.Key("cover")).Absolute().Left(0).Top(0).Right(0).Bottom(0).Children(func() {
+				ui.WebView(c, s.cover).Fill()
+			})
+		}
 	})
 }
 
@@ -275,6 +304,59 @@ func stripLuma(c ui.Color) float64 {
 	return 0.2126*lin(c.R) + 0.7152*lin(c.G) + 0.0722*lin(c.B)
 }
 
+// expand loads the glance's URL in the window's page, showing the glance
+// over it until it has loaded. Main thread (glanceHost).
+func (s *shell) expand(g *glance, v *mygo.WebView, url string) bool {
+	p := s.page.Load()
+	if p == nil {
+		return false
+	}
+	if s.cover != nil {
+		s.cover.Destroy()
+	}
+	s.cover = v
+	var once sync.Once
+	uncover := func() {
+		once.Do(func() {
+			s.win.Update(func() {
+				if s.cover == v {
+					s.cover = nil
+					v.Destroy()
+					if pv := p.WebView(); pv != nil {
+						pv.Focus()
+					}
+				}
+			})
+		})
+	}
+	var off func()
+	off = p.OnDidFinishLoad(func() {
+		// One more frame of paint before the cover goes.
+		time.AfterFunc(80*time.Millisecond, uncover)
+		if off != nil {
+			off()
+		}
+	})
+	time.AfterFunc(2500*time.Millisecond, uncover) // a slow page: show it loading
+	if err := p.LoadURL(url); err != nil {
+		log.Printf("mypack-runtime: glance: expand: %v", err)
+		uncover()
+	}
+	return true
+}
+
+// shownPage is the window's page (glanceHost).
+func (s *shell) shownPage() *mygo.Page { return s.page.Load() }
+
+// pageTint is the colour sampled at the top of the page (glanceHost).
+func (s *shell) pageTint() (ui.Color, bool) { return s.tint, s.have }
+
+// topInset is the strip laid over the page, glass (glanceHost).
+func (s *shell) topInset() float32 { return s.inset }
+
+// hasPage reports whether p is the window's page.
+func (s *shell) hasPage(p *mygo.Page) bool { return p != nil && s.page.Load() == p }
+
 // attach creates the web view once the window exists.
 func (s *shell) attach(url string) (*mygo.Page, error) {
 	a := s.a
@@ -290,6 +372,9 @@ func (s *shell) attach(url string) (*mygo.Page, error) {
 	p := v.Page()
 	s.page.Store(p)
 	s.view.Store(v)
+	if a.glanceOn() {
+		s.gl = a.newGlance(s.win, s)
+	}
 
 	w := s.win
 	w.OnEnterFullScreen(func() { s.fullscreen.Store(true); w.Invalidate() })

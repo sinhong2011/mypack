@@ -55,3 +55,21 @@ func TestDrag(t *testing.T) {
 		t.Fatal("drag strip missing")
 	}
 }
+
+func TestGlanceScript(t *testing.T) {
+	if GlanceScript("") != "" || GlanceScript("hyper") != "" {
+		t.Fatal("no glance script without a known trigger")
+	}
+	js := GlanceScript("alt")
+	for _, want := range []string{`var MOD = "alt"`, "mypack.Glance", "__mypackGlanceLast", "stopImmediatePropagation"} {
+		if !strings.Contains(js, want) {
+			t.Fatalf("glance script lacks %q", want)
+		}
+	}
+	if b := Build(Options{GlanceTrigger: "shift"}); !strings.Contains(b, `var MOD = "shift"`) {
+		t.Fatal("Build leaves out the glance script")
+	}
+	if b := Build(Options{}); strings.Contains(b, "mypack.Glance") {
+		t.Fatal("Build adds the glance script while glance is off")
+	}
+}

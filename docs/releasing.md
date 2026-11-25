@@ -179,8 +179,16 @@ That Release holds `registry.json`, its signature `registry.json.sig`, and every
 **Publishing a runtime version.** Bump `DefaultRuntimeVersion` in `pkg/config/config.go` whenever `Config.MinRuntime()` asks for a newer runtime (`TestDefaultRuntimeCoversEveryFeature` fails until you do), or the installer bundles a runtime too old for that feature and its projects download one on first build. Then run the workflow before you tag an app release that asks for that version:
 
 ```sh
-gh workflow run runtimes.yml -f version=1.0.10
+gh workflow run runtimes.yml -f version=1.0.13
 ```
+
+A version is published once and never again, from the commit the workflow runs on (`main` unless you pass `--ref`). Publish it from code that has the feature: either after the pull request that needs it has merged, or from that pull request's branch once its runtime code is final, which also lets the pull request's installer checks pass before the merge:
+
+```sh
+gh workflow run runtimes.yml --ref <branch> -f version=1.0.13
+```
+
+Pick the next unused version just before publishing, and check that no other open pull request is about to take it: 1.0.11 was published from `main` while Glance was still in review, and 1.0.12 went to userscripts, so Glance moved to 1.0.13.
 
 Each target is built twice, full and lite (`TIERS`, default `full lite`; the lite build adds `-tags mypack_lite`), so a version publishes `mypack-runtime-<v>-<os>-<arch>.tar.gz` and `…-<arch>-lite.tar.gz`. Installers bundle both tiers from `LiteRuntimeSince` on: Windows and Linux ship both archives; macOS ships `bin/mypack-runtime` and `bin/mypack-runtime-lite`, both signed by `mygo build`. See ARCHITECTURE.md › Runtime tiers.
 

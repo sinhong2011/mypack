@@ -65,7 +65,8 @@ type App struct {
 	dlNotice        *dlNotice    // last download's in-app result, or nil
 	setWin          *mygo.Window // Settings, once opened
 	openingSettings bool
-	iconPNG         []byte // Contents/Resources/icon.png, for the dock / taskbar
+	iconPNG         []byte    // Contents/Resources/icon.png, for the dock / taskbar
+	glances         []*glance // window.glance: one per window that shows one (glance.go)
 }
 
 type credEntry struct {
@@ -328,6 +329,12 @@ func (a *App) buildPreload() string {
 		WebAPIs:     inject.WebAPIs{Notifications: a.cfg.Native.NotificationsMode(), Perms: perms, Badge: a.cfg.Native.BadgeMode() != "off"},
 		Media:       a.media != nil,
 		UserScripts: a.userScripts,
+		GlanceTrigger: func() string {
+			if a.glanceOn() {
+				return a.cfg.Window.Glance.EffectiveTrigger()
+			}
+			return ""
+		}(),
 	})
 }
 
@@ -421,7 +428,7 @@ func (a *App) openWindow(main bool, url, stateKey string, hidden bool) (*mygo.Wi
 	strip := a.useStrip()
 	o := a.windowOptions(main, strip)
 	o.Hidden, o.StateKey = hidden, stateKey
-	if strip {
+	if strip || a.glanceOn() {
 		return a.openStripWindow(o, url)
 	}
 	o.URL = url
@@ -629,6 +636,11 @@ func (a *App) wirePage(w *mygo.Window, p *mygo.Page, nav func(*mygo.NavigateEven
 	p.OnWillNavigate(func(e *mygo.NavigateEvent) {
 		gesture := e.UserInitiated
 		e.UserInitiated = rt.userInitiated(gesture)
+		if e.UserInitiated && a.policy != nil && a.policy.Navigate(e.URL, true) == navigation.External && a.glanceExternal(p, e.URL) {
+			e.PreventDefault()
+			rt.settled()
+			return
+		}
 		nav(e)
 		if e.DefaultPrevented() {
 			rt.settled()
@@ -638,7 +650,12 @@ func (a *App) wirePage(w *mygo.Window, p *mygo.Page, nav func(*mygo.NavigateEven
 	})
 	p.OnDidNavigate(func(string) { rt.settled() })
 	p.OnDidFailLoad(func(*mygo.LoadError) { rt.settled() })
-	p.SetWindowOpenHandler(open)
+	p.SetWindowOpenHandler(func(req mygo.WindowOpenRequest) *mygo.WindowOptions {
+		if req.UserInitiated && a.policy != nil && a.policy.Popup(req.URL, true) == navigation.External && a.glanceExternal(p, req.URL) {
+			return nil
+		}
+		return open(req)
+	})
 	p.OnContextMenu(func(e *mygo.ContextMenuEvent) { a.decorateContextMenu(p, e) })
 	p.SetPermissionHandler(a.onPermission)
 	p.SetAuthHandler(func(req mygo.AuthRequest) mygo.AuthResponse { return a.onAuth(w, req) })
